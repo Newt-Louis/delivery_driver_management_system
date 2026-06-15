@@ -35,9 +35,10 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
   res.json({
     mall: {
-      mallName: mall?.mallName ?? 'THISO GROUP',
-      logoUrl:  mall?.logoUrl  ?? null,
-      tagline:  mall?.tagline  ?? 'Delivery Management System',
+      mallName:   mall?.mallName   ?? 'THISO GROUP',
+      logoUrl:    mall?.logoUrl    ?? null,
+      tagline:    mall?.tagline    ?? 'Delivery Management System',
+      kioskBgUrl: mall?.kioskBgUrl ?? null,
     },
     units,
   });
@@ -45,9 +46,10 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
 // PATCH /api/brand/mall — admin: update mall branding
 const mallSchema = z.object({
-  mallName: z.string().min(1).max(100).optional(),
-  logoUrl:  z.string().nullable().optional(),
-  tagline:  z.string().max(200).nullable().optional(),
+  mallName:   z.string().min(1).max(100).optional(),
+  logoUrl:    z.string().nullable().optional(),
+  tagline:    z.string().max(200).nullable().optional(),
+  kioskBgUrl: z.string().nullable().optional(),
 });
 
 router.patch('/mall', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {

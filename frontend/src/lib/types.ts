@@ -35,6 +35,7 @@ export interface Slot {
   vehicleType: VehicleType;
   acceptedGoods: GoodsType[];
   autoAssign: boolean;
+  autoWarehouseOnly: boolean;
   maxCapacity: number;
   status: SlotStatus;
   isActive: boolean;
@@ -63,6 +64,7 @@ export interface DeliveryRegistration {
   receivingUnit: ReceivingUnit;
   goodsType: GoodsType;
   poNumber: string | null;
+  vendorCode: string | null;
   requestedTime: string | null;
   checkinTime: string | null;
   calledTime: string | null;
@@ -222,3 +224,14 @@ export interface UnitDispatch {
 }
 
 export type DispatchData = Record<string, UnitDispatch>;
+
+export interface AutoWarehouseVendor {
+  id: string;
+  unit: ReceivingUnit;
+  vendorCode: string;
+  vendorName: string;
+  active: boolean;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

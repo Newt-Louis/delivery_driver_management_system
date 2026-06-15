@@ -8,6 +8,7 @@ import { emitQueueUpdated, emitDeliveryCompleted, emitSlotUpdated } from '../soc
 import { getFullQueue, getAllSlots } from './deliveries';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
+import { sendPushToDelivery } from '../services/webPush';
 
 const router = Router();
 
@@ -109,6 +110,12 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       const ticketCode = formatTicketCode(delivery.receivingUnit, delivery.vehicleType, updated.ticketNumber!);
       emitQueueUpdated(await getFullQueue());
       res.json({ action: 'CHECKED_IN', staffName: terminalPayload.staffName, ticketCode, delivery: updated });
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '✅ Check-in thành công',
+        body:  `${ticketCode} — Xe ${delivery.vehiclePlate} đang trong hàng chờ.`,
+        tag:   'delivery-checkin',
+        url:   `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
     }
@@ -189,6 +196,12 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       emitQueueUpdated(queue);
       emitSlotUpdated(slots);
       res.json({ action: 'COMPLETED', staffName: terminalPayload.staffName, delivery: final });
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '🎉 Giao hàng hoàn tất',
+        body:  `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+        tag:   'delivery-completed',
+        url:   `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
     }

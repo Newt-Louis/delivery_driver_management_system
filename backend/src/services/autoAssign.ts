@@ -2,6 +2,7 @@ import { DeliveryStatus, GoodsType, ReceivingUnit, VehicleType } from '@prisma/c
 import { formatTicketCode } from '../routes/track';
 import { prisma } from '../lib/prisma';
 import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated } from '../socket';
+import { sendPushToDelivery } from './webPush';
 
 async function getFullQueue() {
   return prisma.deliveryRegistration.findMany({
@@ -33,13 +34,28 @@ async function getAllSlotsWithDeliveries() {
   });
 }
 
-// Fresh food takes priority: if the slot can accept FRESH_FOOD, try that first.
-// Falls back to the slot's full goods filter ordered by check-in time.
+// Two-way enforcement: AW-only slots match only AUTO_WAREHOUSE deliveries;
+// regular slots never match AUTO_WAREHOUSE deliveries.
 async function findNextDelivery(
   unit: ReceivingUnit,
   vehicleType: VehicleType,
   acceptedGoods: GoodsType[],
+  autoWarehouseOnly: boolean,
 ) {
+  // AW-only slot: only match AUTO_WAREHOUSE deliveries, skip fresh-food priority
+  if (autoWarehouseOnly) {
+    return prisma.deliveryRegistration.findFirst({
+      where: {
+        receivingUnit: unit,
+        vehicleType,
+        status: DeliveryStatus.WAITING,
+        goodsType: GoodsType.AUTO_WAREHOUSE,
+      },
+      orderBy: [{ checkinTime: 'asc' }],
+    });
+  }
+
+  // Regular slot: always exclude AUTO_WAREHOUSE deliveries
   const canAcceptFreshFood =
     acceptedGoods.length === 0 || acceptedGoods.includes(GoodsType.FRESH_FOOD);
 
@@ -56,15 +72,18 @@ async function findNextDelivery(
     if (freshFood) return freshFood;
   }
 
-  const goodsWhere =
-    acceptedGoods.length > 0 ? { goodsType: { in: acceptedGoods } } : {};
+  // Exclude AUTO_WAREHOUSE from regular slots
+  const goodsFilter =
+    acceptedGoods.length > 0
+      ? { goodsType: { in: acceptedGoods.filter(g => g !== GoodsType.AUTO_WAREHOUSE) as GoodsType[] } }
+      : { goodsType: { not: GoodsType.AUTO_WAREHOUSE } };
 
   return prisma.deliveryRegistration.findFirst({
     where: {
       receivingUnit: unit,
       vehicleType,
       status: DeliveryStatus.WAITING,
-      ...goodsWhere,
+      ...goodsFilter,
     },
     orderBy: [{ checkinTime: 'asc' }],
   });
@@ -108,7 +127,7 @@ export async function triggerAutoAssign(unit: ReceivingUnit): Promise<number> {
 
   let called = 0;
   for (const slot of availableSlots) {
-    const next = await findNextDelivery(unit, slot.vehicleType, slot.acceptedGoods as GoodsType[]);
+    const next = await findNextDelivery(unit, slot.vehicleType, slot.acceptedGoods as GoodsType[], slot.autoWarehouseOnly);
 
     if (!next) continue;
     called++;
@@ -177,6 +196,14 @@ export async function triggerAutoAssign(unit: ReceivingUnit): Promise<number> {
     });
 
     console.log(`[AutoAssign] ${unit}: ${next.vehiclePlate} → ${slot.code} (${next.goodsType}) [${newActiveCount}/${slot.maxCapacity}]`);
+
+    // Push notification to driver
+    sendPushToDelivery(next.registrationCode, {
+      title: `🚛 Mời vào ${slot.code}`,
+      body:  `Xe ${next.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
+      tag:   'delivery-called',
+      url:   `/track/${next.registrationCode}`,
+    }).catch(console.error);
 
     const [queue, slots] = await Promise.all([getFullQueue(), getAllSlotsWithDeliveries()]);
     emitQueueUpdated(queue);

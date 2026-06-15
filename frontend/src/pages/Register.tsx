@@ -14,6 +14,7 @@ interface FormState {
   unitGoodsTypeId: string;
   vehicleType: VehicleType | '';
   vendorName: string;
+  vendorCode: string;
   poNumber: string;
   driverName: string;
   driverPhone: string;
@@ -59,11 +60,11 @@ const GOODS_LABEL: Record<string, string> = {
   THI_CONG:      '🔨 Thi công',
 };
 
-const STEP_TITLES = ['Điểm giao & Loại hàng', 'Thông tin tài xế', 'Chọn giờ giao', 'Xác nhận'];
+const STEP_TITLES = ['Điểm giao & Loại hàng', 'Ngày giờ & Đơn hàng', 'Thông tin tài xế', 'Xác nhận'];
 const STEP_HINTS  = [
   'Chọn nơi bạn sẽ giao hàng đến',
+  'Chọn thời gian và nhập thông tin đơn hàng',
   'Thông tin xe và người liên hệ',
-  'Đặt giờ hẹn giao hàng',
   'Kiểm tra lại trước khi xác nhận',
 ];
 
@@ -297,6 +298,69 @@ function FieldError({ text }: { text: string }) {
   return <p className="text-[11px] text-red-500 mt-1 font-medium">⚠ {text}</p>;
 }
 
+// ─── Other Time Modal ─────────────────────────────────────────────────────────
+
+function OtherTimeModal({
+  slots, deliveryDate, onConfirm, onClose,
+}: {
+  slots: SlotInfo[];
+  deliveryDate: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const available = slots.filter(s => !s.isPast && s.available);
+  const firstTime = slots[0]?.time;
+  const lastTime  = slots[slots.length - 1]?.time;
+  const dateLabel = deliveryDate.split('-').reverse().join('/');
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+        <div className="bg-amber-500 px-5 py-4 text-white">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">⚠</span>
+            <div>
+              <p className="font-bold text-base leading-tight">Đăng ký không có giờ cụ thể</p>
+              <p className="text-amber-100 text-xs mt-0.5">Ngày {dateLabel}</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-5 space-y-4">
+          {firstTime && lastTime ? (
+            <div className="bg-thiso-50 rounded-xl p-3.5 border border-thiso-100">
+              <p className="text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1.5">Khung giờ nhận hàng</p>
+              <p className="text-base font-mono font-black text-thiso-800">{firstTime} — {lastTime}</p>
+              {available.length === 0
+                ? <p className="text-xs text-amber-600 font-semibold mt-1.5">Tất cả slot đã đầy trong ngày này</p>
+                : <p className="text-xs text-green-600 mt-1.5">Còn {available.length} khung giờ trống — hãy chọn nếu có thể</p>
+              }
+            </div>
+          ) : (
+            <div className="bg-amber-50 rounded-xl p-3.5 border border-amber-100">
+              <p className="text-xs font-semibold text-amber-700">Không tìm thấy khung giờ nhận hàng cho ngày này.</p>
+              <p className="text-xs text-amber-500 mt-1">Đơn vị có thể không nhận hàng hoặc chưa cấu hình lịch cho ngày này.</p>
+            </div>
+          )}
+          <div className="space-y-1.5 text-sm text-thiso-600">
+            <p>Xe của bạn sẽ được đăng ký <strong>không có giờ hẹn cụ thể</strong> và xếp vào hàng chờ theo thứ tự check-in.</p>
+            <p className="text-xs text-thiso-400">Xe đã đặt giờ sẽ được ưu tiên gọi vào trước trong khung giờ của họ.</p>
+          </div>
+          <div className="flex gap-3">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">← Quay lại</button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="flex-1 h-11 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 transition-colors text-sm"
+            >
+              Xác nhận →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Register ─────────────────────────────────────────────────────────────
 
 export default function Register() {
@@ -313,6 +377,7 @@ export default function Register() {
     return {
       receivingUnit: '', goodsType: '', unitGoodsTypeId: '', vehicleType: '',
       vendorName:   prev.vendorName   ?? '',
+      vendorCode:   prev.vendorCode   ?? '',
       poNumber:     '',
       driverName:   prev.driverName   ?? '',
       driverPhone:  prev.driverPhone  ?? '',
@@ -328,6 +393,10 @@ export default function Register() {
   const [slots, setSlots]                       = useState<SlotInfo[]>([]);
   const [slotsMsg, setSlotsMsg]                 = useState('');
   const [slotsLoading, setSlotsLoading]         = useState(false);
+  const [awStatus, setAwStatus]                 = useState<'idle' | 'loading' | 'match' | 'nomatch'>('idle');
+  const [awVendorName, setAwVendorName]         = useState('');
+  const awDebounceRef                           = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showOtherTimeModal, setShowOtherTimeModal] = useState(false);
 
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -343,9 +412,9 @@ export default function Register() {
     api.get(`/api/units/${form.receivingUnit}/goods-types`).then(r => setCustomGoodsTypes(r.data)).catch(() => setCustomGoodsTypes([]));
   }, [form.receivingUnit]);
 
-  // Fetch time slots when reaching step 3
+  // Fetch time slots when reaching step 2
   useEffect(() => {
-    if (step !== 3 || !form.receivingUnit || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
+    if (step !== 2 || !form.receivingUnit || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
     setSlotsLoading(true);
     setSlotsMsg('');
     setSlots([]);
@@ -362,6 +431,34 @@ export default function Register() {
       .finally(() => setSlotsLoading(false));
   }, [step, form.receivingUnit, form.goodsType, form.vehicleType, form.deliveryDate]);
 
+  // Debounced vendor code check for auto-warehouse detection
+  useEffect(() => {
+    if (awDebounceRef.current) clearTimeout(awDebounceRef.current);
+    if (!form.vendorCode?.trim() || !form.receivingUnit) {
+      setAwStatus('idle'); setAwVendorName('');
+      return;
+    }
+    if (form.vendorCode.trim().length < 2) {
+      setAwStatus('idle'); return;
+    }
+    setAwStatus('loading');
+    awDebounceRef.current = setTimeout(async () => {
+      try {
+        const res = await api.get('/api/aw-vendors/check', {
+          params: { code: form.vendorCode, unit: form.receivingUnit },
+        });
+        if (res.data.isAutoWarehouse) {
+          setAwStatus('match');
+          setAwVendorName(res.data.vendor?.vendorName ?? '');
+        } else {
+          setAwStatus('nomatch'); setAwVendorName('');
+        }
+      } catch {
+        setAwStatus('idle');
+      }
+    }, 600);
+  }, [form.vendorCode, form.receivingUnit]);
+
   // Scroll to top on step change
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -375,14 +472,14 @@ export default function Register() {
       else if (!form.vehicleType) errs.vehicleType = 'Vui lòng chọn loại phương tiện';
     }
     if (step === 2) {
+      if (!form.timeSlot)          errs.timeSlot   = 'Vui lòng chọn khung giờ giao hàng';
+      if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
+      if (!form.poNumber.trim())   errs.poNumber   = 'Vui lòng nhập Số PO hoặc Mã số thi công';
+    }
+    if (step === 3) {
       if (!form.vehiclePlate.trim()) errs.vehiclePlate = 'Vui lòng nhập biển số xe';
       if (!form.driverName.trim())   errs.driverName   = 'Vui lòng nhập tên tài xế';
       if (form.driverPhone.replace(/\D/g, '').length < 9) errs.driverPhone = 'Số điện thoại không hợp lệ (cần ít nhất 9 số)';
-      if (!form.vendorName.trim())   errs.vendorName   = 'Vui lòng nhập tên công ty / nhà cung cấp';
-      if (!form.poNumber.trim())     errs.poNumber     = 'Vui lòng nhập Số PO hoặc Mã số thi công';
-    }
-    if (step === 3) {
-      if (!form.timeSlot) errs.timeSlot = 'Vui lòng chọn khung giờ giao hàng';
     }
     setFieldErrors(errs);
     return Object.keys(errs).length === 0;
@@ -390,12 +487,13 @@ export default function Register() {
 
   function next() {
     if (!validateStep()) return;
-    if (rememberInfo && step === 2) {
+    if (rememberInfo && step === 3) {
       localStorage.setItem(LS_KEY, JSON.stringify({
         driverName: form.driverName,
         driverPhone: form.driverPhone,
         vehiclePlate: form.vehiclePlate,
         vendorName: form.vendorName,
+        vendorCode: form.vendorCode,
       }));
     }
     setStep(s => Math.min(s + 1, 4));
@@ -412,7 +510,7 @@ export default function Register() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      const requestedTime = `${form.deliveryDate}T${form.timeSlot}:00`;
+      const requestedTime = form.timeSlot === 'OTHER' ? undefined : `${form.deliveryDate}T${form.timeSlot}:00`;
       const plate = form.vehiclePlate.toUpperCase().replace(/\s+/g, '');
       const selectedCustomType = customGoodsTypes.find(ct => ct.id === form.unitGoodsTypeId);
       const res = await api.post('/api/deliveries/register', {
@@ -425,6 +523,7 @@ export default function Register() {
         goodsType:       form.goodsType,
         unitGoodsTypeId: form.unitGoodsTypeId || undefined,
         poNumber:        form.poNumber,
+        vendorCode:      form.vendorCode || undefined,
         requestedTime,
         note:            form.note || undefined,
       });
@@ -437,7 +536,9 @@ export default function Register() {
         goodsType:     form.goodsType,
         goodsTypeName: selectedCustomType ? `${selectedCustomType.emoji} ${selectedCustomType.name}` : '',
         vehicleType:   form.vehicleType,
-        requestedTime: `${form.timeSlot} ngày ${form.deliveryDate.split('-').reverse().join('/')}`,
+        requestedTime: form.timeSlot === 'OTHER'
+          ? `Ngày ${form.deliveryDate.split('-').reverse().join('/')} (không có giờ cụ thể)`
+          : `${form.timeSlot} ngày ${form.deliveryDate.split('-').reverse().join('/')}`,
       });
     } catch (err: unknown) {
       const d = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
@@ -449,9 +550,10 @@ export default function Register() {
 
   function resetForm() {
     setSuccess(null); setStep(1); setFieldErrors({}); setSubmitError('');
+    setAwStatus('idle'); setAwVendorName('');
     setForm(f => ({
       ...f, receivingUnit: '', goodsType: '', unitGoodsTypeId: '', vehicleType: '',
-      deliveryDate: todayDate(), timeSlot: '', note: '', poNumber: '',
+      deliveryDate: todayDate(), timeSlot: '', note: '', poNumber: '', vendorCode: '',
     }));
   }
 
@@ -675,123 +777,8 @@ export default function Register() {
           </div>
         )}
 
-        {/* ── STEP 2: Driver info ── */}
+        {/* ── STEP 2: Ngày giờ & Đơn hàng ── */}
         {step === 2 && (
-          <div className="space-y-5">
-            {/* Saved info notice */}
-            {(form.driverName || form.vehiclePlate) && (
-              <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 rounded-xl p-3">
-                <span className="text-sky-500">💾</span>
-                <p className="text-xs text-sky-700">Đã điền sẵn thông tin từ lần trước. Kiểm tra lại và chỉnh nếu cần.</p>
-              </div>
-            )}
-
-            {/* Plate */}
-            <div>
-              <label className="label">Biển số xe <span className="text-red-400">*</span></label>
-              <input
-                type="text"
-                value={form.vehiclePlate}
-                onChange={e => set('vehiclePlate', e.target.value.toUpperCase().replace(/[^A-Z0-9\-\.]/g, ''))}
-                placeholder="51C-123.45"
-                autoCapitalize="characters"
-                autoCorrect="off"
-                autoComplete="off"
-                spellCheck={false}
-                className={`input text-base py-3 font-mono tracking-widest ${fieldErrors.vehiclePlate ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                style={{ fontSize: '16px' }}
-              />
-              <FieldHint text="Ví dụ: 51C-123.45 — nhập chữ in hoa, không cần dấu cách" />
-              {fieldErrors.vehiclePlate && <FieldError text={fieldErrors.vehiclePlate} />}
-            </div>
-
-            {/* Driver name */}
-            <div>
-              <label className="label">Tên tài xế <span className="text-red-400">*</span></label>
-              <input
-                type="text"
-                value={form.driverName}
-                onChange={e => set('driverName', e.target.value)}
-                placeholder="Nguyễn Văn A"
-                autoComplete="name"
-                className={`input py-3 ${fieldErrors.driverName ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                style={{ fontSize: '16px' }}
-              />
-              {fieldErrors.driverName && <FieldError text={fieldErrors.driverName} />}
-            </div>
-
-            {/* Phone */}
-            <div>
-              <label className="label">Số điện thoại <span className="text-red-400">*</span></label>
-              <input
-                type="tel"
-                inputMode="numeric"
-                value={form.driverPhone}
-                onChange={e => set('driverPhone', e.target.value.replace(/[^\d+\-\s]/g, ''))}
-                placeholder="0901 234 567"
-                autoComplete="tel"
-                className={`input py-3 ${fieldErrors.driverPhone ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                style={{ fontSize: '16px' }}
-              />
-              <FieldHint text="Số này dùng để liên lạc khi cần. Không bắt buộc mã vùng." />
-              {fieldErrors.driverPhone && <FieldError text={fieldErrors.driverPhone} />}
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-thiso-100 pt-1">
-              <p className="text-[11px] text-thiso-400 font-semibold uppercase tracking-wider mb-4">Thông tin đơn hàng</p>
-            </div>
-
-            {/* Vendor name */}
-            <div>
-              <label className="label">Tên công ty / Nhà cung cấp <span className="text-red-400">*</span></label>
-              <input
-                type="text"
-                value={form.vendorName}
-                onChange={e => set('vendorName', e.target.value)}
-                placeholder="Công ty TNHH ABC"
-                autoComplete="organization"
-                className={`input py-3 ${fieldErrors.vendorName ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                style={{ fontSize: '16px' }}
-              />
-              <FieldHint text="Tên công ty hoặc đơn vị bạn đại diện giao hàng" />
-              {fieldErrors.vendorName && <FieldError text={fieldErrors.vendorName} />}
-            </div>
-
-            {/* PO / Construction code (required) */}
-            <div>
-              <label className="label">Số PO / Mã số thi công <span className="text-red-400">*</span></label>
-              <input
-                type="text"
-                value={form.poNumber}
-                onChange={e => set('poNumber', e.target.value)}
-                placeholder="VD: PO-2024-001 hoặc TC-2024-088"
-                autoComplete="off"
-                className={`input py-3 ${fieldErrors.poNumber ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                style={{ fontSize: '16px' }}
-              />
-              <FieldHint text="Bắt buộc — sẽ được đối chiếu với hệ thống của đơn vị nhận hàng" />
-              {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
-            </div>
-
-            {/* Remember toggle */}
-            <label className="flex items-center gap-3 p-3.5 bg-thiso-50 rounded-xl cursor-pointer border border-thiso-100">
-              <div
-                onClick={() => setRememberInfo(v => !v)}
-                className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${rememberInfo ? 'bg-sky-500' : 'bg-thiso-200'}`}
-              >
-                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${rememberInfo ? 'left-5' : 'left-1'}`} />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-thiso-700">Ghi nhớ thông tin của tôi</p>
-                <p className="text-[11px] text-thiso-400">Điền sẵn biển số, tên, SĐT cho lần sau</p>
-              </div>
-            </label>
-          </div>
-        )}
-
-        {/* ── STEP 3: Date & Time ── */}
-        {step === 3 && (
           <div className="space-y-5">
             {/* Date chips */}
             <div>
@@ -855,9 +842,9 @@ export default function Register() {
                       const remaining = s.maxPerSlot - s.booked;
 
                       let cls = '';
-                      if (s.isPast)      cls = 'border-thiso-100 bg-thiso-50 text-thiso-300 cursor-not-allowed opacity-50';
+                      if (s.isPast)          cls = 'border-thiso-100 bg-thiso-50 text-thiso-300 cursor-not-allowed opacity-50';
                       else if (!s.available) cls = 'border-red-200 bg-red-50 text-red-300 cursor-not-allowed';
-                      else if (selected) cls = 'border-thiso-800 bg-thiso-800 text-white shadow-card-md';
+                      else if (selected)     cls = 'border-thiso-800 bg-thiso-800 text-white shadow-card-md';
                       else if (remaining === 1) cls = 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 cursor-pointer';
                       else cls = 'border-thiso-200 bg-white text-thiso-700 hover:border-thiso-400 hover:bg-thiso-50 cursor-pointer';
 
@@ -905,8 +892,190 @@ export default function Register() {
                 </div>
               )}
 
+              {/* Khác — always visible fallback */}
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowOtherTimeModal(true)}
+                  className={`w-full h-12 flex items-center justify-center gap-2 rounded-xl border-2 font-semibold text-sm transition-all
+                    ${form.timeSlot === 'OTHER'
+                      ? 'border-amber-500 bg-amber-500 text-white'
+                      : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+                >
+                  <span>⏰</span>
+                  <span>
+                    {form.timeSlot === 'OTHER'
+                      ? '✓ Không có giờ cụ thể (đã chọn)'
+                      : 'Khác — Đăng ký không có giờ cụ thể'}
+                  </span>
+                </button>
+                {form.timeSlot !== 'OTHER' && (
+                  <p className="text-[11px] text-thiso-400 mt-1 text-center">Dùng khi tất cả slot đầy hoặc không tìm được giờ phù hợp</p>
+                )}
+              </div>
+
               {fieldErrors.timeSlot && <FieldError text={fieldErrors.timeSlot} />}
             </div>
+
+            {showOtherTimeModal && (
+              <OtherTimeModal
+                slots={slots}
+                deliveryDate={form.deliveryDate}
+                onConfirm={() => { set('timeSlot', 'OTHER'); setShowOtherTimeModal(false); }}
+                onClose={() => setShowOtherTimeModal(false)}
+              />
+            )}
+
+            {/* Order info divider */}
+            <div className="border-t border-thiso-100 pt-1">
+              <p className="text-[11px] text-thiso-400 font-semibold uppercase tracking-wider mb-4">Thông tin đơn hàng</p>
+            </div>
+
+            {/* Vendor name */}
+            <div>
+              <label className="label">Tên công ty / Nhà cung cấp <span className="text-red-400">*</span></label>
+              <input
+                type="text"
+                value={form.vendorName}
+                onChange={e => set('vendorName', e.target.value)}
+                placeholder="Công ty TNHH ABC"
+                autoComplete="organization"
+                className={`input py-3 ${fieldErrors.vendorName ? 'border-red-400 ring-1 ring-red-400' : ''}`}
+                style={{ fontSize: '16px' }}
+              />
+              <FieldHint text="Tên công ty hoặc đơn vị bạn đại diện giao hàng" />
+              {fieldErrors.vendorName && <FieldError text={fieldErrors.vendorName} />}
+            </div>
+
+            {/* PO / Construction code */}
+            <div>
+              <label className="label">Số PO / Mã số thi công <span className="text-red-400">*</span></label>
+              <input
+                type="text"
+                value={form.poNumber}
+                onChange={e => set('poNumber', e.target.value)}
+                placeholder="VD: PO-2024-001 hoặc TC-2024-088"
+                autoComplete="off"
+                className={`input py-3 ${fieldErrors.poNumber ? 'border-red-400 ring-1 ring-red-400' : ''}`}
+                style={{ fontSize: '16px' }}
+              />
+              <FieldHint text="Bắt buộc — sẽ được đối chiếu với hệ thống của đơn vị nhận hàng" />
+              {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
+            </div>
+          </div>
+        )}
+
+        {/* ── STEP 3: Thông tin tài xế ── */}
+        {step === 3 && (
+          <div className="space-y-5">
+            {/* Saved info notice */}
+            {(form.driverName || form.vehiclePlate) && (
+              <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 rounded-xl p-3">
+                <span className="text-sky-500">💾</span>
+                <p className="text-xs text-sky-700">Đã điền sẵn thông tin từ lần trước. Kiểm tra lại và chỉnh nếu cần.</p>
+              </div>
+            )}
+
+            {/* Plate */}
+            <div>
+              <label className="label">Biển số xe <span className="text-red-400">*</span></label>
+              <input
+                type="text"
+                value={form.vehiclePlate}
+                onChange={e => set('vehiclePlate', e.target.value.toUpperCase().replace(/[^A-Z0-9\-\.]/g, ''))}
+                placeholder="51C-123.45"
+                autoCapitalize="characters"
+                autoCorrect="off"
+                autoComplete="off"
+                spellCheck={false}
+                className={`input text-base py-3 font-mono tracking-widest ${fieldErrors.vehiclePlate ? 'border-red-400 ring-1 ring-red-400' : ''}`}
+                style={{ fontSize: '16px' }}
+              />
+              <FieldHint text="Ví dụ: 51C-123.45 — nhập chữ in hoa, không cần dấu cách" />
+              {fieldErrors.vehiclePlate && <FieldError text={fieldErrors.vehiclePlate} />}
+            </div>
+
+            {/* Driver name */}
+            <div>
+              <label className="label">Tên tài xế <span className="text-red-400">*</span></label>
+              <input
+                type="text"
+                value={form.driverName}
+                onChange={e => set('driverName', e.target.value)}
+                placeholder="Nguyễn Văn A"
+                autoComplete="name"
+                className={`input py-3 ${fieldErrors.driverName ? 'border-red-400 ring-1 ring-red-400' : ''}`}
+                style={{ fontSize: '16px' }}
+              />
+              {fieldErrors.driverName && <FieldError text={fieldErrors.driverName} />}
+            </div>
+
+            {/* Phone */}
+            <div>
+              <label className="label">Số điện thoại <span className="text-red-400">*</span></label>
+              <input
+                type="tel"
+                inputMode="numeric"
+                value={form.driverPhone}
+                onChange={e => set('driverPhone', e.target.value.replace(/[^\d+\-\s]/g, ''))}
+                placeholder="0901 234 567"
+                autoComplete="tel"
+                className={`input py-3 ${fieldErrors.driverPhone ? 'border-red-400 ring-1 ring-red-400' : ''}`}
+                style={{ fontSize: '16px' }}
+              />
+              <FieldHint text="Số này dùng để liên lạc khi cần. Không bắt buộc mã vùng." />
+              {fieldErrors.driverPhone && <FieldError text={fieldErrors.driverPhone} />}
+            </div>
+
+            {/* Vendor code — auto-warehouse detection */}
+            <div>
+              <label className="label">
+                Mã nhà cung cấp (NCC)
+                <span className="text-thiso-300 font-normal normal-case tracking-normal ml-1">(không bắt buộc)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={form.vendorCode}
+                  onChange={e => set('vendorCode', e.target.value.toUpperCase().replace(/\s/g, ''))}
+                  placeholder="VD: SUP001, NCCABC..."
+                  autoComplete="off"
+                  autoCorrect="off"
+                  className={`input py-3 pr-10 ${awStatus === 'match' ? 'border-green-400 ring-1 ring-green-300' : ''}`}
+                  style={{ fontSize: '16px' }}
+                />
+                {awStatus === 'loading' && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-thiso-400 text-sm animate-pulse">⏳</span>
+                )}
+                {awStatus === 'match' && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 font-bold">✓</span>
+                )}
+              </div>
+              {awStatus === 'match' && (
+                <div className="mt-2 flex items-center gap-2.5 px-3 py-2.5 bg-green-50 border border-green-200 rounded-xl">
+                  <span className="text-lg flex-shrink-0">🏭</span>
+                  <div>
+                    <p className="text-xs font-bold text-green-800">Kho tự động — NCC được phép vào kho</p>
+                    {awVendorName && <p className="text-[11px] text-green-600 mt-0.5">{awVendorName}</p>}
+                  </div>
+                </div>
+              )}
+              <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự xếp vào khu kho tự động khi được phép" />
+            </div>
+
+            {/* Remember toggle */}
+            <label className="flex items-center gap-3 p-3.5 bg-thiso-50 rounded-xl cursor-pointer border border-thiso-100">
+              <div
+                onClick={() => setRememberInfo(v => !v)}
+                className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${rememberInfo ? 'bg-sky-500' : 'bg-thiso-200'}`}
+              >
+                <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${rememberInfo ? 'left-5' : 'left-1'}`} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-thiso-700">Ghi nhớ thông tin của tôi</p>
+                <p className="text-[11px] text-thiso-400">Điền sẵn biển số, tên, SĐT cho lần sau</p>
+              </div>
+            </label>
           </div>
         )}
 
@@ -928,9 +1097,10 @@ export default function Register() {
                   { icon: '👤', label: 'Tài xế',      value: form.driverName },
                   { icon: '📞', label: 'Điện thoại',  value: form.driverPhone, mono: true },
                   { icon: '🏭', label: 'Nhà cung cấp',value: form.vendorName },
+                  ...(form.vendorCode ? [{ icon: '🔑', label: 'Mã NCC', value: form.vendorCode, mono: true as const }] : []),
                   { icon: '📋', label: 'Số PO / Mã thi công', value: form.poNumber, mono: true as const },
                   { icon: '📅', label: 'Ngày giao',   value: form.deliveryDate.split('-').reverse().join('/') },
-                  { icon: '🕐', label: 'Giờ giao',    value: form.timeSlot, mono: true },
+                  { icon: '🕐', label: 'Giờ giao', value: form.timeSlot === 'OTHER' ? 'Không có giờ cụ thể' : form.timeSlot, mono: form.timeSlot !== 'OTHER' },
                 ].map(({ icon, label, value, mono }) => (
                   <div key={label} className="flex items-center justify-between px-4 py-3 gap-3">
                     <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[130px]">
@@ -943,6 +1113,15 @@ export default function Register() {
                   </div>
                 ))}
               </div>
+              {awStatus === 'match' && (
+                <div className="px-4 py-3 bg-green-50 border-t border-green-100 flex items-center gap-2.5">
+                  <span className="text-base">🏭</span>
+                  <p className="text-xs font-semibold text-green-700">
+                    Kho tự động — xe sẽ được điều phối vào khu kho tự động
+                    {awVendorName ? ` (${awVendorName})` : ''}
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Edit shortcut */}
@@ -951,10 +1130,10 @@ export default function Register() {
                 ✏ Sửa điểm giao
               </button>
               <button onClick={() => setStep(2)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
-                ✏ Sửa thông tin xe
+                ✏ Sửa giờ & đơn hàng
               </button>
               <button onClick={() => setStep(3)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
-                ✏ Sửa giờ giao
+                ✏ Sửa thông tin xe
               </button>
             </div>
 
