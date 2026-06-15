@@ -1,0 +1,64 @@
+version: '3.9'
+
+networks:
+  mall-net:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mall_postgres
+    environment:
+      POSTGRES_DB: malldb
+      POSTGRES_USER: malluser
+      POSTGRES_PASSWORD: mallpass
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    networks:
+      - mall-net
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U malluser -d malldb"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mall_backend
+    environment:
+      DATABASE_URL: postgresql://malluser:mallpass@postgres:5432/malldb
+      JWT_SECRET: mall-jwt-secret-2024-change-in-production
+      PORT: 4000
+      NODE_ENV: production
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mall-net
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mall_frontend
+    environment:
+      # Set SERVER_IP to the IP address phones use to reach this server.
+      # The self-signed HTTPS cert is generated with this IP as the SAN,
+      # which is required for getUserMedia (camera) to work on mobile browsers.
+      - SERVER_IP=10.180.211.247
+    ports:
+      - "3000:80"    # HTTP  — main app (camera disabled on mobile)
+      - "3443:443"   # HTTPS — enables camera on phones (accept cert warning once)
+    depends_on:
+      - backend
+    networks:
+      - mall-net
+    restart: unless-stopped

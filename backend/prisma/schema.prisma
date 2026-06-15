@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  ADMIN
+  RECEIVING
+  SECURITY
+  VENDOR
+}
+
+enum SlotStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  MAINTENANCE
+}
+
+enum ReceivingUnit {
+  EMART
+  THISKYHALL
+  TENANT
+}
+
+enum GoodsType {
+  FRESH_FOOD
+  AUTO_WAREHOUSE
+  GENERAL_GOODS
+  THI_CONG
+}
+
+enum VehicleType {
+  TRUCK
+  MOTORBIKE
+  OTHER
+}
+
+enum StaffRole {
+  SECURITY
+  RECEIVING
+}
+
+enum DeliveryStatus {
+  REGISTERED
+  WAITING
+  CALLED
+  RECEIVING
+  AUTO_WAREHOUSE_RECEIVING
+  COMPLETED
+  CANCELLED
+  EXPIRED // auto-archived: past-day no-checkin or no-delivery
+}
+
+model User {
+  id           String         @id @default(cuid())
+  name         String
+  email        String         @unique
+  passwordHash String         @map("password_hash")
+  role         Role           @default(VENDOR)
+  unit         ReceivingUnit? // optional unit assignment
+  department   String? // free-text department / shift label
+  isActive     Boolean        @default(true) @map("is_active")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  callLogs     CallLog[]
+
+  @@map("users")
+}
+
+model Zone {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  slots     Slot[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("zones")
+}
+
+model Slot {
+  id                String                 @id @default(cuid())
+  code              String                 @unique // T1, T2, M1, M2 …
+  name              String
+  assignedUnit      ReceivingUnit          @map("assigned_unit")
+  vehicleType       VehicleType            @default(TRUCK) @map("vehicle_type")
+  acceptedGoods     GoodsType[]            @default([]) @map("accepted_goods") // empty = accepts all goods
+  autoAssign        Boolean                @default(true) @map("auto_assign")
+  maxCapacity       Int                    @default(1) @map("max_capacity")
+  status            SlotStatus             @default(AVAILABLE)
+  isActive          Boolean                @default(true) @map("is_active")
+  currentDeliveryId String?                @map("current_delivery_id")
+  lastUsedAt        DateTime?              @map("last_used_at")
+  zoneId            String?                @map("zone_id")
+  zone              Zone?                  @relation(fields: [zoneId], references: [id])
+  deliveries        DeliveryRegistration[] @relation("AssignedSlot")
+  callLogs          CallLog[]
+
+  @@map("slots")
+}
+
+model DeliveryRegistration {
+  id                 String         @id @default(cuid())
+  registrationCode   String         @unique @map("registration_code")
+  vendorName         String         @map("vendor_name")
+  driverName         String         @map("driver_name")
+  driverPhone        String         @map("driver_phone")
+  vehiclePlate       String         @map("vehicle_plate")
+  receivingUnit      ReceivingUnit  @map("receiving_unit")
+  goodsType          GoodsType      @map("goods_type")
+  poNumber           String?        @map("po_number")
+  requestedTime      DateTime?      @map("requested_time")
+  checkinTime        DateTime?      @map("checkin_time")
+  calledTime         DateTime?      @map("called_time")
+  receivingStartTime DateTime?      @map("receiving_start_time")
+  completedTime      DateTime?      @map("completed_time")
+  status             DeliveryStatus @default(REGISTERED)
+  assignedSlotId     String?        @map("assigned_slot_id")
+  assignedSlot       Slot?          @relation("AssignedSlot", fields: [assignedSlotId], references: [id])
+  vehicleType        VehicleType    @default(OTHER) @map("vehicle_type")
+  autoWarehouse      Boolean        @default(false) @map("auto_warehouse")
+  ticketNumber       Int?           @map("ticket_number")
+  note               String?
+  unitGoodsTypeId    String?        @map("unit_goods_type_id")
+  unitGoodsType      UnitGoodsType? @relation(fields: [unitGoodsTypeId], references: [id], onDelete: SetNull)
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+  callLogs           CallLog[]
+
+  @@map("delivery_registrations")
+}
+
+model CallLog {
+  id                     String               @id @default(cuid())
+  deliveryRegistrationId String               @map("delivery_registration_id")
+  deliveryRegistration   DeliveryRegistration @relation(fields: [deliveryRegistrationId], references: [id])
+  slotId                 String               @map("slot_id")
+  slot                   Slot                 @relation(fields: [slotId], references: [id])
+  calledByUserId         String?              @map("called_by_user_id") // null for auto-assign
+  calledByUser           User?                @relation(fields: [calledByUserId], references: [id])
+  calledAt               DateTime             @default(now()) @map("called_at")
+  message                String
+
+  @@map("call_logs")
+}
+
+model UnitConfig {
+  id   String        @id @default(cuid())
+  unit ReceivingUnit @unique
+
+  freshFoodEnabled    Boolean @default(true) @map("fresh_food_enabled")
+  generalGoodsEnabled Boolean @default(true) @map("general_goods_enabled")
+  thiCongEnabled      Boolean @default(true) @map("thi_cong_enabled")
+
+  sundayFreshFoodOnly Boolean @default(false) @map("sunday_fresh_food_only")
+
+  truckSlotMinutes     Int @default(30) @map("truck_slot_minutes")
+  motorbikeSlotMinutes Int @default(15) @map("motorbike_slot_minutes")
+  truckMaxPerSlot      Int @default(1) @map("truck_max_per_slot")
+  motorbikeMaxPerSlot  Int @default(3) @map("motorbike_max_per_slot")
+
+  vendorApiUrl String? @map("vendor_api_url")
+  vendorApiKey String? @map("vendor_api_key")
+  poApiUrl     String? @map("po_api_url")
+  poApiKey     String? @map("po_api_key")
+
+  // Branding
+  displayName  String  @default("") @map("display_name")
+  shortName    String  @default("") @map("short_name")
+  description  String  @default("") @map("description")
+  logoUrl      String? @map("logo_url")
+  primaryColor String  @default("#1C1C1C") @map("primary_color")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("unit_configs")
+}
+
+model StaffPin {
+  id        String    @id @default(cuid())
+  name      String
+  role      StaffRole
+  pin       String    @unique
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("staff_pins")
+}
+
+model MallConfig {
+  id        String   @id @default("singleton")
+  mallName  String   @default("THISO GROUP") @map("mall_name")
+  logoUrl   String?  @map("logo_url")
+  tagline   String?  @default("Delivery Management System")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("mall_configs")
+}
+
+model PushSubscription {
+  id           String   @id @default(cuid())
+  endpoint     String   @unique
+  p256dh       String
+  auth         String
+  deliveryCode String   @map("delivery_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([deliveryCode])
+  @@map("push_subscriptions")
+}
+
+model ReceivingTimeConfig {
+  id                 String        @id @default(cuid())
+  unit               ReceivingUnit
+  vehicleType        VehicleType   @map("vehicle_type")
+  goodsType          GoodsType     @map("goods_type")
+  configuredMinutes  Float         @default(30) @map("configured_minutes")
+  recommendedMinutes Float?        @map("recommended_minutes")
+  sampleCount        Int           @default(0) @map("sample_count")
+  lastAnalyzedAt     DateTime?     @map("last_analyzed_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  @@unique([unit, vehicleType, goodsType])
+  @@map("receiving_time_configs")
+}
+
+model UnitGoodsType {
+  id          String                 @id @default(cuid())
+  unit        ReceivingUnit
+  name        String
+  emoji       String                 @default("📦")
+  baseType    GoodsType              @map("base_type")
+  enabled     Boolean                @default(true)
+  sortOrder   Int                    @default(0) @map("sort_order")
+  createdAt   DateTime               @default(now()) @map("created_at")
+  updatedAt   DateTime               @updatedAt @map("updated_at")
+  deliveries  DeliveryRegistration[]
+  timeWindows DeliveryTimeWindow[]
+
+  @@index([unit, baseType])
+  @@map("unit_goods_types")
+}
+
+model DeliveryTimeWindow {
+  id              String         @id @default(cuid())
+  unit            ReceivingUnit
+  goodsType       GoodsType      @map("goods_type")
+  // When set: window belongs to this custom goods type.
+  // When null: window is the base-type fallback (used when no custom types are configured).
+  unitGoodsTypeId String?        @map("unit_goods_type_id")
+  unitGoodsType   UnitGoodsType? @relation(fields: [unitGoodsTypeId], references: [id], onDelete: Cascade)
+  label           String?
+  startTime       String         @map("start_time")
+  endTime         String         @map("end_time")
+  enabled         Boolean        @default(true)
+  sortOrder       Int            @default(0) @map("sort_order")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  @@index([unit, goodsType])
+  @@index([unitGoodsTypeId])
+  @@map("delivery_time_windows")
+}

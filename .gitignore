@@ -1,0 +1,38 @@
+#GENERAL
+data/
+
+# BACKEND
+backend/node_modules
+backend/dist
+backend/.env
+backend/prisma/migrations/migration_lock.toml
+
+# FRONTEND
+frontend/node_modules
+frontend/dist
+.react-router/types
+.react-router/
+frontend/build
+frontend/public/build
+.cache
+
+# IDE
+.vscode
+.idea
+.env.uat
+.env
+
+# TOOLS
+.DS_Store
+CLAUDE.md
+AGENTS.md
+PLAN.md
+CONTEXT.md
+.windsurfrules
+.cursorrules
+.clinerules
+tsconfig.tsbuildinfo
+.claude-notes/
+.claude/
+.claude/*
+.codex

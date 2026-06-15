@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.prod.yml
+# Mục đích: BUILD image trên máy DEV rồi PUSH lên registry.thisoretail.store
+# (File này KHÔNG dùng để chạy container — chỉ build & push)
+#
+# Cách dùng:
+#   docker login registry.thisoretail.store
+#   docker compose -f docker-compose.prod.yml build
+#   docker compose -f docker-compose.prod.yml push
+#
+# Build/push 1 tag cụ thể thay vì latest:
+#
+# Build/push 1 tag cụ thể (Linux/macOS):
+#   IMAGE_TAG=v1.0.0 docker compose -f docker-compose.prod.yml build
+#   IMAGE_TAG=v1.0.0 docker compose -f docker-compose.prod.yml push
+#
+# Build/push 1 tag cụ thể (Windows CMD):
+#   set IMAGE_TAG=uat-v1.1.0 && docker compose -f docker-compose.prod.yml build
+#   set IMAGE_TAG=uat-v1.1.0 && docker compose -f docker-compose.prod.yml push
+#
+# Build/push 1 tag cụ thể (Windows PowerShell):
+#   $env:IMAGE_TAG="uat-v1.1.0"; docker compose -f docker-compose.prod.yml build
+#   $env:IMAGE_TAG="uat-v1.1.0"; docker compose -f docker-compose.prod.yml push
+#
+# Hoặc dùng file .env.build (chạy được trên mọi OS):
+#   Tạo file .env.build với nội dung: IMAGE_TAG=uat-v1.1.0
+#   docker compose --env-file .env.build -f docker-compose.prod.yml build
+#   docker compose --env-file .env.build -f docker-compose.prod.yml push
+#
+# Lưu ý frontend: image được build với VITE_API_URL/VITE_SOCKET_URL = rỗng
+# => frontend dùng đường dẫn tương đối (/api, /socket.io) và nginx con của
+# chính nó proxy sang backend:4000. Đây là cấu hình đúng cho 1 domain duy nhất.
+# Khi nào tách backend ra subdomain riêng thì rebuild với build args bên dưới.
+# ─────────────────────────────────────────────────────────────────────────────
+name: delivery-queue-manager-build
+
+services:
+  backend:
+    image: registry.thisoretail.store/delivery-queue-manager/backend:${IMAGE_TAG:-latest}
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    pull_policy: build
+
+  frontend:
+    image: registry.thisoretail.store/delivery-queue-manager/frontend:${IMAGE_TAG:-latest}
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      # Khi tách backend sang subdomain riêng (vd: api.thisoretail.store) thì
+      # bỏ comment + truyền URL công khai, sau đó rebuild & push lại frontend.
+      # Dockerfile frontend hiện chưa nhận ARG này — cần thêm nếu muốn dùng.
+      # args:
+      #   VITE_API_URL: https://api.thisoretail.store
+      #   VITE_SOCKET_URL: https://api.thisoretail.store
+    pull_policy: build

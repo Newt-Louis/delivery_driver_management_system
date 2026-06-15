@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-thiso-50 text-thiso-800 font-sans antialiased;
+  }
+
+  * {
+    @apply box-border;
+  }
+}
+
+@keyframes marquee {
+  0%   { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+.marquee-track { overflow: hidden; white-space: nowrap; }
+.marquee-content { display: inline-block; animation: marquee 35s linear infinite; }
+
+@layer components {
+  /* ── Buttons ── */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold text-sm
+           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1
+           disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none;
+  }
+
+  /* Primary — THISO dark */
+  .btn-primary {
+    @apply btn bg-thiso-800 text-white hover:bg-thiso-900 focus:ring-thiso-600 active:bg-thiso-900;
+  }
+
+  /* Success — green */
+  .btn-success {
+    @apply btn bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-500;
+  }
+
+  /* Danger — red */
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  /* Warning — amber */
+  .btn-warning {
+    @apply btn bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400;
+  }
+
+  /* Secondary — light gray */
+  .btn-secondary {
+    @apply btn bg-thiso-100 text-thiso-700 hover:bg-thiso-200 focus:ring-thiso-300 border border-thiso-200;
+  }
+
+  /* Ghost */
+  .btn-ghost {
+    @apply btn text-thiso-500 hover:bg-thiso-100 hover:text-thiso-800 focus:ring-thiso-200;
+  }
+
+  /* Emart accent */
+  .btn-emart {
+    @apply btn bg-emart-500 text-white hover:bg-emart-600 focus:ring-emart-400;
+  }
+
+  /* ── Card ── */
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-thiso-100 p-5;
+  }
+
+  /* ── Form ── */
+  .input {
+    @apply w-full rounded-lg border border-thiso-200 bg-white px-3 py-2 text-sm text-thiso-800
+           placeholder-thiso-300
+           focus:outline-none focus:ring-2 focus:ring-thiso-700 focus:border-transparent
+           transition-all;
+  }
+
+  .label {
+    @apply block text-xs font-semibold text-thiso-500 uppercase tracking-wide mb-1.5;
+  }
+
+  /* ── Page shell ── */
+  .page {
+    @apply max-w-screen-xl mx-auto py-6 px-4;
+  }
+
+  .page-title {
+    @apply text-xl font-black text-thiso-800 tracking-tight;
+  }
+
+  /* ── Section heading ── */
+  .section-heading {
+    @apply text-xs font-black text-thiso-400 uppercase tracking-widest;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    @apply border-t border-thiso-100;
+  }
+}
