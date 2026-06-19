@@ -13,7 +13,7 @@ services:
       POSTGRES_USER: malluser
       POSTGRES_PASSWORD: mallpass
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - mall-net
     ports:
@@ -31,6 +31,7 @@ services:
     container_name: mall_backend
     environment:
       DATABASE_URL: postgresql://malluser:mallpass@postgres:5432/malldb
+      DIRECT_URL: postgresql://malluser:mallpass@postgres:5432/malldb
       JWT_SECRET: mall-jwt-secret-2024-change-in-production
       PORT: 4000
       NODE_ENV: production
@@ -53,7 +54,7 @@ services:
       # Set SERVER_IP to the IP address phones use to reach this server.
       # The self-signed HTTPS cert is generated with this IP as the SAN,
       # which is required for getUserMedia (camera) to work on mobile browsers.
-      - SERVER_IP=10.180.211.247
+      - SERVER_IP=172.18.21.150
     ports:
       - "3000:80"    # HTTP  — main app (camera disabled on mobile)
       - "3443:443"   # HTTPS — enables camera on phones (accept cert warning once)
@@ -62,3 +63,6 @@ services:
     networks:
       - mall-net
     restart: unless-stopped
+
+volumes:
+  postgres_data:
