@@ -170,27 +170,27 @@ async function main() {
     data: [
       {
         unit: ReceivingUnit.EMART,
-        freshFoodEnabled: true,  freshFoodStartTime: '04:00', freshFoodEndTime: '19:00',
-        generalGoodsEnabled: true, generalGoodsStartTime: '06:00', generalGoodsEndTime: '20:00',
-        thiCongEnabled: false, thiCongStartTime: '08:00', thiCongEndTime: '17:00',
+        freshFoodEnabled: true,
+        generalGoodsEnabled: true,
+        thiCongEnabled: false,
         sundayFreshFoodOnly: true,
         truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
         displayName: 'Emart', shortName: 'Emart', description: 'Siêu thị Emart', primaryColor: '#FF9500',
       },
       {
         unit: ReceivingUnit.THISKYHALL,
-        freshFoodEnabled: true,  freshFoodStartTime: '04:00', freshFoodEndTime: '19:00',
-        generalGoodsEnabled: true, generalGoodsStartTime: '07:00', generalGoodsEndTime: '20:00',
-        thiCongEnabled: true, thiCongStartTime: '07:00', thiCongEndTime: '18:00',
+        freshFoodEnabled: true,
+        generalGoodsEnabled: true,
+        thiCongEnabled: true,
         sundayFreshFoodOnly: false,
         truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
         displayName: 'Thiskyhall', shortName: 'Skyhall', description: 'Trung tâm thương mại', primaryColor: '#27A55E',
       },
       {
         unit: ReceivingUnit.TENANT,
-        freshFoodEnabled: false, freshFoodStartTime: '07:00', freshFoodEndTime: '19:00',
-        generalGoodsEnabled: true, generalGoodsStartTime: '07:00', generalGoodsEndTime: '20:00',
-        thiCongEnabled: true, thiCongStartTime: '08:00', thiCongEndTime: '17:00',
+        freshFoodEnabled: false,
+        generalGoodsEnabled: true,
+        thiCongEnabled: true,
         sundayFreshFoodOnly: false,
         truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
         displayName: 'Mall (Khách thuê)', shortName: 'Mall', description: 'Khu vực khách thuê', primaryColor: '#4F46E5',
@@ -198,6 +198,25 @@ async function main() {
     ],
   });
   console.log('✅ Unit configs created');
+
+  // ── Delivery time windows ──────────────────────────────────────────────────
+  await prisma.deliveryTimeWindow.createMany({
+    data: [
+      // EMART
+      { unit: ReceivingUnit.EMART, goodsType: GoodsType.FRESH_FOOD, startTime: '04:00', endTime: '19:00' },
+      { unit: ReceivingUnit.EMART, goodsType: GoodsType.GENERAL_GOODS, startTime: '06:00', endTime: '20:00' },
+      { unit: ReceivingUnit.EMART, goodsType: GoodsType.THI_CONG, startTime: '08:00', endTime: '17:00', enabled: false },
+      // THISKYHALL
+      { unit: ReceivingUnit.THISKYHALL, goodsType: GoodsType.FRESH_FOOD, startTime: '04:00', endTime: '19:00' },
+      { unit: ReceivingUnit.THISKYHALL, goodsType: GoodsType.GENERAL_GOODS, startTime: '07:00', endTime: '20:00' },
+      { unit: ReceivingUnit.THISKYHALL, goodsType: GoodsType.THI_CONG, startTime: '07:00', endTime: '18:00' },
+      // TENANT
+      { unit: ReceivingUnit.TENANT, goodsType: GoodsType.FRESH_FOOD, startTime: '07:00', endTime: '19:00', enabled: false },
+      { unit: ReceivingUnit.TENANT, goodsType: GoodsType.GENERAL_GOODS, startTime: '07:00', endTime: '20:00' },
+      { unit: ReceivingUnit.TENANT, goodsType: GoodsType.THI_CONG, startTime: '08:00', endTime: '17:00' },
+    ],
+  });
+  console.log('✅ Delivery time windows created');
 
   // ── Sample deliveries ─────────────────────────────────────────────────────────
   //

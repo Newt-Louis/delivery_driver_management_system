@@ -157,18 +157,12 @@ model UnitConfig {
 
   // FRESH FOOD
   freshFoodEnabled   Boolean @default(true) @map("fresh_food_enabled")
-  freshFoodStartTime String  @default("00:00") @map("fresh_food_start_time")
-  freshFoodEndTime   String  @default("23:59") @map("fresh_food_end_time")
 
   // GENERAL GOODS
   generalGoodsEnabled   Boolean @default(true) @map("general_goods_enabled")
-  generalGoodsStartTime String  @default("00:00") @map("general_goods_start_time")
-  generalGoodsEndTime   String  @default("23:59") @map("general_goods_end_time")
 
   // THI CONG
   thiCongEnabled   Boolean @default(true) @map("thi_cong_enabled")
-  thiCongStartTime String  @default("00:00") @map("thi_cong_start_time")
-  thiCongEndTime   String  @default("23:59") @map("thi_cong_end_time")
 
   sundayFreshFoodOnly Boolean @default(false) @map("sunday_fresh_food_only")
 
