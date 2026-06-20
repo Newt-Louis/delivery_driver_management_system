@@ -155,23 +155,30 @@ model UnitConfig {
   id   String        @id @default(cuid())
   unit ReceivingUnit @unique
 
-  freshFoodEnabled    Boolean @default(true) @map("fresh_food_enabled")
-  generalGoodsEnabled Boolean @default(true) @map("general_goods_enabled")
-  thiCongEnabled      Boolean @default(true) @map("thi_cong_enabled")
+  // FRESH FOOD
+  freshFoodEnabled   Boolean @default(true) @map("fresh_food_enabled")
+
+  // GENERAL GOODS
+  generalGoodsEnabled   Boolean @default(true) @map("general_goods_enabled")
+
+  // THI CONG
+  thiCongEnabled   Boolean @default(true) @map("thi_cong_enabled")
 
   sundayFreshFoodOnly Boolean @default(false) @map("sunday_fresh_food_only")
 
+  //SLOT
   truckSlotMinutes     Int @default(30) @map("truck_slot_minutes")
   motorbikeSlotMinutes Int @default(15) @map("motorbike_slot_minutes")
   truckMaxPerSlot      Int @default(1) @map("truck_max_per_slot")
   motorbikeMaxPerSlot  Int @default(3) @map("motorbike_max_per_slot")
 
+  // INTEGRATIONS
   vendorApiUrl String? @map("vendor_api_url")
   vendorApiKey String? @map("vendor_api_key")
   poApiUrl     String? @map("po_api_url")
   poApiKey     String? @map("po_api_key")
 
-  // Branding
+  // BRANDING
   displayName  String  @default("") @map("display_name")
   shortName    String  @default("") @map("short_name")
   description  String  @default("") @map("description")

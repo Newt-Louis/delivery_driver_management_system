@@ -17,7 +17,7 @@ function tc(unit: ReceivingUnit, vt: VehicleType, n: number): string {
 }
 
 // ─── Time helpers ─────────────────────────────────────────────────────────────
-const NOW  = new Date();
+const NOW = new Date();
 const TODAY = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
 
 function todayAt(h: number, m = 0): Date {
@@ -48,7 +48,7 @@ const DRIVERS = [
 let _seq = 0;
 function nextVendor() { return VENDORS[_seq % VENDORS.length]; }
 function nextDriver() { return DRIVERS[_seq % DRIVERS.length]; }
-function nextPhone()  { _seq++; return `09${String(10000000 + (_seq * 7919) % 89999999)}`; }
+function nextPhone() { _seq++; return `09${String(10000000 + (_seq * 7919) % 89999999)}`; }
 
 // ─── Plate generator ──────────────────────────────────────────────────────────
 const plateCounters: Record<string, number> = {};
@@ -86,9 +86,9 @@ async function main() {
   // ── Mall config ─────────────────────────────────────────────────────────────
   await prisma.mallConfig.create({
     data: {
-      id:      'singleton',
+      id: 'singleton',
       mallName: 'THISO MALL TÂY HỒ TÂY',
-      tagline:  'Hệ Thống Điều Phối Giao – Nhận Hàng Thông Minh',
+      tagline: 'Hệ Thống Điều Phối Giao – Nhận Hàng Thông Minh',
     },
   });
   console.log('✅ Mall config created');
@@ -97,9 +97,9 @@ async function main() {
   const pw = await bcrypt.hash('password123', 10);
   await prisma.user.createMany({
     data: [
-      { name: 'Admin',           email: 'admin@mall.com',     passwordHash: pw, role: Role.ADMIN },
+      { name: 'Admin', email: 'admin@mall.com', passwordHash: pw, role: Role.ADMIN },
       { name: 'Nhân viên nhận', email: 'receiving@mall.com', passwordHash: pw, role: Role.RECEIVING },
-      { name: 'Bảo vệ',         email: 'security@mall.com',  passwordHash: pw, role: Role.SECURITY },
+      { name: 'Bảo vệ', email: 'security@mall.com', passwordHash: pw, role: Role.SECURITY },
     ],
   });
   console.log('✅ Users created  (password: password123)');
@@ -107,12 +107,12 @@ async function main() {
   // ── Staff PINs ──────────────────────────────────────────────────────────────
   await prisma.staffPin.createMany({
     data: [
-      { name: 'Bảo vệ – Nguyễn Văn Bình',   role: StaffRole.SECURITY,  pin: '1111' },
-      { name: 'Bảo vệ – Trần Văn Cường',    role: StaffRole.SECURITY,  pin: '2222' },
-      { name: 'Bảo vệ – Lê Thị Dung',       role: StaffRole.SECURITY,  pin: '3333' },
-      { name: 'NV Nhận hàng EMART – Phạm Minh Đức',    role: StaffRole.RECEIVING, pin: '4444' },
-      { name: 'NV Nhận hàng THISKY – Hoàng Thị Em',    role: StaffRole.RECEIVING, pin: '5555' },
-      { name: 'NV Nhận hàng MALL – Vũ Quốc Hùng',      role: StaffRole.RECEIVING, pin: '6666' },
+      { name: 'Bảo vệ – Nguyễn Văn Bình', role: StaffRole.SECURITY, pin: '1111' },
+      { name: 'Bảo vệ – Trần Văn Cường', role: StaffRole.SECURITY, pin: '2222' },
+      { name: 'Bảo vệ – Lê Thị Dung', role: StaffRole.SECURITY, pin: '3333' },
+      { name: 'NV Nhận hàng EMART – Phạm Minh Đức', role: StaffRole.RECEIVING, pin: '4444' },
+      { name: 'NV Nhận hàng THISKY – Hoàng Thị Em', role: StaffRole.RECEIVING, pin: '5555' },
+      { name: 'NV Nhận hàng MALL – Vũ Quốc Hùng', role: StaffRole.RECEIVING, pin: '6666' },
     ],
   });
   console.log('✅ Staff PINs created');
@@ -140,9 +140,9 @@ async function main() {
     { code: 'T5', name: 'Vị trí Tải 5 – Mall/Tenant', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.TRUCK, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 1 },
     // EMART trucks (4)
     { code: 'T6', name: 'Vị trí Tải 6 – Emart Hàng Tươi', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [GoodsType.FRESH_FOOD], autoAssign: true, maxCapacity: 1 },
-    { code: 'T7', name: 'Vị trí Tải 7 – Emart',      assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [GoodsType.FRESH_FOOD, GoodsType.GENERAL_GOODS], autoAssign: true, maxCapacity: 1 },
-    { code: 'T8', name: 'Vị trí Tải 8 – Emart',      assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 1 },
-    { code: 'T9', name: 'Vị trí Tải 9 – Emart',      assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 1 },
+    { code: 'T7', name: 'Vị trí Tải 7 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [GoodsType.FRESH_FOOD, GoodsType.GENERAL_GOODS], autoAssign: true, maxCapacity: 1 },
+    { code: 'T8', name: 'Vị trí Tải 8 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 1 },
+    { code: 'T9', name: 'Vị trí Tải 9 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.TRUCK, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 1 },
     // THISKYHALL motorbikes (5)
     { code: 'M1', name: 'Vị trí Xe Máy 1 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k1.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M2', name: 'Vị trí Xe Máy 2 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k1.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
@@ -150,10 +150,10 @@ async function main() {
     { code: 'M4', name: 'Vị trí Xe Máy 4 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k4.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M5', name: 'Vị trí Xe Máy 5 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k4.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     // TENANT motorbikes (5)
-    { code: 'M6',  name: 'Vị trí Xe Máy 6 – Mall',  assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M7',  name: 'Vị trí Xe Máy 7 – Mall',  assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M8',  name: 'Vị trí Xe Máy 8 – Mall',  assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k5.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M9',  name: 'Vị trí Xe Máy 9 – Mall',  assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k5.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M6', name: 'Vị trí Xe Máy 6 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M7', name: 'Vị trí Xe Máy 7 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M8', name: 'Vị trí Xe Máy 8 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k5.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M9', name: 'Vị trí Xe Máy 9 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k5.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M10', name: 'Vị trí Xe Máy 10 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k5.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     // EMART motorbikes (5)
     { code: 'M11', name: 'Vị trí Xe Máy 11 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
@@ -195,6 +195,7 @@ async function main() {
         freshFoodEnabled: false,
         generalGoodsEnabled: true,
         thiCongEnabled: true,
+
         sundayFreshFoodOnly: false,
         truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
         displayName: 'Mall (Khách thuê)', shortName: 'Mall', description: 'Khu vực khách thuê', primaryColor: '#4F46E5',
@@ -268,24 +269,24 @@ async function main() {
 
       return {
         registrationCode: regCode(codePrefix),
-        vendorName:       nextVendor(),
-        driverName:       nextDriver(),
-        driverPhone:      nextPhone(),
-        vehiclePlate:     plate(region, letter),
-        vehicleType:      vt,
-        receivingUnit:    unit,
-        goodsType:        opts.goods,
-        poNumber:         `PO-${codePrefix}-${String(regCounter).padStart(4, '0')}`,
-        status:           opts.status,
-        autoWarehouse:    opts.goods === GoodsType.AUTO_WAREHOUSE,
-        checkinTime:      opts.checkinTime ?? null,
-        requestedTime:    opts.requestedTime ?? null,
-        completedTime:    opts.completedTime ?? null,
-        calledTime:       opts.calledTime    ?? null,
+        vendorName: nextVendor(),
+        driverName: nextDriver(),
+        driverPhone: nextPhone(),
+        vehiclePlate: plate(region, letter),
+        vehicleType: vt,
+        receivingUnit: unit,
+        goodsType: opts.goods,
+        poNumber: `PO-${codePrefix}-${String(regCounter).padStart(4, '0')}`,
+        status: opts.status,
+        autoWarehouse: opts.goods === GoodsType.AUTO_WAREHOUSE,
+        checkinTime: opts.checkinTime ?? null,
+        requestedTime: opts.requestedTime ?? null,
+        completedTime: opts.completedTime ?? null,
+        calledTime: opts.calledTime ?? null,
         receivingStartTime: opts.receivingStartTime ?? null,
-        assignedSlotId:   opts.assignedSlotCode ? S[opts.assignedSlotCode]?.id ?? null : null,
-        ticketNumber:     hasTicket ? ticketSeq : null,
-        note:             opts.note ?? null,
+        assignedSlotId: opts.assignedSlotCode ? S[opts.assignedSlotCode]?.id ?? null : null,
+        ticketNumber: hasTicket ? ticketSeq : null,
+        note: opts.note ?? null,
       };
     }
 
@@ -401,14 +402,14 @@ async function main() {
   // ─── Receiving time config defaults ──────────────────────────────────────────
   console.log('Seeding ReceivingTimeConfig defaults…');
   const VT_DEFAULTS: Array<{ vt: VehicleType; gt: GoodsType; minutes: number }> = [
-    { vt: VehicleType.TRUCK,      gt: GoodsType.FRESH_FOOD,    minutes: 20 },
-    { vt: VehicleType.TRUCK,      gt: GoodsType.GENERAL_GOODS, minutes: 30 },
-    { vt: VehicleType.TRUCK,      gt: GoodsType.AUTO_WAREHOUSE,minutes: 25 },
-    { vt: VehicleType.TRUCK,      gt: GoodsType.THI_CONG,      minutes: 45 },
-    { vt: VehicleType.MOTORBIKE,  gt: GoodsType.FRESH_FOOD,    minutes: 10 },
-    { vt: VehicleType.MOTORBIKE,  gt: GoodsType.GENERAL_GOODS, minutes: 15 },
-    { vt: VehicleType.MOTORBIKE,  gt: GoodsType.AUTO_WAREHOUSE,minutes: 12 },
-    { vt: VehicleType.MOTORBIKE,  gt: GoodsType.THI_CONG,      minutes: 20 },
+    { vt: VehicleType.TRUCK, gt: GoodsType.FRESH_FOOD, minutes: 20 },
+    { vt: VehicleType.TRUCK, gt: GoodsType.GENERAL_GOODS, minutes: 30 },
+    { vt: VehicleType.TRUCK, gt: GoodsType.AUTO_WAREHOUSE, minutes: 25 },
+    { vt: VehicleType.TRUCK, gt: GoodsType.THI_CONG, minutes: 45 },
+    { vt: VehicleType.MOTORBIKE, gt: GoodsType.FRESH_FOOD, minutes: 10 },
+    { vt: VehicleType.MOTORBIKE, gt: GoodsType.GENERAL_GOODS, minutes: 15 },
+    { vt: VehicleType.MOTORBIKE, gt: GoodsType.AUTO_WAREHOUSE, minutes: 12 },
+    { vt: VehicleType.MOTORBIKE, gt: GoodsType.THI_CONG, minutes: 20 },
   ];
   for (const unit of Object.values(ReceivingUnit)) {
     for (const { vt, gt, minutes } of VT_DEFAULTS) {
