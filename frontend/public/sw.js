@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'mall-delivery-pwa-v1';
+const CACHE_VERSION = 'mall-delivery-pwa-v2';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -109,6 +109,7 @@ self.addEventListener('push', (event) => {
     tag,
     icon = '/icons/icon-192.png',
     badge = '/icons/maskable-192.png',
+    vibrate = [200, 100, 200],
   } = payload;
 
   event.waitUntil(
@@ -120,7 +121,7 @@ self.addEventListener('push', (event) => {
       renotify: true,
       requireInteraction: false,
       data: { url: url ?? '/' },
-      vibrate: [200, 100, 200],
+      vibrate,
     })
   );
 });

@@ -3,7 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import api from '../lib/api';
 import { playChimeWithCtx } from '../lib/chime';
-import { registerAppServiceWorker } from '../lib/pwa';
+import { registerAppServiceWorker, urlBase64ToUint8Array } from '../lib/pwa';
+import { getPushPlatformSupport } from '../lib/platform';
 
 interface TrackCallLog {
   id: string;
@@ -249,6 +250,7 @@ function TrackLookup() {
 }
 
 function TrackContent({ code }: { code: string }) {
+  const pushSupport = getPushPlatformSupport();
   const [delivery, setDelivery]           = useState<TrackDelivery | null>(null);
   const [loading, setLoading]             = useState(true);
   const [fetchErr, setFetchErr]           = useState('');
@@ -286,7 +288,10 @@ function TrackContent({ code }: { code: string }) {
 
   // Register Service Worker and subscribe to push notifications
   const subscribePush = useCallback(async (deliveryRegistrationCode: string) => {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!pushSupport.supported) {
+      console.warn('[Push] unsupported platform:', pushSupport);
+      return;
+    }
     try {
       const { data } = await api.get<{ publicKey: string }>('/api/push/vapid-public-key');
       if (!data.publicKey) return;
@@ -295,11 +300,10 @@ function TrackContent({ code }: { code: string }) {
       await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
-        const base64 = data.publicKey.replace(/-/g, '+').replace(/_/g, '/');
-        const rawBytes = window.atob(base64);
-        const keyBytes = new Uint8Array(rawBytes.length);
-        for (let i = 0; i < rawBytes.length; i++) keyBytes[i] = rawBytes.charCodeAt(i);
-        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(data.publicKey),
+        });
       }
       await api.post('/api/push/subscribe', {
         subscription: sub.toJSON(),
@@ -309,7 +313,7 @@ function TrackContent({ code }: { code: string }) {
     } catch (err) {
       console.warn('[Push] subscription failed:', err);
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pushSupport.supported]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-subscribe when permission already granted
   useEffect(() => {
@@ -475,7 +479,7 @@ function TrackContent({ code }: { code: string }) {
   }, [delivery?.queueInfo?.position]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function requestNotif() {
-    if (typeof Notification === 'undefined') return;
+    if (!pushSupport.supported || typeof Notification === 'undefined') return;
     Notification.requestPermission().then(p => {
       setNotifPermission(p);
       if (p === 'granted' && delivery) void subscribePush(delivery.registrationCode);
@@ -610,7 +614,18 @@ function TrackContent({ code }: { code: string }) {
         style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}>
 
         {/* Notification permission banner */}
-        {!isTerminal && notifPermission === 'default' && (
+        {!isTerminal && pushSupport.reason === 'ios_todo' && (
+          <div className="w-full bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+            <span className="text-2xl flex-shrink-0">🔔</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-amber-800">Thông báo iOS sẽ bổ sung sau</p>
+              <p className="text-xs text-amber-600 mt-0.5">
+                Android hiện đã hỗ trợ thông báo đẩy, âm báo hệ thống và rung.
+              </p>
+            </div>
+          </div>
+        )}
+        {!isTerminal && pushSupport.supported && notifPermission === 'default' && (
           <button
             onClick={requestNotif}
             className="w-full bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"

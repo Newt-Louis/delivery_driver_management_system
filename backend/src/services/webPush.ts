@@ -20,12 +20,17 @@ export async function sendPushToDelivery(
   deliveryCode: string,
   payload: { title: string; body: string; url?: string; tag?: string },
 ) {
-  if (!PUBLIC_KEY) return;
+  if (!PUBLIC_KEY || !PRIVATE_KEY) return;
 
   const subs = await prisma.pushSubscription.findMany({ where: { deliveryCode } });
   if (subs.length === 0) return;
 
-  const data = JSON.stringify({ ...payload, icon: '/favicon.ico' });
+  const data = JSON.stringify({
+    ...payload,
+    icon: '/icons/icon-192.png',
+    badge: '/icons/maskable-192.png',
+    vibrate: [300, 120, 300, 120, 600],
+  });
   const expired: string[] = [];
 
   await Promise.allSettled(
@@ -34,6 +39,7 @@ export async function sendPushToDelivery(
         await webpush.sendNotification(
           { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
           data,
+          { TTL: 60 * 60, urgency: 'high' },
         );
       } catch (err: unknown) {
         const code = (err as { statusCode?: number }).statusCode;
