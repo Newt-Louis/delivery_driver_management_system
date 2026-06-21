@@ -51,7 +51,7 @@ async function requestNotifPermission(): Promise<boolean> {
 
 function sendNotif(title: string, body: string) {
   if (Notification.permission === 'granted') {
-    try { new Notification(title, { body, icon: '/favicon.ico' }); } catch { /* swallow */ }
+    try { new Notification(title, { body, icon: '/icons/icon-192.png' }); } catch { /* swallow */ }
   }
 }
 

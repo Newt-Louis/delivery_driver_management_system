@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mall Delivery">
+  <rect width="512" height="512" rx="112" fill="#1C1C1C"/>
+  <path d="M112 318h238V184c0-17.7-14.3-32-32-32H144c-17.7 0-32 14.3-32 32v134Z" fill="#F6F6F6"/>
+  <path d="M350 226h48c10.6 0 20.8 4.2 28.3 11.7L464 275.4V318H350v-92Z" fill="#27A55E"/>
+  <path d="M382 246h24.7c5.3 0 10.4 2.1 14.1 5.9l19.2 19.2V282h-58v-36Z" fill="#E8F5EE"/>
+  <path d="M92 318h388v42H92c-11 0-20-9-20-20v-2c0-11 9-20 20-20Z" fill="#FF9500"/>
+  <circle cx="170" cy="374" r="42" fill="#0F0F0F"/>
+  <circle cx="170" cy="374" r="18" fill="#D5D5D5"/>
+  <circle cx="394" cy="374" r="42" fill="#0F0F0F"/>
+  <circle cx="394" cy="374" r="18" fill="#D5D5D5"/>
+  <path d="M146 190h132v34H146v-34Zm0 58h168v28H146v-28Z" fill="#1C1C1C" opacity=".86"/>
+  <path d="M112 318V184c0-17.7 14.3-32 32-32h174c17.7 0 32 14.3 32 32v134" fill="none" stroke="#FFFFFF" stroke-opacity=".18" stroke-width="12"/>
+</svg>

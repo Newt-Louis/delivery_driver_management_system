@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import api from '../lib/api';
 import { playChimeWithCtx } from '../lib/chime';
+import { registerAppServiceWorker } from '../lib/pwa';
 
 interface TrackCallLog {
   id: string;
@@ -153,7 +154,7 @@ function buzz(pattern: number[]) {
 
 function sendNotification(title: string, body: string, tag: string) {
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    try { new Notification(title, { body, tag, icon: '/favicon.ico' }); } catch {}
+    try { new Notification(title, { body, tag, icon: '/icons/icon-192.png' }); } catch {}
   }
 }
 
@@ -289,7 +290,8 @@ function TrackContent({ code }: { code: string }) {
     try {
       const { data } = await api.get<{ publicKey: string }>('/api/push/vapid-public-key');
       if (!data.publicKey) return;
-      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      const reg = await registerAppServiceWorker();
+      if (!reg) return;
       await navigator.serviceWorker.ready;
       let sub = await reg.pushManager.getSubscription();
       if (!sub) {
