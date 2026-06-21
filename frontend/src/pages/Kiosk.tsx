@@ -39,6 +39,13 @@ const BASE = (import.meta as { env: Record<string, string> }).env.VITE_API_URL ?
 const isTouchDevice = () =>
   typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0);
 
+interface KioskBrand {
+  mallName:   string;
+  logoUrl:    string | null;
+  tagline:    string | null;
+  kioskBgUrl: string | null;
+}
+
 // ─── useWakeLock: keep screen on while kiosk is active ───────────────────────
 type WakeLockHandle = { release(): Promise<void> };
 function useWakeLock() {
@@ -97,7 +104,10 @@ function useFullscreen() {
 }
 
 // ─── Auth Phase ───────────────────────────────────────────────────────────────
-function AuthPhase({ onAuth }: { onAuth: (token: string, staffName: string) => void }) {
+function AuthPhase({ onAuth, brand }: {
+  onAuth: (token: string, staffName: string) => void;
+  brand: KioskBrand;
+}) {
   const [pin,     setPin]     = useState('');
   const [error,   setError]   = useState('');
   const [loading, setLoading] = useState(false);
@@ -125,21 +135,31 @@ function AuthPhase({ onAuth }: { onAuth: (token: string, staffName: string) => v
 
   return (
     <div
-      className="fixed inset-0 bg-thiso-900 flex flex-col items-center justify-center select-none"
-      style={{ padding: '2rem env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)' }}
+      className="fixed inset-0 flex flex-col items-center justify-center select-none"
+      style={{
+        padding: '2rem env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)',
+        backgroundImage: brand.kioskBgUrl ? `url(${brand.kioskBgUrl})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundColor: '#1C1C1C',
+      }}
       onContextMenu={e => e.preventDefault()}
     >
-      <div className="w-full max-w-sm px-4">
+      {brand.kioskBgUrl && <div className="absolute inset-0 bg-black/65" />}
+
+      <div className="relative z-10 w-full max-w-sm px-4">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 rounded-3xl bg-white/10 flex items-center justify-center mx-auto mb-4">
-            <span className="text-4xl">🔐</span>
-          </div>
+          {brand.logoUrl
+            ? <img src={brand.logoUrl} alt="" className="h-14 mx-auto mb-4 object-contain drop-shadow-lg" />
+            : <div className="w-20 h-20 rounded-3xl bg-white/10 flex items-center justify-center mx-auto mb-4">
+                <span className="text-4xl">🔐</span>
+              </div>}
           <h1 className="text-white font-black text-2xl tracking-widest">Kiosk Check-in</h1>
-          <p className="text-thiso-400 text-sm mt-2">Nhập mã PIN để kích hoạt ca trực</p>
+          <p className="text-white/40 text-sm mt-1">{brand.mallName}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-7 shadow-2xl">
-          <label className="block text-xs font-black text-thiso-500 tracking-widest uppercase mb-3 text-center">
+        <form onSubmit={handleSubmit} className="bg-white/10 backdrop-blur-md border border-white/15 rounded-3xl p-7 shadow-2xl">
+          <label className="block text-xs font-black text-white/50 tracking-widest uppercase mb-3 text-center">
             Mã bảo vệ (4 chữ số)
           </label>
           <input
@@ -150,23 +170,23 @@ function AuthPhase({ onAuth }: { onAuth: (token: string, staffName: string) => v
             value={pin}
             onChange={e => { setPin(e.target.value.replace(/\D/g, '')); setError(''); }}
             placeholder="• • • •"
-            className="w-full border-2 border-thiso-200 rounded-2xl px-4 py-5 text-center text-4xl font-black tracking-[0.6em] text-thiso-900 focus:outline-none focus:border-thiso-500 transition-colors placeholder:text-thiso-200 placeholder:tracking-[0.4em]"
+            className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-4 py-5 text-center text-4xl font-black tracking-[0.6em] text-white focus:outline-none focus:border-sky-400 transition-colors placeholder:text-white/20 placeholder:tracking-[0.4em]"
           />
           {error && (
-            <div className="mt-3 text-sm text-red-600 bg-red-50 rounded-xl px-4 py-3 text-center">
+            <div className="mt-3 text-sm text-red-300 bg-red-500/20 border border-red-500/30 rounded-xl px-4 py-3 text-center">
               ⚠️ {error}
             </div>
           )}
           <button
             type="submit"
             disabled={pin.length < 4 || loading}
-            className="mt-5 w-full py-4 rounded-2xl font-black text-white tracking-widest text-lg transition-all bg-thiso-800 active:scale-[0.97] disabled:opacity-30 touch-manipulation"
+            className="mt-5 w-full py-4 rounded-2xl font-black text-white tracking-widest text-lg transition-all bg-sky-500 hover:bg-sky-400 active:scale-[0.97] disabled:opacity-30 touch-manipulation"
           >
             {loading ? 'Đang xác thực...' : 'Kích hoạt →'}
           </button>
         </form>
 
-        <p className="text-center text-thiso-600 text-xs mt-5">
+        <p className="text-center text-white/25 text-xs mt-5">
           Phiên hoạt động 8 giờ — không cần nhập lại trong ca
         </p>
       </div>
@@ -246,7 +266,7 @@ function CameraScanner({ onCode, active }: { onCode: (code: string) => void; act
       {status === 'active' && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="absolute inset-0 bg-black/30" />
-          {/* Viewfinder — 65 vmin square */}
+          {/* Viewfinder */}
           <div className="relative z-10" style={{ width: '65vmin', height: '65vmin' }}>
             {[
               'top-0 left-0 border-t-4 border-l-4 rounded-tl-2xl',
@@ -274,19 +294,19 @@ function CameraScanner({ onCode, active }: { onCode: (code: string) => void; act
         </div>
       )}
       {status === 'denied' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-thiso-900 p-8 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-8 text-center">
           <span className="text-5xl mb-4">🚫</span>
           <p className="text-white font-bold text-lg mb-2">Camera bị chặn</p>
-          <p className="text-thiso-400 text-sm leading-relaxed">
+          <p className="text-white/50 text-sm leading-relaxed">
             Vào cài đặt trình duyệt → cấp quyền Camera cho trang này rồi tải lại
           </p>
         </div>
       )}
       {status === 'insecure' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-thiso-900 p-8 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-8 text-center">
           <span className="text-5xl mb-4">🔒</span>
           <p className="text-white font-bold text-lg mb-2">Cần truy cập HTTPS</p>
-          <p className="text-thiso-400 text-sm leading-relaxed mb-5">
+          <p className="text-white/50 text-sm leading-relaxed mb-5">
             Camera chỉ hoạt động trên kết nối an toàn.<br />
             Truy cập địa chỉ HTTPS bên dưới:
           </p>
@@ -295,14 +315,14 @@ function CameraScanner({ onCode, active }: { onCode: (code: string) => void; act
               ? window.location.href.replace(/^http:/, 'https:').replace(/:3000(\/|$)/, ':3443$1')
               : 'https://[server-ip]:3443/kiosk'}
           </p>
-          <p className="text-thiso-600 text-xs mt-4">Chấp nhận cảnh báo chứng chỉ một lần là xong</p>
+          <p className="text-white/30 text-xs mt-4">Chấp nhận cảnh báo chứng chỉ một lần là xong</p>
         </div>
       )}
       {status === 'unsupported' && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-thiso-900 p-8 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 p-8 text-center">
           <span className="text-5xl mb-4">📵</span>
           <p className="text-white font-bold text-lg mb-2">Không hỗ trợ camera</p>
-          <p className="text-thiso-400 text-sm">Dùng tab Quét mã hoặc Biển số bên dưới</p>
+          <p className="text-white/50 text-sm">Dùng tab Quét mã hoặc Biển số bên dưới</p>
         </div>
       )}
     </div>
@@ -313,9 +333,7 @@ function CameraScanner({ onCode, active }: { onCode: (code: string) => void; act
 type ScanMode = 'camera' | 'code' | 'plate';
 
 interface CheckInResult {
-  // workflow transitions
   type: 'checked_in' | 'waiting' | 'receiving_started' | 'completed'
-      // error states
       | 'already' | 'wrong_date' | 'error';
   ticketCode?: string;
   vehiclePlate?: string;
@@ -325,10 +343,11 @@ interface CheckInResult {
   message: string;
 }
 
-function ScanPhase({ staffName, token, onExpired }: {
+function ScanPhase({ staffName, token, onExpired, brand }: {
   staffName: string;
   token: string;
   onExpired: () => void;
+  brand: KioskBrand;
 }) {
   const [mode,       setMode]       = useState<ScanMode>(() => isTouchDevice() ? 'camera' : 'code');
   const [input,      setInput]      = useState('');
@@ -346,13 +365,11 @@ function ScanPhase({ staffName, token, onExpired }: {
   useKioskViewport();
   const { on: isFullscreen, toggle: toggleFullscreen } = useFullscreen();
 
-  // Live clock
   useEffect(() => {
     const t = setInterval(() => setClock(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // Focus inputs when idle
   useEffect(() => {
     if (result || loading) return;
     if (mode === 'code')  setTimeout(() => inputRef.current?.focus(), 50);
@@ -443,7 +460,9 @@ function ScanPhase({ staffName, token, onExpired }: {
     } finally { setLoading(false); }
   }
 
-  const timeStr = clock.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const timeStr     = clock.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+  const timeFull    = clock.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const dateStr     = clock.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' });
 
   const TABS: { id: ScanMode; icon: string; label: string }[] = [
     { id: 'camera', icon: '📷', label: 'Camera' },
@@ -451,34 +470,47 @@ function ScanPhase({ staffName, token, onExpired }: {
     { id: 'plate',  icon: '🚗',  label: 'Biển số' },
   ];
 
+  const hasBg = !!brand.kioskBgUrl;
+
   return (
     <div
-      className="fixed inset-0 bg-thiso-900 flex flex-col select-none"
-      style={{ touchAction: 'manipulation' }}
+      className="fixed inset-0 flex flex-col select-none"
+      style={{
+        touchAction: 'manipulation',
+        backgroundImage: hasBg ? `url(${brand.kioskBgUrl})` : undefined,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundColor: '#1C1C1C',
+      }}
       onContextMenu={e => e.preventDefault()}
     >
-      {/* ── Header (48px) ── */}
-      <header className="shrink-0 h-12 bg-thiso-800 border-b border-white/10 flex items-center px-3 gap-2"
-              style={{ paddingLeft: 'max(0.75rem, env(safe-area-inset-left))', paddingRight: 'max(0.75rem, env(safe-area-inset-right))' }}>
-        <span className="text-base">🏪</span>
-        <span className="text-white font-black text-sm flex-1 truncate">Kiosk Check-in</span>
-        <span className="text-white font-mono font-bold text-sm tabular-nums">{timeStr}</span>
-        <span className="text-thiso-600 text-xs mx-1">·</span>
-        <span className="text-thiso-400 text-xs truncate max-w-[80px]">{staffName}</span>
+      {/* bg overlay */}
+      {hasBg && <div className="absolute inset-0 bg-black/60 pointer-events-none z-0" />}
 
-        {/* Fullscreen toggle */}
+      {/* ── Header ── */}
+      <header
+        className="shrink-0 h-12 bg-black/70 backdrop-blur-md border-b border-white/10 flex items-center px-3 gap-2 relative z-20"
+        style={{ paddingLeft: 'max(0.75rem, env(safe-area-inset-left))', paddingRight: 'max(0.75rem, env(safe-area-inset-right))' }}
+      >
+        {brand.logoUrl
+          ? <img src={brand.logoUrl} alt="" className="h-6 w-auto object-contain flex-shrink-0" />
+          : <span className="text-base flex-shrink-0">🏪</span>}
+        <span className="text-white font-black text-sm flex-1 truncate">{brand.mallName}</span>
+        <span className="text-white font-mono font-bold text-sm tabular-nums">{timeStr}</span>
+        <span className="text-white/20 text-xs mx-1">·</span>
+        <span className="text-white/40 text-xs truncate max-w-[80px]">{staffName}</span>
+
         <button
           onClick={toggleFullscreen}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-thiso-400 hover:text-white hover:bg-white/10 transition-colors text-base touch-manipulation ml-1"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors text-base touch-manipulation ml-1"
           title={isFullscreen ? 'Thoát toàn màn hình' : 'Toàn màn hình'}
         >
           {isFullscreen ? '⊡' : '⊞'}
         </button>
 
-        {/* End shift */}
         <button
           onClick={() => { clearSession(); onExpired(); }}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-thiso-500 hover:text-red-300 hover:bg-red-500/10 transition-colors text-sm touch-manipulation"
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-white/30 hover:text-red-300 hover:bg-red-500/10 transition-colors text-sm touch-manipulation"
           title="Đổi ca"
         >
           ↩
@@ -486,9 +518,9 @@ function ScanPhase({ staffName, token, onExpired }: {
       </header>
 
       {/* ── Content area ── */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="flex-1 overflow-hidden relative z-10">
 
-        {/* RESULT */}
+        {/* RESULT OVERLAYS */}
         {result && (() => {
           const dismiss = () => {
             if (resetTimer.current) clearTimeout(resetTimer.current);
@@ -496,7 +528,6 @@ function ScanPhase({ staffName, token, onExpired }: {
           };
           const unitBg = UNIT_COLOR[result.unit ?? ''] ?? '#4F46E5';
 
-          // ── Scan 1: check-in → ticket issued ──────────────────────────────
           if (result.type === 'checked_in') return (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center cursor-pointer"
                  style={{ background: unitBg }} onClick={dismiss}>
@@ -514,7 +545,6 @@ function ScanPhase({ staffName, token, onExpired }: {
             </div>
           );
 
-          // ── Still waiting in queue ─────────────────────────────────────────
           if (result.type === 'waiting') return (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center cursor-pointer bg-amber-950"
                  onClick={dismiss}>
@@ -528,18 +558,13 @@ function ScanPhase({ staffName, token, onExpired }: {
             </div>
           );
 
-          // ── Scan 2: receiving started ─────────────────────────────────────
           if (result.type === 'receiving_started') return (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center cursor-pointer"
                  style={{ background: unitBg }} onClick={dismiss}>
               <div className="text-7xl mb-3">🔧</div>
               <p className="text-white/70 font-bold text-sm uppercase tracking-[0.2em] mb-2">Scan 2 · Bắt đầu nhận hàng</p>
-              <p className="text-white font-black text-3xl mb-1">
-                {result.vehiclePlate}
-              </p>
-              {result.driverName && (
-                <p className="text-white/70 text-lg mb-4">{result.driverName}</p>
-              )}
+              <p className="text-white font-black text-3xl mb-1">{result.vehiclePlate}</p>
+              {result.driverName && <p className="text-white/70 text-lg mb-4">{result.driverName}</p>}
               {result.slotName && (
                 <div className="bg-white/20 rounded-2xl px-6 py-4 mt-2">
                   <p className="text-white/60 text-xs font-bold uppercase tracking-widest mb-1">Dock nhận hàng</p>
@@ -550,7 +575,6 @@ function ScanPhase({ staffName, token, onExpired }: {
             </div>
           );
 
-          // ── Scan 3: completed ─────────────────────────────────────────────
           if (result.type === 'completed') return (
             <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center cursor-pointer bg-emerald-950"
                  onClick={dismiss}>
@@ -564,11 +588,10 @@ function ScanPhase({ staffName, token, onExpired }: {
             </div>
           );
 
-          // ── Error states ──────────────────────────────────────────────────
           const errorConfig: Record<string, { icon: string; title: string; color: string }> = {
-            already:    { icon: '⚠️', title: 'Đã hoàn thành rồi',    color: 'text-yellow-400' },
-            wrong_date: { icon: '📅', title: 'Sai ngày đăng ký',      color: 'text-orange-400' },
-            error:      { icon: '❌', title: 'Không thể thực hiện',   color: 'text-red-400'    },
+            already:    { icon: '⚠️', title: 'Đã hoàn thành rồi',   color: 'text-yellow-400' },
+            wrong_date: { icon: '📅', title: 'Sai ngày đăng ký',     color: 'text-orange-400' },
+            error:      { icon: '❌', title: 'Không thể thực hiện',  color: 'text-red-400'    },
           };
           const cfg = errorConfig[result.type] ?? errorConfig.error;
           return (
@@ -576,8 +599,8 @@ function ScanPhase({ staffName, token, onExpired }: {
                  onClick={dismiss}>
               <div className="text-7xl mb-4">{cfg.icon}</div>
               <p className={`font-black text-2xl mb-3 ${cfg.color}`}>{cfg.title}</p>
-              <p className="text-thiso-300 text-base px-4 leading-relaxed">{result.message}</p>
-              <p className="text-thiso-600 text-xs mt-8">Chạm để tiếp tục</p>
+              <p className="text-white/60 text-base px-4 leading-relaxed">{result.message}</p>
+              <p className="text-white/25 text-xs mt-8">Chạm để tiếp tục</p>
             </div>
           );
         })()}
@@ -596,8 +619,7 @@ function ScanPhase({ staffName, token, onExpired }: {
             <div className="flex-1 overflow-hidden">
               <CameraScanner active={true} onCode={performCheckin} />
             </div>
-            {/* Fallback text input pinned to top of tab bar */}
-            <div className="shrink-0 bg-thiso-900/90 backdrop-blur-sm px-4 py-3 flex gap-2">
+            <div className="shrink-0 bg-black/75 backdrop-blur-sm px-4 py-3 flex gap-2">
               <input
                 type="text"
                 value={input}
@@ -619,22 +641,34 @@ function ScanPhase({ staffName, token, onExpired }: {
           </div>
         )}
 
-        {/* CODE TAB */}
+        {/* CODE TAB — attract screen with clock */}
         {!result && !loading && mode === 'code' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 gap-6">
-            <div className="relative w-28 h-28">
-              <div className="absolute inset-0 rounded-full border-4 border-white/10 animate-ping" />
-              <div className="absolute inset-0 rounded-full border-4 border-white/20 flex items-center justify-center bg-white/5">
-                <span style={{ fontSize: 52 }}>⌨</span>
-              </div>
-            </div>
-
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 gap-3">
+            {/* Identity */}
             <div className="text-center">
-              <h2 className="text-white font-black text-2xl tracking-wide">Quét barcode</h2>
-              <p className="text-thiso-400 text-sm mt-1">Đặt scanner vào đây · Enter để check-in</p>
+              {brand.logoUrl && (
+                <img src={brand.logoUrl} alt="" className="h-9 mx-auto mb-2 object-contain drop-shadow-lg opacity-80" />
+              )}
+              {!brand.logoUrl && (
+                <p className="text-white/30 text-xs font-semibold tracking-widest uppercase mb-1">{brand.mallName}</p>
+              )}
+              <p className="text-white/25 text-[11px] tracking-widest uppercase">{brand.tagline ?? 'Check-in hệ thống'}</p>
             </div>
 
-            <div className="w-full max-w-sm">
+            {/* Clock */}
+            <p
+              className="text-white font-black tabular-nums leading-none select-none"
+              style={{ fontSize: 'clamp(3.5rem, 16vw, 6rem)', textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}
+            >
+              {timeFull}
+            </p>
+            <p className="text-white/30 text-xs font-medium -mt-1">{dateStr}</p>
+
+            {/* Frosted input card */}
+            <div className="w-full max-w-sm bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/15 shadow-2xl mt-1">
+              <p className="text-center text-white/40 text-xs font-bold uppercase tracking-widest mb-3">
+                ⌨ Quét barcode hoặc nhập mã đăng ký
+              </p>
               <input
                 ref={inputRef}
                 type="text"
@@ -643,7 +677,7 @@ function ScanPhase({ staffName, token, onExpired }: {
                 onKeyDown={e => { if (e.key === 'Enter' && input.trim()) { performCheckin(input); setInput(''); } }}
                 placeholder="Mã đăng ký..."
                 autoComplete="off" autoCorrect="off" spellCheck={false}
-                className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-5 py-4 text-white text-center text-xl font-mono font-bold placeholder:text-white/25 focus:outline-none focus:border-sky-400 transition-colors"
+                className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-5 py-4 text-white text-center text-xl font-mono font-bold placeholder:text-white/20 focus:outline-none focus:border-sky-400 transition-colors"
               />
               {input && (
                 <button
@@ -657,16 +691,29 @@ function ScanPhase({ staffName, token, onExpired }: {
           </div>
         )}
 
-        {/* PLATE TAB */}
+        {/* PLATE TAB — attract screen with plate input */}
         {!result && !loading && mode === 'plate' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 gap-5">
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-6 gap-3">
             <div className="text-center">
-              <span className="text-5xl">🚗</span>
-              <h2 className="text-white font-black text-2xl tracking-wide mt-3">Tra cứu biển số xe</h2>
-              <p className="text-thiso-400 text-sm mt-1">Hệ thống tìm lượt đăng ký hôm nay</p>
+              {brand.logoUrl && (
+                <img src={brand.logoUrl} alt="" className="h-9 mx-auto mb-2 object-contain drop-shadow-lg opacity-80" />
+              )}
+              <p className="text-white/25 text-[11px] tracking-widest uppercase">{brand.mallName}</p>
             </div>
 
-            <div className="w-full max-w-sm">
+            <p
+              className="text-white font-black tabular-nums leading-none select-none"
+              style={{ fontSize: 'clamp(3.5rem, 16vw, 6rem)', textShadow: '0 2px 24px rgba(0,0,0,0.6)' }}
+            >
+              {timeFull}
+            </p>
+            <p className="text-white/30 text-xs font-medium -mt-1">{dateStr}</p>
+
+            {/* Frosted plate card */}
+            <div className="w-full max-w-sm bg-white/10 backdrop-blur-md rounded-3xl p-5 border border-white/15 shadow-2xl mt-1">
+              <p className="text-center text-white/40 text-xs font-bold uppercase tracking-widest mb-3">
+                🚗 Nhập biển số xe để tra cứu
+              </p>
               <input
                 ref={plateRef}
                 type="text"
@@ -679,13 +726,11 @@ function ScanPhase({ staffName, token, onExpired }: {
                 className="w-full bg-white/10 border-2 border-white/20 rounded-2xl px-5 py-5 text-white text-center font-mono font-black placeholder:text-white/20 placeholder:font-normal focus:outline-none focus:border-sky-400 transition-colors"
                 style={{ fontSize: 'clamp(1.5rem, 6vw, 2rem)', letterSpacing: '0.15em' }}
               />
-
               {plateError && (
                 <div className="mt-3 text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-center">
                   ⚠️ {plateError}
                 </div>
               )}
-
               <button
                 onClick={lookupByPlate}
                 disabled={!plateInput.trim() || loading}
@@ -700,7 +745,7 @@ function ScanPhase({ staffName, token, onExpired }: {
 
       {/* ── Bottom tab bar ── */}
       <nav
-        className="shrink-0 bg-thiso-800 border-t border-white/10 grid grid-cols-3"
+        className="shrink-0 bg-black/75 backdrop-blur-md border-t border-white/10 grid grid-cols-3 relative z-20"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         {TABS.map(tab => (
@@ -710,7 +755,7 @@ function ScanPhase({ staffName, token, onExpired }: {
             className={`flex flex-col items-center justify-center h-16 gap-1 transition-all touch-manipulation active:scale-95 ${
               mode === tab.id && !result && !loading
                 ? 'text-sky-400'
-                : 'text-thiso-500'
+                : 'text-white/30'
             }`}
           >
             <span className="text-2xl leading-none">{tab.icon}</span>
@@ -730,9 +775,19 @@ export default function Kiosk() {
   const [session, setSession] = useState<{ token: string; staffName: string } | null>(
     () => loadSession(),
   );
+  const [brand, setBrand] = useState<KioskBrand>({
+    mallName: 'THISO GROUP', logoUrl: null, tagline: 'Delivery Management System', kioskBgUrl: null,
+  });
+
+  useEffect(() => {
+    axios.get(`${BASE}/api/brand`)
+      .then(res => setBrand(res.data.mall as KioskBrand))
+      .catch(() => {});
+  }, []);
+
   return session ? (
-    <ScanPhase staffName={session.staffName} token={session.token} onExpired={() => setSession(null)} />
+    <ScanPhase staffName={session.staffName} token={session.token} onExpired={() => setSession(null)} brand={brand} />
   ) : (
-    <AuthPhase onAuth={(token, staffName) => setSession({ token, staffName })} />
+    <AuthPhase onAuth={(token, staffName) => setSession({ token, staffName })} brand={brand} />
   );
 }

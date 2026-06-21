@@ -91,6 +91,7 @@ model Slot {
   vehicleType       VehicleType            @default(TRUCK) @map("vehicle_type")
   acceptedGoods     GoodsType[]            @default([]) @map("accepted_goods") // empty = accepts all goods
   autoAssign        Boolean                @default(true) @map("auto_assign")
+  autoWarehouseOnly Boolean                @default(false) @map("auto_warehouse_only")
   maxCapacity       Int                    @default(1) @map("max_capacity")
   status            SlotStatus             @default(AVAILABLE)
   isActive          Boolean                @default(true) @map("is_active")
@@ -114,6 +115,7 @@ model DeliveryRegistration {
   receivingUnit      ReceivingUnit  @map("receiving_unit")
   goodsType          GoodsType      @map("goods_type")
   poNumber           String?        @map("po_number")
+  vendorCode         String?        @map("vendor_code")
   requestedTime      DateTime?      @map("requested_time")
   checkinTime        DateTime?      @map("checkin_time")
   calledTime         DateTime?      @map("called_time")
@@ -153,23 +155,30 @@ model UnitConfig {
   id   String        @id @default(cuid())
   unit ReceivingUnit @unique
 
-  freshFoodEnabled    Boolean @default(true) @map("fresh_food_enabled")
-  generalGoodsEnabled Boolean @default(true) @map("general_goods_enabled")
-  thiCongEnabled      Boolean @default(true) @map("thi_cong_enabled")
+  // FRESH FOOD
+  freshFoodEnabled   Boolean @default(true) @map("fresh_food_enabled")
+
+  // GENERAL GOODS
+  generalGoodsEnabled   Boolean @default(true) @map("general_goods_enabled")
+
+  // THI CONG
+  thiCongEnabled   Boolean @default(true) @map("thi_cong_enabled")
 
   sundayFreshFoodOnly Boolean @default(false) @map("sunday_fresh_food_only")
 
+  //SLOT
   truckSlotMinutes     Int @default(30) @map("truck_slot_minutes")
   motorbikeSlotMinutes Int @default(15) @map("motorbike_slot_minutes")
   truckMaxPerSlot      Int @default(1) @map("truck_max_per_slot")
   motorbikeMaxPerSlot  Int @default(3) @map("motorbike_max_per_slot")
 
+  // INTEGRATIONS
   vendorApiUrl String? @map("vendor_api_url")
   vendorApiKey String? @map("vendor_api_key")
   poApiUrl     String? @map("po_api_url")
   poApiKey     String? @map("po_api_key")
 
-  // Branding
+  // BRANDING
   displayName  String  @default("") @map("display_name")
   shortName    String  @default("") @map("short_name")
   description  String  @default("") @map("description")
@@ -195,13 +204,28 @@ model StaffPin {
 }
 
 model MallConfig {
-  id        String   @id @default("singleton")
-  mallName  String   @default("THISO GROUP") @map("mall_name")
-  logoUrl   String?  @map("logo_url")
-  tagline   String?  @default("Delivery Management System")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id         String   @id @default("singleton")
+  mallName   String   @default("THISO GROUP") @map("mall_name")
+  logoUrl    String?  @map("logo_url")
+  tagline    String?  @default("Delivery Management System")
+  kioskBgUrl String?  @map("kiosk_bg_url")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("mall_configs")
+}
+
+model AutoWarehouseVendor {
+  id         String        @id @default(cuid())
+  unit       ReceivingUnit
+  vendorCode String        @map("vendor_code")
+  vendorName String        @map("vendor_name")
+  active     Boolean       @default(true)
+  note       String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+  updatedAt  DateTime      @updatedAt @map("updated_at")
+
+  @@unique([unit, vendorCode])
+  @@map("auto_warehouse_vendors")
 }
 
 model PushSubscription {

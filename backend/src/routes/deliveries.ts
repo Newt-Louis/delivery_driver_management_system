@@ -86,6 +86,7 @@ const registerSchema = z.object({
   goodsType: z.nativeEnum(GoodsType),
   unitGoodsTypeId: z.string().optional(),
   poNumber: z.string().optional(),
+  vendorCode: z.string().optional(),
   requestedTime: z.string().optional(),
   note: z.string().optional(),
 });
@@ -125,6 +126,22 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
 
   const requestedTime = body.requestedTime ? new Date(body.requestedTime) : null;
 
+  // Check auto-warehouse vendor code if provided
+  let resolvedGoodsType = body.goodsType;
+  let resolvedVendorCode: string | undefined;
+  if (body.vendorCode?.trim()) {
+    const normalized = body.vendorCode.toUpperCase().trim();
+    const awv = await prisma.autoWarehouseVendor.findFirst({
+      where: { vendorCode: normalized, unit: body.receivingUnit, active: true },
+    });
+    if (awv) {
+      resolvedGoodsType = GoodsType.AUTO_WAREHOUSE;
+      resolvedVendorCode = normalized;
+    } else {
+      resolvedVendorCode = normalized;
+    }
+  }
+
   const registrationCode = await generateCode(body.receivingUnit);
 
   const delivery = await prisma.deliveryRegistration.create({
@@ -136,11 +153,12 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
       vehiclePlate: body.vehiclePlate.toUpperCase(),
       vehicleType: body.vehicleType,
       receivingUnit: body.receivingUnit,
-      goodsType: body.goodsType,
-      unitGoodsTypeId: body.unitGoodsTypeId || undefined,
+      goodsType: resolvedGoodsType,
+      unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
       poNumber: body.poNumber,
+      vendorCode: resolvedVendorCode,
       requestedTime,
-      autoWarehouse: body.goodsType === GoodsType.AUTO_WAREHOUSE,
+      autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
       note: body.note,
     },
   });

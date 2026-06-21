@@ -6,7 +6,7 @@ import { z } from 'zod';
 import api from '../lib/api';
 import { useBranding, UNIT_FALLBACKS } from '../context/BrandingContext';
 import { useAuth } from '../context/AuthContext';
-import type { Slot, Zone, UnitConfig, GoodsType, DeliveryTimeWindow, UnitGoodsType } from '../lib/types';
+import type { Slot, Zone, UnitConfig, GoodsType, DeliveryTimeWindow, UnitGoodsType, AutoWarehouseVendor } from '../lib/types';
 
 const UNIT_LABELS: Record<string, string> = { EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)' };
 const VEHICLE_LABEL: Record<string, string> = { TRUCK: '🚛 Xe Tải', MOTORBIKE: '🛵 Xe Máy', OTHER: '🚗 Khác' };
@@ -36,6 +36,7 @@ const slotSchema = z.object({
   autoAssign: z.boolean().default(true),
   maxCapacity: z.number().int().min(1).max(10).default(1),
   acceptedGoods: z.array(z.enum(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'])).default([]),
+  autoWarehouseOnly: z.boolean().default(false),
 });
 type SlotForm = z.infer<typeof slotSchema>;
 
@@ -46,8 +47,8 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SlotForm>({
     resolver: zodResolver(slotSchema),
     defaultValues: slot
-      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[] }
-      : { vehicleType: 'TRUCK', assignedUnit: 'EMART', status: 'AVAILABLE', zoneId: '', autoAssign: true, maxCapacity: 1, acceptedGoods: [] },
+      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, autoWarehouseOnly: slot.autoWarehouseOnly ?? false, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[] }
+      : { vehicleType: 'TRUCK', assignedUnit: 'EMART', status: 'AVAILABLE', zoneId: '', autoAssign: true, autoWarehouseOnly: false, maxCapacity: 1, acceptedGoods: [] },
   });
 
   const acceptedGoods = watch('acceptedGoods') ?? [];
@@ -65,7 +66,7 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
     try {
       const payload = { ...data, zoneId: data.zoneId || null };
       if (isEdit) {
-        await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods });
+        await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, autoWarehouseOnly: payload.autoWarehouseOnly, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods });
       } else {
         await api.post('/api/slots', payload);
       }
@@ -131,7 +132,7 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
             </div>
           </div>
 
-          {/* Auto-assign toggle + maxCapacity */}
+          {/* Auto-assign toggle */}
           <div className="flex items-center justify-between p-3 bg-sky-50 rounded-xl">
             <div>
               <p className="text-sm font-semibold text-sky-800">Tự động điều xe</p>
@@ -143,6 +144,21 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${watch('autoAssign') ? 'bg-sky-600' : 'bg-thiso-200'}`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('autoAssign') ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          {/* Auto-warehouse only toggle */}
+          <div className="flex items-center justify-between p-3 bg-purple-50 rounded-xl">
+            <div>
+              <p className="text-sm font-semibold text-purple-800">🏭 Chỉ dành cho Kho tự động</p>
+              <p className="text-xs text-purple-600">Slot này chỉ nhận xe được xác nhận là NCC kho tự động</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setValue('autoWarehouseOnly', !watch('autoWarehouseOnly'))}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${watch('autoWarehouseOnly') ? 'bg-purple-600' : 'bg-thiso-200'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${watch('autoWarehouseOnly') ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
           </div>
 
@@ -787,44 +803,51 @@ function ZonePanel() {
 
 type ReceivingUnitKey = 'EMART' | 'THISKYHALL' | 'TENANT';
 
-function LogoUpload({ value, onChange, label }: {
+function LogoUpload({ value, onChange, label, maxSizeKB = 500, variant = 'logo' }: {
   value: string | null;
   onChange: (v: string | null) => void;
   label: string;
+  maxSizeKB?: number;
+  variant?: 'logo' | 'bg';
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 500_000) { alert('File quá lớn — tối đa 500KB'); return; }
+    if (file.size > maxSizeKB * 1000) { alert(`File quá lớn — tối đa ${maxSizeKB}KB`); return; }
     const reader = new FileReader();
     reader.onload = ev => onChange(ev.target?.result as string);
     reader.readAsDataURL(file);
-  }, [onChange]);
+  }, [onChange, maxSizeKB]);
+
+  const isBg = variant === 'bg';
 
   return (
     <div>
       <p className="label">{label}</p>
-      <div className="flex items-center gap-3">
-        <div className="w-16 h-16 rounded-xl border-2 border-thiso-200 bg-thiso-50 flex items-center justify-center overflow-hidden">
+      <div className="flex items-start gap-3">
+        <div className={`rounded-xl border-2 border-thiso-200 bg-thiso-50 flex items-center justify-center overflow-hidden flex-shrink-0
+          ${isBg ? 'w-40 h-24' : 'w-16 h-16'}`}>
           {value
-            ? <img src={value} alt="logo" className="w-full h-full object-contain p-1" />
+            ? <img src={value} alt="preview" className={`w-full h-full ${isBg ? 'object-cover' : 'object-contain p-1'}`} />
             : <span className="text-2xl text-thiso-300">🖼</span>}
         </div>
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-1.5 pt-1">
           <button type="button" className="btn-secondary text-xs py-1.5 px-3" onClick={() => inputRef.current?.click()}>
-            {value ? 'Thay logo' : 'Tải lên logo'}
+            {value ? (isBg ? 'Thay ảnh' : 'Thay logo') : (isBg ? 'Tải lên ảnh' : 'Tải lên logo')}
           </button>
           {value && (
             <button type="button" className="text-xs text-red-500 hover:text-red-700 text-left" onClick={() => onChange(null)}>
-              Xóa logo
+              Xóa
             </button>
           )}
           <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-[11px] text-thiso-400 leading-relaxed">PNG, JPG, SVG — tối đa 500KB<br/>Nền trong suốt (PNG) hiển thị tốt hơn</p>
+        <div className="flex-1 min-w-0 pt-1">
+          {isBg
+            ? <p className="text-[11px] text-thiso-400 leading-relaxed">JPG, PNG — tối đa {maxSizeKB}KB<br/>Khuyến nghị 1920×1080, ảnh sẽ phủ toàn màn hình kiosk</p>
+            : <p className="text-[11px] text-thiso-400 leading-relaxed">PNG, JPG, SVG — tối đa {maxSizeKB}KB<br/>Nền trong suốt (PNG) hiển thị tốt hơn</p>}
         </div>
       </div>
     </div>
@@ -837,9 +860,10 @@ function BrandPanel() {
   const [saved,  setSaved]  = useState<string | null>(null);
 
   // Mall state
-  const [mallName,   setMallName]   = useState(mall.mallName);
-  const [mallTagline,setMallTagline]= useState(mall.tagline ?? '');
-  const [mallLogo,   setMallLogo]   = useState<string | null>(mall.logoUrl);
+  const [mallName,    setMallName]    = useState(mall.mallName);
+  const [mallTagline, setMallTagline] = useState(mall.tagline ?? '');
+  const [mallLogo,    setMallLogo]    = useState<string | null>(mall.logoUrl);
+  const [kioskBgUrl,  setKioskBgUrl]  = useState<string | null>(mall.kioskBgUrl ?? null);
 
   // Unit states
   const [unitData, setUnitData] = useState<Record<ReceivingUnitKey, {
@@ -858,7 +882,7 @@ function BrandPanel() {
   async function saveMall() {
     setSaving('mall');
     try {
-      await api.patch('/api/brand/mall', { mallName, tagline: mallTagline || null, logoUrl: mallLogo });
+      await api.patch('/api/brand/mall', { mallName, tagline: mallTagline || null, logoUrl: mallLogo, kioskBgUrl });
       refresh();
       setSaved('mall'); setTimeout(() => setSaved(null), 2000);
     } finally { setSaving(null); }
@@ -906,6 +930,12 @@ function BrandPanel() {
             <label className="label">Tagline / Mô tả ngắn</label>
             <input className="input" value={mallTagline} onChange={e => setMallTagline(e.target.value)} placeholder="Delivery Management System" />
           </div>
+        </div>
+
+        <div className="border-t border-thiso-100 pt-5">
+          <h4 className="font-semibold text-thiso-700 text-sm mb-1">🖥 Hình nền màn hình Kiosk</h4>
+          <p className="text-[11px] text-thiso-400 mb-3">Hiển thị ở chế độ idle khi không có kết quả quét. Để trống = nền tối mặc định.</p>
+          <LogoUpload label="" value={kioskBgUrl} onChange={setKioskBgUrl} maxSizeKB={2048} variant="bg" />
         </div>
 
         <div className="flex items-center justify-end gap-3">
@@ -1614,12 +1644,249 @@ function UserPanel({ currentUserId }: { currentUserId: string }) {
   );
 }
 
+// ─── AW Vendor Panel ──────────────────────────────────────────────────────────
+
+function AWVendorModal({
+  vendor, defaultUnit, onClose, onSaved,
+}: {
+  vendor: AutoWarehouseVendor | null;
+  defaultUnit: string;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!vendor;
+  const [form, setFormState] = useState({
+    unit: vendor?.unit ?? (defaultUnit as AutoWarehouseVendor['unit']),
+    vendorCode: vendor?.vendorCode ?? '',
+    vendorName: vendor?.vendorName ?? '',
+    active: vendor?.active ?? true,
+    note: vendor?.note ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState('');
+
+  function set(key: string, val: string | boolean) {
+    setFormState(f => ({ ...f, [key]: val }));
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true); setError('');
+    try {
+      if (isEdit) {
+        await api.patch(`/api/aw-vendors/${vendor!.id}`, {
+          vendorName: form.vendorName, active: form.active, note: form.note || null,
+        });
+      } else {
+        await api.post('/api/aw-vendors', {
+          unit: form.unit, vendorCode: form.vendorCode,
+          vendorName: form.vendorName, active: form.active, note: form.note || undefined,
+        });
+      }
+      onSaved();
+    } catch (err: unknown) {
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Có lỗi xảy ra');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
+        <h3 className="text-lg font-bold text-thiso-800 mb-5">
+          {isEdit ? 'Sửa nhà cung cấp' : 'Thêm NCC kho tự động'}
+        </h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="label">Đơn vị *</label>
+            <select className="input" value={form.unit} onChange={e => set('unit', e.target.value)} disabled={isEdit}>
+              <option value="EMART">Emart</option>
+              <option value="THISKYHALL">Thiskyhall</option>
+              <option value="TENANT">Mall (Khách thuê)</option>
+            </select>
+          </div>
+          <div>
+            <label className="label">Mã NCC *</label>
+            <input
+              className="input font-mono"
+              value={form.vendorCode}
+              onChange={e => set('vendorCode', e.target.value.toUpperCase())}
+              placeholder="VD: SUP001, NCCABC"
+              disabled={isEdit}
+              required
+            />
+            {!isEdit && <p className="text-[11px] text-thiso-400 mt-1">Tài xế nhập mã này trong form đăng ký để xác nhận vào kho tự động</p>}
+          </div>
+          <div>
+            <label className="label">Tên nhà cung cấp *</label>
+            <input className="input" value={form.vendorName} onChange={e => set('vendorName', e.target.value)} placeholder="Công ty TNHH ABC" required />
+          </div>
+          <div>
+            <label className="label">Ghi chú</label>
+            <input className="input" value={form.note} onChange={e => set('note', e.target.value)} placeholder="Ghi chú thêm nếu có..." />
+          </div>
+          <label className="flex items-center gap-3 p-3 bg-thiso-50 rounded-xl cursor-pointer">
+            <div
+              onClick={() => set('active', !form.active)}
+              className={`relative w-10 h-6 rounded-full transition-colors flex-shrink-0 ${form.active ? 'bg-sky-500' : 'bg-thiso-300'}`}
+            >
+              <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${form.active ? 'translate-x-4' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-sm font-medium text-thiso-700">{form.active ? 'Đang hoạt động' : 'Vô hiệu hóa'}</span>
+          </label>
+          {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+          <div className="flex gap-3 pt-2">
+            <button type="button" className="btn-secondary flex-1" onClick={onClose}>Hủy</button>
+            <button type="submit" className="btn-primary flex-1" disabled={saving}>
+              {saving ? 'Đang lưu...' : isEdit ? 'Lưu thay đổi' : 'Thêm NCC'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function AWVendorPanel() {
+  const qc = useQueryClient();
+  const [unitFilter, setUnitFilter] = useState('EMART');
+  const [modal, setModal]           = useState(false);
+  const [editItem, setEditItem]     = useState<AutoWarehouseVendor | null>(null);
+  const [deleteId, setDeleteId]     = useState<string | null>(null);
+  const [msg, setMsg]               = useState('');
+
+  const { data: vendors = [], isLoading } = useQuery<AutoWarehouseVendor[]>({
+    queryKey: ['aw-vendors', unitFilter],
+    queryFn: async () => (await api.get('/api/aw-vendors', { params: { unit: unitFilter } })).data,
+  });
+
+  function refresh() {
+    qc.invalidateQueries({ queryKey: ['aw-vendors'] });
+  }
+
+  function showMsg(text: string) {
+    setMsg(text);
+    setTimeout(() => setMsg(''), 3000);
+  }
+
+  async function toggleActive(v: AutoWarehouseVendor) {
+    await api.patch(`/api/aw-vendors/${v.id}`, { active: !v.active });
+    refresh();
+  }
+
+  async function doDelete(id: string) {
+    try {
+      await api.delete(`/api/aw-vendors/${id}`);
+      setDeleteId(null);
+      refresh();
+      showMsg('Đã xóa nhà cung cấp.');
+    } catch {
+      showMsg('Lỗi khi xóa.');
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <p className="text-sm text-thiso-500">
+          Danh sách NCC được phép vào khu kho tự động. Tài xế nhập mã NCC khi đăng ký để được xếp vào slot kho tự động.
+        </p>
+        <div className="flex items-center gap-3">
+          <select className="input w-auto text-sm" value={unitFilter} onChange={e => setUnitFilter(e.target.value)}>
+            <option value="EMART">Emart</option>
+            <option value="THISKYHALL">Thiskyhall</option>
+            <option value="TENANT">Mall (Khách thuê)</option>
+          </select>
+          <button className="btn-primary px-4 py-2" onClick={() => { setEditItem(null); setModal(true); }}>+ Thêm NCC</button>
+        </div>
+      </div>
+
+      {msg && (
+        <div className="mb-4 p-3 bg-sky-50 border border-sky-200 rounded-lg text-sm text-sky-700 flex items-center justify-between">
+          {msg}
+          <button onClick={() => setMsg('')} className="text-sky-400 hover:text-sky-600">✕</button>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl shadow-sm border border-thiso-100 overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-thiso-100 bg-thiso-50 text-left text-thiso-400 text-xs uppercase">
+              <th className="px-4 py-3">Mã NCC</th>
+              <th className="px-4 py-3">Tên nhà cung cấp</th>
+              <th className="px-4 py-3">Kích hoạt</th>
+              <th className="px-4 py-3">Ghi chú</th>
+              <th className="px-4 py-3 text-right">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && <tr><td colSpan={5} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>}
+            {!isLoading && vendors.length === 0 && (
+              <tr><td colSpan={5} className="py-12 text-center text-thiso-400">Chưa có NCC nào cho đơn vị này</td></tr>
+            )}
+            {vendors.map(v => (
+              <tr key={v.id} className={`border-b border-thiso-50 last:border-0 hover:bg-thiso-50 ${!v.active ? 'opacity-50' : ''}`}>
+                <td className="px-4 py-3 font-mono font-bold text-thiso-800">{v.vendorCode}</td>
+                <td className="px-4 py-3 text-thiso-700">{v.vendorName}</td>
+                <td className="px-4 py-3">
+                  <button
+                    onClick={() => toggleActive(v)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${v.active ? 'bg-sky-600' : 'bg-thiso-200'}`}
+                  >
+                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${v.active ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </td>
+                <td className="px-4 py-3 text-xs text-thiso-400 italic">{v.note || '—'}</td>
+                <td className="px-4 py-3">
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      className="text-xs px-3 py-1 rounded-lg border border-thiso-200 hover:border-sky-400 hover:text-sky-600 transition-colors text-thiso-500"
+                      onClick={() => { setEditItem(v); setModal(true); }}
+                    >Sửa</button>
+                    <button
+                      className="text-xs px-3 py-1 rounded-lg border border-thiso-200 hover:border-red-400 hover:text-red-600 transition-colors text-thiso-400"
+                      onClick={() => setDeleteId(v.id)}
+                    >Xóa</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {modal && (
+        <AWVendorModal
+          vendor={editItem}
+          defaultUnit={unitFilter}
+          onClose={() => setModal(false)}
+          onSaved={() => { setModal(false); refresh(); showMsg('Đã lưu thành công.'); }}
+        />
+      )}
+
+      {deleteId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-lg font-bold text-thiso-800 mb-2">Xóa nhà cung cấp?</h3>
+            <p className="text-sm text-thiso-500 mb-5">Hành động này không thể hoàn tác.</p>
+            <div className="flex gap-3">
+              <button className="btn-secondary flex-1" onClick={() => setDeleteId(null)}>Hủy</button>
+              <button className="btn-danger flex-1" onClick={() => doDelete(deleteId)}>Xóa</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Backoffice ──────────────────────────────────────────────────────────
 
 export default function Backoffice() {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'slots' | 'zones' | 'units' | 'brand' | 'staff' | 'users'>('slots');
+  const [activeTab, setActiveTab] = useState<'slots' | 'zones' | 'units' | 'brand' | 'staff' | 'users' | 'awvendors'>('slots');
   const [editSlot, setEditSlot] = useState<Slot | null | undefined>(undefined);
   const [deleteConfirm, setDeleteConfirm] = useState<Slot | null>(null);
   const [deleteMsg, setDeleteMsg] = useState('');
@@ -1696,7 +1963,7 @@ export default function Backoffice() {
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-thiso-200">
-        {([['slots', '🚪 Quản lý Slot'], ['zones', '🗺 Quản lý Khu'], ['units', '⚙ Cấu hình Đơn vị'], ['brand', '🎨 Thương hiệu'], ['staff', '👷 Nhân viên'], ['users', '👤 Người dùng']] as const).map(([tab, label]) => (
+        {([['slots', '🚪 Quản lý Slot'], ['zones', '🗺 Quản lý Khu'], ['units', '⚙ Cấu hình Đơn vị'], ['brand', '🎨 Thương hiệu'], ['staff', '👷 Nhân viên'], ['users', '👤 Người dùng'], ['awvendors', '🏭 Kho tự động']] as const).map(([tab, label]) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1802,14 +2069,17 @@ export default function Backoffice() {
                     <td className="px-4 py-3 text-thiso-500 text-xs">{UNIT_LABELS[slot.assignedUnit]}</td>
                     <td className="px-4 py-3"><span className="text-sm text-thiso-600">{VEHICLE_LABEL[slot.vehicleType] ?? slot.vehicleType}</span></td>
                     <td className="px-4 py-3">
-                      {slot.acceptedGoods.length === 0
-                        ? <span className="text-xs text-thiso-300 italic">Tất cả</span>
-                        : <div className="flex flex-wrap gap-1">
-                            {slot.acceptedGoods.map((g) => (
+                      <div className="flex flex-wrap gap-1">
+                        {slot.autoWarehouseOnly && (
+                          <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-bold">🏭 AW Only</span>
+                        )}
+                        {!slot.autoWarehouseOnly && slot.acceptedGoods.length === 0
+                          ? <span className="text-xs text-thiso-300 italic">Tất cả</span>
+                          : !slot.autoWarehouseOnly && slot.acceptedGoods.map((g) => (
                               <span key={g} className="text-xs px-1.5 py-0.5 rounded bg-thiso-100 text-thiso-600 font-medium">{GOODS_LABELS[g as GoodsType]}</span>
-                            ))}
-                          </div>
-                      }
+                            ))
+                        }
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="text-sm font-semibold text-gray-700">{slot.maxCapacity ?? 1}</span>
@@ -1875,6 +2145,9 @@ export default function Backoffice() {
 
       {/* ── Users Tab ── */}
       {activeTab === 'users' && <UserPanel currentUserId={currentUser?.id ?? ''} />}
+
+      {/* ── AW Vendor Tab ── */}
+      {activeTab === 'awvendors' && <AWVendorPanel />}
     </div>
   );
 }

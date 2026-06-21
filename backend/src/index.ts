@@ -23,6 +23,7 @@ import userRoutes from './routes/users';
 import reportsRoutes from './routes/reports';
 import checkinRoutes from './routes/checkin';
 import pushRoutes from './routes/push';
+import awVendorRoutes from './routes/awVendors';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -43,6 +44,8 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/checkin', checkinRoutes);
+app.use('/api/push', pushRoutes);
+app.use('/api/aw-vendors', awVendorRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
@@ -54,6 +57,7 @@ initSocket(server);
 async function start() {
   await prisma.$connect();
   console.log('Database connected');
+  initWebPush();
 
   server.listen(PORT, () => {
     console.log(`Backend running on http://localhost:${PORT}`);

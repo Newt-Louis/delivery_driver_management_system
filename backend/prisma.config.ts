@@ -1,10 +1,10 @@
-import path from 'node:path'
+import { join } from 'node:path'
 import { defineConfig,env } from 'prisma/config'
 import * as dotenv from 'dotenv'
 
 // Load file .env tùy theo môi trường
 dotenv.config({
-  path: path.join(process.cwd(), `.env`),
+  path: join(process.cwd(), `.env`),
 })
 
 export default defineConfig({

@@ -8,6 +8,7 @@ import { emitQueueUpdated, emitDeliveryCompleted, emitSlotUpdated } from '../soc
 import { getFullQueue, getAllSlots } from './deliveries';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
+import { sendPushToDelivery } from '../services/webPush';
 
 const router = Router();
 
@@ -15,24 +16,45 @@ const CHECKIN_INCLUDE = {
   assignedSlot: { include: { zone: { select: { id: true, code: true, name: true } } } },
 } as const;
 
+function requestedStaffRole(role?: string): StaffRole | null {
+  if (!role) return StaffRole.SECURITY;
+  const normalized = role.trim().toUpperCase();
+  if (normalized === 'SECURITY') return StaffRole.SECURITY;
+  if (normalized === 'RECEIVING' || normalized === 'GR') return StaffRole.RECEIVING;
+  return null;
+}
+
+const ROLE_FOR_TERMINAL_SCAN: Partial<Record<DeliveryStatus, StaffRole>> = {
+  [DeliveryStatus.REGISTERED]: StaffRole.SECURITY,
+  [DeliveryStatus.CALLED]: StaffRole.RECEIVING,
+  [DeliveryStatus.RECEIVING]: StaffRole.RECEIVING,
+  [DeliveryStatus.AUTO_WAREHOUSE_RECEIVING]: StaffRole.RECEIVING,
+};
+
 // ─── POST /api/checkin/terminal-auth ─────────────────────────────────────────
 router.post('/terminal-auth', asyncHandler(async (req: Request, res: Response) => {
-  const { pin } = req.body as { pin?: string };
+  const { pin, role } = req.body as { pin?: string; role?: string };
   if (!pin) { res.status(400).json({ error: 'Vui lòng nhập mã PIN' }); return; }
+
+  const requiredRole = requestedStaffRole(role);
+  if (!requiredRole) { res.status(400).json({ error: 'Vai tro kiosk khong hop le' }); return; }
 
   const staff = await prisma.staffPin.findUnique({ where: { pin, active: true } });
   if (!staff) { res.status(401).json({ error: 'Mã PIN không hợp lệ hoặc đã bị vô hiệu hóa' }); return; }
-  if (staff.role !== StaffRole.SECURITY) {
+  if (staff.role !== requiredRole) {
+    if (requiredRole === StaffRole.RECEIVING) {
+      res.status(403).json({ error: 'Chi nhan vien nhan hang moi co the kich hoat kiosk nay' }); return;
+    }
     res.status(403).json({ error: 'Chỉ bảo vệ mới có thể kích hoạt kiosk check-in' }); return;
   }
 
   const secret = process.env.JWT_SECRET ?? 'fallback-secret';
   const terminalToken = jwt.sign(
-    { type: 'terminal', staffPinId: staff.id, staffName: staff.name },
+    { type: 'terminal', staffPinId: staff.id, staffName: staff.name, staffRole: staff.role, roleScoped: Boolean(role) },
     secret,
     { expiresIn: '8h' },
   );
-  res.json({ terminalToken, staffName: staff.name, expiresIn: 8 * 3600 });
+  res.json({ terminalToken, staffName: staff.name, staffRole: staff.role, expiresIn: 8 * 3600 });
 }));
 
 // ─── POST /api/checkin/scan ───────────────────────────────────────────────────
@@ -49,7 +71,7 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
   const token = header.slice(7);
-  let terminalPayload: { type: string; staffPinId: string; staffName: string };
+  let terminalPayload: { type: string; staffPinId: string; staffName: string; staffRole?: StaffRole; roleScoped?: boolean };
   try {
     const secret = process.env.JWT_SECRET ?? 'fallback-secret';
     terminalPayload = jwt.verify(token, secret) as typeof terminalPayload;
@@ -72,6 +94,15 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
   }
 
   // ── Route by current status ──
+  if (terminalPayload.roleScoped) {
+    const requiredRole = ROLE_FOR_TERMINAL_SCAN[delivery.status];
+    if (requiredRole && terminalPayload.staffRole !== requiredRole) {
+      const roleLabel = requiredRole === StaffRole.SECURITY ? 'bao ve' : 'nhan vien nhan hang';
+      res.status(403).json({ error: `Hanh dong nay yeu cau kiosk ${roleLabel}` });
+      return;
+    }
+  }
+
   switch (delivery.status) {
 
     // ── Scan 1: Check-in ────────────────────────────────────────────────────
@@ -109,6 +140,12 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       const ticketCode = formatTicketCode(delivery.receivingUnit, delivery.vehicleType, updated.ticketNumber!);
       emitQueueUpdated(await getFullQueue());
       res.json({ action: 'CHECKED_IN', staffName: terminalPayload.staffName, ticketCode, delivery: updated });
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '✅ Check-in thành công',
+        body:  `${ticketCode} — Xe ${delivery.vehiclePlate} đang trong hàng chờ.`,
+        tag:   'delivery-checkin',
+        url:   `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
     }
@@ -189,6 +226,12 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       emitQueueUpdated(queue);
       emitSlotUpdated(slots);
       res.json({ action: 'COMPLETED', staffName: terminalPayload.staffName, delivery: final });
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '🎉 Giao hàng hoàn tất',
+        body:  `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+        tag:   'delivery-completed',
+        url:   `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
     }

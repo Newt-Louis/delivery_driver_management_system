@@ -14,6 +14,7 @@ export interface MallBranding {
   mallName: string;
   logoUrl: string | null;
   tagline: string | null;
+  kioskBgUrl: string | null;
 }
 
 export interface BrandingData {
@@ -34,6 +35,7 @@ const MALL_FALLBACK: MallBranding = {
   mallName: 'THISO GROUP',
   logoUrl: null,
   tagline: 'Delivery Management System',
+  kioskBgUrl: null,
 };
 
 const INITIAL: BrandingData = {
@@ -74,9 +76,10 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       }
       setData({
         mall: {
-          mallName: mall.mallName || MALL_FALLBACK.mallName,
-          logoUrl:  mall.logoUrl  ?? null,
-          tagline:  mall.tagline  ?? MALL_FALLBACK.tagline,
+          mallName:   mall.mallName   || MALL_FALLBACK.mallName,
+          logoUrl:    mall.logoUrl    ?? null,
+          tagline:    mall.tagline    ?? MALL_FALLBACK.tagline,
+          kioskBgUrl: mall.kioskBgUrl ?? null,
         },
         units: mergedUnits,
         isLoaded: true,

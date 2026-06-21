@@ -43,33 +43,33 @@ docker compose exec backend npm run seed
 
 ### Bước 5 – Truy cập
 
-| Dịch vụ | URL |
-|---|---|
-| Frontend | http://localhost:3000 |
+| Dịch vụ     | URL                   |
+| ----------- | --------------------- |
+| Frontend    | http://localhost:3000 |
 | Backend API | http://localhost:4000 |
-| Database | localhost:5432 |
+| Database    | localhost:5432        |
 
 ---
 
 ## Tài khoản đăng nhập (sau khi seed)
 
-| Vai trò | Email | Mật khẩu |
-|---|---|---|
-| Admin | admin@mall.com | password123 |
+| Vai trò             | Email              | Mật khẩu    |
+| ------------------- | ------------------ | ----------- |
+| Admin               | admin@mall.com     | password123 |
 | Nhân viên Nhận hàng | receiving@mall.com | password123 |
-| Bảo vệ | security@mall.com | password123 |
+| Bảo vệ              | security@mall.com  | password123 |
 
 ---
 
 ## Các trang chính
 
-| Trang | URL | Mô tả |
-|---|---|---|
-| Đăng ký giao hàng | `/register` | Công khai – NCC/tài xế đăng ký |
-| Màn hình chờ | `/waiting-screen` | Công khai – TV display, realtime |
-| Check-in | `/check-in` | Bảo vệ check-in xe vào cổng |
-| Dashboard | `/dashboard` | Nhân viên Receiving điều phối |
-| Quản lý Dock | `/docks` | Xem và cập nhật trạng thái dock |
+| Trang             | URL               | Mô tả                            |
+| ----------------- | ----------------- | -------------------------------- |
+| Đăng ký giao hàng | `/register`       | Công khai – NCC/tài xế đăng ký   |
+| Màn hình chờ      | `/waiting-screen` | Công khai – TV display, realtime |
+| Check-in          | `/check-in`       | Bảo vệ check-in xe vào cổng      |
+| Dashboard         | `/dashboard`      | Nhân viên Receiving điều phối    |
+| Quản lý Dock      | `/docks`          | Xem và cập nhật trạng thái dock  |
 
 ---
 
@@ -101,15 +101,15 @@ d:\QUE\
 
 File: `backend/src/services/priorityEngine.ts`
 
-| Điều kiện | Điểm |
-|---|---|
-| Fresh Food (base) | 100 |
-| Auto Warehouse (base) | 80 |
-| General Goods (base) | 50 |
-| Nhà cung cấp VIP | +20 |
-| Đến đúng giờ | +10 |
-| Đến trễ | -20 |
-| Fresh Food chờ > 30 phút | +30 |
+| Điều kiện                | Điểm |
+| ------------------------ | ---- |
+| Fresh Food (base)        | 100  |
+| Auto Warehouse (base)    | 80   |
+| General Goods (base)     | 50   |
+| Nhà cung cấp VIP         | +20  |
+| Đến đúng giờ             | +10  |
+| Đến trễ                  | -20  |
+| Fresh Food chờ > 30 phút | +30  |
 
 Hàng chờ được sắp xếp: **điểm cao nhất → thời gian check-in sớm nhất**.
 
@@ -117,12 +117,12 @@ Hàng chờ được sắp xếp: **điểm cao nhất → thời gian check-in 
 
 ## Realtime Events (Socket.IO)
 
-| Event | Mô tả |
-|---|---|
-| `queue_updated` | Danh sách hàng chờ cập nhật |
-| `delivery_called` | Xe được gọi vào dock |
-| `dock_updated` | Trạng thái dock thay đổi |
-| `delivery_completed` | Xe hoàn tất nhận hàng |
+| Event                | Mô tả                       |
+| -------------------- | --------------------------- |
+| `queue_updated`      | Danh sách hàng chờ cập nhật |
+| `delivery_called`    | Xe được gọi vào dock        |
+| `dock_updated`       | Trạng thái dock thay đổi    |
+| `delivery_completed` | Xe hoàn tất nhận hàng       |
 
 ---
 
@@ -172,3 +172,13 @@ npm run dev
 ```
 
 Frontend dev server: http://localhost:5173
+
+# Quy trình phát triển database với Prisma
+
+Bất kỳ khi nào chỉnh sửa DDL schema.prisma thì phải chạy lệnh:
+$ npx prisma migrate dev --name <tên tiếng anh ngắn mô tả thay đổi phân cách bảng dấu \_>
+
+Khi deploy server thì chạy lệnh:
+$ npx prisma migrate deploy
+Tiếp theo là: (Khi có sự cố, bình thường thì đã có lệnh npm run postinstall chạy lệnh này khi build rồi)
+$ npx prisma generate

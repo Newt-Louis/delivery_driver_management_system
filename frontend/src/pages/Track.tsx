@@ -267,6 +267,7 @@ function TrackContent({ code }: { code: string }) {
   const pollRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   const [wakeLockActive, setWakeLockActive] = useState(false);
+  const [pushEnabled, setPushEnabled] = useState(false);
   const trackUrl = `${window.location.origin}/track/${code}`;
 
   // Unlock AudioContext on first user touch (required by iOS Safari).
@@ -281,6 +282,39 @@ function TrackContent({ code }: { code: string }) {
       document.removeEventListener('click',      init);
     };
   }, []);
+
+  // Register Service Worker and subscribe to push notifications
+  const subscribePush = useCallback(async (deliveryRegistrationCode: string) => {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+      const { data } = await api.get<{ publicKey: string }>('/api/push/vapid-public-key');
+      if (!data.publicKey) return;
+      const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+      await navigator.serviceWorker.ready;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub) {
+        const base64 = data.publicKey.replace(/-/g, '+').replace(/_/g, '/');
+        const rawBytes = window.atob(base64);
+        const keyBytes = new Uint8Array(rawBytes.length);
+        for (let i = 0; i < rawBytes.length; i++) keyBytes[i] = rawBytes.charCodeAt(i);
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes });
+      }
+      await api.post('/api/push/subscribe', {
+        subscription: sub.toJSON(),
+        deliveryCode: deliveryRegistrationCode,
+      });
+      setPushEnabled(true);
+    } catch (err) {
+      console.warn('[Push] subscription failed:', err);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-subscribe when permission already granted
+  useEffect(() => {
+    if (!delivery || pushEnabled) return;
+    if (delivery.status === 'COMPLETED' || delivery.status === 'CANCELLED') return;
+    if (notifPermission === 'granted') void subscribePush(delivery.registrationCode);
+  }, [delivery?.registrationCode, delivery?.status, notifPermission, pushEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-dismiss non-urgent status alerts after 10 s
   useEffect(() => {
@@ -440,7 +474,10 @@ function TrackContent({ code }: { code: string }) {
 
   function requestNotif() {
     if (typeof Notification === 'undefined') return;
-    Notification.requestPermission().then(p => setNotifPermission(p));
+    Notification.requestPermission().then(p => {
+      setNotifPermission(p);
+      if (p === 'granted' && delivery) void subscribePush(delivery.registrationCode);
+    });
   }
 
   if (loading) {
@@ -578,15 +615,23 @@ function TrackContent({ code }: { code: string }) {
           >
             <span className="text-2xl flex-shrink-0">🔔</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-indigo-800">Bật thông báo</p>
+              <p className="text-sm font-bold text-indigo-800">Bật thông báo hệ thống</p>
               <p className="text-xs text-indigo-500 mt-0.5">
-                Nhận thông báo ngay khi xe bạn được gọi vào dock
+                Nhận cảnh báo ngay kể cả khi màn hình tắt
               </p>
             </div>
             <span className="text-xs font-semibold bg-indigo-600 text-white px-3 py-1 rounded-lg flex-shrink-0">
               Bật
             </span>
           </button>
+        )}
+        {!isTerminal && notifPermission === 'granted' && pushEnabled && (
+          <div className="w-full bg-green-50 border border-green-200 rounded-2xl px-4 py-2.5 flex items-center gap-3">
+            <span className="text-lg flex-shrink-0">🔔</span>
+            <p className="text-xs text-green-700 font-medium flex-1">
+              Thông báo hệ thống đã bật — sẽ nhận cảnh báo kể cả khi tắt màn hình
+            </p>
+          </div>
         )}
 
         {/* Status card */}
