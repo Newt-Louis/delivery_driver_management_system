@@ -93,13 +93,18 @@ self.addEventListener('fetch', (event) => {
 });
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return;
+  if (!event.data) {
+    console.warn('[SW Push] No data in push event');
+    return;
+  }
 
   let payload;
   try {
     payload = event.data.json();
+    console.log('[SW Push] Received push payload:', payload);
   } catch {
     payload = { title: 'Mall Delivery', body: event.data.text() };
+    console.log('[SW Push] Fallback text payload:', payload);
   }
 
   const {
@@ -109,8 +114,10 @@ self.addEventListener('push', (event) => {
     tag,
     icon = '/icons/icon-192.png',
     badge = '/icons/maskable-192.png',
-    vibrate = [200, 100, 200],
+    vibrate = [300, 120, 300, 120, 600],
   } = payload;
+
+  console.log('[SW Push] Showing notification:', { title, body, tag, vibrate });
 
   event.waitUntil(
     self.registration.showNotification(title, {
@@ -119,14 +126,17 @@ self.addEventListener('push', (event) => {
       badge,
       tag: tag ?? 'mall-delivery',
       renotify: true,
-      requireInteraction: false,
+      requireInteraction: true,
       data: { url: url ?? '/' },
       vibrate,
     })
+      .then(() => console.log('[SW Push] Notification shown successfully'))
+      .catch((err) => console.error('[SW Push] Failed to show notification:', err))
   );
 });
 
 self.addEventListener('notificationclick', (event) => {
+  console.log('[SW NotificationClick] Clicked notification with tag:', event.notification.tag);
   event.notification.close();
   const targetUrl = event.notification.data?.url ?? '/';
 
@@ -134,10 +144,12 @@ self.addEventListener('notificationclick', (event) => {
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const client of list) {
         if (client.url.includes(TRACK_PATH) && 'focus' in client) {
+          console.log('[SW NotificationClick] Focusing existing Track window');
           client.navigate(targetUrl);
           return client.focus();
         }
       }
+      console.log('[SW NotificationClick] Opening new window to:', targetUrl);
       if (clients.openWindow) return clients.openWindow(targetUrl);
       return undefined;
     })

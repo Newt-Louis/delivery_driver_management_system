@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 import { triggerAutoAssign } from '../services/autoAssign';
+import { sendPushToDelivery } from '../services/webPush';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import {
@@ -416,6 +417,14 @@ router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), async
   emitSlotUpdated(slots);
 
   res.json(updated);
+
+  // Send push notification to driver
+  sendPushToDelivery(delivery.registrationCode, {
+    title: `🚛 Mời vào ${slot.code}`,
+    body: `Xe ${delivery.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
+    tag: 'delivery-called-manual',
+    url: `/track/${delivery.registrationCode}`,
+  }).catch(console.error);
 }));
 
 // PATCH /api/deliveries/:id/start-receiving
@@ -436,6 +445,15 @@ router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVI
 
   emitQueueUpdated(await getFullQueue());
   res.json(updated);
+
+  // Send push notification to driver
+  const slotName = updated.assignedSlot?.name ?? 'dock';
+  sendPushToDelivery(delivery.registrationCode, {
+    title: '📦 Bắt đầu giao hàng',
+    body: `Xe ${delivery.vehiclePlate} tại ${slotName}`,
+    tag: 'delivery-receiving-started',
+    url: `/track/${delivery.registrationCode}`,
+  }).catch(console.error);
 }));
 
 // PATCH /api/deliveries/:id/complete
@@ -485,6 +503,14 @@ router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), a
   emitSlotUpdated(slots);
 
   res.json({ success: true });
+
+  // Send push notification to driver
+  sendPushToDelivery(delivery.registrationCode, {
+    title: '🎉 Giao hàng hoàn tất',
+    body: `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+    tag: 'delivery-completed',
+    url: `/track/${delivery.registrationCode}`,
+  }).catch(console.error);
 
   triggerAutoAssign(delivery.receivingUnit).catch(console.error);
 }));

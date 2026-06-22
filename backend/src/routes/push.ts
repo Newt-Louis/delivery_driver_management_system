@@ -30,7 +30,7 @@ router.post('/subscribe', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  await prisma.pushSubscription.upsert({
+  const result = await prisma.pushSubscription.upsert({
     where: { endpoint: subscription.endpoint },
     create: {
       endpoint:     subscription.endpoint,
@@ -45,7 +45,12 @@ router.post('/subscribe', asyncHandler(async (req: Request, res: Response) => {
     },
   });
 
-  res.json({ ok: true });
+  console.log('[Push] Subscription saved:', {
+    deliveryCode: result.deliveryCode,
+    endpoint: result.endpoint.substring(0, 50) + '...',
+  });
+
+  res.json({ ok: true, message: 'Subscription saved successfully' });
 }));
 
 // DELETE /api/push/unsubscribe

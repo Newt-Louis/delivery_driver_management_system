@@ -20,10 +20,18 @@ export async function sendPushToDelivery(
   deliveryCode: string,
   payload: { title: string; body: string; url?: string; tag?: string },
 ) {
-  if (!PUBLIC_KEY || !PRIVATE_KEY) return;
+  if (!PUBLIC_KEY || !PRIVATE_KEY) {
+    console.warn('[WebPush] VAPID keys not configured, skipping push for', deliveryCode);
+    return;
+  }
 
   const subs = await prisma.pushSubscription.findMany({ where: { deliveryCode } });
-  if (subs.length === 0) return;
+  if (subs.length === 0) {
+    console.log('[WebPush] No subscriptions found for delivery:', deliveryCode);
+    return;
+  }
+
+  console.log(`[WebPush] Sending push to ${subs.length} subscription(s) for delivery: ${deliveryCode}`, { title: payload.title });
 
   const data = JSON.stringify({
     ...payload,
@@ -32,6 +40,7 @@ export async function sendPushToDelivery(
     vibrate: [300, 120, 300, 120, 600],
   });
   const expired: string[] = [];
+  let successCount = 0;
 
   await Promise.allSettled(
     subs.map(async (s) => {
@@ -41,15 +50,24 @@ export async function sendPushToDelivery(
           data,
           { TTL: 60 * 60, urgency: 'high' },
         );
+        successCount++;
+        console.log(`[WebPush] ✓ Sent to ${s.endpoint.substring(0, 50)}...`);
       } catch (err: unknown) {
         const code = (err as { statusCode?: number }).statusCode;
-        if (code === 410 || code === 404) expired.push(s.endpoint);
-        else console.error(`[WebPush] send error ${code}:`, (err as Error).message);
+        if (code === 410 || code === 404) {
+          expired.push(s.endpoint);
+          console.log(`[WebPush] Subscription expired (${code}), will delete: ${s.endpoint.substring(0, 50)}...`);
+        } else {
+          console.error(`[WebPush] Send failed (${code}):`, (err as Error).message);
+        }
       }
     }),
   );
 
   if (expired.length > 0) {
     await prisma.pushSubscription.deleteMany({ where: { endpoint: { in: expired } } });
+    console.log(`[WebPush] Deleted ${expired.length} expired subscription(s)`);
   }
+
+  console.log(`[WebPush] Summary: ${successCount} sent, ${expired.length} expired`);
 }

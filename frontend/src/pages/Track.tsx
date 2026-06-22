@@ -322,6 +322,26 @@ function TrackContent({ code }: { code: string }) {
     if (notifPermission === 'granted') void subscribePush(delivery.registrationCode);
   }, [delivery?.registrationCode, delivery?.status, notifPermission, pushEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-request notification permission on component mount (if not already decided)
+  useEffect(() => {
+    if (!pushSupport.supported || typeof Notification === 'undefined') return;
+    if (notifPermission !== 'default') return; // Already granted or denied
+
+    // Auto-request after a short delay to let page settle
+    const timer = setTimeout(() => {
+      console.log('[Track] Auto-requesting notification permission');
+      Notification.requestPermission().then((p) => {
+        console.log('[Track] Notification permission result:', p);
+        setNotifPermission(p);
+        if (p === 'granted' && delivery) {
+          void subscribePush(delivery.registrationCode);
+        }
+      });
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [pushSupport.supported, notifPermission, delivery, subscribePush]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-dismiss non-urgent status alerts after 10 s
   useEffect(() => {
     if (!statusAlert || statusAlert.level === 'urgent') return;

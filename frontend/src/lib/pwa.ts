@@ -1,10 +1,15 @@
 export async function registerAppServiceWorker(): Promise<ServiceWorkerRegistration | null> {
-  if (!('serviceWorker' in navigator)) return null;
+  if (!('serviceWorker' in navigator)) {
+    console.warn('[PWA] Service Worker API not supported');
+    return null;
+  }
 
   try {
-    return await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    console.log('[PWA] Service Worker registered successfully', reg);
+    return reg;
   } catch (err) {
-    console.warn('[PWA] Service worker registration failed:', err);
+    console.error('[PWA] Service Worker registration failed:', err);
     return null;
   }
 }
@@ -23,15 +28,14 @@ export function urlBase64ToUint8Array(base64Url: string): Uint8Array<ArrayBuffer
 }
 
 export function setupPwa(): void {
-  if (!('serviceWorker' in navigator)) return;
-
-  const register = () => {
-    void registerAppServiceWorker();
-  };
-
-  if (document.readyState === 'complete') {
-    register();
-  } else {
-    window.addEventListener('load', register, { once: true });
+  if (!('serviceWorker' in navigator)) {
+    console.warn('[PWA] Service Worker API not available');
+    return;
   }
+
+  // Register Service Worker immediately without waiting for load event
+  // to ensure it's available as soon as possible
+  registerAppServiceWorker().catch((err) => {
+    console.error('[PWA] Failed to register Service Worker:', err);
+  });
 }
