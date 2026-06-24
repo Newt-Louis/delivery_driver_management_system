@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import api from '../lib/api';
 import { useBranding, UNIT_FALLBACKS } from '../context/BrandingContext';
@@ -69,6 +70,7 @@ const STEP_HINTS  = [
 ];
 
 const LS_KEY = 'qms_driver_info';
+const AUTO_TRACK_SECONDS = 10;
 
 function todayDate(): string {
   const d = new Date();
@@ -136,9 +138,12 @@ function ProcessGuide({ onDismiss }: { onDismiss: () => void }) {
 
 function SuccessScreen({ info, onReset }: { info: SuccessInfo; onReset: () => void }) {
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [secondsToTrack, setSecondsToTrack] = useState(AUTO_TRACK_SECONDS);
   const { units } = useBranding();
+  const navigate = useNavigate();
 
-  const trackUrl = `${window.location.origin}/track/${info.code}`;
+  const trackPath = `/track/${info.code}`;
+  const trackUrl = `${window.location.origin}${trackPath}`;
 
   useEffect(() => {
     QRCode.toDataURL(trackUrl, {
@@ -147,6 +152,22 @@ function SuccessScreen({ info, onReset }: { info: SuccessInfo; onReset: () => vo
       errorCorrectionLevel: 'M',
     }).then(setQrDataUrl).catch(console.error);
   }, [trackUrl]);
+
+  useEffect(() => {
+    setSecondsToTrack(AUTO_TRACK_SECONDS);
+
+    const interval = window.setInterval(() => {
+      setSecondsToTrack((s) => Math.max(0, s - 1));
+    }, 1000);
+    const timeout = window.setTimeout(() => {
+      navigate(trackPath, { replace: true });
+    }, AUTO_TRACK_SECONDS * 1000);
+
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(timeout);
+    };
+  }, [navigate, trackPath]);
 
   function downloadQR() {
     const a = document.createElement('a');
@@ -254,10 +275,13 @@ function SuccessScreen({ info, onReset }: { info: SuccessInfo; onReset: () => vo
 
         {/* Action buttons */}
         <a
-          href={trackUrl}
+          href={trackPath}
           className="h-13 flex items-center justify-center gap-2 w-full bg-thiso-800 text-white rounded-2xl font-bold text-base hover:bg-thiso-900 transition-colors py-3.5"
         >
-          📱 Theo dõi hành trình →
+          📱 Theo dõi hành trình
+          <span className="text-white/60 text-sm font-semibold">
+            {secondsToTrack > 0 ? `(${secondsToTrack}s)` : '...'}
+          </span>
         </a>
 
         <div className="grid grid-cols-2 gap-2.5">
