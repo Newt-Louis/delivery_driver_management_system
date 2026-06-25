@@ -6,6 +6,7 @@ import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 import { triggerAutoAssign } from '../services/autoAssign';
 import { sendPushToDelivery } from '../services/webPush';
+import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import {
@@ -255,6 +256,7 @@ router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response
 
   const queue = await getFullQueue();
   emitQueueUpdated(queue);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
   res.json(updated);
 
   triggerAutoAssign(delivery.receivingUnit).catch(console.error);
@@ -314,6 +316,7 @@ router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) =
 
   const queue = await getFullQueue();
   emitQueueUpdated(queue);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
   res.json(updated);
 
   triggerAutoAssign(delivery.receivingUnit).catch(console.error);
@@ -415,6 +418,7 @@ router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), async
   });
   emitQueueUpdated(queue);
   emitSlotUpdated(slots);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
 
   res.json(updated);
 
@@ -443,7 +447,9 @@ router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVI
     include: { assignedSlot: true },
   });
 
-  emitQueueUpdated(await getFullQueue());
+  const queue = await getFullQueue();
+  emitQueueUpdated(queue);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
   res.json(updated);
 
   // Send push notification to driver
@@ -501,6 +507,8 @@ router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), a
   emitDeliveryCompleted(req.params.id);
   emitQueueUpdated(queue);
   emitSlotUpdated(slots);
+  emitTrackUpdated(delivery.registrationCode).catch(console.error);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
 
   res.json({ success: true });
 
@@ -555,6 +563,8 @@ router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
   const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
   emitQueueUpdated(queue);
   emitSlotUpdated(slots);
+  emitTrackUpdated(delivery.registrationCode).catch(console.error);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
 
   res.json({ success: true });
 

@@ -3,7 +3,8 @@ export type ClientPlatform = 'android' | 'ios' | 'desktop' | 'unknown';
 export interface PushPlatformSupport {
   platform: ClientPlatform;
   supported: boolean;
-  reason?: 'ios_todo' | 'missing_browser_api';
+  reason?: 'ios_needs_pwa' | 'missing_browser_api';
+  standalone: boolean;
 }
 
 export function getClientPlatform(): ClientPlatform {
@@ -21,19 +22,24 @@ export function getClientPlatform(): ClientPlatform {
 
 export function getPushPlatformSupport(): PushPlatformSupport {
   const platform = getClientPlatform();
+  const standalone = isStandaloneWebApp();
   const hasRequiredApis =
     typeof Notification !== 'undefined' &&
     'serviceWorker' in navigator &&
     'PushManager' in window;
 
-  if (platform === 'ios') {
-    // TODO(iOS): implement the installed-PWA flow for iOS/iPadOS 16.4+ later.
-    return { platform, supported: false, reason: 'ios_todo' };
+  if (platform === 'ios' && !standalone) {
+    return { platform, supported: false, reason: 'ios_needs_pwa', standalone };
   }
 
   if (!hasRequiredApis) {
-    return { platform, supported: false, reason: 'missing_browser_api' };
+    return { platform, supported: false, reason: 'missing_browser_api', standalone };
   }
 
-  return { platform, supported: true };
+  return { platform, supported: true, standalone };
+}
+
+export function isStandaloneWebApp(): boolean {
+  return window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true;
 }

@@ -3,6 +3,7 @@ import { formatTicketCode } from '../routes/track';
 import { prisma } from '../lib/prisma';
 import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated } from '../socket';
 import { sendPushToDelivery } from './webPush';
+import { emitTrackUpdatesForQueue } from './trackRealtime';
 
 async function getFullQueue() {
   return prisma.deliveryRegistration.findMany({
@@ -194,7 +195,6 @@ export async function triggerAutoAssign(unit: ReceivingUnit): Promise<number> {
         ? formatTicketCode(next.receivingUnit, next.vehicleType, next.ticketNumber)
         : undefined,
     });
-
     console.log(`[AutoAssign] ${unit}: ${next.vehiclePlate} → ${slot.code} (${next.goodsType}) [${newActiveCount}/${slot.maxCapacity}]`);
 
     // Push notification to driver
@@ -208,6 +208,7 @@ export async function triggerAutoAssign(unit: ReceivingUnit): Promise<number> {
     const [queue, slots] = await Promise.all([getFullQueue(), getAllSlotsWithDeliveries()]);
     emitQueueUpdated(queue);
     emitSlotUpdated(slots);
+    emitTrackUpdatesForQueue(queue).catch(console.error);
   }
 
   if (called === 0) {

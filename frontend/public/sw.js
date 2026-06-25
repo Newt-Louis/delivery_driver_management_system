@@ -117,20 +117,38 @@ self.addEventListener('push', (event) => {
     vibrate = [300, 120, 300, 120, 600],
   } = payload;
 
-  console.log('[SW Push] Showing notification:', { title, body, tag, vibrate });
+  const notificationTag = tag ?? 'mall-delivery';
 
   event.waitUntil(
-    self.registration.showNotification(title, {
-      body,
-      icon,
-      badge,
-      tag: tag ?? 'mall-delivery',
-      renotify: true,
-      requireInteraction: true,
-      data: { url: url ?? '/' },
-      vibrate,
-    })
-      .then(() => console.log('[SW Push] Notification shown successfully'))
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        const focusedTrackClient = windowClients.find((client) => {
+          try {
+            const clientUrl = new URL(client.url);
+            return client.focused && clientUrl.origin === self.location.origin && clientUrl.pathname.startsWith(TRACK_PATH);
+          } catch {
+            return false;
+          }
+        });
+
+        if (focusedTrackClient) {
+          console.log('[SW Push] Track page focused, skipping system notification:', { title, body });
+          return undefined;
+        }
+
+        console.log('[SW Push] Showing notification:', { title, body, tag: notificationTag, vibrate });
+        return self.registration.showNotification(title, {
+          body,
+          icon,
+          badge,
+          tag: notificationTag,
+          renotify: true,
+          requireInteraction: true,
+          data: { url: url ?? '/' },
+          vibrate,
+        });
+      })
+      .then(() => console.log('[SW Push] Push handled successfully'))
       .catch((err) => console.error('[SW Push] Failed to show notification:', err))
   );
 });

@@ -10,6 +10,22 @@ export function initSocket(server: HttpServer): SocketServer {
 
   io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
+    socket.on('track:join', (rawCode: unknown, ack?: (res: { ok: boolean; room?: string; error?: string }) => void) => {
+      const code = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+      if (!code) {
+        ack?.({ ok: false, error: 'missing_registration_code' });
+        return;
+      }
+      const room = trackRoomName(code);
+      socket.join(room);
+      ack?.({ ok: true, room });
+    });
+
+    socket.on('track:leave', (rawCode: unknown) => {
+      const code = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+      if (code) socket.leave(trackRoomName(code));
+    });
+
     socket.on('disconnect', () => console.log(`Client disconnected: ${socket.id}`));
   });
 
@@ -45,4 +61,8 @@ export function emitSlotUpdated(slots: unknown[]): void {
 
 export function emitDeliveryCompleted(id: string): void {
   getIO().emit('delivery_completed', { id });
+}
+
+export function trackRoomName(registrationCode: string): string {
+  return `track:${registrationCode.trim().toUpperCase()}`;
 }

@@ -10,6 +10,7 @@ import {
 } from '../socket';
 import { getFullQueue, getAllSlots } from './deliveries';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
+import { emitTrackUpdated, emitTrackUpdatesForQueue, getTrackDelivery } from '../services/trackRealtime';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const UNIT_TICKET_PREFIX: Record<string, string> = {
@@ -71,95 +72,9 @@ router.get('/search', asyncHandler(async (req: Request, res: Response) => {
 // GET /api/track/:code — public, no sensitive fields
 // When status=WAITING, also returns queueInfo { position, totalWaiting, estimatedWaitMinutes, availableSlots }
 router.get('/:code', asyncHandler(async (req: Request, res: Response) => {
-  const delivery = await prisma.deliveryRegistration.findFirst({
-    where: { registrationCode: req.params.code.toUpperCase() },
-    include: TRACK_INCLUDE,
-  });
+  const delivery = await getTrackDelivery(req.params.code);
   if (!delivery) { res.status(404).json({ error: 'Không tìm thấy đăng ký' }); return; }
-
-  let queueInfo = null;
-  if (delivery.status === DeliveryStatus.WAITING && delivery.checkinTime) {
-    const [ahead, totalWaiting, timeConfig, unitCfg, slots] = await Promise.all([
-      prisma.deliveryRegistration.count({
-        where: {
-          receivingUnit: delivery.receivingUnit,
-          vehicleType:   delivery.vehicleType,
-          status:        DeliveryStatus.WAITING,
-          checkinTime:   { lt: delivery.checkinTime },
-        },
-      }),
-      prisma.deliveryRegistration.count({
-        where: {
-          receivingUnit: delivery.receivingUnit,
-          vehicleType:   delivery.vehicleType,
-          status:        DeliveryStatus.WAITING,
-        },
-      }),
-      // Smart per-unit+vehicleType+goodsType configured average
-      prisma.receivingTimeConfig.findUnique({
-        where: {
-          unit_vehicleType_goodsType: {
-            unit:        delivery.receivingUnit,
-            vehicleType: delivery.vehicleType,
-            goodsType:   delivery.goodsType,
-          },
-        },
-      }),
-      prisma.unitConfig.findUnique({ where: { unit: delivery.receivingUnit } }),
-      prisma.slot.findMany({
-        where: {
-          assignedUnit: delivery.receivingUnit,
-          vehicleType:  delivery.vehicleType,
-          isActive:     true,
-          autoAssign:   true,
-          status:       { notIn: ['MAINTENANCE', 'RESERVED'] },
-        },
-        include: {
-          _count: {
-            select: {
-              deliveries: {
-                where: { status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
-              },
-            },
-          },
-        },
-      }),
-    ]);
-
-    const position       = ahead + 1;
-    const availableSlots = slots.filter(s => s._count.deliveries < s.maxCapacity).length;
-
-    // Priority: ReceivingTimeConfig > UnitConfig slot minutes > hardcoded fallback
-    const fallbackMinutes = delivery.vehicleType === 'MOTORBIKE'
-      ? (unitCfg?.motorbikeSlotMinutes ?? 15)
-      : (unitCfg?.truckSlotMinutes    ?? 30);
-    const avgReceivingMinutes = timeConfig?.configuredMinutes ?? fallbackMinutes;
-
-    const estimatedWaitMinutes = availableSlots > 0
-      ? Math.max(0, Math.round(Math.ceil((position - availableSlots) / availableSlots) * avgReceivingMinutes))
-      : Math.round(position * avgReceivingMinutes);
-
-    // Confidence based on historical sample count
-    const sampleCount = timeConfig?.sampleCount ?? 0;
-    const confidence: 'high' | 'medium' | 'low' =
-      sampleCount >= 20 ? 'high' : sampleCount >= 5 ? 'medium' : 'low';
-
-    // Estimated call time: now + wait
-    const estimatedCallTime = new Date(Date.now() + estimatedWaitMinutes * 60_000).toISOString();
-
-    queueInfo = {
-      position,
-      totalWaiting,
-      estimatedWaitMinutes,
-      availableSlots,
-      avgReceivingMinutes,
-      sampleCount,
-      confidence,
-      estimatedCallTime,
-    };
-  }
-
-  res.json({ ...delivery, queueInfo });
+  res.json(delivery);
 }));
 
 // POST /api/track/:code/action — staff PIN protected
@@ -226,7 +141,9 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
         });
       });
 
-      emitQueueUpdated(await getFullQueue());
+      const queue = await getFullQueue();
+      emitQueueUpdated(queue);
+      emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'CHECKED_IN', staffName: staff.name, delivery: updated });
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
@@ -241,7 +158,9 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
         data: { status: newStatus, receivingStartTime: new Date() },
         include: TRACK_INCLUDE,
       });
-      emitQueueUpdated(await getFullQueue());
+      const queue = await getFullQueue();
+      emitQueueUpdated(queue);
+      emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'RECEIVING_STARTED', staffName: staff.name, delivery: updated });
       return;
     }
@@ -283,6 +202,8 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
       emitDeliveryCompleted(delivery.id);
       emitQueueUpdated(queue);
       emitSlotUpdated(slots);
+      emitTrackUpdated(delivery.registrationCode).catch(console.error);
+      emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'COMPLETED', staffName: staff.name, delivery: final });
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;

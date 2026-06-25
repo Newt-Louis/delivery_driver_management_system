@@ -5,6 +5,7 @@ import api from '../lib/api';
 import { playChimeWithCtx } from '../lib/chime';
 import { registerAppServiceWorker, urlBase64ToUint8Array } from '../lib/pwa';
 import { getPushPlatformSupport } from '../lib/platform';
+import { useSocket } from '../context/SocketContext';
 
 interface TrackCallLog {
   id: string;
@@ -250,6 +251,7 @@ function TrackLookup() {
 }
 
 function TrackContent({ code }: { code: string }) {
+  const socket = useSocket();
   const pushSupport = getPushPlatformSupport();
   const [delivery, setDelivery]           = useState<TrackDelivery | null>(null);
   const [loading, setLoading]             = useState(true);
@@ -267,10 +269,10 @@ function TrackContent({ code }: { code: string }) {
   } | null>(null);
   const prevStatusRef   = useRef<string | null>(null);
   const prevPositionRef = useRef<number | null>(null);
-  const pollRef    = useRef<ReturnType<typeof setInterval> | null>(null);
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const normalizedCode = code.trim().toUpperCase();
   const trackUrl = `${window.location.origin}/track/${code}`;
 
   // Unlock AudioContext on first user touch (required by iOS Safari).
@@ -325,6 +327,7 @@ function TrackContent({ code }: { code: string }) {
   // Auto-request notification permission on component mount (if not already decided)
   useEffect(() => {
     if (!pushSupport.supported || typeof Notification === 'undefined') return;
+    if (pushSupport.platform === 'ios') return;
     if (notifPermission !== 'default') return; // Already granted or denied
 
     // Auto-request after a short delay to let page settle
@@ -414,9 +417,9 @@ function TrackContent({ code }: { code: string }) {
   }, [trackUrl]);
 
   const fetchDelivery = useCallback(async () => {
-    if (!code) return;
+    if (!normalizedCode) return;
     try {
-      const res = await api.get<TrackDelivery>(`/api/track/${code}`);
+      const res = await api.get<TrackDelivery>(`/api/track/${normalizedCode}`);
       setDelivery(res.data);
       setFetchErr('');
     } catch {
@@ -424,13 +427,38 @@ function TrackContent({ code }: { code: string }) {
     } finally {
       setLoading(false);
     }
-  }, [code]);
+  }, [normalizedCode]);
 
   useEffect(() => {
     fetchDelivery();
-    pollRef.current = setInterval(fetchDelivery, 5000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchDelivery]);
+
+  useEffect(() => {
+    if (!normalizedCode) return;
+
+    const joinTrackRoom = () => {
+      socket.emit('track:join', normalizedCode, (ack?: { ok: boolean; error?: string }) => {
+        if (ack && !ack.ok) console.warn('[Track] join failed:', ack.error);
+      });
+    };
+
+    const handleTrackUpdated = (next: TrackDelivery) => {
+      if (next.registrationCode?.toUpperCase() !== normalizedCode) return;
+      setDelivery(next);
+      setFetchErr('');
+      setLoading(false);
+    };
+
+    joinTrackRoom();
+    socket.on('connect', joinTrackRoom);
+    socket.on('track_updated', handleTrackUpdated);
+
+    return () => {
+      socket.emit('track:leave', normalizedCode);
+      socket.off('connect', joinTrackRoom);
+      socket.off('track_updated', handleTrackUpdated);
+    };
+  }, [socket, normalizedCode, fetchDelivery]);
 
   // Detect status transitions and fire alerts
   useEffect(() => {
@@ -634,13 +662,13 @@ function TrackContent({ code }: { code: string }) {
         style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}>
 
         {/* Notification permission banner */}
-        {!isTerminal && pushSupport.reason === 'ios_todo' && (
+        {!isTerminal && pushSupport.reason === 'ios_needs_pwa' && (
           <div className="w-full bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 flex items-center gap-3">
             <span className="text-2xl flex-shrink-0">🔔</span>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-amber-800">Thông báo iOS sẽ bổ sung sau</p>
+              <p className="text-sm font-bold text-amber-800">Bật thông báo trên iPhone/iPad</p>
               <p className="text-xs text-amber-600 mt-0.5">
-                Android hiện đã hỗ trợ thông báo đẩy, âm báo hệ thống và rung.
+                Mở bằng Safari, nhấn Chia sẻ, chọn Thêm vào Màn hình chính, rồi mở app từ icon mới để bật thông báo.
               </p>
             </div>
           </div>
@@ -930,7 +958,7 @@ function TrackContent({ code }: { code: string }) {
         {!isTerminal && (
           <div className="space-y-1.5 pb-2">
             <p className="text-center text-[11px] text-thiso-300">
-              Trang tự động cập nhật mỗi 5 giây
+              Trang nhận trạng thái realtime khi có thay đổi
             </p>
             {wakeLockActive ? (
               <p className="text-center text-[11px] text-green-500 font-medium">

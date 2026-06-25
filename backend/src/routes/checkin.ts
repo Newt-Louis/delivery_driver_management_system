@@ -9,6 +9,7 @@ import { getFullQueue, getAllSlots } from './deliveries';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { sendPushToDelivery } from '../services/webPush';
+import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
 
 const router = Router();
 
@@ -138,7 +139,9 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       });
 
       const ticketCode = formatTicketCode(delivery.receivingUnit, delivery.vehicleType, updated.ticketNumber!);
-      emitQueueUpdated(await getFullQueue());
+      const queue = await getFullQueue();
+      emitQueueUpdated(queue);
+      emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'CHECKED_IN', staffName: terminalPayload.staffName, ticketCode, delivery: updated });
       sendPushToDelivery(delivery.registrationCode, {
         title: '✅ Check-in thành công',
@@ -176,7 +179,9 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
         include: CHECKIN_INCLUDE,
       });
 
-      emitQueueUpdated(await getFullQueue());
+      const queue = await getFullQueue();
+      emitQueueUpdated(queue);
+      emitTrackUpdatesForQueue(queue).catch(console.error);
       const slot = updated.assignedSlot;
       res.json({
         action:   'RECEIVING_STARTED',
@@ -225,6 +230,8 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       emitDeliveryCompleted(delivery.id);
       emitQueueUpdated(queue);
       emitSlotUpdated(slots);
+      emitTrackUpdated(delivery.registrationCode).catch(console.error);
+      emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'COMPLETED', staffName: terminalPayload.staffName, delivery: final });
       sendPushToDelivery(delivery.registrationCode, {
         title: '🎉 Giao hàng hoàn tất',
