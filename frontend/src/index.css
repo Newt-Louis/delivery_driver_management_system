@@ -14,20 +14,31 @@
   }
 }
 
-
 @keyframes marquee {
-  0%   { transform: translateX(100vw); }
-  100% { transform: translateX(-100%); }
+  0% {
+    transform: translateX(100vw);
+  }
+
+  100% {
+    transform: translateX(-100%);
+  }
 }
-.marquee-track { overflow: hidden; white-space: nowrap; }
-.marquee-content { display: inline-block; animation: marquee 35s linear infinite; }
+
+.marquee-track {
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.marquee-content {
+  display: inline-block;
+  animation: marquee 35s linear infinite;
+}
 
 @layer components {
+
   /* ── Buttons ── */
   .btn {
-    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold text-sm
-           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1
-           disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none;
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer select-none;
   }
 
   /* Primary — THISO dark */
@@ -72,10 +83,7 @@
 
   /* ── Form ── */
   .input {
-    @apply w-full rounded-lg border border-thiso-200 bg-white px-3 py-2 text-sm text-thiso-800
-           placeholder-thiso-300
-           focus:outline-none focus:ring-2 focus:ring-thiso-700 focus:border-transparent
-           transition-all;
+    @apply w-full rounded-lg border border-thiso-200 bg-white px-3 py-2 text-sm text-thiso-800 placeholder-thiso-300 focus:outline-none focus:ring-2 focus:ring-thiso-700 focus:border-transparent transition-all;
   }
 
   .label {
