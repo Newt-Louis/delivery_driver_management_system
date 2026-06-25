@@ -5,7 +5,11 @@ export async function registerAppServiceWorker(): Promise<ServiceWorkerRegistrat
   }
 
   try {
-    const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
+    const reg = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      updateViaCache: 'none',
+    });
+    reg.update().catch(() => {});
     console.log('[PWA] Service Worker registered successfully', reg);
     return reg;
   } catch (err) {

@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'mall-delivery-pwa-v2';
+const CACHE_VERSION = 'mall-delivery-pwa-v3';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -133,6 +133,7 @@ self.addEventListener('push', (event) => {
 
         if (focusedTrackClient) {
           console.log('[SW Push] Track page focused, skipping system notification:', { title, body });
+          focusedTrackClient.postMessage({ type: 'track-push-received', payload });
           return undefined;
         }
 

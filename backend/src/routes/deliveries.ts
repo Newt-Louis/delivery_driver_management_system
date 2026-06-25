@@ -568,6 +568,13 @@ router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
 
   res.json({ success: true });
 
+  sendPushToDelivery(delivery.registrationCode, {
+    title: '❌ Lượt giao hàng đã hủy',
+    body: `Xe ${delivery.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
+    tag: 'delivery-cancelled',
+    url: `/track/${delivery.registrationCode}`,
+  }).catch(console.error);
+
   if (delivery.assignedSlotId) {
     triggerAutoAssign(delivery.receivingUnit).catch(console.error);
   }

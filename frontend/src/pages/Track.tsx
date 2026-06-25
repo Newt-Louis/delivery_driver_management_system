@@ -151,7 +151,13 @@ function playBeeps(pattern: { freq: number; start: number; dur: number }[]) {
 }
 
 function buzz(pattern: number[]) {
-  if ('vibrate' in navigator) navigator.vibrate(pattern);
+  const vibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
+  if (typeof vibrate !== 'function') return false;
+  try {
+    return vibrate.call(navigator, pattern);
+  } catch {
+    return false;
+  }
 }
 
 function sendNotification(title: string, body: string, tag: string) {
@@ -272,14 +278,25 @@ function TrackContent({ code }: { code: string }) {
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [deviceAlertsReady, setDeviceAlertsReady] = useState(
+    () => localStorage.getItem('track_device_alerts_ready') === '1',
+  );
   const normalizedCode = code.trim().toUpperCase();
   const trackUrl = `${window.location.origin}/track/${code}`;
+
+  function primeDeviceAlerts() {
+    ensureAudio();
+    unlockIOSAudio();
+    buzz([40]);
+    localStorage.setItem('track_device_alerts_ready', '1');
+    setDeviceAlertsReady(true);
+  }
 
   // Unlock AudioContext on first user touch (required by iOS Safari).
   // Also call unlockIOSAudio to play a silent buffer so subsequent
   // programmatic sounds work without another gesture.
   useEffect(() => {
-    const init = () => { ensureAudio(); unlockIOSAudio(); };
+    const init = () => { primeDeviceAlerts(); };
     document.addEventListener('touchstart', init, { once: true });
     document.addEventListener('click',      init, { once: true });
     return () => {
@@ -437,6 +454,7 @@ function TrackContent({ code }: { code: string }) {
     if (!normalizedCode) return;
 
     const joinTrackRoom = () => {
+      if (!socket.connected) socket.connect();
       socket.emit('track:join', normalizedCode, (ack?: { ok: boolean; error?: string }) => {
         if (ack && !ack.ok) console.warn('[Track] join failed:', ack.error);
       });
@@ -449,14 +467,37 @@ function TrackContent({ code }: { code: string }) {
       setLoading(false);
     };
 
+    const syncNow = () => {
+      joinTrackRoom();
+      void fetchDelivery();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') syncNow();
+    };
+
+    const handleServiceWorkerMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'track-push-received') syncNow();
+    };
+
     joinTrackRoom();
     socket.on('connect', joinTrackRoom);
+    socket.io.on('reconnect', syncNow);
     socket.on('track_updated', handleTrackUpdated);
+    window.addEventListener('focus', syncNow);
+    window.addEventListener('pageshow', syncNow);
+    document.addEventListener('visibilitychange', handleVisibility);
+    navigator.serviceWorker?.addEventListener('message', handleServiceWorkerMessage);
 
     return () => {
       socket.emit('track:leave', normalizedCode);
       socket.off('connect', joinTrackRoom);
+      socket.io.off('reconnect', syncNow);
       socket.off('track_updated', handleTrackUpdated);
+      window.removeEventListener('focus', syncNow);
+      window.removeEventListener('pageshow', syncNow);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      navigator.serviceWorker?.removeEventListener('message', handleServiceWorkerMessage);
     };
   }, [socket, normalizedCode, fetchDelivery]);
 
@@ -528,6 +569,7 @@ function TrackContent({ code }: { code: string }) {
 
   function requestNotif() {
     if (!pushSupport.supported || typeof Notification === 'undefined') return;
+    primeDeviceAlerts();
     Notification.requestPermission().then(p => {
       setNotifPermission(p);
       if (p === 'granted' && delivery) void subscribePush(delivery.registrationCode);
@@ -697,6 +739,20 @@ function TrackContent({ code }: { code: string }) {
               Thông báo hệ thống đã bật — sẽ nhận cảnh báo kể cả khi tắt màn hình
             </p>
           </div>
+        )}
+        {!isTerminal && !deviceAlertsReady && (
+          <button
+            onClick={primeDeviceAlerts}
+            className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+          >
+            <span className="text-2xl flex-shrink-0">📳</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-emerald-800">Bật rung và âm báo trong màn hình</p>
+              <p className="text-xs text-emerald-600 mt-0.5">
+                Chạm một lần để trình duyệt cho phép rung/chuông khi trạng thái thay đổi
+              </p>
+            </div>
+          </button>
         )}
 
         {/* Status card */}

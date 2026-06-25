@@ -11,6 +11,7 @@ import {
 import { getFullQueue, getAllSlots } from './deliveries';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { emitTrackUpdated, emitTrackUpdatesForQueue, getTrackDelivery } from '../services/trackRealtime';
+import { sendPushToDelivery } from '../services/webPush';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const UNIT_TICKET_PREFIX: Record<string, string> = {
@@ -145,6 +146,15 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
       emitQueueUpdated(queue);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'CHECKED_IN', staffName: staff.name, delivery: updated });
+      const ticketCode = updated.ticketNumber
+        ? formatTicketCode(updated.receivingUnit, updated.vehicleType, updated.ticketNumber)
+        : delivery.vehiclePlate;
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '✅ Check-in thành công',
+        body: `${ticketCode} — Xe ${delivery.vehiclePlate} đang trong hàng chờ.`,
+        tag: 'delivery-checkin-track',
+        url: `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
     }
@@ -162,6 +172,13 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
       emitQueueUpdated(queue);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'RECEIVING_STARTED', staffName: staff.name, delivery: updated });
+      const slotName = updated.assignedSlot?.name ?? 'dock';
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '📦 Bắt đầu giao hàng',
+        body: `Xe ${delivery.vehiclePlate} tại ${slotName}`,
+        tag: 'delivery-receiving-started-track',
+        url: `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       return;
     }
 
@@ -205,6 +222,12 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
       emitTrackUpdated(delivery.registrationCode).catch(console.error);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'COMPLETED', staffName: staff.name, delivery: final });
+      sendPushToDelivery(delivery.registrationCode, {
+        title: '🎉 Giao hàng hoàn tất',
+        body: `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+        tag: 'delivery-completed-track',
+        url: `/track/${delivery.registrationCode}`,
+      }).catch(console.error);
       triggerAutoAssign(delivery.receivingUnit).catch(console.error);
       return;
     }
