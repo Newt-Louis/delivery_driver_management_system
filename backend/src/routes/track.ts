@@ -78,6 +78,63 @@ router.get('/:code', asyncHandler(async (req: Request, res: Response) => {
   res.json(delivery);
 }));
 
+// POST /api/track/active-session
+// Accepts an array of codes, returns the single most relevant active code (if any).
+// Priority: WAITING/CALLED > REGISTERED > Others (not COMPLETED/CANCELLED/EXPIRED).
+router.post('/active-session', asyncHandler(async (req: Request, res: Response) => {
+  const { codes } = req.body as { codes?: string[] };
+  if (!Array.isArray(codes) || codes.length === 0) {
+    res.json({ activeCode: null });
+    return;
+  }
+  const cleanCodes = codes.map(c => typeof c === 'string' ? c.trim().toUpperCase() : '').filter(Boolean);
+  if (cleanCodes.length === 0) {
+    res.json({ activeCode: null });
+    return;
+  }
+
+  const deliveries = await prisma.deliveryRegistration.findMany({
+    where: {
+      registrationCode: { in: cleanCodes },
+      status: { notIn: ['COMPLETED', 'CANCELLED', 'EXPIRED'] },
+    },
+    select: { registrationCode: true, status: true, requestedTime: true },
+  });
+
+  if (deliveries.length === 0) {
+    res.json({ activeCode: null });
+    return;
+  }
+
+  // Find priority
+  let best = deliveries[0];
+  const priority = (d: typeof deliveries[0]) => {
+    if (d.status === 'CALLED') return 4;
+    if (d.status === 'WAITING') return 3;
+    if (d.status === 'RECEIVING' || d.status === 'AUTO_WAREHOUSE_RECEIVING') return 2;
+    if (d.status === 'REGISTERED') return 1;
+    return 0;
+  };
+
+  for (let i = 1; i < deliveries.length; i++) {
+    const d = deliveries[i];
+    const pD = priority(d);
+    const pBest = priority(best);
+    if (pD > pBest) {
+      best = d;
+    } else if (pD === pBest) {
+      // If both are REGISTERED, prefer the one with requestedTime closest to now
+      if (pD === 1 && d.requestedTime && best.requestedTime) {
+        if (d.requestedTime < best.requestedTime) {
+          best = d;
+        }
+      }
+    }
+  }
+
+  res.json({ activeCode: best.registrationCode });
+}));
+
 // POST /api/track/:code/action — staff PIN protected
 router.post('/:code/action', asyncHandler(async (req: Request, res: Response) => {
   const { staffPin } = req.body as { staffPin?: string };

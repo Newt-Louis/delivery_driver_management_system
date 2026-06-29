@@ -6,6 +6,7 @@ import { playChimeWithCtx } from '../lib/chime';
 import { registerAppServiceWorker, urlBase64ToUint8Array } from '../lib/pwa';
 import { getPushPlatformSupport } from '../lib/platform';
 import { useSocket } from '../context/SocketContext';
+import { saveDeliverySession, removeDeliverySession } from '../lib/session';
 
 interface TrackCallLog {
   id: string;
@@ -439,8 +440,14 @@ function TrackContent({ code }: { code: string }) {
       const res = await api.get<TrackDelivery>(`/api/track/${normalizedCode}`);
       setDelivery(res.data);
       setFetchErr('');
+      if (res.data.status === 'COMPLETED' || res.data.status === 'CANCELLED' || res.data.status === 'EXPIRED') {
+        removeDeliverySession(normalizedCode);
+      } else {
+        saveDeliverySession(normalizedCode);
+      }
     } catch {
       setFetchErr('Không tìm thấy lượt đăng ký.');
+      removeDeliverySession(normalizedCode);
     } finally {
       setLoading(false);
     }
@@ -798,14 +805,6 @@ function TrackContent({ code }: { code: string }) {
 
         {/* Queue position — WAITING only */}
         {delivery.status === 'WAITING' && delivery.queueInfo && (() => {
-          const q = delivery.queueInfo;
-          const isFront = q.position <= (q.availableSlots || 1);
-          const callAt = q.estimatedCallTime ? new Date(q.estimatedCallTime) : null;
-          const callTimeStr = callAt
-            ? callAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-            : null;
-          const nearFront = q.position <= 5;
-          return (
             <div className={`bg-white rounded-2xl overflow-hidden shadow-sm border-2
               ${nearFront ? 'border-amber-400' : 'border-yellow-200'}`}>
               {/* Pulsing top bar when ≤ 5 */}

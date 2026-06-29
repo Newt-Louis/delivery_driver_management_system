@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -12,11 +13,46 @@ import Kiosk from './pages/Kiosk';
 import ReceivingTimes from './pages/ReceivingTimes';
 import Reports from './pages/Reports';
 import Navbar from './components/Navbar';
+import api from './lib/api';
+import { getDeliverySessions, removeAllDeliverySessions } from './lib/session';
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
   const { isAuthenticated, hasRole } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (roles && !hasRole(...roles)) return <Navigate to="/dashboard" replace />;
+  return <>{children}</>;
+}
+
+function SessionRedirector({ children }: { children: React.ReactNode }) {
+  const [checking, setChecking] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const codes = getDeliverySessions();
+    if (codes.length === 0) {
+      setChecking(false);
+      return;
+    }
+
+    api.post<{ activeCode: string | null }>('/api/track/active-session', { codes })
+      .then(res => {
+        if (res.data.activeCode) {
+          navigate(`/track/${res.data.activeCode}`, { replace: true });
+        } else {
+          removeAllDeliverySessions(); // Clear expired sessions
+        }
+      })
+      .catch(console.error)
+      .finally(() => setChecking(false));
+  }, [navigate]);
+
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-thiso-50">
+        <p className="text-thiso-400 text-sm animate-pulse">Đang tải...</p>
+      </div>
+    );
+  }
   return <>{children}</>;
 }
 
@@ -36,10 +72,10 @@ export default function App() {
       <div className={isAuthenticated && !isPublicFullscreen ? 'md:pl-56 pt-14 md:pt-0' : ''}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/register" element={<SessionRedirector><Register /></SessionRedirector>} />
         <Route path="/waiting-screen" element={<WaitingScreen />} />
         <Route path="/taixe" element={<Navigate to="/register" replace />} />
-        <Route path="/track" element={<Track />} />
+        <Route path="/track" element={<SessionRedirector><Track /></SessionRedirector>} />
         <Route path="/track/:code" element={<Track />} />
         <Route path="/kiosk" element={<Kiosk />} />
         <Route
