@@ -136,6 +136,8 @@ function ProcessGuide({ onDismiss }: { onDismiss: () => void }) {
 
 // ─── Success Screen ───────────────────────────────────────────────────────────
 
+import { saveDeliverySession } from '../lib/session';
+
 function SuccessScreen({ info, onReset }: { info: SuccessInfo; onReset: () => void }) {
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [secondsToTrack, setSecondsToTrack] = useState(AUTO_TRACK_SECONDS);
@@ -146,6 +148,7 @@ function SuccessScreen({ info, onReset }: { info: SuccessInfo; onReset: () => vo
   const trackUrl = `${window.location.origin}${trackPath}`;
 
   useEffect(() => {
+    saveDeliverySession(info.code);
     QRCode.toDataURL(trackUrl, {
       width: 320, margin: 2,
       color: { dark: '#1C1C1C', light: '#ffffff' },
