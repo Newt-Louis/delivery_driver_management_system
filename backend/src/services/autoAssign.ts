@@ -4,12 +4,7 @@ import { prisma } from '../lib/prisma';
 import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated } from '../socket';
 import { sendPushToDelivery } from './webPush';
 import { emitTrackUpdatesForQueue } from './trackRealtime';
-
-const ACTIVE_SLOT_DELIVERY_STATUSES: DeliveryStatus[] = [
-  DeliveryStatus.CALLED,
-  DeliveryStatus.RECEIVING,
-  DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-];
+import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 
 type AutoAssignScope = {
   businessLocationId?: string;
@@ -144,8 +139,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
       slot.assignedUnit !== unit
       || !slot.isActive
       || !slot.autoAssign
-      || slot.status === SlotStatus.MAINTENANCE
-      || slot.status === SlotStatus.RESERVED
+      || isManualSlotStatus(slot.status)
     ) {
       return null;
     }
@@ -164,24 +158,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
     if (next.status !== DeliveryStatus.WAITING) return null;
 
     if (next.assignedSlotId && next.assignedSlotId !== slot.id) {
-      const remainingInOld = await tx.deliveryRegistration.count({
-        where: {
-          assignedSlotId: next.assignedSlotId,
-          id: { not: next.id },
-          status: { in: ACTIVE_SLOT_DELIVERY_STATUSES },
-        },
-      });
-      const oldSlot = await tx.slot.findUnique({
-        where: { id: next.assignedSlotId },
-        select: { maxCapacity: true },
-      });
-      await tx.slot.update({
-        where: { id: next.assignedSlotId },
-        data: {
-          status: remainingInOld < (oldSlot?.maxCapacity ?? 1) ? SlotStatus.AVAILABLE : SlotStatus.OCCUPIED,
-          currentDeliveryId: remainingInOld === 0 ? null : undefined,
-        },
-      });
+      await reconcileSlotState(tx, next.assignedSlotId);
     }
 
     const calledTime = new Date();
@@ -193,15 +170,6 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
       data: { status: DeliveryStatus.CALLED, calledTime, assignedSlotId: slot.id },
     });
 
-    const updatedSlot = await tx.slot.update({
-      where: { id: slot.id },
-      data: {
-        status: newActiveCount >= slot.maxCapacity ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE,
-        currentDeliveryId: next.id,
-        lastUsedAt: calledTime,
-      },
-    });
-
     await tx.callLog.create({
       data: {
         deliveryRegistrationId: next.id,
@@ -210,11 +178,17 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
       },
     });
 
+    await tx.slot.update({
+      where: { id: slot.id },
+      data: { lastUsedAt: calledTime },
+    });
+    const reconciledSlot = await reconcileSlotState(tx, slot.id);
+
     return {
       delivery,
-      slot: updatedSlot,
+      slot: reconciledSlot?.slot ?? slot,
       message,
-      activeCount: newActiveCount,
+      activeCount: reconciledSlot?.activeCount ?? newActiveCount,
     };
   });
 }

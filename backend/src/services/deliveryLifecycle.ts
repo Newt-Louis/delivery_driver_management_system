@@ -1,11 +1,6 @@
-import { DeliveryRegistration, DeliveryStatus, Prisma, SlotStatus } from '@prisma/client';
+import { DeliveryRegistration, DeliveryStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-
-const ACTIVE_SLOT_DELIVERY_STATUSES: DeliveryStatus[] = [
-  DeliveryStatus.CALLED,
-  DeliveryStatus.RECEIVING,
-  DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-];
+import { reconcileSlotState } from './slotState';
 
 const COMPLETABLE_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.CALLED,
@@ -38,30 +33,7 @@ async function lockDelivery(tx: Prisma.TransactionClient, deliveryId: string): P
 async function releaseSlotForDelivery(tx: Prisma.TransactionClient, delivery: DeliveryRegistration): Promise<string | null> {
   if (!delivery.assignedSlotId) return null;
 
-  await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT "id" FROM "slots" WHERE "id" = ${delivery.assignedSlotId} FOR UPDATE
-  `);
-
-  const remaining = await tx.deliveryRegistration.count({
-    where: {
-      assignedSlotId: delivery.assignedSlotId,
-      id: { not: delivery.id },
-      status: { in: ACTIVE_SLOT_DELIVERY_STATUSES },
-    },
-  });
-  const slot = await tx.slot.findUnique({
-    where: { id: delivery.assignedSlotId },
-    select: { maxCapacity: true },
-  });
-
-  await tx.slot.update({
-    where: { id: delivery.assignedSlotId },
-    data: {
-      status: remaining < (slot?.maxCapacity ?? 1) ? SlotStatus.AVAILABLE : SlotStatus.OCCUPIED,
-      currentDeliveryId: remaining === 0 ? null : undefined,
-    },
-  });
-
+  await reconcileSlotState(tx, delivery.assignedSlotId);
   return delivery.assignedSlotId;
 }
 

@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 import { emitSlotUpdated } from '../socket';
+import { reconcileAllSlots, reconcileOneSlot, reconcileSlotState, isManualSlotStatus } from '../services/slotState';
 
 const router = Router();
 
@@ -37,9 +38,40 @@ const statusSchema = z.object({ status: z.nativeEnum(SlotStatus) });
 // PATCH /api/slots/:id/status
 router.patch('/:id/status', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { status } = statusSchema.parse(req.body);
-  const slot = await prisma.slot.update({ where: { id: req.params.id }, data: { status } });
+  const current = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  if (!current) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const slot = await prisma.$transaction(async (tx) => {
+    if (isManualSlotStatus(status)) {
+      await tx.slot.update({ where: { id: req.params.id }, data: { status } });
+      return (await reconcileSlotState(tx, req.params.id))?.slot;
+    }
+    return (await reconcileSlotState(tx, req.params.id, { preserveManualStatus: false }))?.slot;
+  });
+
+  if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
   emitSlotUpdated(await getAllSlotsWithDeliveries(true));
   res.json(slot);
+}));
+
+// POST /api/slots/:id/reconcile — recompute AVAILABLE/OCCUPIED from active deliveries.
+router.post('/:id/reconcile', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+  const force = req.query.force === 'true';
+  const snapshot = await reconcileOneSlot(req.params.id, { preserveManualStatus: !force });
+  if (!snapshot) { res.status(404).json({ error: 'Not found' }); return; }
+
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  res.json(snapshot);
+}));
+
+// POST /api/slots/reconcile — admin maintenance endpoint for all slots.
+router.post('/reconcile', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+  const activeOnly = req.query.activeOnly !== 'false';
+  const force = req.query.force === 'true';
+  const snapshots = await reconcileAllSlots({ activeOnly, preserveManualStatus: !force });
+
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  res.json({ reconciled: snapshots.length, slots: snapshots });
 }));
 
 const assignSchema = z.object({ deliveryId: z.string() });
@@ -48,19 +80,30 @@ const assignSchema = z.object({ deliveryId: z.string() });
 router.patch('/:id/assign', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { deliveryId } = assignSchema.parse(req.body);
 
-  const [slot] = await prisma.$transaction([
-    prisma.slot.update({
-      where: { id: req.params.id },
-      data: { status: 'OCCUPIED', currentDeliveryId: deliveryId, lastUsedAt: new Date() },
-    }),
-    prisma.deliveryRegistration.update({
+  const snapshot = await prisma.$transaction(async (tx) => {
+    const slot = await tx.slot.findUnique({ where: { id: req.params.id } });
+    if (!slot) return null;
+    if (isManualSlotStatus(slot.status)) return { manual: true as const, snapshot: null };
+
+    await tx.deliveryRegistration.update({
       where: { id: deliveryId },
       data: { assignedSlotId: req.params.id },
-    }),
-  ]);
+    });
+    await tx.slot.update({
+      where: { id: req.params.id },
+      data: { lastUsedAt: new Date() },
+    });
+    return { manual: false as const, snapshot: await reconcileSlotState(tx, req.params.id) };
+  });
+
+  if (!snapshot) { res.status(404).json({ error: 'Slot not found' }); return; }
+  if (snapshot.manual) {
+    res.status(409).json({ error: 'Slot đang ở trạng thái manual, không thể assign trực tiếp.' });
+    return;
+  }
 
   emitSlotUpdated(await getAllSlotsWithDeliveries(true));
-  res.json(slot);
+  res.json(snapshot.snapshot?.slot);
 }));
 
 // --- Admin CRUD ---
@@ -135,9 +178,22 @@ router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req
     return;
   }
 
-  const slot = await prisma.slot.update({ where: { id: req.params.id }, data: body });
+  const { status, ...slotData } = body;
+  const slot = await prisma.$transaction(async (tx) => {
+    await tx.slot.update({ where: { id: req.params.id }, data: slotData });
+    if (!status) {
+      return reconcileSlotState(tx, req.params.id);
+    }
+    if (isManualSlotStatus(status)) {
+      await tx.slot.update({ where: { id: req.params.id }, data: { status } });
+      return reconcileSlotState(tx, req.params.id);
+    }
+    return reconcileSlotState(tx, req.params.id, { preserveManualStatus: false });
+  });
+
+  if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
   emitSlotUpdated(await getAllSlotsWithDeliveries(true));
-  res.json(slot);
+  res.json(slot.slot);
 }));
 
 // DELETE /api/slots/:id

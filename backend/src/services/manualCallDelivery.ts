@@ -3,15 +3,9 @@ import {
   DeliveryStatus,
   Prisma,
   Slot,
-  SlotStatus,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-
-const ACTIVE_SLOT_DELIVERY_STATUSES: DeliveryStatus[] = [
-  DeliveryStatus.CALLED,
-  DeliveryStatus.RECEIVING,
-  DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-];
+import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 
 const CALLABLE_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.WAITING,
@@ -64,29 +58,7 @@ async function refreshDelivery(tx: Prisma.TransactionClient, deliveryId: string)
 
 async function releaseOldSlot(tx: Prisma.TransactionClient, delivery: DeliveryRegistration, targetSlotId: string): Promise<void> {
   if (!delivery.assignedSlotId || delivery.assignedSlotId === targetSlotId) return;
-
-  await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT "id" FROM "slots" WHERE "id" = ${delivery.assignedSlotId} FOR UPDATE
-  `);
-
-  const remainingInOld = await tx.deliveryRegistration.count({
-    where: {
-      assignedSlotId: delivery.assignedSlotId,
-      id: { not: delivery.id },
-      status: { in: ACTIVE_SLOT_DELIVERY_STATUSES },
-    },
-  });
-  const oldSlot = await tx.slot.findUnique({
-    where: { id: delivery.assignedSlotId },
-    select: { maxCapacity: true },
-  });
-  await tx.slot.update({
-    where: { id: delivery.assignedSlotId },
-    data: {
-      status: remainingInOld < (oldSlot?.maxCapacity ?? 1) ? SlotStatus.AVAILABLE : SlotStatus.OCCUPIED,
-      currentDeliveryId: remainingInOld === 0 ? null : undefined,
-    },
-  });
+  await reconcileSlotState(tx, delivery.assignedSlotId);
 }
 
 export async function manualCallDelivery(args: {
@@ -127,7 +99,7 @@ export async function manualCallDelivery(args: {
       return { outcome: 'slot_not_found', delivery, message: 'Slot not found' };
     }
 
-    if (!slot.isActive || slot.status === SlotStatus.MAINTENANCE || slot.status === SlotStatus.RESERVED) {
+    if (!slot.isActive || isManualSlotStatus(slot.status)) {
       return {
         outcome: 'slot_unavailable',
         delivery,
@@ -190,15 +162,6 @@ export async function manualCallDelivery(args: {
     });
 
     const activeCount = activeInTarget + 1;
-    await tx.slot.update({
-      where: { id: slot.id },
-      data: {
-        status: activeCount >= slot.maxCapacity ? SlotStatus.OCCUPIED : SlotStatus.AVAILABLE,
-        currentDeliveryId: delivery.id,
-        lastUsedAt: calledTime,
-      },
-    });
-
     await tx.callLog.create({
       data: {
         deliveryRegistrationId: delivery.id,
@@ -207,6 +170,12 @@ export async function manualCallDelivery(args: {
         message,
       },
     });
+
+    await tx.slot.update({
+      where: { id: slot.id },
+      data: { lastUsedAt: calledTime },
+    });
+    await reconcileSlotState(tx, slot.id);
 
     return {
       outcome: 'called',
