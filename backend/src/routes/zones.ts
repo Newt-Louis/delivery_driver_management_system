@@ -11,6 +11,7 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
   const zones = await prisma.zone.findMany({
     orderBy: { code: 'asc' },
     include: {
+      unitConfig: { select: { id: true, unit: true, displayName: true, businessLocationId: true } },
       _count: { select: { slots: true } },
       slots: {
         where: { isActive: true },
@@ -25,14 +26,22 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 const zoneSchema = z.object({
   code: z.string().min(1).max(10).toUpperCase(),
   name: z.string().min(1).max(100),
+  unitConfigId: z.string().min(1),
 });
 
 // POST /api/zones — create zone (admin)
 router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
   const body = zoneSchema.parse(req.body);
-  const exists = await prisma.zone.findUnique({ where: { code: body.code } });
+  const unitConfig = await prisma.unitConfig.findUnique({ where: { id: body.unitConfigId } });
+  if (!unitConfig) {
+    res.status(400).json({ error: 'BadRequest', message: 'Unit config không tồn tại.' });
+    return;
+  }
+  const exists = await prisma.zone.findUnique({
+    where: { unitConfigId_code: { unitConfigId: body.unitConfigId, code: body.code } },
+  });
   if (exists) {
-    res.status(409).json({ error: 'Conflict', message: `Mã khu "${body.code}" đã tồn tại.` });
+    res.status(409).json({ error: 'Conflict', message: `Mã khu "${body.code}" đã tồn tại trong đơn vị này.` });
     return;
   }
   const zone = await prisma.zone.create({ data: body });
@@ -42,6 +51,13 @@ router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Re
 // PATCH /api/zones/:id — update zone (admin)
 router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
   const body = zoneSchema.partial().parse(req.body);
+  if (body.unitConfigId) {
+    const unitConfig = await prisma.unitConfig.findUnique({ where: { id: body.unitConfigId } });
+    if (!unitConfig) {
+      res.status(400).json({ error: 'BadRequest', message: 'Unit config không tồn tại.' });
+      return;
+    }
+  }
   const zone = await prisma.zone.update({ where: { id: req.params.id }, data: body });
   res.json(zone);
 }));

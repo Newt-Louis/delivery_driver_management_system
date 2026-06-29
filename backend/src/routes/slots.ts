@@ -13,7 +13,7 @@ async function getAllSlotsWithDeliveries(activeOnly = true) {
     where: activeOnly ? { isActive: true } : undefined,
     orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
-      zone: { select: { id: true, code: true, name: true } },
+      zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
       deliveries: {
         where: { status: { in: ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
         orderBy: { updatedAt: 'desc' },
@@ -75,8 +75,18 @@ const createSlotSchema = z.object({
   autoWarehouseOnly: z.boolean().default(false),
   maxCapacity: z.number().int().min(1).max(10).default(1),
   status: z.nativeEnum(SlotStatus).default(SlotStatus.AVAILABLE),
-  zoneId: z.string().optional().nullable(),
+  zoneId: z.string().min(1),
 });
+
+async function validateZoneForUnit(zoneId: string, assignedUnit: ReceivingUnit) {
+  const zone = await prisma.zone.findUnique({
+    where: { id: zoneId },
+    include: { unitConfig: { select: { unit: true } } },
+  });
+  if (!zone) return 'Khu nhận hàng không tồn tại.';
+  if (zone.unitConfig.unit !== assignedUnit) return 'Khu nhận hàng không thuộc đúng đơn vị của slot.';
+  return null;
+}
 
 // POST /api/slots
 router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
@@ -85,6 +95,12 @@ router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Re
   const exists = await prisma.slot.findUnique({ where: { code: body.code } });
   if (exists) {
     res.status(409).json({ error: 'Conflict', message: `Mã slot "${body.code}" đã tồn tại.` });
+    return;
+  }
+
+  const zoneError = await validateZoneForUnit(body.zoneId, body.assignedUnit);
+  if (zoneError) {
+    res.status(400).json({ error: 'BadRequest', message: zoneError });
     return;
   }
 
@@ -103,12 +119,22 @@ const updateSlotSchema = z.object({
   maxCapacity: z.number().int().min(1).max(10).optional(),
   status: z.nativeEnum(SlotStatus).optional(),
   isActive: z.boolean().optional(),
-  zoneId: z.string().optional().nullable(),
+  zoneId: z.string().min(1).optional(),
 });
 
 // PATCH /api/slots/:id
 router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
   const body = updateSlotSchema.parse(req.body);
+  const current = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  if (!current) { res.status(404).json({ error: 'Not found' }); return; }
+  const nextZoneId = body.zoneId ?? current.zoneId;
+  const nextAssignedUnit = body.assignedUnit ?? current.assignedUnit;
+  const zoneError = await validateZoneForUnit(nextZoneId, nextAssignedUnit);
+  if (zoneError) {
+    res.status(400).json({ error: 'BadRequest', message: zoneError });
+    return;
+  }
+
   const slot = await prisma.slot.update({ where: { id: req.params.id }, data: body });
   emitSlotUpdated(await getAllSlotsWithDeliveries(true));
   res.json(slot);

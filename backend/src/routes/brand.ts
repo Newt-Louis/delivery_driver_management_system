@@ -4,6 +4,7 @@ import { ReceivingUnit } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
+import { getDefaultBusinessLocation } from '../lib/businessLocation';
 
 const router = Router();
 
@@ -15,10 +16,11 @@ const UNIT_DEFAULTS: Record<ReceivingUnit, { displayName: string; shortName: str
 
 // GET /api/brand — public: mall branding + all unit brandings
 router.get('/', asyncHandler(async (_req: Request, res: Response) => {
-  const [mall, unitConfigs] = await Promise.all([
-    prisma.mallConfig.findUnique({ where: { id: 'singleton' } }),
-    prisma.unitConfig.findMany({ select: { unit: true, displayName: true, shortName: true, description: true, logoUrl: true, primaryColor: true } }),
-  ]);
+  const location = await getDefaultBusinessLocation();
+  const unitConfigs = await prisma.unitConfig.findMany({
+    where: { businessLocationId: location.id },
+    select: { unit: true, displayName: true, shortName: true, description: true, logoUrl: true, primaryColor: true },
+  });
 
   const units: Record<string, object> = {};
   for (const u of Object.values(ReceivingUnit)) {
@@ -35,10 +37,15 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 
   res.json({
     mall: {
-      mallName:   mall?.mallName   ?? 'THISO GROUP',
-      logoUrl:    mall?.logoUrl    ?? null,
-      tagline:    mall?.tagline    ?? 'Delivery Management System',
-      kioskBgUrl: mall?.kioskBgUrl ?? null,
+      id:           location.id,
+      code:         location.code,
+      locationName: location.locationName,
+      mallName:     location.locationName,
+      address:      location.address,
+      avatarUrl:    location.avatarUrl,
+      logoUrl:      location.logoUrl,
+      tagline:      location.tagline ?? 'Delivery Management System',
+      kioskBgUrl:   location.kioskBgUrl,
     },
     units,
   });
@@ -47,6 +54,9 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
 // PATCH /api/brand/mall — admin: update mall branding
 const mallSchema = z.object({
   mallName:   z.string().min(1).max(100).optional(),
+  locationName: z.string().min(1).max(100).optional(),
+  address:    z.string().max(250).optional(),
+  avatarUrl:  z.string().nullable().optional(),
   logoUrl:    z.string().nullable().optional(),
   tagline:    z.string().max(200).nullable().optional(),
   kioskBgUrl: z.string().nullable().optional(),
@@ -54,12 +64,20 @@ const mallSchema = z.object({
 
 router.patch('/mall', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
   const data = mallSchema.parse(req.body);
-  const mall = await prisma.mallConfig.upsert({
-    where:  { id: 'singleton' },
-    create: { id: 'singleton', mallName: data.mallName ?? 'THISO GROUP', logoUrl: data.logoUrl ?? null, tagline: data.tagline ?? null },
-    update: data,
+  const location = await getDefaultBusinessLocation();
+  const locationName = data.locationName ?? data.mallName;
+  const updated = await prisma.businessLocation.update({
+    where: { id: location.id },
+    data: {
+      ...(locationName !== undefined ? { locationName } : {}),
+      ...(data.address !== undefined ? { address: data.address } : {}),
+      ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
+      ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
+      ...(data.tagline !== undefined ? { tagline: data.tagline } : {}),
+      ...(data.kioskBgUrl !== undefined ? { kioskBgUrl: data.kioskBgUrl } : {}),
+    },
   });
-  res.json(mall);
+  res.json({ ...updated, mallName: updated.locationName });
 }));
 
 export default router;

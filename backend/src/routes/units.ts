@@ -4,6 +4,7 @@ import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, VehicleType } from '@
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
+import { getDefaultBusinessLocation, getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 
 const router = Router();
 
@@ -18,7 +19,11 @@ function minutesToTime(m: number): string {
 
 // GET /api/units/configs — Admin: all unit configs
 router.get('/configs', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
-  const configs = await prisma.unitConfig.findMany({ orderBy: { unit: 'asc' } });
+  const location = await getDefaultBusinessLocation();
+  const configs = await prisma.unitConfig.findMany({
+    where: { businessLocationId: location.id },
+    orderBy: { unit: 'asc' },
+  });
   res.json(configs);
 }));
 
@@ -150,7 +155,7 @@ router.delete('/goods-types/:id', authenticate, requireRole('ADMIN'), asyncHandl
 // GET /api/units/:unit/config — Public: single unit config (strips API keys)
 router.get('/:unit/config', asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
-  const config = await prisma.unitConfig.findUnique({ where: { unit } });
+  const config = await getUnitConfigForDefaultLocation(unit);
   if (!config) { res.status(404).json({ error: 'Config not found' }); return; }
 
   const { vendorApiKey, poApiKey, ...safe } = config;
@@ -170,7 +175,7 @@ router.get('/:unit/slots', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
 
-  const config = await prisma.unitConfig.findUnique({ where: { unit } });
+  const config = await getUnitConfigForDefaultLocation(unit);
   if (!config) { res.status(404).json({ error: 'Config not found' }); return; }
 
   // Parse date in local timezone
@@ -295,10 +300,16 @@ const unitConfigSchema = z.object({
 router.patch('/:unit/config', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const data = unitConfigSchema.parse(req.body);
+  const location = await getDefaultBusinessLocation();
 
   const config = await prisma.unitConfig.upsert({
-    where: { unit },
-    create: { unit, ...data },
+    where: {
+      businessLocationId_unit: {
+        businessLocationId: location.id,
+        unit,
+      },
+    },
+    create: { businessLocationId: location.id, unit, ...data },
     update: data,
   });
 
@@ -312,7 +323,7 @@ router.get('/:unit/vendors', asyncHandler(async (req: Request, res: Response) =>
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const search = (req.query.search as string) ?? '';
 
-  const config = await prisma.unitConfig.findUnique({ where: { unit } });
+  const config = await getUnitConfigForDefaultLocation(unit);
   if (!config?.vendorApiUrl) {
     res.json({ vendors: [], configured: false });
     return;
@@ -337,7 +348,7 @@ router.get('/:unit/po', asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const { search, vendorId } = req.query as { search?: string; vendorId?: string };
 
-  const config = await prisma.unitConfig.findUnique({ where: { unit } });
+  const config = await getUnitConfigForDefaultLocation(unit);
   if (!config?.poApiUrl) {
     res.json({ pos: [], configured: false });
     return;

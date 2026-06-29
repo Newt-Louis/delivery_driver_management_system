@@ -23,6 +23,8 @@ export interface Zone {
   id: string;
   code: string;
   name: string;
+  unitConfigId: string;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'businessLocationId'>;
   slots?: Slot[];
   _count?: { slots: number };
 }
@@ -41,8 +43,8 @@ export interface Slot {
   isActive: boolean;
   currentDeliveryId: string | null;
   lastUsedAt: string | null;
-  zoneId: string | null;
-  zone: { id: string; code: string; name: string } | null;
+  zoneId: string;
+  zone: { id: string; code: string; name: string; unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'businessLocationId'> } | null;
   deliveries?: DeliveryRegistration[];
 }
 
@@ -112,7 +114,12 @@ export interface ReceivingTimeConfig {
 }
 
 export interface MallBranding {
+  id?: string;
+  code?: string;
+  locationName?: string;
   mallName: string;
+  address?: string;
+  avatarUrl?: string | null;
   logoUrl: string | null;
   tagline: string | null;
 }
@@ -120,6 +127,7 @@ export interface MallBranding {
 export interface UnitConfig {
   id: string;
   unit: ReceivingUnit;
+  businessLocationId: string;
   freshFoodEnabled: boolean;
   generalGoodsEnabled: boolean;
   thiCongEnabled: boolean;

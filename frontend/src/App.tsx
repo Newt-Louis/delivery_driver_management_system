@@ -72,10 +72,12 @@ export default function App() {
       <div className={isAuthenticated && !isPublicFullscreen ? 'md:pl-56 pt-14 md:pt-0' : ''}>
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<SessionRedirector><Register /></SessionRedirector>} />
+        {/*<Route path="/register" element={<SessionRedirector><Register /></SessionRedirector>} />*/}
+        <Route path="/register" element={<Register />} />
         <Route path="/waiting-screen" element={<WaitingScreen />} />
         <Route path="/taixe" element={<Navigate to="/register" replace />} />
-        <Route path="/track" element={<SessionRedirector><Track /></SessionRedirector>} />
+        {/*<Route path="/track" element={<SessionRedirector><Track /></SessionRedirector>} />*/}
+        <Route path="/track" element={<Track />} />
         <Route path="/track/:code" element={<Track />} />
         <Route path="/kiosk" element={<Kiosk />} />
         <Route

@@ -58,28 +58,34 @@ enum DeliveryStatus {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  name         String
-  email        String         @unique
-  passwordHash String         @map("password_hash")
-  role         Role           @default(VENDOR)
-  unit         ReceivingUnit? // optional unit assignment
-  department   String? // free-text department / shift label
-  isActive     Boolean        @default(true) @map("is_active")
-  createdAt    DateTime       @default(now()) @map("created_at")
-  callLogs     CallLog[]
+  id                 String            @id @default(cuid())
+  name               String
+  email              String            @unique
+  passwordHash       String            @map("password_hash")
+  role               Role              @default(VENDOR)
+  unit               ReceivingUnit? // optional unit assignment
+  department         String? // free-text department / shift label
+  businessLocationId String?           @map("business_location_id")
+  businessLocation   BusinessLocation? @relation(fields: [businessLocationId], references: [id])
+  isActive           Boolean           @default(true) @map("is_active")
+  createdAt          DateTime          @default(now()) @map("created_at")
+  callLogs           CallLog[]
 
   @@map("users")
 }
 
 model Zone {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  slots     Slot[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id           String     @id @default(cuid())
+  code         String
+  name         String
+  unitConfigId String     @map("unit_config_id")
+  unitConfig   UnitConfig @relation(fields: [unitConfigId], references: [id])
+  slots        Slot[]
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
 
+  @@unique([unitConfigId, code])
+  @@index([unitConfigId])
   @@map("zones")
 }
 
@@ -97,8 +103,8 @@ model Slot {
   isActive          Boolean                @default(true) @map("is_active")
   currentDeliveryId String?                @map("current_delivery_id")
   lastUsedAt        DateTime?              @map("last_used_at")
-  zoneId            String?                @map("zone_id")
-  zone              Zone?                  @relation(fields: [zoneId], references: [id])
+  zoneId            String                 @map("zone_id")
+  zone              Zone                   @relation(fields: [zoneId], references: [id])
   deliveries        DeliveryRegistration[] @relation("AssignedSlot")
   callLogs          CallLog[]
 
@@ -152,17 +158,20 @@ model CallLog {
 }
 
 model UnitConfig {
-  id   String        @id @default(cuid())
-  unit ReceivingUnit @unique
+  id                 String           @id @default(cuid())
+  unit               ReceivingUnit
+  businessLocationId String           @map("business_location_id")
+  businessLocation   BusinessLocation @relation(fields: [businessLocationId], references: [id])
+  zones              Zone[]
 
   // FRESH FOOD
-  freshFoodEnabled   Boolean @default(true) @map("fresh_food_enabled")
+  freshFoodEnabled Boolean @default(true) @map("fresh_food_enabled")
 
   // GENERAL GOODS
-  generalGoodsEnabled   Boolean @default(true) @map("general_goods_enabled")
+  generalGoodsEnabled Boolean @default(true) @map("general_goods_enabled")
 
   // THI CONG
-  thiCongEnabled   Boolean @default(true) @map("thi_cong_enabled")
+  thiCongEnabled Boolean @default(true) @map("thi_cong_enabled")
 
   sundayFreshFoodOnly Boolean @default(false) @map("sunday_fresh_food_only")
 
@@ -188,6 +197,8 @@ model UnitConfig {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  @@unique([businessLocationId, unit])
+  @@index([businessLocationId])
   @@map("unit_configs")
 }
 
@@ -203,15 +214,22 @@ model StaffPin {
   @@map("staff_pins")
 }
 
-model MallConfig {
-  id         String   @id @default("singleton")
-  mallName   String   @default("THISO GROUP") @map("mall_name")
-  logoUrl    String?  @map("logo_url")
-  tagline    String?  @default("Delivery Management System")
-  kioskBgUrl String?  @map("kiosk_bg_url")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+model BusinessLocation {
+  id           String       @id @default(cuid())
+  code         String       @unique
+  locationName String       @default("THISO GROUP") @map("location_name")
+  address      String       @default("")
+  avatarUrl    String?      @map("avatar_url")
+  logoUrl      String?      @map("logo_url")
+  tagline      String?      @default("Delivery Management System")
+  kioskBgUrl   String?      @map("kiosk_bg_url")
+  isActive     Boolean      @default(true) @map("is_active")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  unitConfigs  UnitConfig[]
+  users        User[]
 
-  @@map("mall_configs")
+  @@map("business_locations")
 }
 
 model AutoWarehouseVendor {

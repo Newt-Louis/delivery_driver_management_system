@@ -79,25 +79,27 @@ async function main() {
   await prisma.slot.deleteMany();
   await prisma.zone.deleteMany();
   await prisma.unitConfig.deleteMany();
-  await prisma.mallConfig.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.businessLocation.deleteMany();
   console.log('   Done.\n');
 
-  // ── Mall config ─────────────────────────────────────────────────────────────
-  await prisma.mallConfig.create({
+  // ── Business location ───────────────────────────────────────────────────────
+  const defaultLocation = await prisma.businessLocation.create({
     data: {
       id: 'singleton',
-      mallName: 'THISO MALL TÂY HỒ TÂY',
+      code: 'LOC_1',
+      locationName: 'THISO MALL TÂY HỒ TÂY',
+      address: 'Khu đô thị Tây Hồ Tây, Hà Nội',
       tagline: 'Hệ Thống Điều Phối Giao – Nhận Hàng Thông Minh',
     },
   });
-  console.log('✅ Mall config created');
+  console.log('✅ Business location created');
 
   // ── Users ───────────────────────────────────────────────────────────────────
   const pw = await bcrypt.hash('password123', 10);
   await prisma.user.createMany({
     data: [
-      { name: 'Admin', email: 'admin@mall.com', passwordHash: pw, role: Role.ADMIN },
+      { name: 'Admin', email: 'admin@mall.com', passwordHash: pw, role: Role.ADMIN, businessLocationId: defaultLocation.id },
       { name: 'Nhân viên nhận', email: 'receiving@mall.com', passwordHash: pw, role: Role.RECEIVING },
       { name: 'Bảo vệ', email: 'security@mall.com', passwordHash: pw, role: Role.SECURITY },
     ],
@@ -119,13 +121,57 @@ async function main() {
   console.log('   Bảo vệ:    1111 / 2222 / 3333');
   console.log('   Nhận hàng: 4444 / 5555 / 6666');
 
+  // ── Unit configs ─────────────────────────────────────────────────────────────
+  const unitConfigs = await Promise.all([
+    prisma.unitConfig.create({
+      data: {
+        businessLocationId: defaultLocation.id,
+        unit: ReceivingUnit.EMART,
+        freshFoodEnabled: true,
+        generalGoodsEnabled: true,
+        thiCongEnabled: false,
+        sundayFreshFoodOnly: true,
+        truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
+        displayName: 'Emart', shortName: 'Emart', description: 'Siêu thị Emart', primaryColor: '#FF9500',
+      },
+    }),
+    prisma.unitConfig.create({
+      data: {
+        businessLocationId: defaultLocation.id,
+        unit: ReceivingUnit.THISKYHALL,
+        freshFoodEnabled: true,
+        generalGoodsEnabled: true,
+        thiCongEnabled: true,
+        sundayFreshFoodOnly: false,
+        truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
+        displayName: 'Thiskyhall', shortName: 'Skyhall', description: 'Trung tâm thương mại', primaryColor: '#27A55E',
+      },
+    }),
+    prisma.unitConfig.create({
+      data: {
+        businessLocationId: defaultLocation.id,
+        unit: ReceivingUnit.TENANT,
+        freshFoodEnabled: false,
+        generalGoodsEnabled: true,
+        thiCongEnabled: true,
+
+        sundayFreshFoodOnly: false,
+        truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
+        displayName: 'Mall (Khách thuê)', shortName: 'Mall', description: 'Khu vực khách thuê', primaryColor: '#4F46E5',
+      },
+    }),
+  ]);
+  const UC = Object.fromEntries(unitConfigs.map((cfg) => [cfg.unit, cfg]));
+  console.log('✅ Unit configs created');
+
   // ── Zones ────────────────────────────────────────────────────────────────────
-  const [k1, k2, k3, k4, k5] = await Promise.all([
-    prisma.zone.create({ data: { code: 'K1', name: 'Khu 1 – Trái Trên (Thiskyhall)' } }),
-    prisma.zone.create({ data: { code: 'K2', name: 'Khu 2 – Phải Trên (Tenant)' } }),
-    prisma.zone.create({ data: { code: 'K3', name: 'Khu 3 – Trái Dưới (Emart)' } }),
-    prisma.zone.create({ data: { code: 'K4', name: 'Khu 4 – Trung Tâm' } }),
-    prisma.zone.create({ data: { code: 'K5', name: 'Khu 5 – Dưới (Gần vòng xuyến ra)' } }),
+  const [k1, k2, k3, k4t, k4e, k5] = await Promise.all([
+    prisma.zone.create({ data: { code: 'K1', name: 'Khu 1 – Trái Trên (Thiskyhall)', unitConfigId: UC.THISKYHALL.id } }),
+    prisma.zone.create({ data: { code: 'K2', name: 'Khu 2 – Phải Trên (Tenant)', unitConfigId: UC.TENANT.id } }),
+    prisma.zone.create({ data: { code: 'K3', name: 'Khu 3 – Trái Dưới (Emart)', unitConfigId: UC.EMART.id } }),
+    prisma.zone.create({ data: { code: 'K4', name: 'Khu 4 – Trung Tâm (Thiskyhall)', unitConfigId: UC.THISKYHALL.id } }),
+    prisma.zone.create({ data: { code: 'K4', name: 'Khu 4 – Trung Tâm (Emart)', unitConfigId: UC.EMART.id } }),
+    prisma.zone.create({ data: { code: 'K5', name: 'Khu 5 – Dưới (Gần vòng xuyến ra)', unitConfigId: UC.TENANT.id } }),
   ]);
   console.log('✅ Zones created');
 
@@ -147,8 +193,8 @@ async function main() {
     { code: 'M1', name: 'Vị trí Xe Máy 1 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k1.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M2', name: 'Vị trí Xe Máy 2 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k1.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M3', name: 'Vị trí Xe Máy 3 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k1.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M4', name: 'Vị trí Xe Máy 4 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k4.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M5', name: 'Vị trí Xe Máy 5 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k4.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M4', name: 'Vị trí Xe Máy 4 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k4t.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M5', name: 'Vị trí Xe Máy 5 – Thiskyhall', assignedUnit: ReceivingUnit.THISKYHALL, vehicleType: VehicleType.MOTORBIKE, zoneId: k4t.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     // TENANT motorbikes (5)
     { code: 'M6', name: 'Vị trí Xe Máy 6 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M7', name: 'Vị trí Xe Máy 7 – Mall', assignedUnit: ReceivingUnit.TENANT, vehicleType: VehicleType.MOTORBIKE, zoneId: k2.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
@@ -159,8 +205,8 @@ async function main() {
     { code: 'M11', name: 'Vị trí Xe Máy 11 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M12', name: 'Vị trí Xe Máy 12 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
     { code: 'M13', name: 'Vị trí Xe Máy 13 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k3.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M14', name: 'Vị trí Xe Máy 14 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k4.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
-    { code: 'M15', name: 'Vị trí Xe Máy 15 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k4.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M14', name: 'Vị trí Xe Máy 14 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k4e.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
+    { code: 'M15', name: 'Vị trí Xe Máy 15 – Emart', assignedUnit: ReceivingUnit.EMART, vehicleType: VehicleType.MOTORBIKE, zoneId: k4e.id, acceptedGoods: [], autoAssign: true, maxCapacity: 3 },
   ];
   await prisma.slot.createMany({ data: slotData });
 
@@ -168,41 +214,6 @@ async function main() {
   const slots = await prisma.slot.findMany();
   const S = Object.fromEntries(slots.map((s) => [s.code, s]));
   console.log('✅ Slots created');
-
-  // ── Unit configs ─────────────────────────────────────────────────────────────
-  await prisma.unitConfig.createMany({
-    data: [
-      {
-        unit: ReceivingUnit.EMART,
-        freshFoodEnabled: true,
-        generalGoodsEnabled: true,
-        thiCongEnabled: false,
-        sundayFreshFoodOnly: true,
-        truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
-        displayName: 'Emart', shortName: 'Emart', description: 'Siêu thị Emart', primaryColor: '#FF9500',
-      },
-      {
-        unit: ReceivingUnit.THISKYHALL,
-        freshFoodEnabled: true,
-        generalGoodsEnabled: true,
-        thiCongEnabled: true,
-        sundayFreshFoodOnly: false,
-        truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
-        displayName: 'Thiskyhall', shortName: 'Skyhall', description: 'Trung tâm thương mại', primaryColor: '#27A55E',
-      },
-      {
-        unit: ReceivingUnit.TENANT,
-        freshFoodEnabled: false,
-        generalGoodsEnabled: true,
-        thiCongEnabled: true,
-
-        sundayFreshFoodOnly: false,
-        truckSlotMinutes: 30, motorbikeSlotMinutes: 15, truckMaxPerSlot: 1, motorbikeMaxPerSlot: 3,
-        displayName: 'Mall (Khách thuê)', shortName: 'Mall', description: 'Khu vực khách thuê', primaryColor: '#4F46E5',
-      },
-    ],
-  });
-  console.log('✅ Unit configs created');
 
   await prisma.deliveryTimeWindow.createMany({
     data: [
@@ -258,10 +269,11 @@ async function main() {
       receivingStartTime?: Date;
       note?: string;
     }): DInput {
-      const hasTicket = [
+      const ticketStatuses: DeliveryStatus[] = [
         DeliveryStatus.WAITING, DeliveryStatus.CALLED,
         DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-      ].includes(opts.status) ||
+      ];
+      const hasTicket = ticketStatuses.includes(opts.status) ||
         (opts.status === DeliveryStatus.COMPLETED && opts.checkinTime &&
           opts.checkinTime >= TODAY);
 

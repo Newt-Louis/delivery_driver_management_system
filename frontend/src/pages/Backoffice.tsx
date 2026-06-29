@@ -32,7 +32,7 @@ const slotSchema = z.object({
   assignedUnit: z.enum(['EMART', 'THISKYHALL', 'TENANT']),
   vehicleType: z.enum(['TRUCK', 'MOTORBIKE', 'OTHER']).default('TRUCK'),
   status: z.enum(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'MAINTENANCE']).default('AVAILABLE'),
-  zoneId: z.string().nullable().optional(),
+  zoneId: z.string().min(1, 'Bắt buộc chọn khu'),
   autoAssign: z.boolean().default(true),
   maxCapacity: z.number().int().min(1).max(10).default(1),
   acceptedGoods: z.array(z.enum(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'])).default([]),
@@ -52,6 +52,8 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
   });
 
   const acceptedGoods = watch('acceptedGoods') ?? [];
+  const assignedUnit = watch('assignedUnit');
+  const matchingZones = zones.filter((z) => z.unitConfig?.unit === assignedUnit);
 
   function toggleGoods(g: GoodsType) {
     if (acceptedGoods.includes(g)) {
@@ -64,7 +66,7 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
   async function onSubmit(data: SlotForm) {
     setServerError('');
     try {
-      const payload = { ...data, zoneId: data.zoneId || null };
+      const payload = { ...data, zoneId: data.zoneId };
       if (isEdit) {
         await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, autoWarehouseOnly: payload.autoWarehouseOnly, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods });
       } else {
@@ -114,13 +116,14 @@ function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zone
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="label">Khu (Zone)</label>
+              <label className="label">Khu (Zone) *</label>
               <select {...register('zoneId')} className="input">
-                <option value="">— Chưa gán khu —</option>
-                {zones.map((z) => (
+                <option value="">— Chọn khu —</option>
+                {matchingZones.map((z) => (
                   <option key={z.id} value={z.id}>{z.code} – {z.name}</option>
                 ))}
               </select>
+              {errors.zoneId && <p className="text-xs text-red-600 mt-1">{errors.zoneId.message}</p>}
             </div>
             <div>
               <label className="label">Trạng thái ban đầu</label>
@@ -642,10 +645,14 @@ function ZonePanel() {
     queryKey: ['zones'],
     queryFn: async () => (await api.get('/api/zones')).data,
   });
+  const { data: unitConfigs = [] } = useQuery<UnitConfig[]>({
+    queryKey: ['unit-configs'],
+    queryFn: async () => (await api.get('/api/units/configs')).data,
+  });
 
   const [addMode, setAddMode] = useState(false);
   const [editZone, setEditZone] = useState<Zone | null>(null);
-  const [form, setForm] = useState({ code: '', name: '' });
+  const [form, setForm] = useState({ code: '', name: '', unitConfigId: '' });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -655,7 +662,7 @@ function ZonePanel() {
   }
 
   async function saveZone() {
-    if (!form.code.trim() || !form.name.trim()) { setError('Bắt buộc nhập mã và tên khu.'); return; }
+    if (!form.code.trim() || !form.name.trim() || !form.unitConfigId) { setError('Bắt buộc nhập mã, tên khu và đơn vị.'); return; }
     setSaving(true); setError('');
     try {
       if (editZone) {
@@ -663,7 +670,7 @@ function ZonePanel() {
       } else {
         await api.post('/api/zones', form);
       }
-      setAddMode(false); setEditZone(null); setForm({ code: '', name: '' });
+      setAddMode(false); setEditZone(null); setForm({ code: '', name: '', unitConfigId: '' });
       refreshZones();
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -694,7 +701,7 @@ function ZonePanel() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-thiso-400">Quản lý các khu nhận hàng vật lý. Mỗi khu có thể chứa nhiều slot và phục vụ nhiều đơn vị.</p>
-        <button className="btn-primary px-4 py-2 text-sm" onClick={() => { setAddMode(true); setEditZone(null); setForm({ code: '', name: '' }); }}>
+        <button className="btn-primary px-4 py-2 text-sm" onClick={() => { setAddMode(true); setEditZone(null); setForm({ code: '', name: '', unitConfigId: unitConfigs[0]?.id ?? '' }); }}>
           + Thêm Khu
         </button>
       </div>
@@ -702,7 +709,7 @@ function ZonePanel() {
       {(addMode || editZone) && (
         <div className="mb-5 bg-white border border-thiso-100 rounded-2xl p-5">
           <h3 className="font-bold text-thiso-800 mb-4">{editZone ? `Sửa Khu ${editZone.code}` : 'Thêm Khu mới'}</h3>
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-3 gap-4 mb-4">
             <div>
               <label className="label">Mã Khu *</label>
               <input className="input uppercase" placeholder="K6" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} disabled={!!editZone} />
@@ -710,6 +717,15 @@ function ZonePanel() {
             <div>
               <label className="label">Tên Khu *</label>
               <input className="input" placeholder="Khu 6 – Khu vực mới" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Đơn vị *</label>
+              <select className="input" value={form.unitConfigId} onChange={(e) => setForm((f) => ({ ...f, unitConfigId: e.target.value }))}>
+                <option value="">— Chọn đơn vị —</option>
+                {unitConfigs.map((cfg) => (
+                  <option key={cfg.id} value={cfg.id}>{UNIT_LABEL[cfg.unit] ?? cfg.unit}</option>
+                ))}
+              </select>
             </div>
           </div>
           {error && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
@@ -727,7 +743,7 @@ function ZonePanel() {
           const slotList = z.slots ?? [];
           const trucks = slotList.filter((s) => s.vehicleType === 'TRUCK');
           const motorbikes = slotList.filter((s) => s.vehicleType === 'MOTORBIKE');
-          const unitSet = [...new Set(slotList.map((s) => s.assignedUnit))];
+          const unitSet = z.unitConfig?.unit ? [z.unitConfig.unit] : [...new Set(slotList.map((s) => s.assignedUnit))];
           const gradient = ZONE_COLORS[idx % ZONE_COLORS.length];
 
           return (
@@ -777,7 +793,7 @@ function ZonePanel() {
                 <div className="flex gap-2 pt-2 border-t border-thiso-100">
                   <button
                     className="text-xs px-3 py-1 rounded-lg border border-thiso-200 hover:border-sky-400 hover:text-sky-600 transition-colors text-thiso-500"
-                    onClick={() => { setEditZone(z); setAddMode(false); setForm({ code: z.code, name: z.name }); setError(''); }}
+                    onClick={() => { setEditZone(z); setAddMode(false); setForm({ code: z.code, name: z.name, unitConfigId: z.unitConfigId }); setError(''); }}
                   >
                     Sửa
                   </button>

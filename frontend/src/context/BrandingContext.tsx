@@ -11,7 +11,12 @@ export interface UnitBranding {
 }
 
 export interface MallBranding {
+  id?: string;
+  code?: string;
+  locationName?: string;
   mallName: string;
+  address?: string;
+  avatarUrl?: string | null;
   logoUrl: string | null;
   tagline: string | null;
   kioskBgUrl: string | null;
@@ -76,7 +81,12 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       }
       setData({
         mall: {
-          mallName:   mall.mallName   || MALL_FALLBACK.mallName,
+          id:         mall.id,
+          code:       mall.code,
+          locationName: mall.locationName || mall.mallName || MALL_FALLBACK.mallName,
+          mallName:   mall.mallName   || mall.locationName || MALL_FALLBACK.mallName,
+          address:    mall.address ?? '',
+          avatarUrl:  mall.avatarUrl ?? null,
           logoUrl:    mall.logoUrl    ?? null,
           tagline:    mall.tagline    ?? MALL_FALLBACK.tagline,
           kioskBgUrl: mall.kioskBgUrl ?? null,
