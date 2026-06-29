@@ -9,6 +9,7 @@ import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
+import { checkInDelivery } from '../services/checkInDelivery';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -208,6 +209,7 @@ router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response
       ? { registrationCode }
       : { vehiclePlate: vehiclePlate!.toUpperCase() },
     orderBy: { createdAt: 'desc' },
+    include: { assignedSlot: true },
   });
 
   if (!delivery) {
@@ -215,10 +217,14 @@ router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response
     return;
   }
 
+  if (delivery.status === DeliveryStatus.WAITING) {
+    res.json(delivery);
+    return;
+  }
   if (delivery.status !== DeliveryStatus.REGISTERED) {
     res.status(400).json({
-      error: 'Đã check-in',
-      message: `Xe ${delivery.vehiclePlate} đã check-in rồi (${delivery.registrationCode})`,
+      error: 'Không thể check-in',
+      message: `Xe ${delivery.vehiclePlate} đang ở trạng thái ${delivery.status}.`,
       delivery,
     });
     return;
@@ -231,35 +237,36 @@ router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  const checkinTime = new Date();
-  const todayStart  = new Date(checkinTime);
-  todayStart.setHours(0, 0, 0, 0);
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const maxRow = await tx.deliveryRegistration.findFirst({
-      where: {
-        receivingUnit: delivery.receivingUnit,
-        vehicleType:   delivery.vehicleType,
-        ticketNumber:  { not: null },
-        checkinTime:   { gte: todayStart },
-      },
-      orderBy: { ticketNumber: 'desc' },
-      select: { ticketNumber: true },
-    });
-    const ticketNumber = (maxRow?.ticketNumber ?? 0) + 1;
-    return tx.deliveryRegistration.update({
-      where: { id: delivery.id },
-      data:  { checkinTime, status: DeliveryStatus.WAITING, ticketNumber },
-      include: { assignedSlot: true },
-    });
+  const checkInResult = await checkInDelivery({
+    deliveryId: delivery.id,
+    resultArgs: { include: { assignedSlot: true } },
   });
 
+  if (!checkInResult.delivery) {
+    res.status(404).json({ error: 'Không tìm thấy lượt đăng ký.' });
+    return;
+  }
+
+  const { delivery: updated } = checkInResult;
+  if (updated.status !== DeliveryStatus.WAITING) {
+    res.status(409).json({
+      error: 'Không thể check-in',
+      message: `Xe ${updated.vehiclePlate} đang ở trạng thái ${updated.status}.`,
+      delivery: updated,
+    });
+    return;
+  }
+
   const queue = await getFullQueue();
-  emitQueueUpdated(queue);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
+  if (checkInResult.checkedIn) {
+    emitQueueUpdated(queue);
+    emitTrackUpdatesForQueue(queue).catch(console.error);
+  }
   res.json(updated);
 
-  triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+  if (checkInResult.checkedIn) {
+    triggerAutoAssign(updated.receivingUnit).catch(console.error);
+  }
 }));
 
 // GET /api/deliveries/:id
@@ -278,10 +285,17 @@ router.get('/:id', authenticate, asyncHandler(async (req: Request, res: Response
 
 // PATCH /api/deliveries/:id/check-in
 router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) => {
-  const delivery = await prisma.deliveryRegistration.findUnique({ where: { id: req.params.id } });
+  const delivery = await prisma.deliveryRegistration.findUnique({
+    where: { id: req.params.id },
+    include: { assignedSlot: true },
+  });
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
+  if (delivery.status === DeliveryStatus.WAITING) {
+    res.json(delivery);
+    return;
+  }
   if (delivery.status !== DeliveryStatus.REGISTERED) {
-    res.status(400).json({ error: 'Already checked in' }); return;
+    res.status(400).json({ error: 'Cannot check in delivery in current status', delivery }); return;
   }
 
   if (!isScheduledForToday(delivery.requestedTime)) {
@@ -291,35 +305,32 @@ router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) =
     return;
   }
 
-  const checkinTime = new Date();
-  const todayStart  = new Date(checkinTime);
-  todayStart.setHours(0, 0, 0, 0);
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const maxRow = await tx.deliveryRegistration.findFirst({
-      where: {
-        receivingUnit: delivery.receivingUnit,
-        vehicleType:   delivery.vehicleType,
-        ticketNumber:  { not: null },
-        checkinTime:   { gte: todayStart },
-      },
-      orderBy: { ticketNumber: 'desc' },
-      select: { ticketNumber: true },
-    });
-    const ticketNumber = (maxRow?.ticketNumber ?? 0) + 1;
-    return tx.deliveryRegistration.update({
-      where: { id: req.params.id },
-      data:  { checkinTime, status: DeliveryStatus.WAITING, ticketNumber },
-      include: { assignedSlot: true },
-    });
+  const checkInResult = await checkInDelivery({
+    deliveryId: delivery.id,
+    resultArgs: { include: { assignedSlot: true } },
   });
 
+  if (!checkInResult.delivery) {
+    res.status(404).json({ error: 'Not found' });
+    return;
+  }
+
+  const { delivery: updated } = checkInResult;
+  if (updated.status !== DeliveryStatus.WAITING) {
+    res.status(409).json({ error: 'Cannot check in delivery in current status', delivery: updated });
+    return;
+  }
+
   const queue = await getFullQueue();
-  emitQueueUpdated(queue);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
+  if (checkInResult.checkedIn) {
+    emitQueueUpdated(queue);
+    emitTrackUpdatesForQueue(queue).catch(console.error);
+  }
   res.json(updated);
 
-  triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+  if (checkInResult.checkedIn) {
+    triggerAutoAssign(updated.receivingUnit).catch(console.error);
+  }
 }));
 
 const callSchema = z.object({ slotId: z.string() });

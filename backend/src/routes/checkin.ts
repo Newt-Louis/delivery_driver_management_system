@@ -10,6 +10,7 @@ import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
+import { checkInDelivery } from '../services/checkInDelivery';
 
 const router = Router();
 
@@ -115,30 +116,38 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
         return;
       }
 
-      const checkinTime = new Date();
-      const todayStart  = new Date(checkinTime);
-      todayStart.setHours(0, 0, 0, 0);
-
-      const updated = await prisma.$transaction(async (tx) => {
-        const maxRow = await tx.deliveryRegistration.findFirst({
-          where: {
-            receivingUnit: delivery.receivingUnit,
-            vehicleType:   delivery.vehicleType,
-            ticketNumber:  { not: null },
-            checkinTime:   { gte: todayStart },
-          },
-          orderBy: { ticketNumber: 'desc' },
-          select:  { ticketNumber: true },
-        });
-        const ticketNumber = (maxRow?.ticketNumber ?? 0) + 1;
-        return tx.deliveryRegistration.update({
-          where:   { id: delivery.id },
-          data:    { status: DeliveryStatus.WAITING, checkinTime, ticketNumber },
-          include: CHECKIN_INCLUDE,
-        });
+      const checkInResult = await checkInDelivery({
+        deliveryId: delivery.id,
+        resultArgs: { include: CHECKIN_INCLUDE },
       });
 
-      const ticketCode = formatTicketCode(delivery.receivingUnit, delivery.vehicleType, updated.ticketNumber!);
+      if (!checkInResult.delivery) {
+        res.status(404).json({ error: `Không tìm thấy mã "${registrationCode.trim().toUpperCase()}"` });
+        return;
+      }
+
+      const { delivery: updated } = checkInResult;
+      if (updated.status !== DeliveryStatus.WAITING) {
+        res.status(409).json({
+          error: `Lượt đăng ký đã đổi trạng thái sang ${updated.status}. Vui lòng quét lại để xử lý bước hiện tại.`,
+          delivery: updated,
+        });
+        return;
+      }
+
+      const ticketCode = updated.ticketNumber
+        ? formatTicketCode(updated.receivingUnit, updated.vehicleType, updated.ticketNumber)
+        : null;
+      if (!checkInResult.checkedIn) {
+        res.json({
+          action: 'WAITING',
+          ticketCode,
+          message: 'Xe đang trong hàng chờ, chưa được gọi vào dock',
+          delivery: updated,
+        });
+        return;
+      }
+
       const queue = await getFullQueue();
       emitQueueUpdated(queue);
       emitTrackUpdatesForQueue(queue).catch(console.error);

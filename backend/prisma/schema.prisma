@@ -143,6 +143,19 @@ model DeliveryRegistration {
   @@map("delivery_registrations")
 }
 
+model TicketSequence {
+  id            String        @id @default(cuid())
+  ticketDate    String        @map("ticket_date")
+  receivingUnit ReceivingUnit @map("receiving_unit")
+  vehicleType   VehicleType   @map("vehicle_type")
+  nextNumber    Int           @default(1) @map("next_number")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  @@unique([ticketDate, receivingUnit, vehicleType])
+  @@map("ticket_sequences")
+}
+
 model CallLog {
   id                     String               @id @default(cuid())
   deliveryRegistrationId String               @map("delivery_registration_id")

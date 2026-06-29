@@ -12,6 +12,7 @@ import { getFullQueue, getAllSlots } from './deliveries';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { emitTrackUpdated, emitTrackUpdatesForQueue, getTrackDelivery } from '../services/trackRealtime';
 import { sendPushToDelivery } from '../services/webPush';
+import { checkInDelivery } from '../services/checkInDelivery';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const UNIT_TICKET_PREFIX: Record<string, string> = {
@@ -156,6 +157,20 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
     res.status(401).json({ error: 'Mã nhân viên không hợp lệ hoặc đã bị vô hiệu hóa' }); return;
   }
 
+  if (delivery.status === DeliveryStatus.WAITING) {
+    const ticketCode = delivery.ticketNumber
+      ? formatTicketCode(delivery.receivingUnit, delivery.vehicleType, delivery.ticketNumber)
+      : null;
+    res.json({
+      action: 'WAITING',
+      staffName: staff.name,
+      ticketCode,
+      message: 'Xe đang trong hàng chờ, chưa được gọi vào dock',
+      delivery,
+    });
+    return;
+  }
+
   const requiredRole = ROLE_FOR_STATUS[delivery.status];
   if (!requiredRole) {
     res.status(400).json({ error: 'Không có hành động nào cho trạng thái này' }); return;
@@ -175,29 +190,38 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
         return;
       }
 
-      const checkinTime = new Date();
-      const todayStart = new Date(checkinTime);
-      todayStart.setHours(0, 0, 0, 0);
-
-      // Assign sequential ticket number per unit + vehicleType per day (atomic)
-      const updated = await prisma.$transaction(async (tx) => {
-        const maxRow = await tx.deliveryRegistration.findFirst({
-          where: {
-            receivingUnit: delivery.receivingUnit,
-            vehicleType:   delivery.vehicleType,
-            ticketNumber:  { not: null },
-            checkinTime:   { gte: todayStart },
-          },
-          orderBy: { ticketNumber: 'desc' },
-          select: { ticketNumber: true },
-        });
-        const ticketNumber = (maxRow?.ticketNumber ?? 0) + 1;
-        return tx.deliveryRegistration.update({
-          where: { id: delivery.id },
-          data: { status: DeliveryStatus.WAITING, checkinTime, ticketNumber },
-          include: TRACK_INCLUDE,
-        });
+      const checkInResult = await checkInDelivery({
+        deliveryId: delivery.id,
+        resultArgs: { include: TRACK_INCLUDE },
       });
+
+      if (!checkInResult.delivery) {
+        res.status(404).json({ error: 'Không tìm thấy đăng ký' });
+        return;
+      }
+
+      const { delivery: updated } = checkInResult;
+      if (updated.status !== DeliveryStatus.WAITING) {
+        res.status(409).json({
+          error: `Lượt đăng ký đã đổi trạng thái sang ${updated.status}. Vui lòng tải lại trạng thái hiện tại.`,
+          delivery: updated,
+        });
+        return;
+      }
+
+      if (!checkInResult.checkedIn) {
+        const ticketCode = updated.ticketNumber
+          ? formatTicketCode(updated.receivingUnit, updated.vehicleType, updated.ticketNumber)
+          : null;
+        res.json({
+          action: 'WAITING',
+          staffName: staff.name,
+          ticketCode,
+          message: 'Xe đang trong hàng chờ, chưa được gọi vào dock',
+          delivery: updated,
+        });
+        return;
+      }
 
       const queue = await getFullQueue();
       emitQueueUpdated(queue);
