@@ -27,3 +27,7 @@ export function removeDeliverySession(code: string) {
   const newSessions = sessions.filter((c) => c !== upperCode);
   localStorage.setItem(SESSION_KEY, JSON.stringify(newSessions));
 }
+
+export function removeAllDeliverySessions() {
+  localStorage.removeItem(SESSION_KEY);
+}

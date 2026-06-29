@@ -23,38 +23,38 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
   return <>{children}</>;
 }
 
-function SessionRedirector({ children }: { children: React.ReactNode }) {
-  const [checking, setChecking] = useState(true);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const codes = getDeliverySessions();
-    if (codes.length === 0) {
-      setChecking(false);
-      return;
-    }
-
-    api.post<{ activeCode: string | null }>('/api/track/active-session', { codes })
-      .then(res => {
-        if (res.data.activeCode) {
-          navigate(`/track/${res.data.activeCode}`, { replace: true });
-        } else {
-          removeAllDeliverySessions(); // Clear expired sessions
-        }
-      })
-      .catch(console.error)
-      .finally(() => setChecking(false));
-  }, [navigate]);
-
-  if (checking) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-thiso-50">
-        <p className="text-thiso-400 text-sm animate-pulse">Đang tải...</p>
-      </div>
-    );
-  }
-  return <>{children}</>;
-}
+// function SessionRedirector({ children }: { children: React.ReactNode }) {
+//   const [checking, setChecking] = useState(true);
+//   const navigate = useNavigate();
+//
+//   useEffect(() => {
+//     const codes = getDeliverySessions();
+//     if (codes.length === 0) {
+//       setChecking(false);
+//       return;
+//     }
+//
+//     api.post<{ activeCode: string | null }>('/api/track/active-session', { codes })
+//       .then(res => {
+//         if (res.data.activeCode) {
+//           navigate(`/track/${res.data.activeCode}`, { replace: true });
+//         } else {
+//           removeAllDeliverySessions(); // Clear expired sessions
+//         }
+//       })
+//       .catch(console.error)
+//       .finally(() => setChecking(false));
+//   }, [navigate]);
+//
+//   if (checking) {
+//     return (
+//       <div className="min-h-screen flex items-center justify-center bg-thiso-50">
+//         <p className="text-thiso-400 text-sm animate-pulse">Đang tải...</p>
+//       </div>
+//     );
+//   }
+//   return <>{children}</>;
+// }
 
 export default function App() {
   const { isAuthenticated } = useAuth();
