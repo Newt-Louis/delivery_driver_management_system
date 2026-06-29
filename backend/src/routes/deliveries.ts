@@ -10,6 +10,7 @@ import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRea
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { checkInDelivery } from '../services/checkInDelivery';
+import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manualCallDelivery';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -339,107 +340,61 @@ const callSchema = z.object({ slotId: z.string() });
 router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { slotId } = callSchema.parse(req.body);
 
-  const delivery = await prisma.deliveryRegistration.findUnique({ where: { id: req.params.id } });
-  if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
+  const result = await manualCallDelivery({
+    deliveryId: req.params.id,
+    slotId,
+    calledByUserId: req.user!.id,
+  });
 
-  const callableStatuses: DeliveryStatus[] = [DeliveryStatus.WAITING, DeliveryStatus.CALLED];
-  if (!callableStatuses.includes(delivery.status)) {
-    res.status(400).json({ error: 'Cannot call delivery in current status' }); return;
+  if (result.outcome === 'delivery_not_found') {
+    res.status(404).json({ error: result.message });
+    return;
+  }
+  if (result.outcome === 'slot_not_found') {
+    res.status(404).json({ error: result.message, delivery: result.delivery });
+    return;
+  }
+  if (!manualCallResultIsSuccess(result)) {
+    const statusCode = result.outcome === 'invalid_status' ? 409 : 400;
+    res.status(statusCode).json({
+      error: result.message,
+      delivery: result.delivery,
+      slot: result.slot,
+    });
+    return;
   }
 
-  const slot = await prisma.slot.findUnique({ where: { id: slotId } });
-  if (!slot) { res.status(404).json({ error: 'Slot not found' }); return; }
-
-  const calledTime = new Date();
-  const message = `Mời xe ${delivery.vehiclePlate} vào ${slot.name}`;
-
-  let updated: Awaited<ReturnType<typeof prisma.deliveryRegistration.update>> | undefined;
-
-  await prisma.$transaction(async (tx) => {
-    if (delivery.assignedSlotId && delivery.assignedSlotId !== slotId) {
-      // Release old slot — check if other deliveries remain there
-      const remainingInOld = await tx.deliveryRegistration.count({
-        where: {
-          assignedSlotId: delivery.assignedSlotId,
-          id: { not: req.params.id },
-          status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] },
-        },
-      });
-      const oldSlot = await tx.slot.findUnique({
-        where: { id: delivery.assignedSlotId },
-        select: { maxCapacity: true },
-      });
-      await tx.slot.update({
-        where: { id: delivery.assignedSlotId },
-        data: {
-          status: remainingInOld < (oldSlot?.maxCapacity ?? 1) ? 'AVAILABLE' : 'OCCUPIED',
-          currentDeliveryId: remainingInOld === 0 ? null : undefined,
-        },
-      });
-    }
-
-    updated = await tx.deliveryRegistration.update({
-      where: { id: req.params.id },
-      data: { status: DeliveryStatus.CALLED, calledTime, assignedSlotId: slotId },
-      include: { assignedSlot: true, _count: { select: { callLogs: true } } },
+  const { delivery, slot, message } = result;
+  if (result.callLogCreated) {
+    const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: delivery.id } });
+    const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
+    emitDeliveryCalled({
+      id: delivery.id,
+      vehiclePlate: delivery.vehiclePlate,
+      slotCode: slot.code,
+      slotName: slot.name,
+      message,
+      receivingUnit: delivery.receivingUnit,
+      callCount,
+      ticketCode: delivery.ticketNumber
+        ? formatTicketCode(delivery.receivingUnit, delivery.vehicleType, delivery.ticketNumber)
+        : undefined,
     });
+    emitQueueUpdated(queue);
+    emitSlotUpdated(slots);
+    emitTrackUpdatesForQueue(queue).catch(console.error);
+  }
 
-    // Determine new slot status based on active count vs capacity
-    const activeInNewSlot = await tx.deliveryRegistration.count({
-      where: {
-        assignedSlotId: slotId,
-        id: { not: req.params.id },
-        status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] },
-      },
-    });
-    const targetSlot = await tx.slot.findUnique({ where: { id: slotId }, select: { maxCapacity: true } });
-    const newCount = activeInNewSlot + 1;
-    await tx.slot.update({
-      where: { id: slotId },
-      data: {
-        status: newCount >= (targetSlot?.maxCapacity ?? 1) ? 'OCCUPIED' : 'AVAILABLE',
-        currentDeliveryId: req.params.id,
-        lastUsedAt: calledTime,
-      },
-    });
+  res.json(delivery);
 
-    await tx.callLog.create({
-      data: {
-        deliveryRegistrationId: req.params.id,
-        slotId,
-        calledByUserId: req.user!.id,
-        message,
-      },
-    });
-  });
-
-  const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: req.params.id } });
-  const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
-  emitDeliveryCalled({
-    id: req.params.id,
-    vehiclePlate: delivery.vehiclePlate,
-    slotCode: slot.code,
-    slotName: slot.name,
-    message,
-    receivingUnit: delivery.receivingUnit,
-    callCount,
-    ticketCode: delivery.ticketNumber
-      ? formatTicketCode(delivery.receivingUnit, delivery.vehicleType, delivery.ticketNumber)
-      : undefined,
-  });
-  emitQueueUpdated(queue);
-  emitSlotUpdated(slots);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
-
-  res.json(updated);
-
-  // Send push notification to driver
-  sendPushToDelivery(delivery.registrationCode, {
-    title: `🚛 Mời vào ${slot.code}`,
-    body: `Xe ${delivery.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
-    tag: 'delivery-called-manual',
-    url: `/track/${delivery.registrationCode}`,
-  }).catch(console.error);
+  if (result.callLogCreated) {
+    sendPushToDelivery(delivery.registrationCode, {
+      title: `🚛 Mời vào ${slot.code}`,
+      body: `Xe ${delivery.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
+      tag: 'delivery-called-manual',
+      url: `/track/${delivery.registrationCode}`,
+    }).catch(console.error);
+  }
 }));
 
 // PATCH /api/deliveries/:id/start-receiving
