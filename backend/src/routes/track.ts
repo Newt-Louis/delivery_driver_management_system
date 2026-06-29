@@ -13,6 +13,7 @@ import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { emitTrackUpdated, emitTrackUpdatesForQueue, getTrackDelivery } from '../services/trackRealtime';
 import { sendPushToDelivery } from '../services/webPush';
 import { checkInDelivery } from '../services/checkInDelivery';
+import { completeDelivery } from '../services/deliveryLifecycle';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const UNIT_TICKET_PREFIX: Record<string, string> = {
@@ -170,6 +171,15 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
     });
     return;
   }
+  if (delivery.status === DeliveryStatus.COMPLETED) {
+    res.json({
+      action: 'COMPLETED',
+      staffName: staff.name,
+      message: 'Lượt giao hàng này đã hoàn thành',
+      delivery,
+    });
+    return;
+  }
 
   const requiredRole = ROLE_FOR_STATUS[delivery.status];
   if (!requiredRole) {
@@ -265,51 +275,41 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
 
     case DeliveryStatus.RECEIVING:
     case DeliveryStatus.AUTO_WAREHOUSE_RECEIVING: {
-      await prisma.$transaction(async (tx) => {
-        await tx.deliveryRegistration.update({
-          where: { id: delivery.id },
-          data: { status: DeliveryStatus.COMPLETED, completedTime: new Date() },
+      const result = await completeDelivery(delivery.id);
+      if (!result.delivery) {
+        res.status(404).json({ error: 'Không tìm thấy đăng ký' });
+        return;
+      }
+      if (result.outcome === 'invalid_status') {
+        res.status(409).json({
+          error: `Lượt đăng ký đã đổi trạng thái sang ${result.delivery.status}. Vui lòng tải lại trạng thái hiện tại.`,
+          delivery: result.delivery,
         });
-        if (delivery.assignedSlotId) {
-          const remaining = await tx.deliveryRegistration.count({
-            where: {
-              assignedSlotId: delivery.assignedSlotId,
-              id: { not: delivery.id },
-              status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] },
-            },
-          });
-          const slotRecord = await tx.slot.findUnique({
-            where: { id: delivery.assignedSlotId },
-            select: { maxCapacity: true },
-          });
-          await tx.slot.update({
-            where: { id: delivery.assignedSlotId },
-            data: {
-              status: remaining < (slotRecord?.maxCapacity ?? 1) ? 'AVAILABLE' : 'OCCUPIED',
-              currentDeliveryId: remaining === 0 ? null : undefined,
-            },
-          });
-        }
-      });
+        return;
+      }
 
       const final = await prisma.deliveryRegistration.findUnique({
         where: { id: delivery.id },
         include: TRACK_INCLUDE,
       });
       const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
-      emitDeliveryCompleted(delivery.id);
-      emitQueueUpdated(queue);
-      emitSlotUpdated(slots);
-      emitTrackUpdated(delivery.registrationCode).catch(console.error);
-      emitTrackUpdatesForQueue(queue).catch(console.error);
+      if (result.changed) {
+        emitDeliveryCompleted(delivery.id);
+        emitQueueUpdated(queue);
+        emitSlotUpdated(slots);
+        emitTrackUpdated(delivery.registrationCode).catch(console.error);
+        emitTrackUpdatesForQueue(queue).catch(console.error);
+      }
       res.json({ action: 'COMPLETED', staffName: staff.name, delivery: final });
-      sendPushToDelivery(delivery.registrationCode, {
-        title: '🎉 Giao hàng hoàn tất',
-        body: `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
-        tag: 'delivery-completed-track',
-        url: `/track/${delivery.registrationCode}`,
-      }).catch(console.error);
-      triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+      if (result.changed) {
+        sendPushToDelivery(delivery.registrationCode, {
+          title: '🎉 Giao hàng hoàn tất',
+          body: `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+          tag: 'delivery-completed-track',
+          url: `/track/${delivery.registrationCode}`,
+        }).catch(console.error);
+        triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+      }
       return;
     }
   }

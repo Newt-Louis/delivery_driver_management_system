@@ -11,6 +11,7 @@ import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { checkInDelivery } from '../services/checkInDelivery';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manualCallDelivery';
+import { cancelDelivery, completeDelivery } from '../services/deliveryLifecycle';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -430,119 +431,66 @@ router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVI
 
 // PATCH /api/deliveries/:id/complete
 router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
-  const delivery = await prisma.deliveryRegistration.findUnique({ where: { id: req.params.id } });
-  if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
-
-  const completableStatuses: DeliveryStatus[] = [
-    DeliveryStatus.RECEIVING,
-    DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-    DeliveryStatus.CALLED,
-  ];
-  if (!completableStatuses.includes(delivery.status)) {
-    res.status(400).json({ error: 'Cannot complete delivery in current status' }); return;
+  const result = await completeDelivery(req.params.id);
+  if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
+  if (result.outcome === 'invalid_status') {
+    res.status(409).json({ error: 'Cannot complete delivery in current status', delivery: result.delivery });
+    return;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.deliveryRegistration.update({
-      where: { id: req.params.id },
-      data: { status: DeliveryStatus.COMPLETED, completedTime: new Date() },
-    });
-    if (delivery.assignedSlotId) {
-      const remainingCount = await tx.deliveryRegistration.count({
-        where: {
-          assignedSlotId: delivery.assignedSlotId,
-          id: { not: req.params.id },
-          status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] },
-        },
-      });
-      const slotRecord = await tx.slot.findUnique({
-        where: { id: delivery.assignedSlotId },
-        select: { maxCapacity: true },
-      });
-      await tx.slot.update({
-        where: { id: delivery.assignedSlotId },
-        data: {
-          status: remainingCount < (slotRecord?.maxCapacity ?? 1) ? 'AVAILABLE' : 'OCCUPIED',
-          currentDeliveryId: remainingCount === 0 ? null : undefined,
-        },
-      });
-    }
-  });
-
   const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
-  emitDeliveryCompleted(req.params.id);
-  emitQueueUpdated(queue);
-  emitSlotUpdated(slots);
-  emitTrackUpdated(delivery.registrationCode).catch(console.error);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
+  if (result.changed) {
+    emitDeliveryCompleted(req.params.id);
+    emitQueueUpdated(queue);
+    emitSlotUpdated(slots);
+    emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
+    emitTrackUpdatesForQueue(queue).catch(console.error);
+  }
 
-  res.json({ success: true });
+  res.json({ success: true, delivery: result.delivery, idempotent: !result.changed });
 
-  // Send push notification to driver
-  sendPushToDelivery(delivery.registrationCode, {
-    title: '🎉 Giao hàng hoàn tất',
-    body: `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
-    tag: 'delivery-completed',
-    url: `/track/${delivery.registrationCode}`,
-  }).catch(console.error);
+  if (result.changed) {
+    sendPushToDelivery(result.delivery.registrationCode, {
+      title: '🎉 Giao hàng hoàn tất',
+      body: `Xe ${result.delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+      tag: 'delivery-completed',
+      url: `/track/${result.delivery.registrationCode}`,
+    }).catch(console.error);
 
-  triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+    triggerAutoAssign(result.delivery.receivingUnit).catch(console.error);
+  }
 }));
 
 // PATCH /api/deliveries/:id/cancel
 router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
-  const delivery = await prisma.deliveryRegistration.findUnique({ where: { id: req.params.id } });
-  if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
-
-  const nonCancellableStatuses: DeliveryStatus[] = [DeliveryStatus.COMPLETED, DeliveryStatus.CANCELLED];
-  if (nonCancellableStatuses.includes(delivery.status)) {
-    res.status(400).json({ error: 'Cannot cancel completed or already cancelled delivery' }); return;
+  const result = await cancelDelivery(req.params.id);
+  if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
+  if (result.outcome === 'invalid_status') {
+    res.status(409).json({ error: 'Cannot cancel delivery in current status', delivery: result.delivery });
+    return;
   }
 
-  await prisma.$transaction(async (tx) => {
-    await tx.deliveryRegistration.update({
-      where: { id: req.params.id },
-      data: { status: DeliveryStatus.CANCELLED },
-    });
-    if (delivery.assignedSlotId) {
-      const remainingCount = await tx.deliveryRegistration.count({
-        where: {
-          assignedSlotId: delivery.assignedSlotId,
-          id: { not: req.params.id },
-          status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] },
-        },
-      });
-      const slotRecord = await tx.slot.findUnique({
-        where: { id: delivery.assignedSlotId },
-        select: { maxCapacity: true },
-      });
-      await tx.slot.update({
-        where: { id: delivery.assignedSlotId },
-        data: {
-          status: remainingCount < (slotRecord?.maxCapacity ?? 1) ? 'AVAILABLE' : 'OCCUPIED',
-          currentDeliveryId: remainingCount === 0 ? null : undefined,
-        },
-      });
-    }
-  });
-
   const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
-  emitQueueUpdated(queue);
-  emitSlotUpdated(slots);
-  emitTrackUpdated(delivery.registrationCode).catch(console.error);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
+  if (result.changed) {
+    emitQueueUpdated(queue);
+    emitSlotUpdated(slots);
+    emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
+    emitTrackUpdatesForQueue(queue).catch(console.error);
+  }
 
-  res.json({ success: true });
+  res.json({ success: true, delivery: result.delivery, idempotent: !result.changed });
 
-  sendPushToDelivery(delivery.registrationCode, {
-    title: '❌ Lượt giao hàng đã hủy',
-    body: `Xe ${delivery.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
-    tag: 'delivery-cancelled',
-    url: `/track/${delivery.registrationCode}`,
-  }).catch(console.error);
+  if (result.changed) {
+    sendPushToDelivery(result.delivery.registrationCode, {
+      title: '❌ Lượt giao hàng đã hủy',
+      body: `Xe ${result.delivery.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
+      tag: 'delivery-cancelled',
+      url: `/track/${result.delivery.registrationCode}`,
+    }).catch(console.error);
 
-  if (delivery.assignedSlotId) {
-    triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+    if (result.releasedSlotId) {
+      triggerAutoAssign(result.delivery.receivingUnit).catch(console.error);
+    }
   }
 }));
 

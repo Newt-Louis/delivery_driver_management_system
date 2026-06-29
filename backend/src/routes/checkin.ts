@@ -11,6 +11,7 @@ import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
 import { checkInDelivery } from '../services/checkInDelivery';
+import { completeDelivery } from '../services/deliveryLifecycle';
 
 const router = Router();
 
@@ -204,59 +205,51 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
     // ── Scan 3: Complete ────────────────────────────────────────────────────
     case DeliveryStatus.RECEIVING:
     case DeliveryStatus.AUTO_WAREHOUSE_RECEIVING: {
-      await prisma.$transaction(async (tx) => {
-        await tx.deliveryRegistration.update({
-          where: { id: delivery.id },
-          data:  { status: DeliveryStatus.COMPLETED, completedTime: new Date() },
+      const result = await completeDelivery(delivery.id);
+      if (!result.delivery) {
+        res.status(404).json({ error: `Không tìm thấy mã "${registrationCode.trim().toUpperCase()}"` });
+        return;
+      }
+      if (result.outcome === 'invalid_status') {
+        res.status(409).json({
+          error: `Lượt đăng ký đã đổi trạng thái sang ${result.delivery.status}. Vui lòng quét lại để xử lý bước hiện tại.`,
+          delivery: result.delivery,
         });
-        if (delivery.assignedSlotId) {
-          const remaining = await tx.deliveryRegistration.count({
-            where: {
-              assignedSlotId: delivery.assignedSlotId,
-              id:     { not: delivery.id },
-              status: { in: ['CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] },
-            },
-          });
-          const slotRecord = await tx.slot.findUnique({
-            where:  { id: delivery.assignedSlotId },
-            select: { maxCapacity: true },
-          });
-          await tx.slot.update({
-            where: { id: delivery.assignedSlotId },
-            data: {
-              status:            remaining < (slotRecord?.maxCapacity ?? 1) ? 'AVAILABLE' : 'OCCUPIED',
-              currentDeliveryId: remaining === 0 ? null : undefined,
-            },
-          });
-        }
-      });
+        return;
+      }
 
       const final = await prisma.deliveryRegistration.findUnique({
         where:   { id: delivery.id },
         include: CHECKIN_INCLUDE,
       });
       const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
-      emitDeliveryCompleted(delivery.id);
-      emitQueueUpdated(queue);
-      emitSlotUpdated(slots);
-      emitTrackUpdated(delivery.registrationCode).catch(console.error);
-      emitTrackUpdatesForQueue(queue).catch(console.error);
+      if (result.changed) {
+        emitDeliveryCompleted(delivery.id);
+        emitQueueUpdated(queue);
+        emitSlotUpdated(slots);
+        emitTrackUpdated(delivery.registrationCode).catch(console.error);
+        emitTrackUpdatesForQueue(queue).catch(console.error);
+      }
       res.json({ action: 'COMPLETED', staffName: terminalPayload.staffName, delivery: final });
-      sendPushToDelivery(delivery.registrationCode, {
-        title: '🎉 Giao hàng hoàn tất',
-        body:  `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
-        tag:   'delivery-completed',
-        url:   `/track/${delivery.registrationCode}`,
-      }).catch(console.error);
-      triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+      if (result.changed) {
+        sendPushToDelivery(delivery.registrationCode, {
+          title: '🎉 Giao hàng hoàn tất',
+          body:  `Xe ${delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
+          tag:   'delivery-completed',
+          url:   `/track/${delivery.registrationCode}`,
+        }).catch(console.error);
+        triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+      }
       return;
     }
 
     // ── Terminal states ─────────────────────────────────────────────────────
     case DeliveryStatus.COMPLETED:
-      res.status(400).json({
-        error:    'Lượt giao hàng này đã hoàn thành',
-        delivery: { status: delivery.status, vehiclePlate: delivery.vehiclePlate },
+      res.json({
+        action: 'COMPLETED',
+        staffName: terminalPayload.staffName,
+        message: 'Lượt giao hàng này đã hoàn thành',
+        delivery,
       });
       return;
 
