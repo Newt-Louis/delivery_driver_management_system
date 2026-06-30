@@ -6,6 +6,7 @@ import { sendPushToDelivery } from './webPush';
 import { emitTrackUpdatesForQueue } from './trackRealtime';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 import { getScopeForSlot } from './realtimeScope';
+import { recordAuditLog, systemActor } from './auditLog';
 
 type AutoAssignScope = {
   businessLocationId?: string;
@@ -233,6 +234,29 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
 async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): Promise<void> {
   const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: result.delivery.id } });
   const scope = await getScopeForSlot(result.slot.id);
+
+  await recordAuditLog({
+    ...systemActor('auto-assign'),
+    action: 'delivery.auto_assign',
+    targetType: 'DeliveryRegistration',
+    targetId: result.delivery.id,
+    businessLocationId: scope.businessLocationId,
+    unitConfigId: scope.unitConfigId,
+    after: {
+      status: result.delivery.status,
+      registrationCode: result.delivery.registrationCode,
+      vehiclePlate: result.delivery.vehiclePlate,
+      assignedSlotId: result.slot.id,
+      calledTime: result.delivery.calledTime?.toISOString() ?? null,
+    },
+    metadata: {
+      slotId: result.slot.id,
+      slotCode: result.slot.code,
+      activeCount: result.activeCount,
+      maxCapacity: result.slot.maxCapacity,
+      receivingUnit: unit,
+    },
+  });
 
   emitDeliveryCalled({
     id: result.delivery.id,

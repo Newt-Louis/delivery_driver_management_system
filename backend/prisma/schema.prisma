@@ -53,6 +53,13 @@ enum DeviceType {
   TV
 }
 
+enum AuditActorType {
+  USER
+  STAFF
+  DEVICE
+  SYSTEM
+}
+
 enum DeliveryStatus {
   REGISTERED
   WAITING
@@ -187,6 +194,30 @@ model CallLog {
   @@index([deliveryRegistrationId, calledAt])
   @@index([slotId, calledAt])
   @@map("call_logs")
+}
+
+model AuditLog {
+  id                 String         @id @default(cuid())
+  actorType          AuditActorType @map("actor_type")
+  actorId            String?        @map("actor_id")
+  actorLabel         String?        @map("actor_label")
+  businessLocationId String?        @map("business_location_id")
+  unitConfigId       String?        @map("unit_config_id")
+  action             String
+  targetType         String         @map("target_type")
+  targetId           String?        @map("target_id")
+  before             Json?
+  after              Json?
+  metadata           Json?
+  requestId          String?        @map("request_id")
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  @@index([businessLocationId, createdAt])
+  @@index([unitConfigId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([actorType, actorId, createdAt])
+  @@map("audit_logs")
 }
 
 model UnitConfig {

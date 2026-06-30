@@ -15,6 +15,7 @@ import { sendPushToDelivery } from '../services/webPush';
 import { checkInDelivery } from '../services/checkInDelivery';
 import { completeDelivery } from '../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../services/realtimeScope';
+import { recordAuditLog, staffActor } from '../services/auditLog';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const UNIT_TICKET_PREFIX: Record<string, string> = {
@@ -236,6 +237,21 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
 
       const scope = await getScopeForDelivery(updated);
       const queue = await getFullQueue(scope);
+      await recordAuditLog({
+        ...staffActor(staff),
+        action: 'delivery.check_in',
+        targetType: 'DeliveryRegistration',
+        targetId: updated.id,
+        businessLocationId: scope.businessLocationId,
+        unitConfigId: scope.unitConfigId,
+        after: {
+          status: updated.status,
+          registrationCode: updated.registrationCode,
+          vehiclePlate: updated.vehiclePlate,
+          ticketNumber: updated.ticketNumber,
+        },
+        metadata: { source: 'track.action' },
+      });
       emitQueueUpdated(queue, scope);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'CHECKED_IN', staffName: staff.name, delivery: updated });
@@ -263,6 +279,23 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
       });
       const scope = await getScopeForDelivery(updated);
       const queue = await getFullQueue(scope);
+      await recordAuditLog({
+        ...staffActor(staff),
+        action: 'delivery.start_receiving',
+        targetType: 'DeliveryRegistration',
+        targetId: updated.id,
+        businessLocationId: scope.businessLocationId,
+        unitConfigId: scope.unitConfigId,
+        before: { status: delivery.status },
+        after: {
+          status: updated.status,
+          registrationCode: updated.registrationCode,
+          vehiclePlate: updated.vehiclePlate,
+          assignedSlotId: updated.assignedSlotId,
+          receivingStartTime: updated.receivingStartTime?.toISOString() ?? null,
+        },
+        metadata: { source: 'track.action' },
+      });
       emitQueueUpdated(queue, scope);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'RECEIVING_STARTED', staffName: staff.name, delivery: updated });
@@ -298,6 +331,24 @@ router.post('/:code/action', asyncHandler(async (req: Request, res: Response) =>
       const scope = await getScopeForDelivery(result.delivery);
       const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
       if (result.changed) {
+        await recordAuditLog({
+          ...staffActor(staff),
+          action: 'delivery.complete',
+          targetType: 'DeliveryRegistration',
+          targetId: result.delivery.id,
+          businessLocationId: scope.businessLocationId,
+          unitConfigId: scope.unitConfigId,
+          after: {
+            status: result.delivery.status,
+            registrationCode: result.delivery.registrationCode,
+            vehiclePlate: result.delivery.vehiclePlate,
+            completedTime: result.delivery.completedTime?.toISOString() ?? null,
+          },
+          metadata: {
+            releasedSlotId: result.releasedSlotId,
+            source: 'track.action',
+          },
+        });
         emitDeliveryCompleted(delivery.id, scope);
         emitQueueUpdated(queue, scope);
         emitSlotUpdated(slots, scope);

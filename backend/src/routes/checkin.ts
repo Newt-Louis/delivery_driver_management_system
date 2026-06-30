@@ -14,6 +14,7 @@ import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRea
 import { checkInDelivery } from '../services/checkInDelivery';
 import { completeDelivery } from '../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../services/realtimeScope';
+import { deviceStaffActor, recordAuditLog } from '../services/auditLog';
 
 const router = Router();
 
@@ -221,6 +222,21 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
 
       const scope = await getScopeForDelivery(updated);
       const queue = await getFullQueue(scope);
+      await recordAuditLog({
+        ...deviceStaffActor(terminalPayload),
+        action: 'delivery.check_in',
+        targetType: 'DeliveryRegistration',
+        targetId: updated.id,
+        businessLocationId: scope.businessLocationId,
+        unitConfigId: scope.unitConfigId,
+        after: {
+          status: updated.status,
+          registrationCode: updated.registrationCode,
+          vehiclePlate: updated.vehiclePlate,
+          ticketNumber: updated.ticketNumber,
+        },
+        metadata: { source: 'checkin.scan' },
+      });
       emitQueueUpdated(queue, scope);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'CHECKED_IN', staffName: terminalPayload.staffName, ticketCode, delivery: updated });
@@ -262,6 +278,23 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
 
       const scope = await getScopeForDelivery(updated);
       const queue = await getFullQueue(scope);
+      await recordAuditLog({
+        ...deviceStaffActor(terminalPayload),
+        action: 'delivery.start_receiving',
+        targetType: 'DeliveryRegistration',
+        targetId: updated.id,
+        businessLocationId: scope.businessLocationId,
+        unitConfigId: scope.unitConfigId,
+        before: { status: delivery.status },
+        after: {
+          status: updated.status,
+          registrationCode: updated.registrationCode,
+          vehiclePlate: updated.vehiclePlate,
+          assignedSlotId: updated.assignedSlotId,
+          receivingStartTime: updated.receivingStartTime?.toISOString() ?? null,
+        },
+        metadata: { source: 'checkin.scan' },
+      });
       emitQueueUpdated(queue, scope);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       const slot = updated.assignedSlot;
@@ -297,6 +330,24 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
       const scope = await getScopeForDelivery(result.delivery);
       const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
       if (result.changed) {
+        await recordAuditLog({
+          ...deviceStaffActor(terminalPayload),
+          action: 'delivery.complete',
+          targetType: 'DeliveryRegistration',
+          targetId: result.delivery.id,
+          businessLocationId: scope.businessLocationId,
+          unitConfigId: scope.unitConfigId,
+          after: {
+            status: result.delivery.status,
+            registrationCode: result.delivery.registrationCode,
+            vehiclePlate: result.delivery.vehiclePlate,
+            completedTime: result.delivery.completedTime?.toISOString() ?? null,
+          },
+          metadata: {
+            releasedSlotId: result.releasedSlotId,
+            source: 'checkin.scan',
+          },
+        });
         emitDeliveryCompleted(delivery.id, scope);
         emitQueueUpdated(queue, scope);
         emitSlotUpdated(slots, scope);

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
+import { recordAuditLog, userActor } from '../services/auditLog';
 
 const router = Router();
 
@@ -67,6 +68,19 @@ router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Re
     },
     select: SAFE_SELECT,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'device.create',
+    targetType: 'Device',
+    targetId: device.id,
+    businessLocationId: device.businessLocationId,
+    after: {
+      code: device.code,
+      name: device.name,
+      deviceType: device.deviceType,
+      isActive: device.isActive,
+    },
+  });
   res.status(201).json(device);
 }));
 
@@ -92,6 +106,26 @@ router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req
     },
     select: SAFE_SELECT,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'device.update',
+    targetType: 'Device',
+    targetId: device.id,
+    businessLocationId: device.businessLocationId,
+    before: {
+      code: existing.code,
+      name: existing.name,
+      deviceType: existing.deviceType,
+      isActive: existing.isActive,
+    },
+    after: {
+      code: device.code,
+      name: device.name,
+      deviceType: device.deviceType,
+      isActive: device.isActive,
+      secretRotated: Boolean(body.deviceSecret),
+    },
+  });
   res.json(device);
 }));
 
@@ -106,6 +140,25 @@ router.delete('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (re
     where: { id: req.params.id },
     data: { isActive: false },
     select: SAFE_SELECT,
+  });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'device.deactivate',
+    targetType: 'Device',
+    targetId: device.id,
+    businessLocationId: device.businessLocationId,
+    before: {
+      code: existing.code,
+      name: existing.name,
+      deviceType: existing.deviceType,
+      isActive: existing.isActive,
+    },
+    after: {
+      code: device.code,
+      name: device.name,
+      deviceType: device.deviceType,
+      isActive: device.isActive,
+    },
   });
   res.json({ deactivated: true, device });
 }));

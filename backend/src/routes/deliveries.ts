@@ -13,6 +13,7 @@ import { checkInDelivery } from '../services/checkInDelivery';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manualCallDelivery';
 import { cancelDelivery, completeDelivery } from '../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../services/realtimeScope';
+import { recordAuditLog, systemActor, userActor } from '../services/auditLog';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -302,6 +303,21 @@ router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response
   if (checkInResult.checkedIn) {
     const scope = await getScopeForDelivery(updated);
     const queue = await getFullQueue(scope);
+    await recordAuditLog({
+      ...systemActor('public-check-in-route'),
+      action: 'delivery.check_in',
+      targetType: 'DeliveryRegistration',
+      targetId: updated.id,
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+      after: {
+        status: updated.status,
+        registrationCode: updated.registrationCode,
+        vehiclePlate: updated.vehiclePlate,
+        ticketNumber: updated.ticketNumber,
+      },
+      metadata: { source: 'deliveries.check-in-lookup' },
+    });
     emitQueueUpdated(queue, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
@@ -367,6 +383,21 @@ router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) =
   if (checkInResult.checkedIn) {
     const scope = await getScopeForDelivery(updated);
     const queue = await getFullQueue(scope);
+    await recordAuditLog({
+      ...systemActor('public-check-in-route'),
+      action: 'delivery.check_in',
+      targetType: 'DeliveryRegistration',
+      targetId: updated.id,
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+      after: {
+        status: updated.status,
+        registrationCode: updated.registrationCode,
+        vehiclePlate: updated.vehiclePlate,
+        ticketNumber: updated.ticketNumber,
+      },
+      metadata: { source: 'deliveries.id-check-in' },
+    });
     emitQueueUpdated(queue, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
@@ -411,6 +442,26 @@ router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), async
   if (result.callLogCreated) {
     const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: delivery.id } });
     const scope = await getScopeForDelivery({ ...delivery, assignedSlotId: slot.id });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'delivery.manual_call',
+      targetType: 'DeliveryRegistration',
+      targetId: delivery.id,
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+      after: {
+        status: delivery.status,
+        registrationCode: delivery.registrationCode,
+        vehiclePlate: delivery.vehiclePlate,
+        assignedSlotId: slot.id,
+        calledTime: delivery.calledTime?.toISOString() ?? null,
+      },
+      metadata: {
+        slotId: slot.id,
+        slotCode: slot.code,
+        source: 'deliveries.manual-call',
+      },
+    });
     const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
     emitDeliveryCalled({
       id: delivery.id,
@@ -459,6 +510,23 @@ router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVI
 
   const scope = await getScopeForDelivery(updated);
   const queue = await getFullQueue(scope);
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'delivery.start_receiving',
+    targetType: 'DeliveryRegistration',
+    targetId: updated.id,
+    businessLocationId: scope.businessLocationId,
+    unitConfigId: scope.unitConfigId,
+    before: { status: delivery.status },
+    after: {
+      status: updated.status,
+      registrationCode: updated.registrationCode,
+      vehiclePlate: updated.vehiclePlate,
+      assignedSlotId: updated.assignedSlotId,
+      receivingStartTime: updated.receivingStartTime?.toISOString() ?? null,
+    },
+    metadata: { source: 'deliveries.start-receiving' },
+  });
   emitQueueUpdated(queue, scope);
   emitTrackUpdatesForQueue(queue).catch(console.error);
   res.json(updated);
@@ -485,6 +553,24 @@ router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), a
   const scope = await getScopeForDelivery(result.delivery);
   const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
   if (result.changed) {
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'delivery.complete',
+      targetType: 'DeliveryRegistration',
+      targetId: result.delivery.id,
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+      after: {
+        status: result.delivery.status,
+        registrationCode: result.delivery.registrationCode,
+        vehiclePlate: result.delivery.vehiclePlate,
+        completedTime: result.delivery.completedTime?.toISOString() ?? null,
+      },
+      metadata: {
+        releasedSlotId: result.releasedSlotId,
+        source: 'deliveries.complete',
+      },
+    });
     emitDeliveryCompleted(req.params.id, scope);
     emitQueueUpdated(queue, scope);
     emitSlotUpdated(slots, scope);
@@ -518,6 +604,23 @@ router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
   const scope = await getScopeForDelivery(result.delivery);
   const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
   if (result.changed) {
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'delivery.cancel',
+      targetType: 'DeliveryRegistration',
+      targetId: result.delivery.id,
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+      after: {
+        status: result.delivery.status,
+        registrationCode: result.delivery.registrationCode,
+        vehiclePlate: result.delivery.vehiclePlate,
+      },
+      metadata: {
+        releasedSlotId: result.releasedSlotId,
+        source: 'deliveries.cancel',
+      },
+    });
     emitQueueUpdated(queue, scope);
     emitSlotUpdated(slots, scope);
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
