@@ -1,6 +1,6 @@
 import {
   PrismaClient, Role, ReceivingUnit, GoodsType,
-  DeliveryStatus, VehicleType, StaffRole,
+  DeliveryStatus, VehicleType, StaffRole, DeviceType,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -76,6 +76,7 @@ async function main() {
   await prisma.unitGoodsType.deleteMany();
   await prisma.receivingTimeConfig.deleteMany();
   await prisma.staffPin.deleteMany();
+  await prisma.device.deleteMany();
   await prisma.slot.deleteMany();
   await prisma.zone.deleteMany();
   await prisma.unitConfig.deleteMany();
@@ -120,6 +121,28 @@ async function main() {
   console.log('✅ Staff PINs created');
   console.log('   Bảo vệ:    1111 / 2222 / 3333');
   console.log('   Nhận hàng: 4444 / 5555 / 6666');
+
+  // ── Devices ────────────────────────────────────────────────────────────────
+  const deviceSecretHash = await bcrypt.hash('device123', 10);
+  await prisma.device.createMany({
+    data: [
+      {
+        code: 'KIOSK-LOC1',
+        name: 'Kiosk bảo vệ LOC_1',
+        businessLocationId: defaultLocation.id,
+        deviceType: DeviceType.KIOSK,
+        deviceSecretHash,
+      },
+      {
+        code: 'PDA-LOC1',
+        name: 'PDA nhận hàng LOC_1',
+        businessLocationId: defaultLocation.id,
+        deviceType: DeviceType.PDA,
+        deviceSecretHash,
+      },
+    ],
+  });
+  console.log('✅ Devices created (KIOSK-LOC1/PDA-LOC1, secret: device123)');
 
   // ── Unit configs ─────────────────────────────────────────────────────────────
   const unitConfigs = await Promise.all([

@@ -6,24 +6,34 @@ import jsQR from 'jsqr';
 const T_TOKEN = 'kiosk_token';
 const T_STAFF = 'kiosk_staff';
 const T_EXP   = 'kiosk_exp';
+const T_DEVICE = 'kiosk_device';
+const D_CODE = 'kiosk_device_code';
+const D_SECRET = 'kiosk_device_secret';
 
-function loadSession(): { token: string; staffName: string } | null {
+type KioskSession = { token: string; staffName: string; deviceCode?: string };
+
+function loadSession(): KioskSession | null {
   const token     = sessionStorage.getItem(T_TOKEN);
   const staffName = sessionStorage.getItem(T_STAFF);
   const exp       = Number(sessionStorage.getItem(T_EXP) ?? 0);
   if (!token || !staffName || Date.now() > exp) {
-    [T_TOKEN, T_STAFF, T_EXP].forEach(k => sessionStorage.removeItem(k));
+    [T_TOKEN, T_STAFF, T_EXP, T_DEVICE].forEach(k => sessionStorage.removeItem(k));
     return null;
   }
-  return { token, staffName };
+  return {
+    token,
+    staffName,
+    deviceCode: sessionStorage.getItem(T_DEVICE) ?? localStorage.getItem(D_CODE) ?? undefined,
+  };
 }
-function saveSession(token: string, staffName: string, expiresIn: number) {
+function saveSession(token: string, staffName: string, expiresIn: number, deviceCode?: string) {
   sessionStorage.setItem(T_TOKEN, token);
   sessionStorage.setItem(T_STAFF, staffName);
   sessionStorage.setItem(T_EXP, String(Date.now() + expiresIn * 1000));
+  if (deviceCode) sessionStorage.setItem(T_DEVICE, deviceCode);
 }
 function clearSession() {
-  [T_TOKEN, T_STAFF, T_EXP].forEach(k => sessionStorage.removeItem(k));
+  [T_TOKEN, T_STAFF, T_EXP, T_DEVICE].forEach(k => sessionStorage.removeItem(k));
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -105,33 +115,53 @@ function useFullscreen() {
 
 // ─── Auth Phase ───────────────────────────────────────────────────────────────
 function AuthPhase({ onAuth, brand }: {
-  onAuth: (token: string, staffName: string) => void;
+  onAuth: (session: KioskSession) => void;
   brand: KioskBrand;
 }) {
-  const [pin,     setPin]     = useState('');
-  const [error,   setError]   = useState('');
-  const [loading, setLoading] = useState(false);
+  const [pin,          setPin]          = useState('');
+  const [deviceCode,   setDeviceCode]   = useState(() => localStorage.getItem(D_CODE) ?? '');
+  const [deviceSecret, setDeviceSecret] = useState(() => localStorage.getItem(D_SECRET) ?? '');
+  const [error,        setError]        = useState('');
+  const [loading,      setLoading]      = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   useKioskViewport();
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (pin.length < 4) return;
+    const normalizedDeviceCode = deviceCode.trim().toUpperCase();
+    if (pin.length < 4 || !normalizedDeviceCode || !deviceSecret) return;
     setError(''); setLoading(true);
     try {
-      const res = await axios.post(`${BASE}/api/checkin/terminal-auth`, { pin });
+      const res = await axios.post(`${BASE}/api/checkin/terminal-auth`, {
+        pin,
+        deviceCode: normalizedDeviceCode,
+        deviceSecret,
+      });
       const { terminalToken, staffName, expiresIn } = res.data;
-      saveSession(terminalToken, staffName, expiresIn);
-      onAuth(terminalToken, staffName);
+      const activeDeviceCode = (res.data as { deviceCode?: string }).deviceCode ?? normalizedDeviceCode;
+      localStorage.setItem(D_CODE, activeDeviceCode);
+      localStorage.setItem(D_SECRET, deviceSecret);
+      saveSession(terminalToken, staffName, expiresIn, activeDeviceCode);
+      onAuth({ token: terminalToken, staffName, deviceCode: activeDeviceCode });
     } catch (err: unknown) {
       setError(
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
-        ?? 'Mã PIN không hợp lệ',
+        ?? 'Không thể kích hoạt kiosk',
       );
       setPin(''); inputRef.current?.focus();
     } finally { setLoading(false); }
   }
+
+  function clearDeviceConfig() {
+    localStorage.removeItem(D_CODE);
+    localStorage.removeItem(D_SECRET);
+    setDeviceCode('');
+    setDeviceSecret('');
+    setError('');
+  }
+
+  const canSubmit = pin.length >= 4 && !!deviceCode.trim() && !!deviceSecret && !loading;
 
   return (
     <div
@@ -159,6 +189,41 @@ function AuthPhase({ onAuth, brand }: {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-white/10 backdrop-blur-md border border-white/15 rounded-3xl p-7 shadow-2xl">
+          <div className="mb-5 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-xs font-black text-white/50 tracking-widest uppercase">
+                Thiết bị
+              </label>
+              {(deviceCode || deviceSecret) && (
+                <button
+                  type="button"
+                  onClick={clearDeviceConfig}
+                  className="text-xs font-bold text-white/35 hover:text-red-300 transition-colors"
+                >
+                  Xóa cấu hình
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              value={deviceCode}
+              onChange={e => { setDeviceCode(e.target.value.toUpperCase().replace(/\s+/g, '')); setError(''); }}
+              placeholder="KIOSK-LOC1"
+              autoComplete="off"
+              autoCorrect="off"
+              spellCheck={false}
+              className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white font-mono font-bold placeholder:text-white/25 focus:outline-none focus:border-sky-400 transition-colors"
+            />
+            <input
+              type="password"
+              value={deviceSecret}
+              onChange={e => { setDeviceSecret(e.target.value); setError(''); }}
+              placeholder="Device secret"
+              autoComplete="current-password"
+              className="w-full bg-white/10 border border-white/20 rounded-2xl px-4 py-3 text-white placeholder:text-white/25 focus:outline-none focus:border-sky-400 transition-colors"
+            />
+          </div>
+
           <label className="block text-xs font-black text-white/50 tracking-widest uppercase mb-3 text-center">
             Mã bảo vệ (4 chữ số)
           </label>
@@ -179,7 +244,7 @@ function AuthPhase({ onAuth, brand }: {
           )}
           <button
             type="submit"
-            disabled={pin.length < 4 || loading}
+            disabled={!canSubmit}
             className="mt-5 w-full py-4 rounded-2xl font-black text-white tracking-widest text-lg transition-all bg-sky-500 hover:bg-sky-400 active:scale-[0.97] disabled:opacity-30 touch-manipulation"
           >
             {loading ? 'Đang xác thực...' : 'Kích hoạt →'}
@@ -343,9 +408,10 @@ interface CheckInResult {
   message: string;
 }
 
-function ScanPhase({ staffName, token, onExpired, brand }: {
+function ScanPhase({ staffName, token, deviceCode, onExpired, brand }: {
   staffName: string;
   token: string;
+  deviceCode?: string;
   onExpired: () => void;
   brand: KioskBrand;
 }) {
@@ -498,6 +564,12 @@ function ScanPhase({ staffName, token, onExpired, brand }: {
         <span className="text-white font-black text-sm flex-1 truncate">{brand.mallName}</span>
         <span className="text-white font-mono font-bold text-sm tabular-nums">{timeStr}</span>
         <span className="text-white/20 text-xs mx-1">·</span>
+        {deviceCode && (
+          <>
+            <span className="text-white/40 text-xs truncate max-w-[92px]">{deviceCode}</span>
+            <span className="text-white/20 text-xs mx-1">·</span>
+          </>
+        )}
         <span className="text-white/40 text-xs truncate max-w-[80px]">{staffName}</span>
 
         <button
@@ -772,7 +844,7 @@ function ScanPhase({ staffName, token, onExpired, brand }: {
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function Kiosk() {
-  const [session, setSession] = useState<{ token: string; staffName: string } | null>(
+  const [session, setSession] = useState<KioskSession | null>(
     () => loadSession(),
   );
   const [brand, setBrand] = useState<KioskBrand>({
@@ -786,8 +858,14 @@ export default function Kiosk() {
   }, []);
 
   return session ? (
-    <ScanPhase staffName={session.staffName} token={session.token} onExpired={() => setSession(null)} brand={brand} />
+    <ScanPhase
+      staffName={session.staffName}
+      token={session.token}
+      deviceCode={session.deviceCode}
+      onExpired={() => setSession(null)}
+      brand={brand}
+    />
   ) : (
-    <AuthPhase onAuth={(token, staffName) => setSession({ token, staffName })} brand={brand} />
+    <AuthPhase onAuth={setSession} brand={brand} />
   );
 }

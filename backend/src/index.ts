@@ -24,6 +24,7 @@ import reportsRoutes from './routes/reports';
 import checkinRoutes from './routes/checkin';
 import pushRoutes from './routes/push';
 import awVendorRoutes from './routes/awVendors';
+import deviceRoutes from './routes/devices';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -46,6 +47,7 @@ app.use('/api/reports', reportsRoutes);
 app.use('/api/checkin', checkinRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/aw-vendors', awVendorRoutes);
+app.use('/api/devices', deviceRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 

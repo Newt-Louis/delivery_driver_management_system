@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { DeliveryStatus, StaffRole } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { triggerAutoAssign } from '../services/autoAssign';
@@ -37,11 +38,34 @@ const ROLE_FOR_TERMINAL_SCAN: Partial<Record<DeliveryStatus, StaffRole>> = {
 
 // ─── POST /api/checkin/terminal-auth ─────────────────────────────────────────
 router.post('/terminal-auth', asyncHandler(async (req: Request, res: Response) => {
-  const { pin, role } = req.body as { pin?: string; role?: string };
+  const { pin, role, deviceCode, deviceSecret } = req.body as {
+    pin?: string;
+    role?: string;
+    deviceCode?: string;
+    deviceSecret?: string;
+  };
+  if (!deviceCode?.trim() || !deviceSecret) {
+    res.status(400).json({ error: 'Thiết bị chưa được xác thực. Vui lòng nhập mã thiết bị và secret.' });
+    return;
+  }
   if (!pin) { res.status(400).json({ error: 'Vui lòng nhập mã PIN' }); return; }
 
   const requiredRole = requestedStaffRole(role);
   if (!requiredRole) { res.status(400).json({ error: 'Vai tro kiosk khong hop le' }); return; }
+
+  const device = await prisma.device.findUnique({
+    where: { code: deviceCode.trim().toUpperCase() },
+    include: { businessLocation: { select: { id: true, code: true, locationName: true, isActive: true } } },
+  });
+  if (!device || !device.isActive || !device.businessLocation.isActive) {
+    res.status(401).json({ error: 'Thiết bị không hợp lệ hoặc đã bị vô hiệu hóa.' });
+    return;
+  }
+  const deviceOk = await bcrypt.compare(deviceSecret, device.deviceSecretHash);
+  if (!deviceOk) {
+    res.status(401).json({ error: 'Device secret không hợp lệ.' });
+    return;
+  }
 
   const staff = await prisma.staffPin.findUnique({ where: { pin, active: true } });
   if (!staff) { res.status(401).json({ error: 'Mã PIN không hợp lệ hoặc đã bị vô hiệu hóa' }); return; }
@@ -54,11 +78,31 @@ router.post('/terminal-auth', asyncHandler(async (req: Request, res: Response) =
 
   const secret = process.env.JWT_SECRET ?? 'fallback-secret';
   const terminalToken = jwt.sign(
-    { type: 'terminal', staffPinId: staff.id, staffName: staff.name, staffRole: staff.role, roleScoped: Boolean(role) },
+    {
+      type: 'terminal',
+      staffPinId: staff.id,
+      staffName: staff.name,
+      staffRole: staff.role,
+      roleScoped: Boolean(role),
+      deviceId: device.id,
+      deviceCode: device.code,
+      deviceType: device.deviceType,
+      businessLocationId: device.businessLocationId,
+    },
     secret,
     { expiresIn: '8h' },
   );
-  res.json({ terminalToken, staffName: staff.name, staffRole: staff.role, expiresIn: 8 * 3600 });
+  await prisma.device.update({ where: { id: device.id }, data: { lastSeenAt: new Date() } });
+  res.json({
+    terminalToken,
+    staffName: staff.name,
+    staffRole: staff.role,
+    deviceCode: device.code,
+    deviceType: device.deviceType,
+    businessLocationId: device.businessLocationId,
+    businessLocationName: device.businessLocation.locationName,
+    expiresIn: 8 * 3600,
+  });
 }));
 
 // ─── POST /api/checkin/scan ───────────────────────────────────────────────────
@@ -75,13 +119,32 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
     return;
   }
   const token = header.slice(7);
-  let terminalPayload: { type: string; staffPinId: string; staffName: string; staffRole?: StaffRole; roleScoped?: boolean };
+  let terminalPayload: {
+    type: string;
+    staffPinId: string;
+    staffName: string;
+    staffRole?: StaffRole;
+    roleScoped?: boolean;
+    deviceId: string;
+    deviceCode: string;
+    businessLocationId: string;
+  };
   try {
     const secret = process.env.JWT_SECRET ?? 'fallback-secret';
     terminalPayload = jwt.verify(token, secret) as typeof terminalPayload;
     if (terminalPayload.type !== 'terminal') throw new Error('wrong type');
+    if (!terminalPayload.deviceId || !terminalPayload.businessLocationId) throw new Error('missing device scope');
   } catch {
     res.status(401).json({ error: 'Phiên kiosk đã hết hạn. Vui lòng nhập lại mã bảo vệ.' });
+    return;
+  }
+
+  const terminalDevice = await prisma.device.findUnique({
+    where: { id: terminalPayload.deviceId },
+    select: { id: true, isActive: true, businessLocationId: true },
+  });
+  if (!terminalDevice?.isActive || terminalDevice.businessLocationId !== terminalPayload.businessLocationId) {
+    res.status(401).json({ error: 'Thiết bị đã bị vô hiệu hóa. Vui lòng đăng nhập lại.' });
     return;
   }
 
@@ -94,6 +157,12 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
   });
   if (!delivery) {
     res.status(404).json({ error: `Không tìm thấy mã "${registrationCode.trim().toUpperCase()}"` });
+    return;
+  }
+
+  const deliveryScope = await getScopeForDelivery(delivery);
+  if (deliveryScope.businessLocationId && deliveryScope.businessLocationId !== terminalPayload.businessLocationId) {
+    res.status(403).json({ error: 'Mã giao hàng không thuộc khu vực của thiết bị này.' });
     return;
   }
 

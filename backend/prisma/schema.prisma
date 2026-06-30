@@ -46,6 +46,13 @@ enum StaffRole {
   RECEIVING
 }
 
+enum DeviceType {
+  KIOSK
+  PDA
+  TABLET
+  TV
+}
+
 enum DeliveryStatus {
   REGISTERED
   WAITING
@@ -240,6 +247,23 @@ model StaffPin {
   @@map("staff_pins")
 }
 
+model Device {
+  id                 String           @id @default(cuid())
+  code               String           @unique
+  name               String
+  businessLocationId String           @map("business_location_id")
+  businessLocation   BusinessLocation @relation(fields: [businessLocationId], references: [id])
+  deviceType         DeviceType       @default(KIOSK) @map("device_type")
+  deviceSecretHash   String           @map("device_secret_hash")
+  isActive           Boolean          @default(true) @map("is_active")
+  lastSeenAt         DateTime?        @map("last_seen_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@index([businessLocationId, deviceType, isActive])
+  @@map("devices")
+}
+
 model BusinessLocation {
   id           String       @id @default(cuid())
   code         String       @unique
@@ -254,6 +278,7 @@ model BusinessLocation {
   updatedAt    DateTime     @updatedAt @map("updated_at")
   unitConfigs  UnitConfig[]
   users        User[]
+  devices      Device[]
 
   @@map("business_locations")
 }
