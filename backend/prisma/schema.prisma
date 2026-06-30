@@ -71,6 +71,7 @@ model User {
   createdAt          DateTime          @default(now()) @map("created_at")
   callLogs           CallLog[]
 
+  @@index([businessLocationId, role, isActive])
   @@map("users")
 }
 
@@ -108,6 +109,9 @@ model Slot {
   deliveries        DeliveryRegistration[] @relation("AssignedSlot")
   callLogs          CallLog[]
 
+  @@index([zoneId])
+  @@index([assignedUnit, vehicleType, status, isActive, autoAssign])
+  @@index([zoneId, vehicleType, status, isActive, autoAssign])
   @@map("slots")
 }
 
@@ -140,6 +144,11 @@ model DeliveryRegistration {
   updatedAt          DateTime       @updatedAt @map("updated_at")
   callLogs           CallLog[]
 
+  @@index([status, receivingUnit, vehicleType, checkinTime])
+  @@index([assignedSlotId, status])
+  @@index([vehiclePlate, createdAt])
+  @@index([requestedTime])
+  @@index([createdAt])
   @@map("delivery_registrations")
 }
 
@@ -153,6 +162,7 @@ model TicketSequence {
   updatedAt     DateTime      @updatedAt @map("updated_at")
 
   @@unique([ticketDate, receivingUnit, vehicleType])
+  @@index([receivingUnit, vehicleType, ticketDate])
   @@map("ticket_sequences")
 }
 
@@ -167,6 +177,8 @@ model CallLog {
   calledAt               DateTime             @default(now()) @map("called_at")
   message                String
 
+  @@index([deliveryRegistrationId, calledAt])
+  @@index([slotId, calledAt])
   @@map("call_logs")
 }
 
@@ -224,6 +236,7 @@ model StaffPin {
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
 
+  @@index([role, active])
   @@map("staff_pins")
 }
 
