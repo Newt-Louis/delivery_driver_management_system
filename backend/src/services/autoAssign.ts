@@ -1,10 +1,11 @@
 import { DeliveryRegistration, DeliveryStatus, GoodsType, Prisma, ReceivingUnit, Slot, SlotStatus } from '@prisma/client';
 import { formatTicketCode } from '../routes/track';
 import { prisma } from '../lib/prisma';
-import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated } from '../socket';
+import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../socket';
 import { sendPushToDelivery } from './webPush';
 import { emitTrackUpdatesForQueue } from './trackRealtime';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
+import { getScopeForSlot } from './realtimeScope';
 
 type AutoAssignScope = {
   businessLocationId?: string;
@@ -24,20 +25,50 @@ type AssignResult = {
   activeCount: number;
 };
 
-async function getFullQueue() {
-  return prisma.deliveryRegistration.findMany({
+async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
+  const activeStatus = {
+    in: [
+      DeliveryStatus.WAITING,
+      DeliveryStatus.CALLED,
+      DeliveryStatus.RECEIVING,
+      DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
+    ],
+  };
+
+  if (!scope?.businessLocationId && !scope?.unitConfigId) {
+    return { status: activeStatus };
+  }
+
+  const unitConfigs = await prisma.unitConfig.findMany({
     where: {
-      status: {
-        in: [
-          DeliveryStatus.WAITING,
-          DeliveryStatus.CALLED,
-          DeliveryStatus.RECEIVING,
-          DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-        ],
-      },
+      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+      ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
     },
+    select: { unit: true },
+  });
+  const units = [...new Set(unitConfigs.map((cfg) => cfg.unit))];
+
+  return {
+    status: activeStatus,
+    OR: [
+      {
+        assignedSlot: {
+          zone: {
+            ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+            ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+          },
+        },
+      },
+      ...(units.length > 0 ? [{ assignedSlotId: null, receivingUnit: { in: units } }] : []),
+    ],
+  };
+}
+
+async function getFullQueue(scope?: SocketScope) {
+  return prisma.deliveryRegistration.findMany({
+    where: await queueWhereForScope(scope),
     include: {
-      assignedSlot: true,
+      assignedSlot: { include: { zone: { include: { unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } } } },
       callLogs: { orderBy: { calledAt: 'desc' }, take: 1 },
       _count: { select: { callLogs: true } },
     },
@@ -45,12 +76,18 @@ async function getFullQueue() {
   });
 }
 
-async function getAllSlotsWithDeliveries() {
+async function getAllSlotsWithDeliveries(scope?: SocketScope) {
   return prisma.slot.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      zone: {
+        ...(scope?.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+        ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+      },
+    },
     orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
-      zone: { select: { id: true, code: true, name: true } },
+      zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
       deliveries: {
         where: { status: { in: ACTIVE_SLOT_DELIVERY_STATUSES } },
         orderBy: { updatedAt: 'desc' },
@@ -195,6 +232,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
 
 async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): Promise<void> {
   const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: result.delivery.id } });
+  const scope = await getScopeForSlot(result.slot.id);
 
   emitDeliveryCalled({
     id: result.delivery.id,
@@ -208,7 +246,7 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): 
     ticketCode: result.delivery.ticketNumber
       ? formatTicketCode(result.delivery.receivingUnit, result.delivery.vehicleType, result.delivery.ticketNumber)
       : undefined,
-  });
+  }, scope);
 
   console.log(
     `[AutoAssign] ${unit}: ${result.delivery.vehiclePlate} -> ${result.slot.code} (${result.delivery.goodsType}) `
@@ -222,9 +260,9 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): 
     url: `/track/${result.delivery.registrationCode}`,
   }).catch(console.error);
 
-  const [queue, slots] = await Promise.all([getFullQueue(), getAllSlotsWithDeliveries()]);
-  emitQueueUpdated(queue);
-  emitSlotUpdated(slots);
+  const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlotsWithDeliveries(scope)]);
+  emitQueueUpdated(queue, scope);
+  emitSlotUpdated(slots, scope);
   emitTrackUpdatesForQueue(queue).catch(console.error);
 }
 

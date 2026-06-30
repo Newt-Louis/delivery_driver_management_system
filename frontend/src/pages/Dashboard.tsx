@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { downloadCsv } from '../lib/export';
-import { useSocket } from '../context/SocketContext';
+import { useRealtimeScope, useSocket } from '../context/SocketContext';
 import StatusBadge from '../components/StatusBadge';
 import GoodsBadge from '../components/GoodsBadge';
 import type { DeliveryRegistration, Slot, DashboardSummary, DispatchData, UnitDispatch, CallLog } from '../lib/types';
@@ -1007,6 +1007,7 @@ function AllTabView({
 export default function Dashboard() {
   const queryClient = useQueryClient();
   const socket = useSocket();
+  const realtimeScope = useRealtimeScope();
   const [activeTab, setActiveTab]       = useState<TabKey>('ALL');
   const [callTarget, setCallTarget]     = useState<DeliveryRegistration | null>(null);
   const [callPreDock, setCallPreDock]   = useState<string | undefined>(undefined);
@@ -1026,14 +1027,14 @@ export default function Dashboard() {
   }, [queryClient]);
 
   const { data: summary } = useQuery<DashboardSummary>({
-    queryKey: ['dashboard', 'summary'],
-    queryFn: async () => (await api.get('/api/dashboard/summary')).data,
+    queryKey: ['dashboard', 'summary', realtimeScope],
+    queryFn: async () => (await api.get('/api/dashboard/summary', { params: realtimeScope })).data,
     refetchInterval: 30_000,
   });
 
   const { data: dispatch, isLoading } = useQuery<DispatchData>({
-    queryKey: ['dashboard', 'dispatch'],
-    queryFn: async () => (await api.get('/api/dashboard/dispatch')).data,
+    queryKey: ['dashboard', 'dispatch', realtimeScope],
+    queryFn: async () => (await api.get('/api/dashboard/dispatch', { params: realtimeScope })).data,
     refetchInterval: 15_000,
   });
 

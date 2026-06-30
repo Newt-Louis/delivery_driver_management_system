@@ -12,6 +12,7 @@ import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
 import { checkInDelivery } from '../services/checkInDelivery';
 import { completeDelivery } from '../services/deliveryLifecycle';
+import { getScopeForDelivery } from '../services/realtimeScope';
 
 const router = Router();
 
@@ -149,8 +150,9 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
         return;
       }
 
-      const queue = await getFullQueue();
-      emitQueueUpdated(queue);
+      const scope = await getScopeForDelivery(updated);
+      const queue = await getFullQueue(scope);
+      emitQueueUpdated(queue, scope);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       res.json({ action: 'CHECKED_IN', staffName: terminalPayload.staffName, ticketCode, delivery: updated });
       sendPushToDelivery(delivery.registrationCode, {
@@ -159,7 +161,7 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
         tag:   'delivery-checkin',
         url:   `/track/${delivery.registrationCode}`,
       }).catch(console.error);
-      triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+      triggerAutoAssign(delivery.receivingUnit, scope).catch(console.error);
       return;
     }
 
@@ -189,8 +191,9 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
         include: CHECKIN_INCLUDE,
       });
 
-      const queue = await getFullQueue();
-      emitQueueUpdated(queue);
+      const scope = await getScopeForDelivery(updated);
+      const queue = await getFullQueue(scope);
+      emitQueueUpdated(queue, scope);
       emitTrackUpdatesForQueue(queue).catch(console.error);
       const slot = updated.assignedSlot;
       res.json({
@@ -222,11 +225,12 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
         where:   { id: delivery.id },
         include: CHECKIN_INCLUDE,
       });
-      const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
+      const scope = await getScopeForDelivery(result.delivery);
+      const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
       if (result.changed) {
-        emitDeliveryCompleted(delivery.id);
-        emitQueueUpdated(queue);
-        emitSlotUpdated(slots);
+        emitDeliveryCompleted(delivery.id, scope);
+        emitQueueUpdated(queue, scope);
+        emitSlotUpdated(slots, scope);
         emitTrackUpdated(delivery.registrationCode).catch(console.error);
         emitTrackUpdatesForQueue(queue).catch(console.error);
       }
@@ -238,7 +242,7 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
           tag:   'delivery-completed',
           url:   `/track/${delivery.registrationCode}`,
         }).catch(console.error);
-        triggerAutoAssign(delivery.receivingUnit).catch(console.error);
+        triggerAutoAssign(delivery.receivingUnit, scope).catch(console.error);
       }
       return;
     }

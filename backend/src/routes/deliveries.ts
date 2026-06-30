@@ -12,11 +12,13 @@ import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
 import { checkInDelivery } from '../services/checkInDelivery';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manualCallDelivery';
 import { cancelDelivery, completeDelivery } from '../services/deliveryLifecycle';
+import { getScopeForDelivery } from '../services/realtimeScope';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
   emitSlotUpdated,
   emitDeliveryCompleted,
+  type SocketScope,
 } from '../socket';
 
 const router = Router();
@@ -46,20 +48,50 @@ async function generateCode(unit: ReceivingUnit): Promise<string> {
   return `${prefix}${dateStr}${seq}`;
 }
 
-export async function getFullQueue() {
-  return prisma.deliveryRegistration.findMany({
+async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
+  const activeStatus = {
+    in: [
+      DeliveryStatus.WAITING,
+      DeliveryStatus.CALLED,
+      DeliveryStatus.RECEIVING,
+      DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
+    ],
+  };
+
+  if (!scope?.businessLocationId && !scope?.unitConfigId) {
+    return { status: activeStatus };
+  }
+
+  const unitConfigs = await prisma.unitConfig.findMany({
     where: {
-      status: {
-        in: [
-          DeliveryStatus.WAITING,
-          DeliveryStatus.CALLED,
-          DeliveryStatus.RECEIVING,
-          DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-        ],
-      },
+      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+      ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
     },
+    select: { id: true, unit: true },
+  });
+  const units = [...new Set(unitConfigs.map((cfg) => cfg.unit))];
+
+  return {
+    status: activeStatus,
+    OR: [
+      {
+        assignedSlot: {
+          zone: {
+            ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+            ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+          },
+        },
+      },
+      ...(units.length > 0 ? [{ assignedSlotId: null, receivingUnit: { in: units } }] : []),
+    ],
+  };
+}
+
+export async function getFullQueue(scope?: SocketScope) {
+  return prisma.deliveryRegistration.findMany({
+    where: await queueWhereForScope(scope),
     include: {
-      assignedSlot: true,
+      assignedSlot: { include: { zone: { include: { unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } } } },
       callLogs: { orderBy: { calledAt: 'desc' }, take: 1 },
       _count: { select: { callLogs: true } },
     },
@@ -67,12 +99,18 @@ export async function getFullQueue() {
   });
 }
 
-export async function getAllSlots() {
+export async function getAllSlots(scope?: SocketScope) {
   return prisma.slot.findMany({
-    where: { isActive: true },
+    where: {
+      isActive: true,
+      zone: {
+        ...(scope?.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+        ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+      },
+    },
     orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
-      zone: { select: { id: true, code: true, name: true } },
+      zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
       deliveries: {
         where: { status: { in: ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
         orderBy: { updatedAt: 'desc' },
@@ -190,8 +228,10 @@ router.get('/', authenticate, asyncHandler(async (req: Request, res: Response) =
 }));
 
 // GET /api/deliveries/queue
-router.get('/queue', asyncHandler(async (_req: Request, res: Response) => {
-  res.json(await getFullQueue());
+router.get('/queue', asyncHandler(async (req: Request, res: Response) => {
+  const businessLocationId = typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined;
+  const unitConfigId = typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined;
+  res.json(await getFullQueue({ businessLocationId, unitConfigId }));
 }));
 
 // PATCH /api/deliveries/check-in-lookup
@@ -259,15 +299,16 @@ router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response
     return;
   }
 
-  const queue = await getFullQueue();
   if (checkInResult.checkedIn) {
-    emitQueueUpdated(queue);
+    const scope = await getScopeForDelivery(updated);
+    const queue = await getFullQueue(scope);
+    emitQueueUpdated(queue, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
   res.json(updated);
 
   if (checkInResult.checkedIn) {
-    triggerAutoAssign(updated.receivingUnit).catch(console.error);
+    triggerAutoAssign(updated.receivingUnit, await getScopeForDelivery(updated)).catch(console.error);
   }
 }));
 
@@ -323,15 +364,16 @@ router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) =
     return;
   }
 
-  const queue = await getFullQueue();
   if (checkInResult.checkedIn) {
-    emitQueueUpdated(queue);
+    const scope = await getScopeForDelivery(updated);
+    const queue = await getFullQueue(scope);
+    emitQueueUpdated(queue, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
   res.json(updated);
 
   if (checkInResult.checkedIn) {
-    triggerAutoAssign(updated.receivingUnit).catch(console.error);
+    triggerAutoAssign(updated.receivingUnit, await getScopeForDelivery(updated)).catch(console.error);
   }
 }));
 
@@ -368,7 +410,8 @@ router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), async
   const { delivery, slot, message } = result;
   if (result.callLogCreated) {
     const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: delivery.id } });
-    const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
+    const scope = await getScopeForDelivery({ ...delivery, assignedSlotId: slot.id });
+    const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
     emitDeliveryCalled({
       id: delivery.id,
       vehiclePlate: delivery.vehiclePlate,
@@ -380,9 +423,9 @@ router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), async
       ticketCode: delivery.ticketNumber
         ? formatTicketCode(delivery.receivingUnit, delivery.vehicleType, delivery.ticketNumber)
         : undefined,
-    });
-    emitQueueUpdated(queue);
-    emitSlotUpdated(slots);
+    }, scope);
+    emitQueueUpdated(queue, scope);
+    emitSlotUpdated(slots, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
 
@@ -414,8 +457,9 @@ router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVI
     include: { assignedSlot: true },
   });
 
-  const queue = await getFullQueue();
-  emitQueueUpdated(queue);
+  const scope = await getScopeForDelivery(updated);
+  const queue = await getFullQueue(scope);
+  emitQueueUpdated(queue, scope);
   emitTrackUpdatesForQueue(queue).catch(console.error);
   res.json(updated);
 
@@ -438,11 +482,12 @@ router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), a
     return;
   }
 
-  const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
+  const scope = await getScopeForDelivery(result.delivery);
+  const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
   if (result.changed) {
-    emitDeliveryCompleted(req.params.id);
-    emitQueueUpdated(queue);
-    emitSlotUpdated(slots);
+    emitDeliveryCompleted(req.params.id, scope);
+    emitQueueUpdated(queue, scope);
+    emitSlotUpdated(slots, scope);
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
@@ -457,7 +502,7 @@ router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), a
       url: `/track/${result.delivery.registrationCode}`,
     }).catch(console.error);
 
-    triggerAutoAssign(result.delivery.receivingUnit).catch(console.error);
+    triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
   }
 }));
 
@@ -470,10 +515,11 @@ router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
     return;
   }
 
-  const [queue, slots] = await Promise.all([getFullQueue(), getAllSlots()]);
+  const scope = await getScopeForDelivery(result.delivery);
+  const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlots(scope)]);
   if (result.changed) {
-    emitQueueUpdated(queue);
-    emitSlotUpdated(slots);
+    emitQueueUpdated(queue, scope);
+    emitSlotUpdated(slots, scope);
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
     emitTrackUpdatesForQueue(queue).catch(console.error);
   }
@@ -489,7 +535,7 @@ router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
     }).catch(console.error);
 
     if (result.releasedSlotId) {
-      triggerAutoAssign(result.delivery.receivingUnit).catch(console.error);
+      triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
     }
   }
 }));

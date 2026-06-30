@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
-import { useSocket } from '../context/SocketContext';
+import { useRealtimeScope, useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 import DockCard from '../components/DockCard';
 import type { Slot } from '../lib/types';
@@ -13,12 +13,13 @@ const UNIT_COLORS: Record<string, string> = { THISKYHALL: 'bg-purple-500', TENAN
 export default function DockManagement() {
   const queryClient = useQueryClient();
   const socket = useSocket();
+  const realtimeScope = useRealtimeScope();
   const { hasRole } = useAuth();
   const canEdit = hasRole('ADMIN', 'RECEIVING');
 
   const { data: slots = [] } = useQuery<Slot[]>({
-    queryKey: ['slots'],
-    queryFn: async () => (await api.get('/api/slots')).data,
+    queryKey: ['slots', realtimeScope],
+    queryFn: async () => (await api.get('/api/slots', { params: realtimeScope })).data,
   });
 
   useEffect(() => {

@@ -1,5 +1,9 @@
-import { Prisma, ReceivingUnit, VehicleType } from '@prisma/client';
+import { Prisma, PrismaClient, ReceivingUnit, VehicleType } from '@prisma/client';
 import { getVNDateKey, getVNDateRangeUtc } from '../lib/dateVN';
+
+type TicketSequenceTransaction = Prisma.TransactionClient & {
+  ticketSequence: PrismaClient['ticketSequence'];
+};
 
 async function getExistingMaxTicketNumber(
   tx: Prisma.TransactionClient,
@@ -31,7 +35,7 @@ export async function reserveTicketNumber(
   const ticketDate = getVNDateKey(checkinTime);
   const existingMax = await getExistingMaxTicketNumber(tx, ticketDate, receivingUnit, vehicleType);
 
-  const sequence = await tx.ticketSequence.upsert({
+  const sequence = await (tx as TicketSequenceTransaction).ticketSequence.upsert({
     where: {
       ticketDate_receivingUnit_vehicleType: {
         ticketDate,

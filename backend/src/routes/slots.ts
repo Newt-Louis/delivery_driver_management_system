@@ -4,14 +4,28 @@ import { SlotStatus, VehicleType, ReceivingUnit, GoodsType } from '@prisma/clien
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
-import { emitSlotUpdated } from '../socket';
+import { emitSlotUpdated, type SocketScope } from '../socket';
 import { reconcileAllSlots, reconcileOneSlot, reconcileSlotState, isManualSlotStatus } from '../services/slotState';
+import { getScopeForSlot } from '../services/realtimeScope';
 
 const router = Router();
 
-async function getAllSlotsWithDeliveries(activeOnly = true) {
+function scopeFromQuery(req: Request): SocketScope {
+  return {
+    businessLocationId: typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined,
+    unitConfigId: typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined,
+  };
+}
+
+async function getAllSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) {
   return prisma.slot.findMany({
-    where: activeOnly ? { isActive: true } : undefined,
+    where: {
+      ...(activeOnly ? { isActive: true } : {}),
+      zone: {
+        ...(scope?.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+        ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+      },
+    },
     orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
       zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
@@ -24,13 +38,13 @@ async function getAllSlotsWithDeliveries(activeOnly = true) {
 }
 
 // GET /api/slots — active slots (Dashboard, SlotManagement, CallModal)
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
-  res.json(await getAllSlotsWithDeliveries(true));
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
+  res.json(await getAllSlotsWithDeliveries(true, scopeFromQuery(req)));
 }));
 
 // GET /api/slots/all — all slots including inactive (admin backoffice)
-router.get('/all', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
-  res.json(await getAllSlotsWithDeliveries(false));
+router.get('/all', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+  res.json(await getAllSlotsWithDeliveries(false, scopeFromQuery(req)));
 }));
 
 const statusSchema = z.object({ status: z.nativeEnum(SlotStatus) });
@@ -50,7 +64,8 @@ router.patch('/:id/status', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
   });
 
   if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
-  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  const scope = await getScopeForSlot(req.params.id);
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.json(slot);
 }));
 
@@ -60,7 +75,8 @@ router.post('/:id/reconcile', authenticate, requireRole('ADMIN', 'RECEIVING'), a
   const snapshot = await reconcileOneSlot(req.params.id, { preserveManualStatus: !force });
   if (!snapshot) { res.status(404).json({ error: 'Not found' }); return; }
 
-  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  const scope = await getScopeForSlot(req.params.id);
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.json(snapshot);
 }));
 
@@ -102,7 +118,8 @@ router.patch('/:id/assign', authenticate, requireRole('ADMIN', 'RECEIVING'), asy
     return;
   }
 
-  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  const scope = await getScopeForSlot(req.params.id);
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.json(snapshot.snapshot?.slot);
 }));
 
@@ -148,7 +165,8 @@ router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Re
   }
 
   const slot = await prisma.slot.create({ data: body });
-  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  const scope = await getScopeForSlot(slot.id);
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.status(201).json(slot);
 }));
 
@@ -192,7 +210,8 @@ router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req
   });
 
   if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
-  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  const scope = await getScopeForSlot(req.params.id);
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.json(slot.slot);
 }));
 
@@ -212,7 +231,8 @@ router.delete('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (re
     res.json({ deleted: true });
   }
 
-  emitSlotUpdated(await getAllSlotsWithDeliveries(true));
+  const scope = await getScopeForSlot(req.params.id);
+  emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
 }));
 
 export default router;

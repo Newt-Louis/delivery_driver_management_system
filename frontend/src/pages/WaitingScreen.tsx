@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useSocket } from '../context/SocketContext';
+import { useRealtimeScope, useSocket } from '../context/SocketContext';
 import api from '../lib/api';
 import type { DeliveryRegistration } from '../lib/types';
 import { playChime } from '../lib/chime';
@@ -681,6 +681,7 @@ function ThemeToggle({ view, onToggle }: { view: 'dark' | 'bright'; onToggle: ()
 // ─────────────────────────────────────────────────────────────────────────────
 export default function WaitingScreen() {
   const socket = useSocket();
+  const realtimeScope = useRealtimeScope();
   const [deliveries, setDeliveries] = useState<DeliveryRegistration[]>([]);
   const [calledEvt, setCalledEvt]   = useState<CalledAlert | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -709,8 +710,8 @@ export default function WaitingScreen() {
   }, []);
 
   const fetchQueue = useCallback(async () => {
-    try { setDeliveries((await api.get('/api/deliveries/queue')).data); } catch { /* silent */ }
-  }, []);
+    try { setDeliveries((await api.get('/api/deliveries/queue', { params: realtimeScope })).data); } catch { /* silent */ }
+  }, [realtimeScope]);
 
   useEffect(() => { fetchQueue(); }, [fetchQueue]);
 
