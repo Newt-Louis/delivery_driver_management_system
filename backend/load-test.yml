@@ -1,0 +1,48 @@
+config:
+  target: "http://localhost:4000"
+  phases:
+    - duration: 10
+      arrivalRate: 2
+      name: "Warm up"
+    - duration: 20
+      arrivalRate: 10
+      name: "Sustained load"
+  processor: "./processor.js"
+
+scenarios:
+  - name: "Driver Register -> Check-in -> Poll"
+    weight: 1
+    flow:
+      - function: "generateDriverData"
+      - post:
+          url: "/api/deliveries/register"
+          json:
+            vendorName: "{{ vendorName }}"
+            driverName: "{{ driverName }}"
+            driverPhone: "{{ driverPhone }}"
+            vehiclePlate: "{{ vehiclePlate }}"
+            vehicleType: "TRUCK"
+            receivingUnit: "EMART"
+            goodsType: "GENERAL_GOODS"
+          capture:
+            - json: "$.registrationCode"
+              as: "registrationCode"
+      - think: 2
+      - patch:
+          url: "/api/deliveries/check-in-lookup"
+          json:
+            registrationCode: "{{ registrationCode }}"
+      - loop:
+          - get:
+              url: "/api/deliveries/queue"
+          - think: 3
+        count: 5
+
+  - name: "Dashboard/Screen Polling"
+    weight: 2
+    flow:
+      - loop:
+          - get:
+              url: "/api/deliveries/queue"
+          - think: 2
+        count: 10
