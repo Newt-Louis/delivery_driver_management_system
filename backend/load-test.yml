@@ -8,10 +8,16 @@ config:
       arrivalRate: 10
       name: "Sustained load"
   processor: "./processor.js"
+  plugins:
+    ensure: {}
+  ensure:
+    maxErrorRate: 1
+    p95: 1500
 
 scenarios:
   - name: "Driver Register -> Check-in -> Poll"
     weight: 1
+    afterScenario: "cleanupDriverData"
     flow:
       - function: "generateDriverData"
       - post:
@@ -24,6 +30,7 @@ scenarios:
             vehicleType: "TRUCK"
             receivingUnit: "EMART"
             goodsType: "GENERAL_GOODS"
+            note: "{{ loadTestId }}"
           capture:
             - json: "$.registrationCode"
               as: "registrationCode"

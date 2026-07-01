@@ -15,6 +15,7 @@ import { checkInDelivery } from '../services/checkInDelivery';
 import { completeDelivery } from '../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../services/realtimeScope';
 import { deviceStaffActor, recordAuditLog } from '../services/auditLog';
+import { terminalAuthLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -38,7 +39,7 @@ const ROLE_FOR_TERMINAL_SCAN: Partial<Record<DeliveryStatus, StaffRole>> = {
 };
 
 // ─── POST /api/checkin/terminal-auth ─────────────────────────────────────────
-router.post('/terminal-auth', asyncHandler(async (req: Request, res: Response) => {
+router.post('/terminal-auth', terminalAuthLimiter, asyncHandler(async (req: Request, res: Response) => {
   const { pin, role, deviceCode, deviceSecret } = req.body as {
     pin?: string;
     role?: string;

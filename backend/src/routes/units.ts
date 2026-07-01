@@ -4,6 +4,7 @@ import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, VehicleType } from '@
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
+import { publicReadLimiter } from '../middleware/rateLimit';
 import { getDefaultBusinessLocation, getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 
 const router = Router();
@@ -164,7 +165,7 @@ router.get('/:unit/config', asyncHandler(async (req: Request, res: Response) => 
 }));
 
 // GET /api/units/:unit/slots?date=YYYY-MM-DD&goodsType=FRESH_FOOD&vehicleType=TRUCK&unitGoodsTypeId=xxx
-router.get('/:unit/slots', asyncHandler(async (req: Request, res: Response) => {
+router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const { date, goodsType, vehicleType, unitGoodsTypeId } = req.query as {
     date?: string; goodsType?: string; vehicleType?: string; unitGoodsTypeId?: string;

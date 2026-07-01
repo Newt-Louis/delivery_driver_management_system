@@ -180,6 +180,19 @@ model TicketSequence {
   @@map("ticket_sequences")
 }
 
+model RegistrationSequence {
+  id               String        @id @default(cuid())
+  registrationDate String        @map("registration_date")
+  receivingUnit    ReceivingUnit @map("receiving_unit")
+  nextNumber       Int           @default(1) @map("next_number")
+  createdAt        DateTime      @default(now()) @map("created_at")
+  updatedAt        DateTime      @updatedAt @map("updated_at")
+
+  @@unique([registrationDate, receivingUnit])
+  @@index([receivingUnit, registrationDate])
+  @@map("registration_sequences")
+}
+
 model CallLog {
   id                     String               @id @default(cuid())
   deliveryRegistrationId String               @map("delivery_registration_id")

@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
+import { authLoginLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -12,7 +13,7 @@ const loginSchema = z.object({
   password: z.string().min(1),
 });
 
-router.post('/login', asyncHandler(async (req: Request, res: Response) => {
+router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: Response) => {
   const body = loginSchema.parse(req.body);
 
   const user = await prisma.user.findUnique({ where: { email: body.email } });

@@ -14,6 +14,8 @@ import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manua
 import { cancelDelivery, completeDelivery } from '../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../services/realtimeScope';
 import { recordAuditLog, systemActor, userActor } from '../services/auditLog';
+import { reserveRegistrationCode } from '../services/registrationSequence';
+import { publicWriteLimiter } from '../middleware/rateLimit';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -23,31 +25,6 @@ import {
 } from '../socket';
 
 const router = Router();
-
-const UNIT_PREFIX: Record<ReceivingUnit, string> = {
-  [ReceivingUnit.EMART]:      'E',
-  [ReceivingUnit.THISKYHALL]: 'T',
-  [ReceivingUnit.TENANT]:     'M',
-};
-
-async function generateCode(unit: ReceivingUnit): Promise<string> {
-  const prefix = UNIT_PREFIX[unit];
-  const now    = new Date();
-  const yy     = now.getFullYear().toString().slice(2);
-  const mm     = (now.getMonth() + 1).toString().padStart(2, '0');
-  const dd     = now.getDate().toString().padStart(2, '0');
-  const dateStr = `${yy}${mm}${dd}`;
-
-  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const dayEnd   = new Date(dayStart.getTime() + 86400_000);
-
-  const count = await prisma.deliveryRegistration.count({
-    where: { receivingUnit: unit, createdAt: { gte: dayStart, lt: dayEnd } },
-  });
-
-  const seq = (count + 1).toString().padStart(3, '0');
-  return `${prefix}${dateStr}${seq}`;
-}
 
 async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
   const activeStatus = {
@@ -151,7 +128,7 @@ router.post('/auto-dispatch/:unit', authenticate, requireRole('ADMIN', 'RECEIVIN
 }));
 
 // POST /api/deliveries/register
-router.post('/register', asyncHandler(async (req: Request, res: Response) => {
+router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, res: Response) => {
   const body = registerSchema.parse(req.body);
 
   const duplicate = await prisma.deliveryRegistration.findFirst({
@@ -186,25 +163,27 @@ router.post('/register', asyncHandler(async (req: Request, res: Response) => {
     }
   }
 
-  const registrationCode = await generateCode(body.receivingUnit);
+  const delivery = await prisma.$transaction(async (tx) => {
+    const registrationCode = await reserveRegistrationCode(tx, body.receivingUnit);
 
-  const delivery = await prisma.deliveryRegistration.create({
-    data: {
-      registrationCode,
-      vendorName: body.vendorName,
-      driverName: body.driverName,
-      driverPhone: body.driverPhone,
-      vehiclePlate: body.vehiclePlate.toUpperCase(),
-      vehicleType: body.vehicleType,
-      receivingUnit: body.receivingUnit,
-      goodsType: resolvedGoodsType,
-      unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
-      poNumber: body.poNumber,
-      vendorCode: resolvedVendorCode,
-      requestedTime,
-      autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
-      note: body.note,
-    },
+    return tx.deliveryRegistration.create({
+      data: {
+        registrationCode,
+        vendorName: body.vendorName,
+        driverName: body.driverName,
+        driverPhone: body.driverPhone,
+        vehiclePlate: body.vehiclePlate.toUpperCase(),
+        vehicleType: body.vehicleType,
+        receivingUnit: body.receivingUnit,
+        goodsType: resolvedGoodsType,
+        unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
+        poNumber: body.poNumber,
+        vendorCode: resolvedVendorCode,
+        requestedTime,
+        autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
+        note: body.note,
+      },
+    });
   });
 
   res.status(201).json(delivery);

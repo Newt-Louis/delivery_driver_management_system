@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { vapidPublicKey } from '../services/webPush';
+import { publicWriteLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -15,7 +16,7 @@ router.get('/vapid-public-key', (_req, res) => {
 });
 
 // POST /api/push/subscribe — register or refresh a push subscription
-router.post('/subscribe', asyncHandler(async (req: Request, res: Response) => {
+router.post('/subscribe', publicWriteLimiter, asyncHandler(async (req: Request, res: Response) => {
   const { subscription, deliveryCode } = req.body as {
     subscription?: { endpoint: string; keys: { p256dh: string; auth: string } };
     deliveryCode?: string;

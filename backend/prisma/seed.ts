@@ -72,6 +72,7 @@ async function main() {
   await prisma.pushSubscription.deleteMany();
   await prisma.callLog.deleteMany();
   await prisma.deliveryRegistration.deleteMany();
+  await prisma.registrationSequence.deleteMany();
   await prisma.deliveryTimeWindow.deleteMany();
   await prisma.unitGoodsType.deleteMany();
   await prisma.receivingTimeConfig.deleteMany();

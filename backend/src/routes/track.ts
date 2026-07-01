@@ -16,6 +16,7 @@ import { checkInDelivery } from '../services/checkInDelivery';
 import { completeDelivery } from '../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../services/realtimeScope';
 import { recordAuditLog, staffActor } from '../services/auditLog';
+import { publicLookupLimiter, staffActionLimiter } from '../middleware/rateLimit';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const UNIT_TICKET_PREFIX: Record<string, string> = {
@@ -49,7 +50,7 @@ const TRACK_INCLUDE = {
 } as const;
 
 // GET /api/track/search?plate= — look up registration code by vehicle plate (read-only)
-router.get('/search', asyncHandler(async (req: Request, res: Response) => {
+router.get('/search', publicLookupLimiter, asyncHandler(async (req: Request, res: Response) => {
   const plate = typeof req.query.plate === 'string' ? req.query.plate.trim().toUpperCase() : '';
   if (!plate) {
     res.status(400).json({ error: 'Vui lòng nhập biển số xe' });
@@ -140,7 +141,7 @@ router.post('/active-session', asyncHandler(async (req: Request, res: Response) 
 }));
 
 // POST /api/track/:code/action — staff PIN protected
-router.post('/:code/action', asyncHandler(async (req: Request, res: Response) => {
+router.post('/:code/action', staffActionLimiter, asyncHandler(async (req: Request, res: Response) => {
   const { staffPin } = req.body as { staffPin?: string };
 
   const delivery = await prisma.deliveryRegistration.findFirst({
