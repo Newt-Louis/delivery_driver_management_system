@@ -1,0 +1,87 @@
+{
+  "businessLocations": [
+    {
+      "id": "loc_phi",
+      "code": "LOC_PHI",
+      "locationName": "THISO Phan Huy Ich",
+      "address": "Phan Huy Ich, TP. Ho Chi Minh",
+      "avatarUrl": null,
+      "logoUrl": null,
+      "tagline": "He thong dieu phoi giao nhan hang",
+      "kioskBgUrl": null,
+      "isActive": true,
+      "admin": {
+        "name": "Admin Phan Huy Ich",
+        "email": "admin.phi@thaco.vn",
+        "password": "ChangeMe123!",
+        "department": "Location Admin",
+        "isActive": true
+      },
+      "units": [
+        {
+          "unit": "EMART",
+          "freshFoodEnabled": true,
+          "generalGoodsEnabled": true,
+          "thiCongEnabled": false,
+          "sundayFreshFoodOnly": true,
+          "truckSlotMinutes": 30,
+          "motorbikeSlotMinutes": 15,
+          "truckMaxPerSlot": 1,
+          "motorbikeMaxPerSlot": 3,
+          "displayName": "Emart Phan Huy Ich",
+          "shortName": "Emart PHI",
+          "description": "Sieu thi Emart tai khu Phan Huy Ich",
+          "primaryColor": "#FF9500"
+        },
+        {
+          "unit": "THISKYHALL",
+          "freshFoodEnabled": true,
+          "generalGoodsEnabled": true,
+          "thiCongEnabled": true,
+          "sundayFreshFoodOnly": false,
+          "truckSlotMinutes": 30,
+          "motorbikeSlotMinutes": 15,
+          "truckMaxPerSlot": 1,
+          "motorbikeMaxPerSlot": 3,
+          "displayName": "Thiskyhall Phan Huy Ich",
+          "shortName": "Skyhall PHI",
+          "description": "Thiskyhall tai khu Phan Huy Ich",
+          "primaryColor": "#27A55E"
+        },
+        {
+          "unit": "TENANT",
+          "freshFoodEnabled": false,
+          "generalGoodsEnabled": true,
+          "thiCongEnabled": true,
+          "sundayFreshFoodOnly": false,
+          "truckSlotMinutes": 30,
+          "motorbikeSlotMinutes": 15,
+          "truckMaxPerSlot": 1,
+          "motorbikeMaxPerSlot": 3,
+          "displayName": "Mall Tenant Phan Huy Ich",
+          "shortName": "Tenant PHI",
+          "description": "Khu khach thue tai Phan Huy Ich",
+          "primaryColor": "#4F46E5"
+        }
+      ]
+    }
+  ],
+  "units": [
+    {
+      "businessLocationId": "REPLACE_WITH_EXISTING_BUSINESS_LOCATION_ID",
+      "unit": "EMART",
+      "freshFoodEnabled": true,
+      "generalGoodsEnabled": true,
+      "thiCongEnabled": false,
+      "sundayFreshFoodOnly": true,
+      "truckSlotMinutes": 30,
+      "motorbikeSlotMinutes": 15,
+      "truckMaxPerSlot": 1,
+      "motorbikeMaxPerSlot": 3,
+      "displayName": "Emart bo sung",
+      "shortName": "Emart",
+      "description": "Unit seed bo sung vao BusinessLocation da ton tai",
+      "primaryColor": "#FF9500"
+    }
+  ]
+}
