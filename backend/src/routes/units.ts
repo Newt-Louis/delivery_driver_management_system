@@ -19,7 +19,7 @@ function minutesToTime(m: number): string {
 }
 
 // GET /api/units/configs — Admin: all unit configs
-router.get('/configs', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
+router.get('/configs', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
   const location = await getDefaultBusinessLocation();
   const configs = await prisma.unitConfig.findMany({
     where: { businessLocationId: location.id },
@@ -43,7 +43,7 @@ const timeWindowSchema = z.object({
 });
 
 // GET /api/units/:unit/time-windows?goodsType=FRESH_FOOD&unitGoodsTypeId=xxx
-router.get('/:unit/time-windows', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:unit/time-windows', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit            = req.params.unit.toUpperCase() as ReceivingUnit;
   const goodsType       = req.query.goodsType       as GoodsType | undefined;
   const unitGoodsTypeId = req.query.unitGoodsTypeId as string    | undefined;
@@ -66,7 +66,7 @@ router.get('/:unit/time-windows', authenticate, requireRole('ADMIN'), asyncHandl
 }));
 
 // POST /api/units/:unit/time-windows
-router.post('/:unit/time-windows', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/:unit/time-windows', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const data = timeWindowSchema.parse(req.body);
   const win = await prisma.deliveryTimeWindow.create({
@@ -84,7 +84,7 @@ router.post('/:unit/time-windows', authenticate, requireRole('ADMIN'), asyncHand
 }));
 
 // PATCH /api/units/time-windows/:id  (no /:unit prefix — id is sufficient)
-router.patch('/time-windows/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/time-windows/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const data = timeWindowSchema.omit({ goodsType: true, unitGoodsTypeId: true }).partial().parse(req.body);
   const win = await prisma.deliveryTimeWindow.update({
     where: { id: req.params.id },
@@ -94,7 +94,7 @@ router.patch('/time-windows/:id', authenticate, requireRole('ADMIN'), asyncHandl
 }));
 
 // DELETE /api/units/time-windows/:id
-router.delete('/time-windows/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/time-windows/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   await prisma.deliveryTimeWindow.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));
@@ -127,7 +127,7 @@ router.get('/:unit/goods-types', asyncHandler(async (req: Request, res: Response
 }));
 
 // POST /api/units/:unit/goods-types
-router.post('/:unit/goods-types', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/:unit/goods-types', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const data = unitGoodsTypeSchema.parse(req.body);
   const item = await prisma.unitGoodsType.create({
@@ -137,7 +137,7 @@ router.post('/:unit/goods-types', authenticate, requireRole('ADMIN'), asyncHandl
 }));
 
 // PATCH /api/units/goods-types/:id
-router.patch('/goods-types/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/goods-types/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const data = unitGoodsTypeSchema.omit({ baseType: true }).partial().parse(req.body);
   const item = await prisma.unitGoodsType.update({
     where: { id: req.params.id },
@@ -147,7 +147,7 @@ router.patch('/goods-types/:id', authenticate, requireRole('ADMIN'), asyncHandle
 }));
 
 // DELETE /api/units/goods-types/:id
-router.delete('/goods-types/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/goods-types/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   await prisma.unitGoodsType.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));
@@ -298,7 +298,7 @@ const unitConfigSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
 });
 
-router.patch('/:unit/config', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:unit/config', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const data = unitConfigSchema.parse(req.body);
   const location = await getDefaultBusinessLocation();

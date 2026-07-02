@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -1038,10 +1038,12 @@ function BrandPanel() {
 
 // ─── Staff PIN Panel ──────────────────────────────────────────────────────────
 
-interface StaffPin { id: string; name: string; role: 'SECURITY' | 'RECEIVING'; pin: string; active: boolean }
+type StaffPinRole = 'CHECKIN' | 'RECEIVING';
+
+interface StaffPin { id: string; name: string; role: StaffPinRole; pin: string; active: boolean }
 
 const ROLE_CONFIG = {
-  SECURITY:  { label: 'Bảo vệ / Security',       icon: '🔐', bg: 'bg-sky-50',    text: 'text-sky-700',    border: 'border-sky-200'   },
+  CHECKIN:   { label: 'Nhân viên check-in',       icon: '🔐', bg: 'bg-sky-50',    text: 'text-sky-700',    border: 'border-sky-200'   },
   RECEIVING: { label: 'Nhân viên nhận hàng',      icon: '📦', bg: 'bg-green-50', text: 'text-green-700',  border: 'border-green-200' },
 };
 
@@ -1053,12 +1055,12 @@ function StaffPinPanel() {
   });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<StaffPin | null>(null);
-  const [form, setForm] = useState({ name: '', role: 'SECURITY' as 'SECURITY' | 'RECEIVING', pin: '' });
+  const [form, setForm] = useState({ name: '', role: 'CHECKIN' as StaffPinRole, pin: '' });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const [showPins, setShowPins] = useState<Record<string, boolean>>({});
 
-  function openAdd() { setEditing(null); setForm({ name: '', role: 'SECURITY', pin: '' }); setErr(''); setShowForm(true); }
+  function openAdd() { setEditing(null); setForm({ name: '', role: 'CHECKIN', pin: '' }); setErr(''); setShowForm(true); }
   function openEdit(p: StaffPin) { setEditing(p); setForm({ name: p.name, role: p.role, pin: '' }); setErr(''); setShowForm(true); }
 
   async function save() {
@@ -1090,7 +1092,7 @@ function StaffPinPanel() {
     queryClient.invalidateQueries({ queryKey: ['staff-pins'] });
   }
 
-  const byRole = (role: 'SECURITY' | 'RECEIVING') => pins.filter(p => p.role === role);
+  const byRole = (role: StaffPinRole) => pins.filter(p => p.role === role);
 
   return (
     <div className="p-4 space-y-4">
@@ -1110,7 +1112,7 @@ function StaffPinPanel() {
       {/* Explanation card */}
       <div className="bg-sky-50 border border-sky-200 rounded-xl p-4 text-sm text-sky-800 space-y-1.5">
         <p className="font-semibold">Cách hoạt động</p>
-        <p>🔐 <strong>Bảo vệ</strong> scan QR tài xế → nhập mã PIN → xác nhận check-in</p>
+        <p>🔐 <strong>Nhân viên check-in</strong> scan QR tài xế → nhập mã PIN → xác nhận check-in</p>
         <p>📦 <strong>Nhân viên nhận hàng</strong> scan QR → nhập mã PIN → xác nhận bắt đầu / hoàn thành nhận hàng</p>
         <p className="text-sky-600 text-xs">Mỗi nhân viên có PIN riêng — hệ thống ghi nhận ai thực hiện hành động</p>
       </div>
@@ -1118,7 +1120,7 @@ function StaffPinPanel() {
       {isLoading && <p className="text-thiso-400 text-sm">Đang tải...</p>}
 
       {/* Lists by role */}
-      {(['SECURITY', 'RECEIVING'] as const).map(role => {
+      {(['CHECKIN', 'RECEIVING'] as const).map(role => {
         const cfg = ROLE_CONFIG[role];
         const list = byRole(role);
         return (
@@ -1178,7 +1180,7 @@ function StaffPinPanel() {
             <div>
               <label className="text-xs text-thiso-500">Vai trò</label>
               <div className="grid grid-cols-2 gap-2 mt-1">
-                {(['SECURITY', 'RECEIVING'] as const).map(r => {
+                {(['CHECKIN', 'RECEIVING'] as const).map(r => {
                   const c = ROLE_CONFIG[r];
                   return (
                     <button key={r} type="button" onClick={() => setForm(f => ({ ...f, role: r }))}
@@ -1220,14 +1222,16 @@ function StaffPinPanel() {
 interface SystemUser {
   id: string; name: string; email: string;
   role: string; unit: string | null; department: string | null;
+  businessLocationId: string | null;
   isActive: boolean; createdAt: string;
 }
 
 const ROLE_META: Record<string, { label: string; color: string; icon: string }> = {
-  ADMIN:     { label: 'Quản trị viên', color: 'bg-red-100 text-red-700',    icon: '👑' },
-  RECEIVING: { label: 'Nhận hàng',     color: 'bg-sky-100 text-sky-700',    icon: '📦' },
-  SECURITY:  { label: 'Bảo vệ',        color: 'bg-amber-100 text-amber-700',icon: '🔐' },
-  VENDOR:    { label: 'Nhà CC',        color: 'bg-thiso-100 text-thiso-600',  icon: '🏭' },
+  SUPERADMIN: { label: 'Superadmin',      color: 'bg-purple-100 text-purple-700', icon: '🛡' },
+  ADMIN_LOC:  { label: 'Admin khu vực',   color: 'bg-red-100 text-red-700',       icon: '👑' },
+  ADMIN_OPE:  { label: 'Admin vận hành',  color: 'bg-orange-100 text-orange-700', icon: '🛠' },
+  RECEIVING:  { label: 'Nhận hàng',       color: 'bg-sky-100 text-sky-700',       icon: '📦' },
+  CHECKIN:    { label: 'Check-in',        color: 'bg-amber-100 text-amber-700',   icon: '🔐' },
 };
 const UNIT_META_U: Record<string, string> = {
   EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)',
@@ -1250,9 +1254,10 @@ function UserModal({
     name:       user?.name       ?? '',
     email:      user?.email      ?? '',
     password:   '',
-    role:       user?.role       ?? 'RECEIVING',
+    role:       user?.role       ?? 'ADMIN_OPE',
     unit:       user?.unit       ?? '',
     department: user?.department ?? '',
+    businessLocationId: user?.businessLocationId ?? '',
     isActive:   user?.isActive   ?? true,
   });
   const [error, setError] = useState('');
@@ -1272,6 +1277,7 @@ function UserModal({
         role:       form.role,
         unit:       form.unit  || null,
         department: form.department || null,
+        businessLocationId: form.role === 'SUPERADMIN' ? null : (form.businessLocationId || null),
         isActive:   form.isActive,
         ...(isEdit ? {} : { email: form.email, password: form.password }),
       };
@@ -1346,6 +1352,21 @@ function UserModal({
               <option value="TENANT">🏪 Mall (Khách thuê)</option>
             </select>
           </div>
+
+          {/* Business Location */}
+          {form.role !== 'SUPERADMIN' && (
+            <div>
+              <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">BusinessLocation ID *</label>
+              <input
+                className="input w-full font-mono"
+                value={form.businessLocationId}
+                onChange={(e) => set('businessLocationId', e.target.value)}
+                required
+                placeholder="vd: singleton, loc_phi..."
+              />
+              <p className="text-[11px] text-thiso-400 mt-1">Tài khoản không phải SUPERADMIN bắt buộc thuộc một khu vực.</p>
+            </div>
+          )}
 
           {/* Department */}
           <div>
@@ -1575,6 +1596,7 @@ function UserPanel({ currentUserId }: { currentUserId: string }) {
                 <th className="px-4 py-3">Người dùng</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Vai trò</th>
+                <th className="px-4 py-3">Location</th>
                 <th className="px-4 py-3">Đơn vị</th>
                 <th className="px-4 py-3">Bộ phận</th>
                 <th className="px-4 py-3 text-center">Trạng thái</th>
@@ -1583,13 +1605,13 @@ function UserPanel({ currentUserId }: { currentUserId: string }) {
             </thead>
             <tbody>
               {isLoading && (
-                <tr><td colSpan={7} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr><td colSpan={7} className="py-12 text-center text-thiso-400">Không có người dùng nào</td></tr>
+                <tr><td colSpan={8} className="py-12 text-center text-thiso-400">Không có người dùng nào</td></tr>
               )}
               {filtered.map((u) => {
-                const rm = ROLE_META[u.role] ?? ROLE_META.VENDOR;
+                const rm = ROLE_META[u.role] ?? ROLE_META.CHECKIN;
                 const isSelf = u.id === currentUserId;
                 return (
                   <tr key={u.id} className={`border-b border-thiso-50 last:border-0 transition-colors ${!u.isActive ? 'opacity-50 bg-thiso-50/50' : 'hover:bg-thiso-50/60'}`}>
@@ -1618,6 +1640,9 @@ function UserPanel({ currentUserId }: { currentUserId: string }) {
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${rm.color}`}>
                         {rm.icon} {rm.label}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-thiso-500">
+                      {u.businessLocationId ?? <span className="text-thiso-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-thiso-600">
                       {u.unit ? UNIT_META_U[u.unit] : <span className="text-thiso-300 text-xs">—</span>}
@@ -1899,10 +1924,31 @@ function AWVendorPanel() {
 
 // ─── Main Backoffice ──────────────────────────────────────────────────────────
 
+type BackofficeTab = 'slots' | 'zones' | 'units' | 'brand' | 'staff' | 'users' | 'awvendors';
+
+const BACKOFFICE_TABS: readonly [BackofficeTab, string][] = [
+  ['slots', '🚪 Quản lý Slot'],
+  ['zones', '🗺 Quản lý Khu'],
+  ['units', '⚙ Cấu hình Đơn vị'],
+  ['brand', '🎨 Thương hiệu'],
+  ['staff', '👷 Nhân viên'],
+  ['users', '👤 Người dùng'],
+  ['awvendors', '🏭 Kho tự động'],
+];
+
+function allowedBackofficeTabs(role?: string): BackofficeTab[] {
+  if (role === 'SUPERADMIN') return BACKOFFICE_TABS.map(([tab]) => tab);
+  if (role === 'ADMIN_OPE') return ['units', 'awvendors'];
+  if (role === 'ADMIN_LOC') return BACKOFFICE_TABS.map(([tab]) => tab).filter((tab) => tab !== 'users');
+  return [];
+}
+
 export default function Backoffice() {
   const queryClient = useQueryClient();
   const { user: currentUser } = useAuth();
-  const [activeTab, setActiveTab] = useState<'slots' | 'zones' | 'units' | 'brand' | 'staff' | 'users' | 'awvendors'>('slots');
+  const allowedTabs = allowedBackofficeTabs(currentUser?.role);
+  const allowedTabKey = allowedTabs.join(',');
+  const [activeTab, setActiveTab] = useState<BackofficeTab>(() => allowedBackofficeTabs(currentUser?.role)[0] ?? 'units');
   const [editSlot, setEditSlot] = useState<Slot | null | undefined>(undefined);
   const [deleteConfirm, setDeleteConfirm] = useState<Slot | null>(null);
   const [deleteMsg, setDeleteMsg] = useState('');
@@ -1913,11 +1959,13 @@ export default function Backoffice() {
   const { data: slots = [], isLoading } = useQuery<Slot[]>({
     queryKey: ['slots', 'all'],
     queryFn: async () => (await api.get('/api/slots/all')).data,
+    enabled: activeTab === 'slots',
   });
 
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ['zones'],
     queryFn: async () => (await api.get('/api/zones')).data,
+    enabled: activeTab === 'slots',
   });
 
   const { data: unitConfigs = [] } = useQuery<UnitConfig[]>({
@@ -1925,6 +1973,12 @@ export default function Backoffice() {
     queryFn: async () => (await api.get('/api/units/configs')).data,
     enabled: activeTab === 'units',
   });
+
+  useEffect(() => {
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
+      setActiveTab(allowedTabs[0]);
+    }
+  }, [activeTab, allowedTabKey, allowedTabs]);
 
   function refresh() {
     queryClient.invalidateQueries({ queryKey: ['slots'] });
@@ -1972,14 +2026,14 @@ export default function Backoffice() {
           <h1 className="page-title">Backoffice — Cấu hình Hệ thống</h1>
           <p className="text-sm text-thiso-400 mt-1">Quản lý slot và cấu hình đơn vị nhận hàng (chỉ Admin)</p>
         </div>
-        {activeTab === 'slots' && (
+        {activeTab === 'slots' && allowedTabs.includes('slots') && (
           <button className="btn-primary px-4 py-2" onClick={() => setEditSlot(null)}>+ Thêm Slot mới</button>
         )}
       </div>
 
       {/* Tabs */}
       <div className="flex gap-1 mb-6 border-b border-thiso-200">
-        {([['slots', '🚪 Quản lý Slot'], ['zones', '🗺 Quản lý Khu'], ['units', '⚙ Cấu hình Đơn vị'], ['brand', '🎨 Thương hiệu'], ['staff', '👷 Nhân viên'], ['users', '👤 Người dùng'], ['awvendors', '🏭 Kho tự động']] as const).map(([tab, label]) => (
+        {BACKOFFICE_TABS.filter(([tab]) => allowedTabs.includes(tab)).map(([tab, label]) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -1991,7 +2045,7 @@ export default function Backoffice() {
       </div>
 
       {/* ── Slot Tab ── */}
-      {activeTab === 'slots' && (
+      {activeTab === 'slots' && allowedTabs.includes('slots') && (
         <>
           {editSlot !== undefined && (
             <SlotModal slot={editSlot} zones={zones} onClose={() => setEditSlot(undefined)} onSaved={() => { setEditSlot(undefined); refresh(); }} />
@@ -2132,10 +2186,10 @@ export default function Backoffice() {
       )}
 
       {/* ── Zone Tab ── */}
-      {activeTab === 'zones' && <ZonePanel />}
+      {activeTab === 'zones' && allowedTabs.includes('zones') && <ZonePanel />}
 
       {/* ── Unit Config Tab ── */}
-      {activeTab === 'units' && (
+      {activeTab === 'units' && allowedTabs.includes('units') && (
         <div className="space-y-5">
           <p className="text-sm text-thiso-400">
             Cấu hình khung giờ nhận hàng, slot booking và API tích hợp cho từng đơn vị.
@@ -2154,16 +2208,16 @@ export default function Backoffice() {
       )}
 
       {/* ── Brand Tab ── */}
-      {activeTab === 'brand' && <BrandPanel />}
+      {activeTab === 'brand' && allowedTabs.includes('brand') && <BrandPanel />}
 
       {/* ── Staff PIN Tab ── */}
-      {activeTab === 'staff' && <StaffPinPanel />}
+      {activeTab === 'staff' && allowedTabs.includes('staff') && <StaffPinPanel />}
 
       {/* ── Users Tab ── */}
-      {activeTab === 'users' && <UserPanel currentUserId={currentUser?.id ?? ''} />}
+      {activeTab === 'users' && allowedTabs.includes('users') && <UserPanel currentUserId={currentUser?.id ?? ''} />}
 
       {/* ── AW Vendor Tab ── */}
-      {activeTab === 'awvendors' && <AWVendorPanel />}
+      {activeTab === 'awvendors' && allowedTabs.includes('awvendors') && <AWVendorPanel />}
     </div>
   );
 }

@@ -7,6 +7,7 @@ export interface AuthUser {
   email: string;
   role: string;
   name: string;
+  businessLocationId: string | null;
 }
 
 declare global {
@@ -40,7 +41,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   prisma.user
     .findUnique({ where: { id: payload.id } })
     .then((user) => {
-      if (!user) {
+      if (!user || !user.isActive) {
         res.status(401).json({
           error: 'Unauthorized',
           message: 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng xuất và đăng nhập lại.',
@@ -48,7 +49,13 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
         return;
       }
       // Always use fresh data from DB, not stale JWT payload
-      req.user = { id: user.id, email: user.email, role: user.role, name: user.name };
+      req.user = {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: user.name,
+        businessLocationId: user.businessLocationId,
+      };
       next();
     })
     .catch(next);

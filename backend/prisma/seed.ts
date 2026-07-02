@@ -1,6 +1,6 @@
 import {
   PrismaClient, Role, ReceivingUnit, GoodsType,
-  DeliveryStatus, VehicleType, StaffRole, DeviceType,
+  DeliveryStatus, VehicleType, DeviceType,
 } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
@@ -101,9 +101,11 @@ async function main() {
   const pw = await bcrypt.hash('password123', 10);
   await prisma.user.createMany({
     data: [
-      { name: 'Admin', email: 'admin@mall.com', passwordHash: pw, role: Role.ADMIN, businessLocationId: defaultLocation.id },
-      { name: 'Nhân viên nhận', email: 'receiving@mall.com', passwordHash: pw, role: Role.RECEIVING },
-      { name: 'Bảo vệ', email: 'security@mall.com', passwordHash: pw, role: Role.SECURITY },
+      { name: 'Super Admin', email: 'superadmin@mall.com', passwordHash: pw, role: Role.SUPERADMIN },
+      { name: 'Admin Location', email: 'admin@mall.com', passwordHash: pw, role: Role.ADMIN_LOC, businessLocationId: defaultLocation.id },
+      { name: 'Admin Vận hành', email: 'operator@mall.com', passwordHash: pw, role: Role.ADMIN_OPE, businessLocationId: defaultLocation.id },
+      { name: 'Nhân viên nhận', email: 'receiving@mall.com', passwordHash: pw, role: Role.RECEIVING, businessLocationId: defaultLocation.id },
+      { name: 'Nhân viên check-in', email: 'checkin@mall.com', passwordHash: pw, role: Role.CHECKIN, businessLocationId: defaultLocation.id },
     ],
   });
   console.log('✅ Users created  (password: password123)');
@@ -111,12 +113,12 @@ async function main() {
   // ── Staff PINs ──────────────────────────────────────────────────────────────
   await prisma.staffPin.createMany({
     data: [
-      { name: 'Bảo vệ – Nguyễn Văn Bình', role: StaffRole.SECURITY, pin: '1111' },
-      { name: 'Bảo vệ – Trần Văn Cường', role: StaffRole.SECURITY, pin: '2222' },
-      { name: 'Bảo vệ – Lê Thị Dung', role: StaffRole.SECURITY, pin: '3333' },
-      { name: 'NV Nhận hàng EMART – Phạm Minh Đức', role: StaffRole.RECEIVING, pin: '4444' },
-      { name: 'NV Nhận hàng THISKY – Hoàng Thị Em', role: StaffRole.RECEIVING, pin: '5555' },
-      { name: 'NV Nhận hàng MALL – Vũ Quốc Hùng', role: StaffRole.RECEIVING, pin: '6666' },
+      { name: 'Check-in – Nguyễn Văn Bình', role: Role.CHECKIN, pin: '1111' },
+      { name: 'Check-in – Trần Văn Cường', role: Role.CHECKIN, pin: '2222' },
+      { name: 'Check-in – Lê Thị Dung', role: Role.CHECKIN, pin: '3333' },
+      { name: 'NV Nhận hàng EMART – Phạm Minh Đức', role: Role.RECEIVING, pin: '4444' },
+      { name: 'NV Nhận hàng THISKY – Hoàng Thị Em', role: Role.RECEIVING, pin: '5555' },
+      { name: 'NV Nhận hàng MALL – Vũ Quốc Hùng', role: Role.RECEIVING, pin: '6666' },
     ],
   });
   console.log('✅ Staff PINs created');

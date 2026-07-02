@@ -21,7 +21,7 @@ const querySchema = z.object({
   cursor: z.string().optional(),
 });
 
-router.get('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const query = querySchema.parse(req.query);
 
   const where: Prisma.AuditLogWhereInput = {

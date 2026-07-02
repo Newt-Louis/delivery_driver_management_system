@@ -9,10 +9,11 @@ datasource db {
 }
 
 enum Role {
-  ADMIN
+  SUPERADMIN
+  ADMIN_LOC
+  ADMIN_OPE
   RECEIVING
-  SECURITY
-  VENDOR
+  CHECKIN
 }
 
 enum SlotStatus {
@@ -39,11 +40,6 @@ enum VehicleType {
   TRUCK
   MOTORBIKE
   OTHER
-}
-
-enum StaffRole {
-  SECURITY
-  RECEIVING
 }
 
 enum DeviceType {
@@ -76,7 +72,7 @@ model User {
   name               String
   email              String            @unique
   passwordHash       String            @map("password_hash")
-  role               Role              @default(VENDOR)
+  role               Role              @default(CHECKIN)
   unit               ReceivingUnit? // optional unit assignment
   department         String? // free-text department / shift label
   businessLocationId String?           @map("business_location_id")
@@ -279,13 +275,13 @@ model UnitConfig {
 }
 
 model StaffPin {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  role      StaffRole
-  pin       String    @unique
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
+  role      Role
+  pin       String   @unique
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@index([role, active])
   @@map("staff_pins")

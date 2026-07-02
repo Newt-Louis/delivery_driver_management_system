@@ -30,7 +30,7 @@ const zoneSchema = z.object({
 });
 
 // POST /api/zones — create zone (admin)
-router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = zoneSchema.parse(req.body);
   const unitConfig = await prisma.unitConfig.findUnique({ where: { id: body.unitConfigId } });
   if (!unitConfig) {
@@ -49,7 +49,7 @@ router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Re
 }));
 
 // PATCH /api/zones/:id — update zone (admin)
-router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = zoneSchema.partial().parse(req.body);
   if (body.unitConfigId) {
     const unitConfig = await prisma.unitConfig.findUnique({ where: { id: body.unitConfigId } });
@@ -63,7 +63,7 @@ router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req
 }));
 
 // DELETE /api/zones/:id — only if no slots assigned (admin)
-router.delete('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const zone = await prisma.zone.findUnique({
     where: { id: req.params.id },
     include: { _count: { select: { slots: true } } },

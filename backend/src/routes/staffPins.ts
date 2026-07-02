@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { StaffRole } from '@prisma/client';
+import { Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
@@ -9,13 +9,13 @@ const router = Router();
 
 const staffPinSchema = z.object({
   name: z.string().min(1).max(100),
-  role: z.nativeEnum(StaffRole),
+  role: z.enum([Role.CHECKIN, Role.RECEIVING]),
   pin:  z.string().regex(/^\d{4}$/, 'PIN phải là 4 chữ số'),
   active: z.boolean().optional(),
 });
 
-// All routes require ADMIN
-router.use(authenticate, requireRole('ADMIN'));
+// All routes require a location/system admin account.
+router.use(authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'));
 
 // GET /api/staff-pins
 router.get('/', asyncHandler(async (_req: Request, res: Response) => {

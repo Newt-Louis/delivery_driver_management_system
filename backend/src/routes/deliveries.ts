@@ -113,7 +113,7 @@ const registerSchema = z.object({
 });
 
 // POST /api/deliveries/auto-dispatch/:unit  — manually trigger auto-assign for a unit
-router.post('/auto-dispatch/:unit', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/auto-dispatch/:unit', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { unit } = req.params;
   const validUnits: string[] = ['EMART', 'THISKYHALL', 'TENANT'];
   if (!validUnits.includes(unit)) {
@@ -215,7 +215,7 @@ router.get('/queue', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 // PATCH /api/deliveries/check-in-lookup
-router.patch('/check-in-lookup', asyncHandler(async (req: Request, res: Response) => {
+router.patch('/check-in-lookup', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req: Request, res: Response) => {
   const { registrationCode, vehiclePlate } = req.body as {
     registrationCode?: string;
     vehiclePlate?: string;
@@ -322,7 +322,7 @@ router.get('/:id', authenticate, asyncHandler(async (req: Request, res: Response
 }));
 
 // PATCH /api/deliveries/:id/check-in
-router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/check-in', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req: Request, res: Response) => {
   const delivery = await prisma.deliveryRegistration.findUnique({
     where: { id: req.params.id },
     include: { assignedSlot: true },
@@ -390,7 +390,7 @@ router.patch('/:id/check-in', asyncHandler(async (req: Request, res: Response) =
 const callSchema = z.object({ slotId: z.string() });
 
 // PATCH /api/deliveries/:id/call
-router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/call', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { slotId } = callSchema.parse(req.body);
 
   const result = await manualCallDelivery({
@@ -472,7 +472,7 @@ router.patch('/:id/call', authenticate, requireRole('ADMIN', 'RECEIVING'), async
 }));
 
 // PATCH /api/deliveries/:id/start-receiving
-router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/start-receiving', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const delivery = await prisma.deliveryRegistration.findUnique({ where: { id: req.params.id } });
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (delivery.status !== DeliveryStatus.CALLED) {
@@ -521,7 +521,7 @@ router.patch('/:id/start-receiving', authenticate, requireRole('ADMIN', 'RECEIVI
 }));
 
 // PATCH /api/deliveries/:id/complete
-router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/complete', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const result = await completeDelivery(req.params.id);
   if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (result.outcome === 'invalid_status') {
@@ -572,7 +572,7 @@ router.patch('/:id/complete', authenticate, requireRole('ADMIN', 'RECEIVING'), a
 }));
 
 // PATCH /api/deliveries/:id/cancel
-router.patch('/:id/cancel', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/cancel', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const result = await cancelDelivery(req.params.id);
   if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (result.outcome === 'invalid_status') {

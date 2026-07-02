@@ -16,10 +16,15 @@ import Navbar from './components/Navbar';
 import api from './lib/api';
 import { getDeliverySessions, removeAllDeliverySessions } from './lib/session';
 
+function homePathForRole(role?: string) {
+  if (role === 'CHECKIN') return '/check-in';
+  return '/dashboard';
+}
+
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
-  const { isAuthenticated, hasRole } = useAuth();
+  const { isAuthenticated, hasRole, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (roles && !hasRole(...roles)) return <Navigate to="/dashboard" replace />;
+  if (roles && !hasRole(...roles)) return <Navigate to={homePathForRole(user?.role)} replace />;
   return <>{children}</>;
 }
 
@@ -57,7 +62,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
 // }
 
 export default function App() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   // Pages that have their own full-screen layout — hide the global nav
@@ -83,7 +88,7 @@ export default function App() {
         <Route
           path="/check-in"
           element={
-            <ProtectedRoute roles={['ADMIN', 'RECEIVING', 'SECURITY']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN']}>
               <CheckIn />
             </ProtectedRoute>
           }
@@ -91,7 +96,7 @@ export default function App() {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute roles={['ADMIN', 'RECEIVING']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -99,7 +104,7 @@ export default function App() {
         <Route
           path="/docks"
           element={
-            <ProtectedRoute roles={['ADMIN', 'RECEIVING']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
               <DockManagement />
             </ProtectedRoute>
           }
@@ -107,7 +112,7 @@ export default function App() {
         <Route
           path="/backoffice"
           element={
-            <ProtectedRoute roles={['ADMIN']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
               <Backoffice />
             </ProtectedRoute>
           }
@@ -115,7 +120,7 @@ export default function App() {
         <Route
           path="/receiving-times"
           element={
-            <ProtectedRoute roles={['ADMIN', 'RECEIVING']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
               <ReceivingTimes />
             </ProtectedRoute>
           }
@@ -123,12 +128,12 @@ export default function App() {
         <Route
           path="/reports"
           element={
-            <ProtectedRoute roles={['ADMIN']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
               <Reports />
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to={isAuthenticated ? '/dashboard' : '/register'} replace />} />
+        <Route path="/" element={<Navigate to={isAuthenticated ? homePathForRole(user?.role) : '/register'} replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </div>

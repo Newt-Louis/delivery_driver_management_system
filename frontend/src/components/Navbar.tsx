@@ -4,7 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 
 const ROLE_LABELS: Record<string, string> = {
-  ADMIN: 'Quản trị viên', RECEIVING: 'Nhận hàng', SECURITY: 'Bảo vệ', VENDOR: 'Nhà CC',
+  SUPERADMIN: 'Superadmin',
+  ADMIN_LOC: 'Admin khu vực',
+  ADMIN_OPE: 'Admin vận hành',
+  RECEIVING: 'Nhận hàng',
+  CHECKIN: 'Check-in',
 };
 
 interface NavItem { to: string; label: string; icon: string; roles: string[] | null }
@@ -14,9 +18,9 @@ const NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Vận hành',
     items: [
-      { to: '/dashboard', label: 'Điều phối',      icon: '📋', roles: ['ADMIN', 'RECEIVING'] },
-      { to: '/docks',     label: 'Quản lý dock',   icon: '🚧', roles: ['ADMIN', 'RECEIVING'] },
-      { to: '/check-in',  label: 'Check-in',        icon: '✅', roles: ['ADMIN', 'RECEIVING', 'SECURITY'] },
+      { to: '/dashboard', label: 'Điều phối',      icon: '📋', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'] },
+      { to: '/docks',     label: 'Quản lý dock',   icon: '🚧', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'] },
+      { to: '/check-in',  label: 'Check-in',        icon: '✅', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'] },
     ],
   },
   {
@@ -31,14 +35,14 @@ const NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Phân tích',
     items: [
-      { to: '/receiving-times', label: 'Thời gian nhận hàng', icon: '⏱', roles: ['ADMIN', 'RECEIVING'] },
-      { to: '/reports',         label: 'Báo cáo',              icon: '📈', roles: ['ADMIN'] },
+      { to: '/receiving-times', label: 'Thời gian nhận hàng', icon: '⏱', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'] },
+      { to: '/reports',         label: 'Báo cáo',              icon: '📈', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'] },
     ],
   },
   {
     heading: 'Quản trị',
     items: [
-      { to: '/backoffice', label: 'Backoffice', icon: '⚙', roles: ['ADMIN'] },
+      { to: '/backoffice', label: 'Backoffice', icon: '⚙', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'] },
     ],
   },
 ];
