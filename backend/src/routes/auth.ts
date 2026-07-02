@@ -17,7 +17,7 @@ router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: R
   const body = loginSchema.parse(req.body);
 
   const user = await prisma.user.findUnique({ where: { email: body.email } });
-  if (!user) {
+  if (!user || !user.isActive) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
@@ -30,14 +30,20 @@ router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: R
 
   const secret = process.env.JWT_SECRET ?? 'fallback-secret';
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name },
+    { id: user.id, email: user.email, role: user.role, name: user.name, businessLocationId: user.businessLocationId },
     secret,
     { expiresIn: '24h' }
   );
 
   res.json({
     token,
-    user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    user: {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      businessLocationId: user.businessLocationId,
+    },
   });
 }));
 

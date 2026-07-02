@@ -1,4 +1,4 @@
-export type Role = 'ADMIN' | 'RECEIVING' | 'SECURITY' | 'VENDOR';
+export type Role = 'SUPERADMIN' | 'ADMIN_LOC' | 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
 export type SlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'MAINTENANCE';
 export type ReceivingUnit = 'EMART' | 'THISKYHALL' | 'TENANT';
 export type GoodsType = 'FRESH_FOOD' | 'AUTO_WAREHOUSE' | 'GENERAL_GOODS' | 'THI_CONG';
@@ -17,6 +17,7 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  businessLocationId: string | null;
 }
 
 export interface Zone {

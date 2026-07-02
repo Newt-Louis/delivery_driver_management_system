@@ -33,7 +33,7 @@ const createSchema = z.object({
 
 const updateSchema = createSchema.omit({ code: true, businessLocationId: true }).partial();
 
-router.get('/', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (_req: Request, res: Response) => {
   const devices = await prisma.device.findMany({
     select: SAFE_SELECT,
     orderBy: [{ isActive: 'desc' }, { deviceType: 'asc' }, { code: 'asc' }],
@@ -41,7 +41,7 @@ router.get('/', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Re
   res.json(devices);
 }));
 
-router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = createSchema.parse(req.body);
 
   const location = await prisma.businessLocation.findUnique({ where: { id: body.businessLocationId } });
@@ -84,7 +84,7 @@ router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Re
   res.status(201).json(device);
 }));
 
-router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = updateSchema.parse(req.body);
   const existing = await prisma.device.findUnique({ where: { id: req.params.id } });
   if (!existing) {
@@ -129,7 +129,7 @@ router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req
   res.json(device);
 }));
 
-router.delete('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.device.findUnique({ where: { id: req.params.id } });
   if (!existing) {
     res.status(404).json({ error: 'Device not found' });

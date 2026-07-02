@@ -8,7 +8,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 const router = Router();
 
 // GET /api/aw-vendors — admin only, returns all (active + inactive)
-router.get('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.query.unit as string | undefined;
   const vendors = await prisma.autoWarehouseVendor.findMany({
     where: unit ? { unit: unit as ReceivingUnit } : undefined,
@@ -43,7 +43,7 @@ const createSchema = z.object({
 });
 
 // POST /api/aw-vendors — admin only
-router.post('/', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const body = createSchema.parse(req.body);
   const normalized = { ...body, vendorCode: body.vendorCode.toUpperCase().trim() };
 
@@ -66,14 +66,14 @@ const updateSchema = z.object({
 });
 
 // PATCH /api/aw-vendors/:id — admin only
-router.patch('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const body = updateSchema.parse(req.body);
   const vendor = await prisma.autoWarehouseVendor.update({ where: { id: req.params.id }, data: body });
   res.json(vendor);
 }));
 
 // DELETE /api/aw-vendors/:id — admin only
-router.delete('/:id', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   await prisma.autoWarehouseVendor.delete({ where: { id: req.params.id } });
   res.json({ deleted: true });
 }));

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { DeliveryStatus, StaffRole } from '@prisma/client';
+import { DeliveryStatus, Role } from '@prisma/client';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
@@ -23,19 +23,19 @@ const CHECKIN_INCLUDE = {
   assignedSlot: { include: { zone: { select: { id: true, code: true, name: true } } } },
 } as const;
 
-function requestedStaffRole(role?: string): StaffRole | null {
-  if (!role) return StaffRole.SECURITY;
+function requestedStaffPinRole(role?: string): Role | null {
+  if (!role) return Role.CHECKIN;
   const normalized = role.trim().toUpperCase();
-  if (normalized === 'SECURITY') return StaffRole.SECURITY;
-  if (normalized === 'RECEIVING' || normalized === 'GR') return StaffRole.RECEIVING;
+  if (normalized === 'CHECKIN') return Role.CHECKIN;
+  if (normalized === 'RECEIVING' || normalized === 'GR') return Role.RECEIVING;
   return null;
 }
 
-const ROLE_FOR_TERMINAL_SCAN: Partial<Record<DeliveryStatus, StaffRole>> = {
-  [DeliveryStatus.REGISTERED]: StaffRole.SECURITY,
-  [DeliveryStatus.CALLED]: StaffRole.RECEIVING,
-  [DeliveryStatus.RECEIVING]: StaffRole.RECEIVING,
-  [DeliveryStatus.AUTO_WAREHOUSE_RECEIVING]: StaffRole.RECEIVING,
+const ROLE_FOR_TERMINAL_SCAN: Partial<Record<DeliveryStatus, Role>> = {
+  [DeliveryStatus.REGISTERED]: Role.CHECKIN,
+  [DeliveryStatus.CALLED]: Role.RECEIVING,
+  [DeliveryStatus.RECEIVING]: Role.RECEIVING,
+  [DeliveryStatus.AUTO_WAREHOUSE_RECEIVING]: Role.RECEIVING,
 };
 
 // ─── POST /api/checkin/terminal-auth ─────────────────────────────────────────
@@ -52,7 +52,7 @@ router.post('/terminal-auth', terminalAuthLimiter, asyncHandler(async (req: Requ
   }
   if (!pin) { res.status(400).json({ error: 'Vui lòng nhập mã PIN' }); return; }
 
-  const requiredRole = requestedStaffRole(role);
+  const requiredRole = requestedStaffPinRole(role);
   if (!requiredRole) { res.status(400).json({ error: 'Vai tro kiosk khong hop le' }); return; }
 
   const device = await prisma.device.findUnique({
@@ -72,10 +72,10 @@ router.post('/terminal-auth', terminalAuthLimiter, asyncHandler(async (req: Requ
   const staff = await prisma.staffPin.findUnique({ where: { pin, active: true } });
   if (!staff) { res.status(401).json({ error: 'Mã PIN không hợp lệ hoặc đã bị vô hiệu hóa' }); return; }
   if (staff.role !== requiredRole) {
-    if (requiredRole === StaffRole.RECEIVING) {
+    if (requiredRole === Role.RECEIVING) {
       res.status(403).json({ error: 'Chi nhan vien nhan hang moi co the kich hoat kiosk nay' }); return;
     }
-    res.status(403).json({ error: 'Chỉ bảo vệ mới có thể kích hoạt kiosk check-in' }); return;
+    res.status(403).json({ error: 'Chỉ nhân viên check-in mới có thể kích hoạt kiosk check-in' }); return;
   }
 
   const secret = process.env.JWT_SECRET ?? 'fallback-secret';
@@ -125,7 +125,7 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
     type: string;
     staffPinId: string;
     staffName: string;
-    staffRole?: StaffRole;
+    staffRole?: Role;
     roleScoped?: boolean;
     deviceId: string;
     deviceCode: string;
@@ -172,7 +172,7 @@ router.post('/scan', asyncHandler(async (req: Request, res: Response) => {
   if (terminalPayload.roleScoped) {
     const requiredRole = ROLE_FOR_TERMINAL_SCAN[delivery.status];
     if (requiredRole && terminalPayload.staffRole !== requiredRole) {
-      const roleLabel = requiredRole === StaffRole.SECURITY ? 'bao ve' : 'nhan vien nhan hang';
+      const roleLabel = requiredRole === Role.CHECKIN ? 'nhan vien check-in' : 'nhan vien nhan hang';
       res.status(403).json({ error: `Hanh dong nay yeu cau kiosk ${roleLabel}` });
       return;
     }

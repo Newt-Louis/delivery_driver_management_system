@@ -225,7 +225,7 @@ async function createAdminUser(scope: TestScope) {
       name: `Admin ${scope.prefix}`,
       email: `${scope.prefix.toLowerCase()}-admin@test.local`,
       passwordHash: 'test',
-      role: 'ADMIN',
+      role: 'ADMIN_LOC',
       unit: ReceivingUnit.EMART,
       businessLocationId: scope.businessLocationId,
     },

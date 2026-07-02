@@ -5,7 +5,7 @@ import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 
 const router = Router();
-router.use(authenticate, requireRole('ADMIN', 'RECEIVING'));
+router.use(authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'));
 
 function dateRange(from?: string, to?: string) {
   const f = from ? new Date(from) : new Date(Date.now() - 30 * 86400_000);

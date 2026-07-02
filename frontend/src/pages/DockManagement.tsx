@@ -15,7 +15,7 @@ export default function DockManagement() {
   const socket = useSocket();
   const realtimeScope = useRealtimeScope();
   const { hasRole } = useAuth();
-  const canEdit = hasRole('ADMIN', 'RECEIVING');
+  const canEdit = hasRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING');
 
   const { data: slots = [] } = useQuery<Slot[]>({
     queryKey: ['slots', realtimeScope],

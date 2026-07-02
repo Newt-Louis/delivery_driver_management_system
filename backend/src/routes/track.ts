@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { DeliveryStatus, StaffRole } from '@prisma/client';
+import { DeliveryStatus, Role } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { triggerAutoAssign } from '../services/autoAssign';
@@ -34,11 +34,11 @@ export function formatTicketCode(unit: string, vehicleType: string, n: number): 
 const router = Router();
 
 // Which staff roles may perform which delivery-status transitions
-const ROLE_FOR_STATUS: Partial<Record<DeliveryStatus, StaffRole>> = {
-  [DeliveryStatus.REGISTERED]: StaffRole.SECURITY,   // check-in
-  [DeliveryStatus.CALLED]:     StaffRole.RECEIVING,  // start receiving
-  [DeliveryStatus.RECEIVING]:  StaffRole.RECEIVING,  // complete
-  [DeliveryStatus.AUTO_WAREHOUSE_RECEIVING]: StaffRole.RECEIVING,
+const ROLE_FOR_STATUS: Partial<Record<DeliveryStatus, Role>> = {
+  [DeliveryStatus.REGISTERED]: Role.CHECKIN,    // check-in
+  [DeliveryStatus.CALLED]:     Role.RECEIVING,  // start receiving
+  [DeliveryStatus.RECEIVING]:  Role.RECEIVING,  // complete
+  [DeliveryStatus.AUTO_WAREHOUSE_RECEIVING]: Role.RECEIVING,
 };
 
 const TRACK_INCLUDE = {
@@ -189,7 +189,7 @@ router.post('/:code/action', staffActionLimiter, asyncHandler(async (req: Reques
     res.status(400).json({ error: 'Không có hành động nào cho trạng thái này' }); return;
   }
   if (staff.role !== requiredRole) {
-    const roleLabel = requiredRole === StaffRole.SECURITY ? 'bảo vệ' : 'nhân viên nhận hàng';
+    const roleLabel = requiredRole === Role.CHECKIN ? 'nhân viên check-in' : 'nhân viên nhận hàng';
     res.status(403).json({ error: `Hành động này yêu cầu mã của ${roleLabel}` }); return;
   }
 

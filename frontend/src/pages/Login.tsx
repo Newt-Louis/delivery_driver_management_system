@@ -4,8 +4,13 @@ import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import api from '../lib/api';
 
+function homePathForRole(role?: string) {
+  if (role === 'CHECKIN') return '/check-in';
+  return '/dashboard';
+}
+
 export default function Login() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, user } = useAuth();
   const { mall, units } = useBranding();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
@@ -13,7 +18,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to={homePathForRole(user?.role)} replace />;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -22,7 +27,7 @@ export default function Login() {
     try {
       const res = await api.post('/api/auth/login', { email, password });
       login(res.data.token, res.data.user);
-      navigate('/dashboard');
+      navigate(homePathForRole(res.data.user?.role));
     } catch {
       setError('Email hoặc mật khẩu không đúng');
     } finally {
@@ -106,9 +111,11 @@ export default function Login() {
             <p className="text-xs font-semibold text-thiso-400 uppercase tracking-wide mb-3">Tài khoản demo</p>
             <div className="space-y-1.5">
               {[
-                { label: 'Admin', email: 'admin@mall.com' },
+                { label: 'Superadmin', email: 'superadmin@mall.com' },
+                { label: 'Admin khu vực', email: 'admin@mall.com' },
+                { label: 'Vận hành', email: 'operator@mall.com' },
                 { label: 'Nhận hàng', email: 'receiving@mall.com' },
-                { label: 'Bảo vệ', email: 'security@mall.com' },
+                { label: 'Check-in', email: 'checkin@mall.com' },
               ].map((a) => (
                 <button
                   key={a.email}

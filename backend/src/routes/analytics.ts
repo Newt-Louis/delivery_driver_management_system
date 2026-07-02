@@ -16,7 +16,7 @@ interface LiveStat {
 
 // GET /api/analytics/receiving-times
 // Returns all ReceivingTimeConfig rows enriched with live historical stats
-router.get('/receiving-times', authenticate, requireRole('ADMIN', 'RECEIVING'), asyncHandler(async (_req: Request, res: Response) => {
+router.get('/receiving-times', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (_req: Request, res: Response) => {
   const [configs, liveStats, totalCompleted] = await Promise.all([
     prisma.receivingTimeConfig.findMany({
       orderBy: [{ unit: 'asc' }, { vehicleType: 'asc' }, { goodsType: 'asc' }],
@@ -73,7 +73,7 @@ router.get('/receiving-times', authenticate, requireRole('ADMIN', 'RECEIVING'), 
 
 // POST /api/analytics/receiving-times/analyze
 // Recalculates recommendations from historical data and saves to DB
-router.post('/receiving-times/analyze', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
+router.post('/receiving-times/analyze', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
   const liveStats = await prisma.$queryRaw<LiveStat[]>`
     SELECT
       receiving_unit      AS unit,
@@ -117,7 +117,7 @@ router.post('/receiving-times/analyze', authenticate, requireRole('ADMIN'), asyn
 
 // PATCH /api/analytics/receiving-times/:id/accept
 // Accepts the recommended minutes as the new configured value
-router.patch('/receiving-times/:id/accept', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/receiving-times/:id/accept', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const cfg = await prisma.receivingTimeConfig.findUnique({ where: { id: req.params.id } });
   if (!cfg) { res.status(404).json({ error: 'Không tìm thấy cấu hình' }); return; }
   if (cfg.recommendedMinutes === null) {
@@ -132,7 +132,7 @@ router.patch('/receiving-times/:id/accept', authenticate, requireRole('ADMIN'), 
 
 // PATCH /api/analytics/receiving-times/accept-all
 // Accepts ALL pending recommendations
-router.patch('/receiving-times/accept-all', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
+router.patch('/receiving-times/accept-all', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
   const pending = await prisma.receivingTimeConfig.findMany({
     where: { recommendedMinutes: { not: null } },
   });

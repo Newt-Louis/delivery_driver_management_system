@@ -277,7 +277,7 @@ router.get('/dispatch', authenticate, asyncHandler(async (req: Request, res: Res
 }));
 
 // POST /api/dashboard/expire-stale  — manual trigger (admin)
-router.post('/expire-stale', authenticate, requireRole('ADMIN'), asyncHandler(async (_req: Request, res: Response) => {
+router.post('/expire-stale', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
   const result = await expireStaleDeliveries();
   res.json({ ...result, message: result.total > 0
     ? `Đã lưu vào lịch sử: ${result.expiredRegistered} đăng ký không check-in, ${result.expiredWaiting} check-in không nhận hàng`

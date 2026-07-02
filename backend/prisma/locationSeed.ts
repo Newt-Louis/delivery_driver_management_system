@@ -168,7 +168,7 @@ function userCreateData(admin: AdminSeed, passwordHash: string, businessLocation
     name: admin.name,
     email: admin.email,
     passwordHash,
-    role: Role.ADMIN,
+    role: Role.ADMIN_LOC,
     department: admin.department ?? 'Location Admin',
     businessLocationId,
     ...(admin.isActive !== undefined ? { isActive: admin.isActive } : {}),

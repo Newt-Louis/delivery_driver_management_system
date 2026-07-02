@@ -62,7 +62,7 @@ const mallSchema = z.object({
   kioskBgUrl: z.string().nullable().optional(),
 });
 
-router.patch('/mall', authenticate, requireRole('ADMIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/mall', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const data = mallSchema.parse(req.body);
   const location = await getDefaultBusinessLocation();
   const locationName = data.locationName ?? data.mallName;
