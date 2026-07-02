@@ -9,6 +9,7 @@ import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
 import { formatTicketCode } from './track';
 import { isScheduledForToday, formatVNDate } from '../lib/dateVN';
+import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 import { checkInDelivery } from '../services/checkInDelivery';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manualCallDelivery';
 import { cancelDelivery, completeDelivery } from '../services/deliveryLifecycle';
@@ -26,6 +27,124 @@ import {
 
 const router = Router();
 
+const ACTIVE_DUPLICATE_STATUSES: DeliveryStatus[] = [
+  DeliveryStatus.REGISTERED,
+  DeliveryStatus.WAITING,
+  DeliveryStatus.CALLED,
+  DeliveryStatus.RECEIVING,
+  DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
+];
+
+function normalizeVehiclePlate(value: string): string {
+  return value.trim().toUpperCase();
+}
+
+async function findActiveDeliveryByPlate(vehiclePlate: string) {
+  return prisma.deliveryRegistration.findFirst({
+    where: {
+      vehiclePlate,
+      status: { in: ACTIVE_DUPLICATE_STATUSES },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+}
+
+function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+function sendDuplicateRegistration(
+  res: Response,
+  vehiclePlate: string,
+  duplicate: Awaited<ReturnType<typeof findActiveDeliveryByPlate>>,
+) {
+  res.status(409).json({
+    error: 'Duplicate',
+    message: `Bien so ${vehiclePlate} da co luot dang ky dang hoat dong (${duplicate?.registrationCode ?? 'dang xu ly'}).`,
+    delivery: duplicate,
+  });
+}
+class SlotFullError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SlotFullError';
+  }
+}
+
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function localTimeKey(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}
+
+function localDayRange(date: Date): { start: Date; end: Date } {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+function advisoryLockId(value: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash | 0;
+}
+
+async function getRegistrationSlotCapacity(unit: ReceivingUnit, vehicleType: VehicleType): Promise<number | null> {
+  const config = await getUnitConfigForDefaultLocation(unit);
+  if (!config) return null;
+  return vehicleType === VehicleType.MOTORBIKE ? config.motorbikeMaxPerSlot : config.truckMaxPerSlot;
+}
+
+async function ensureRegistrationSlotCapacity(
+  tx: Prisma.TransactionClient,
+  args: {
+    requestedTime: Date;
+    receivingUnit: ReceivingUnit;
+    vehicleType: VehicleType;
+    goodsType: GoodsType;
+    maxPerSlot: number | null;
+  },
+): Promise<void> {
+  if (args.maxPerSlot === null) return;
+
+  const dateKey = localDateKey(args.requestedTime);
+  const timeKey = localTimeKey(args.requestedTime);
+  const lockKey = [
+    'registration-slot',
+    args.receivingUnit,
+    args.vehicleType,
+    args.goodsType,
+    dateKey,
+    timeKey,
+  ].join(':');
+
+  await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${advisoryLockId(lockKey)})`);
+
+  const { start, end } = localDayRange(args.requestedTime);
+  const bookings = await tx.deliveryRegistration.findMany({
+    where: {
+      receivingUnit: args.receivingUnit,
+      vehicleType: args.vehicleType,
+      goodsType: args.goodsType,
+      status: DeliveryStatus.REGISTERED,
+      requestedTime: { gte: start, lt: end },
+    },
+    select: { requestedTime: true },
+  });
+
+  const booked = bookings.filter((booking) => (
+    booking.requestedTime
+    && localTimeKey(booking.requestedTime) === timeKey
+  )).length;
+
+  if (booked >= args.maxPerSlot) {
+    throw new SlotFullError(`Khung gio ${timeKey} ngay ${dateKey} da het cho. Vui long chon khung gio khac.`);
+  }
+}
 async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
   const activeStatus = {
     in: [
@@ -130,22 +249,25 @@ router.post('/auto-dispatch/:unit', authenticate, requireRole('ADMIN', 'RECEIVIN
 // POST /api/deliveries/register
 router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, res: Response) => {
   const body = registerSchema.parse(req.body);
+  const vehiclePlate = normalizeVehiclePlate(body.vehiclePlate);
 
-  const duplicate = await prisma.deliveryRegistration.findFirst({
-    where: {
-      vehiclePlate: body.vehiclePlate.toUpperCase(),
-      status: { in: [DeliveryStatus.REGISTERED, DeliveryStatus.WAITING, DeliveryStatus.CALLED] },
-    },
-  });
+  if (!vehiclePlate) {
+    res.status(400).json({ error: 'Bien so xe bat buoc' });
+    return;
+  }
+
+  const duplicate = await findActiveDeliveryByPlate(vehiclePlate);
   if (duplicate) {
-    res.status(409).json({
-      error: 'Duplicate',
-      message: `Biển số ${body.vehiclePlate.toUpperCase()} đã có lượt đăng ký đang hoạt động (${duplicate.registrationCode}).`,
-    });
+    sendDuplicateRegistration(res, vehiclePlate, duplicate);
     return;
   }
 
   const requestedTime = body.requestedTime ? new Date(body.requestedTime) : null;
+
+  if (requestedTime && Number.isNaN(requestedTime.getTime())) {
+    res.status(400).json({ error: 'Thoi gian giao hang khong hop le' });
+    return;
+  }
 
   // Check auto-warehouse vendor code if provided
   let resolvedGoodsType = body.goodsType;
@@ -163,30 +285,60 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
     }
   }
 
-  const delivery = await prisma.$transaction(async (tx) => {
-    const registrationCode = await reserveRegistrationCode(tx, body.receivingUnit);
+  const maxPerSlot = requestedTime
+    ? await getRegistrationSlotCapacity(body.receivingUnit, body.vehicleType)
+    : null;
 
-    return tx.deliveryRegistration.create({
-      data: {
-        registrationCode,
-        vendorName: body.vendorName,
-        driverName: body.driverName,
-        driverPhone: body.driverPhone,
-        vehiclePlate: body.vehiclePlate.toUpperCase(),
-        vehicleType: body.vehicleType,
-        receivingUnit: body.receivingUnit,
-        goodsType: resolvedGoodsType,
-        unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
-        poNumber: body.poNumber,
-        vendorCode: resolvedVendorCode,
-        requestedTime,
-        autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
-        note: body.note,
-      },
+  try {
+    const delivery = await prisma.$transaction(async (tx) => {
+      if (requestedTime) {
+        await ensureRegistrationSlotCapacity(tx, {
+          requestedTime,
+          receivingUnit: body.receivingUnit,
+          vehicleType: body.vehicleType,
+          goodsType: resolvedGoodsType,
+          maxPerSlot,
+        });
+      }
+
+      const registrationCode = await reserveRegistrationCode(tx, body.receivingUnit);
+
+      return tx.deliveryRegistration.create({
+        data: {
+          registrationCode,
+          vendorName: body.vendorName,
+          driverName: body.driverName,
+          driverPhone: body.driverPhone,
+          vehiclePlate,
+          vehicleType: body.vehicleType,
+          receivingUnit: body.receivingUnit,
+          goodsType: resolvedGoodsType,
+          unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
+          poNumber: body.poNumber,
+          vendorCode: resolvedVendorCode,
+          requestedTime,
+          autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
+          note: body.note,
+        },
+      });
     });
-  });
 
-  res.status(201).json(delivery);
+    res.status(201).json(delivery);
+  } catch (error) {
+    if (error instanceof SlotFullError) {
+      res.status(409).json({ error: 'SlotFull', message: error.message });
+      return;
+    }
+
+    if (isUniqueConstraintError(error)) {
+      const activeDuplicate = await findActiveDeliveryByPlate(vehiclePlate);
+      if (activeDuplicate) {
+        sendDuplicateRegistration(res, vehiclePlate, activeDuplicate);
+        return;
+      }
+    }
+    throw error;
+  }
 }));
 
 // GET /api/deliveries
