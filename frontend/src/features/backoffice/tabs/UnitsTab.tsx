@@ -108,8 +108,14 @@ function TimeWindowEditor({
             </>
           ) : (
             <>
-              {win.label && <span className="text-xs font-semibold text-thiso-500 w-12 shrink-0">{win.label}</span>}
-              <span className="font-mono text-xs text-thiso-800 flex-1">{win.startTime} → {win.endTime}</span>
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                <span className="min-w-0 truncate text-xs font-semibold text-thiso-500">
+                  {win.label || 'Khung giờ'}
+                </span>
+                <span className="shrink-0 whitespace-nowrap rounded-md bg-thiso-50 px-2 py-0.5 font-mono text-xs font-semibold text-thiso-800">
+                  {win.startTime} → {win.endTime}
+                </span>
+              </div>
               {editing && (
                 <>
                   <button onClick={() => toggleWin(win)} className={`text-[10px] px-1.5 py-0.5 rounded-full ${win.enabled ? 'bg-green-100 text-green-700' : 'bg-thiso-100 text-thiso-400'}`}>

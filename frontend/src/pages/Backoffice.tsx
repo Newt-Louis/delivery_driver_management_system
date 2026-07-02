@@ -53,7 +53,7 @@ export default function Backoffice() {
         </div>
       </div>
 
-      <div className="flex gap-1 mb-6 border-b border-thiso-200 overflow-x-auto">
+      <div className="flex gap-1 mb-6 border-b border-thiso-200">
         {BACKOFFICE_TABS.filter(([tab]) => allowedTabs.includes(tab)).map(([tab, label]) => (
           <button
             key={tab}

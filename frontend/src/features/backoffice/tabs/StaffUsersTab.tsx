@@ -299,8 +299,9 @@ export default function StaffUsersTab() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+      <div className="flex items-center gap-3 mb-2">
+        <div className="flex gap-2">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-thiso-400 text-sm pointer-events-none">🔍</span>
           <input
             className="w-full pl-9 pr-3 py-2 text-sm border border-thiso-200 rounded-xl bg-white focus:outline-none focus:border-sky-400"
@@ -317,12 +318,13 @@ export default function StaffUsersTab() {
           <option value="">Tất cả đơn vị</option>
           {unitConfigs.map((cfg) => <option key={cfg.id} value={cfg.unit}>{UNIT_META_U[cfg.unit] ?? cfg.unit}</option>)}
         </select>
-        <label className="flex items-center gap-2 text-sm text-thiso-500 cursor-pointer select-none">
-          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded" />
-          Hiện TK vô hiệu
-        </label>
+        </div>
         <button className="btn-primary ml-auto" onClick={() => setModal('create')}>+ Thêm nhân viên</button>
       </div>
+      <label className="flex items-center gap-2 text-sm text-thiso-500 cursor-pointer select-none mb-4 ml-4">
+        <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} className="rounded" />
+        Hiện TK vô hiệu
+      </label>
 
       {deleteMsg && (
         <div className="mb-3 px-4 py-2.5 bg-sky-50 border border-sky-200 rounded-xl text-sm text-sky-700">{deleteMsg}</div>
