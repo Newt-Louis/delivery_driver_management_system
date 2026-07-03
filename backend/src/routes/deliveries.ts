@@ -17,7 +17,6 @@ import { getScopeForDelivery } from '../services/realtimeScope';
 import { recordAuditLog, systemActor, userActor } from '../services/auditLog';
 import { reserveRegistrationCode } from '../services/registrationSequence';
 import { publicWriteLimiter } from '../middleware/rateLimit';
-import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
