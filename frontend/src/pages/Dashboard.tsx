@@ -354,7 +354,7 @@ function UnitHeader({ unit, ud, onDispatch }: { unit: UnitKey; ud: UnitDispatch;
               <div className="text-xs text-white/70">xe đến 1h tới</div>
             </div>
           )}
-          <AutoDispatchBtn unit={unit} onDone={onDispatch} />
+          {/* <AutoDispatchBtn unit={unit} onDone={onDispatch} /> */}
         </div>
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -966,7 +966,7 @@ function AllTabView({
                   <span className="text-xl">{meta.icon}</span>
                   <span className="font-black text-sm tracking-wide">{meta.label.toUpperCase()}</span>
                 </div>
-                <AutoDispatchBtn unit={u} onDone={onDispatch} />
+                {/* <AutoDispatchBtn unit={u} onDone={onDispatch} /> */}
               </div>
               <div className="grid grid-cols-3 gap-1.5 mb-2">
                 {[

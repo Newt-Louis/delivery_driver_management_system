@@ -2,18 +2,11 @@ import { Router, Request, Response } from 'express';
 import { DeliveryStatus, SlotStatus, GoodsType, ReceivingUnit, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope } from '../middleware/auth';
 import { expireStaleDeliveries } from '../services/expireStale';
 import type { SocketScope } from '../socket';
 
 const router = Router();
-
-function scopeFromQuery(req: Request): SocketScope {
-  return {
-    businessLocationId: typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined,
-    unitConfigId: typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined,
-  };
-}
 
 async function scopedDeliveryWhere(
   scope: SocketScope,
@@ -58,8 +51,8 @@ function scopedSlotWhere(scope: SocketScope, base: Record<string, unknown>) {
 }
 
 // GET /api/dashboard/summary
-router.get('/summary', authenticate, asyncHandler(async (req: Request, res: Response) => {
-  const scope = scopeFromQuery(req);
+router.get('/summary', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
+  const scope = req.scope!;
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -101,8 +94,8 @@ router.get('/summary', authenticate, asyncHandler(async (req: Request, res: Resp
 }));
 
 // GET /api/dashboard/dispatch
-router.get('/dispatch', authenticate, asyncHandler(async (req: Request, res: Response) => {
-  const scope = scopeFromQuery(req);
+router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
+  const scope = req.scope!;
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);

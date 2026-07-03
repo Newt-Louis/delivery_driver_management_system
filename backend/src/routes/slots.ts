@@ -3,19 +3,12 @@ import { z } from 'zod';
 import { SlotStatus, VehicleType, ReceivingUnit, GoodsType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { emitSlotUpdated, type SocketScope } from '../socket';
 import { reconcileAllSlots, reconcileOneSlot, reconcileSlotState, isManualSlotStatus } from '../services/slotState';
-import { getScopeForSlot } from '../services/realtimeScope';
+import { getScopeForSlot, getScopeForDelivery } from '../services/realtimeScope';
 
 const router = Router();
-
-function scopeFromQuery(req: Request): SocketScope {
-  return {
-    businessLocationId: typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined,
-    unitConfigId: typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined,
-  };
-}
 
 async function getAllSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) {
   return prisma.slot.findMany({
@@ -38,22 +31,26 @@ async function getAllSlotsWithDeliveries(activeOnly = true, scope?: SocketScope)
 }
 
 // GET /api/slots — active slots (Dashboard, SlotManagement, CallModal)
-router.get('/', asyncHandler(async (req: Request, res: Response) => {
-  res.json(await getAllSlotsWithDeliveries(true, scopeFromQuery(req)));
+router.get('/', enforceScope, asyncHandler(async (req: Request, res: Response) => {
+  res.json(await getAllSlotsWithDeliveries(true, req.scope));
 }));
 
 // GET /api/slots/all — all slots including inactive (admin backoffice)
-router.get('/all', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
-  res.json(await getAllSlotsWithDeliveries(false, scopeFromQuery(req)));
+router.get('/all', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+  res.json(await getAllSlotsWithDeliveries(false, req.scope));
 }));
 
 const statusSchema = z.object({ status: z.nativeEnum(SlotStatus) });
 
 // PATCH /api/slots/:id/status
-router.patch('/:id/status', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/status', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { status } = statusSchema.parse(req.body);
-  const current = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  const current = await prisma.slot.findUnique({
+    where: { id: req.params.id },
+    include: { zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
+  });
   if (!current) { res.status(404).json({ error: 'Not found' }); return; }
+  if (!enforceResourceScope(req, res, current.zone.unitConfig.businessLocationId)) return;
 
   const slot = await prisma.$transaction(async (tx) => {
     if (isManualSlotStatus(status)) {
@@ -70,7 +67,14 @@ router.patch('/:id/status', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC',
 }));
 
 // POST /api/slots/:id/reconcile — recompute AVAILABLE/OCCUPIED from active deliveries.
-router.post('/:id/reconcile', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/:id/reconcile', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+  const current = await prisma.slot.findUnique({
+    where: { id: req.params.id },
+    include: { zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
+  });
+  if (!current) { res.status(404).json({ error: 'Not found' }); return; }
+  if (!enforceResourceScope(req, res, current.zone.unitConfig.businessLocationId)) return;
+
   const force = req.query.force === 'true';
   const snapshot = await reconcileOneSlot(req.params.id, { preserveManualStatus: !force });
   if (!snapshot) { res.status(404).json({ error: 'Not found' }); return; }
@@ -81,7 +85,7 @@ router.post('/:id/reconcile', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC
 }));
 
 // POST /api/slots/reconcile — admin maintenance endpoint for all slots.
-router.post('/reconcile', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/reconcile', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const activeOnly = req.query.activeOnly !== 'false';
   const force = req.query.force === 'true';
   const snapshots = await reconcileAllSlots({ activeOnly, preserveManualStatus: !force });
@@ -93,8 +97,25 @@ router.post('/reconcile', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', '
 const assignSchema = z.object({ deliveryId: z.string() });
 
 // PATCH /api/slots/:id/assign
-router.patch('/:id/assign', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/assign', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { deliveryId } = assignSchema.parse(req.body);
+
+  const slotCheck = await prisma.slot.findUnique({
+    where: { id: req.params.id },
+    include: { zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
+  });
+  if (!slotCheck) { res.status(404).json({ error: 'Slot not found' }); return; }
+  if (!enforceResourceScope(req, res, slotCheck.zone.unitConfig.businessLocationId)) return;
+
+  // Also check delivery scope
+  const deliveryCheck = await prisma.deliveryRegistration.findUnique({
+    where: { id: deliveryId },
+    select: { id: true, receivingUnit: true, assignedSlotId: true },
+  });
+  if (deliveryCheck) {
+    const deliveryScope = await getScopeForDelivery(deliveryCheck);
+    if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+  }
 
   const snapshot = await prisma.$transaction(async (tx) => {
     const slot = await tx.slot.findUnique({ where: { id: req.params.id } });
@@ -149,8 +170,16 @@ async function validateZoneForUnit(zoneId: string, assignedUnit: ReceivingUnit) 
 }
 
 // POST /api/slots
-router.post('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = createSlotSchema.parse(req.body);
+
+  // Validate zone belongs to user's scope
+  const zone = await prisma.zone.findUnique({
+    where: { id: body.zoneId },
+    include: { unitConfig: { select: { businessLocationId: true } } },
+  });
+  if (!zone) { res.status(400).json({ error: 'BadRequest', message: 'Khu nhận hàng không tồn tại.' }); return; }
+  if (!enforceResourceScope(req, res, zone.unitConfig.businessLocationId)) return;
 
   const exists = await prisma.slot.findUnique({ where: { code: body.code } });
   if (exists) {
@@ -184,10 +213,14 @@ const updateSlotSchema = z.object({
 });
 
 // PATCH /api/slots/:id
-router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = updateSlotSchema.parse(req.body);
-  const current = await prisma.slot.findUnique({ where: { id: req.params.id } });
+  const current = await prisma.slot.findUnique({
+    where: { id: req.params.id },
+    include: { zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
+  });
   if (!current) { res.status(404).json({ error: 'Not found' }); return; }
+  if (!enforceResourceScope(req, res, current.zone.unitConfig.businessLocationId)) return;
   const nextZoneId = body.zoneId ?? current.zoneId;
   const nextAssignedUnit = body.assignedUnit ?? current.assignedUnit;
   const zoneError = await validateZoneForUnit(nextZoneId, nextAssignedUnit);
@@ -216,12 +249,13 @@ router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), async
 }));
 
 // DELETE /api/slots/:id
-router.delete('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const slot = await prisma.slot.findUnique({
     where: { id: req.params.id },
-    include: { _count: { select: { callLogs: true, deliveries: true } } },
+    include: { _count: { select: { callLogs: true, deliveries: true } }, zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
   });
   if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
+  if (!enforceResourceScope(req, res, slot.zone.unitConfig.businessLocationId)) return;
 
   if (slot._count.callLogs > 0 || slot._count.deliveries > 0) {
     await prisma.slot.update({ where: { id: req.params.id }, data: { isActive: false, status: SlotStatus.MAINTENANCE } });

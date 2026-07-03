@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DeliveryStatus, GoodsType, ReceivingUnit, VehicleType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { triggerAutoAssign } from '../services/autoAssign';
 import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
@@ -17,6 +17,7 @@ import { getScopeForDelivery } from '../services/realtimeScope';
 import { recordAuditLog, systemActor, userActor } from '../services/auditLog';
 import { reserveRegistrationCode } from '../services/registrationSequence';
 import { publicWriteLimiter } from '../middleware/rateLimit';
+import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -228,8 +229,20 @@ const registerSchema = z.object({
   poNumber: z.string().optional(),
   vendorCode: z.string().optional(),
   requestedTime: z.string().optional(),
+  deliveryDate: z.string().optional(),
   note: z.string().optional(),
 });
+
+function isSundayDeliveryDate(requestedTime?: Date | null, deliveryDate?: string): boolean {
+  if (requestedTime) {
+    return requestedTime.getDay() === 0;
+  }
+  if (!deliveryDate) return false;
+
+  const [year, month, day] = deliveryDate.split('-').map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(year, month - 1, day).getDay() === 0;
+}
 
 // POST /api/deliveries/auto-dispatch/:unit  — manually trigger auto-assign for a unit
 router.post('/auto-dispatch/:unit', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
@@ -283,6 +296,19 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
     } else {
       resolvedVendorCode = normalized;
     }
+  }
+
+  const config = await getUnitConfigForDefaultLocation(body.receivingUnit);
+  if (
+    config?.sundayFreshFoodOnly
+    && isSundayDeliveryDate(requestedTime, body.deliveryDate)
+    && resolvedGoodsType !== GoodsType.FRESH_FOOD
+  ) {
+    res.status(422).json({
+      error: 'SundayFreshFoodOnly',
+      message: 'Chủ nhật chỉ nhận hàng tươi sống',
+    });
+    return;
   }
 
   const maxPerSlot = requestedTime
@@ -342,11 +368,21 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
 }));
 
 // GET /api/deliveries
-router.get('/', authenticate, asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
   const { unit, goodsType, status } = req.query;
 
+  const scopedUnits = await resolveScopedUnits(req.scope);
   const where: Prisma.DeliveryRegistrationWhereInput = {};
-  if (unit && typeof unit === 'string') where.receivingUnit = unit as ReceivingUnit;
+  if (unit && typeof unit === 'string') {
+    const requestedUnit = unit as ReceivingUnit;
+    if (scopedUnits.length > 0 && !scopedUnits.includes(requestedUnit)) {
+      res.json([]);
+      return;
+    }
+    where.receivingUnit = requestedUnit;
+  } else if (scopedUnits.length > 0) {
+    where.receivingUnit = { in: scopedUnits };
+  }
   if (goodsType && typeof goodsType === 'string') where.goodsType = goodsType as GoodsType;
   if (status && typeof status === 'string') where.status = status as DeliveryStatus;
 
@@ -360,14 +396,12 @@ router.get('/', authenticate, asyncHandler(async (req: Request, res: Response) =
 }));
 
 // GET /api/deliveries/queue
-router.get('/queue', asyncHandler(async (req: Request, res: Response) => {
-  const businessLocationId = typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined;
-  const unitConfigId = typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined;
-  res.json(await getFullQueue({ businessLocationId, unitConfigId }));
+router.get('/queue', enforceScope, asyncHandler(async (req: Request, res: Response) => {
+  res.json(await getFullQueue(req.scope));
 }));
 
 // PATCH /api/deliveries/check-in-lookup
-router.patch('/check-in-lookup', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/check-in-lookup', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req: Request, res: Response) => {
   const { registrationCode, vehiclePlate } = req.body as {
     registrationCode?: string;
     vehiclePlate?: string;
@@ -390,6 +424,9 @@ router.patch('/check-in-lookup', authenticate, requireRole('SUPERADMIN', 'ADMIN_
     res.status(404).json({ error: 'Không tìm thấy lượt đăng ký.' });
     return;
   }
+
+  const deliveryScope = await getScopeForDelivery(delivery);
+  if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
 
   if (delivery.status === DeliveryStatus.WAITING) {
     res.json(delivery);
@@ -460,7 +497,7 @@ router.patch('/check-in-lookup', authenticate, requireRole('SUPERADMIN', 'ADMIN_
 }));
 
 // GET /api/deliveries/:id
-router.get('/:id', authenticate, asyncHandler(async (req: Request, res: Response) => {
+router.get('/:id', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
   const delivery = await prisma.deliveryRegistration.findUnique({
     where: { id: req.params.id },
     include: {
@@ -470,16 +507,20 @@ router.get('/:id', authenticate, asyncHandler(async (req: Request, res: Response
     },
   });
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
+  const deliveryScope = await getScopeForDelivery(delivery);
+  if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
   res.json(delivery);
 }));
 
 // PATCH /api/deliveries/:id/check-in
-router.patch('/:id/check-in', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/check-in', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req: Request, res: Response) => {
   const delivery = await prisma.deliveryRegistration.findUnique({
     where: { id: req.params.id },
     include: { assignedSlot: true },
   });
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
+  const deliveryScope = await getScopeForDelivery(delivery);
+  if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
   if (delivery.status === DeliveryStatus.WAITING) {
     res.json(delivery);
     return;
@@ -542,7 +583,7 @@ router.patch('/:id/check-in', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC
 const callSchema = z.object({ slotId: z.string() });
 
 // PATCH /api/deliveries/:id/call
-router.patch('/:id/call', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/call', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const { slotId } = callSchema.parse(req.body);
 
   const result = await manualCallDelivery({
@@ -559,6 +600,13 @@ router.patch('/:id/call', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', '
     res.status(404).json({ error: result.message, delivery: result.delivery });
     return;
   }
+
+  // Scope check: verify delivery belongs to user's scope
+  if (result.delivery) {
+    const deliveryScope = await getScopeForDelivery(result.delivery);
+    if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+  }
+
   if (!manualCallResultIsSuccess(result)) {
     const statusCode = result.outcome === 'invalid_status' ? 409 : 400;
     res.status(statusCode).json({
@@ -624,9 +672,13 @@ router.patch('/:id/call', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', '
 }));
 
 // PATCH /api/deliveries/:id/start-receiving
-router.patch('/:id/start-receiving', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/start-receiving', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const delivery = await prisma.deliveryRegistration.findUnique({ where: { id: req.params.id } });
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
+
+  const deliveryScope = await getScopeForDelivery(delivery);
+  if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+
   if (delivery.status !== DeliveryStatus.CALLED) {
     res.status(400).json({ error: 'Delivery must be in CALLED status' }); return;
   }
@@ -673,7 +725,17 @@ router.patch('/:id/start-receiving', authenticate, requireRole('SUPERADMIN', 'AD
 }));
 
 // PATCH /api/deliveries/:id/complete
-router.patch('/:id/complete', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/complete', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+  // Scope check: verify delivery belongs to user's scope before operating
+  const preDelivery = await prisma.deliveryRegistration.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, receivingUnit: true, assignedSlotId: true },
+  });
+  if (preDelivery) {
+    const preScope = await getScopeForDelivery(preDelivery);
+    if (!enforceResourceScope(req, res, preScope.businessLocationId)) return;
+  }
+
   const result = await completeDelivery(req.params.id);
   if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (result.outcome === 'invalid_status') {
@@ -724,7 +786,17 @@ router.patch('/:id/complete', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC
 }));
 
 // PATCH /api/deliveries/:id/cancel
-router.patch('/:id/cancel', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id/cancel', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+  // Scope check: verify delivery belongs to user's scope before operating
+  const preDelivery = await prisma.deliveryRegistration.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, receivingUnit: true, assignedSlotId: true },
+  });
+  if (preDelivery) {
+    const preScope = await getScopeForDelivery(preDelivery);
+    if (!enforceResourceScope(req, res, preScope.businessLocationId)) return;
+  }
+
   const result = await cancelDelivery(req.params.id);
   if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (result.outcome === 'invalid_status') {
