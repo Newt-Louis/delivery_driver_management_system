@@ -7,6 +7,7 @@ import { authenticate, requireRole, enforceScope, enforceResourceScope } from '.
 import { emitSlotUpdated, type SocketScope } from '../socket';
 import { reconcileAllSlots, reconcileOneSlot, reconcileSlotState, isManualSlotStatus } from '../services/slotState';
 import { getScopeForSlot, getScopeForDelivery } from '../services/realtimeScope';
+import { recordAuditLog, userActor } from '../services/auditLog';
 
 const router = Router();
 
@@ -195,6 +196,15 @@ router.post('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LO
 
   const slot = await prisma.slot.create({ data: body });
   const scope = await getScopeForSlot(slot.id);
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'slot.create',
+    targetType: 'Slot',
+    targetId: slot.id,
+    businessLocationId: zone.unitConfig.businessLocationId,
+    unitConfigId: zone.unitConfigId,
+    after: { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, zoneId: slot.zoneId },
+  });
   emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.status(201).json(slot);
 }));
@@ -244,6 +254,16 @@ router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
 
   if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
   const scope = await getScopeForSlot(req.params.id);
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'slot.update',
+    targetType: 'Slot',
+    targetId: req.params.id,
+    businessLocationId: current.zone.unitConfig.businessLocationId,
+    unitConfigId: current.zone.unitConfigId,
+    before: { code: current.code, name: current.name, assignedUnit: current.assignedUnit, vehicleType: current.vehicleType, isActive: current.isActive },
+    after: { code: slot.slot?.code ?? current.code, name: slot.slot?.name ?? current.name, assignedUnit: slot.slot?.assignedUnit ?? current.assignedUnit, vehicleType: slot.slot?.vehicleType ?? current.vehicleType, isActive: slot.slot?.isActive ?? current.isActive },
+  });
   emitSlotUpdated(await getAllSlotsWithDeliveries(true, scope), scope);
   res.json(slot.slot);
 }));
@@ -259,9 +279,26 @@ router.delete('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADM
 
   if (slot._count.callLogs > 0 || slot._count.deliveries > 0) {
     await prisma.slot.update({ where: { id: req.params.id }, data: { isActive: false, status: SlotStatus.MAINTENANCE } });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'slot.deactivate',
+      targetType: 'Slot',
+      targetId: slot.id,
+      businessLocationId: slot.zone.unitConfig.businessLocationId,
+      before: { code: slot.code, name: slot.name, isActive: slot.isActive },
+      after: { code: slot.code, name: slot.name, isActive: false },
+    });
     res.json({ deleted: false, deactivated: true, message: 'Slot có lịch sử sử dụng — đã vô hiệu hóa thay vì xóa.' });
   } else {
     await prisma.slot.delete({ where: { id: req.params.id } });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'slot.delete',
+      targetType: 'Slot',
+      targetId: slot.id,
+      businessLocationId: slot.zone.unitConfig.businessLocationId,
+      before: { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit },
+    });
     res.json({ deleted: true });
   }
 

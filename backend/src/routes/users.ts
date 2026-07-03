@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
+import { recordAuditLog, userActor } from '../services/auditLog';
 
 const router = Router();
 
@@ -159,6 +160,14 @@ router.post('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHand
     },
     select: SAFE_SELECT,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'user.create',
+    targetType: 'User',
+    targetId: user.id,
+    businessLocationId,
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department },
+  });
   res.status(201).json(user);
 }));
 
@@ -193,6 +202,15 @@ router.patch('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyn
     },
     select: SAFE_SELECT,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'user.update',
+    targetType: 'User',
+    targetId: user.id,
+    businessLocationId,
+    before: { name: existing.name, email: existing.email, role: existing.role, unit: existing.unit, department: existing.department, isActive: existing.isActive },
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department, isActive: user.isActive },
+  });
   res.json(user);
 }));
 
@@ -206,6 +224,14 @@ router.patch('/location-staff/:id/reset-password', authenticate, requireRole('AD
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'user.reset_password',
+    targetType: 'User',
+    targetId: req.params.id,
+    businessLocationId,
+    after: { passwordReset: true },
+  });
   res.json({ ok: true });
 }));
 
@@ -223,9 +249,26 @@ router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asy
       data: { isActive: false },
       select: SAFE_SELECT,
     });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'user.deactivate',
+      targetType: 'User',
+      targetId: req.params.id,
+      businessLocationId,
+      before: { name: existing.name, email: existing.email, role: existing.role, isActive: existing.isActive },
+      after: { name: user.name, email: user.email, role: user.role, isActive: user.isActive },
+    });
     res.json({ deactivated: true, user });
   } else {
     await prisma.user.delete({ where: { id: req.params.id } });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'user.delete',
+      targetType: 'User',
+      targetId: req.params.id,
+      businessLocationId,
+      before: { name: existing.name, email: existing.email, role: existing.role },
+    });
     res.json({ deleted: true });
   }
 }));
@@ -260,6 +303,14 @@ router.post('/', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (re
       businessLocationId,
     },
     select: SAFE_SELECT,
+  });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'user.create',
+    targetType: 'User',
+    targetId: user.id,
+    businessLocationId,
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department },
   });
   res.status(201).json(user);
 }));
@@ -299,6 +350,15 @@ router.patch('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(async
     },
     select: SAFE_SELECT,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'user.update',
+    targetType: 'User',
+    targetId: user.id,
+    businessLocationId,
+    before: { name: existing.name, email: existing.email, role: existing.role, unit: existing.unit, department: existing.department, isActive: existing.isActive },
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department, isActive: user.isActive },
+  });
   res.json(user);
 }));
 
@@ -307,6 +367,13 @@ router.patch('/:id/reset-password', authenticate, requireRole('SUPERADMIN'), asy
   const { password } = resetPwSchema.parse(req.body);
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'user.reset_password',
+    targetType: 'User',
+    targetId: req.params.id,
+    after: { passwordReset: true },
+  });
   res.json({ ok: true });
 }));
 
@@ -329,9 +396,24 @@ router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(asyn
       data: { isActive: false },
       select: SAFE_SELECT,
     });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'user.deactivate',
+      targetType: 'User',
+      targetId: req.params.id,
+      after: { name: u.name, email: u.email, role: u.role, isActive: u.isActive },
+    });
     res.json({ deactivated: true, user: u });
   } else {
+    const deletedUser = await prisma.user.findUnique({ where: { id: req.params.id }, select: SAFE_SELECT });
     await prisma.user.delete({ where: { id: req.params.id } });
+    await recordAuditLog({
+      ...userActor(req.user),
+      action: 'user.delete',
+      targetType: 'User',
+      targetId: req.params.id,
+      before: deletedUser ? { name: deletedUser.name, email: deletedUser.email, role: deletedUser.role } : undefined,
+    });
     res.json({ deleted: true });
   }
 }));

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
+import { recordAuditLog, userActor } from '../services/auditLog';
 
 const router = Router();
 
@@ -54,6 +55,15 @@ router.post('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LO
     return;
   }
   const zone = await prisma.zone.create({ data: body });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'zone.create',
+    targetType: 'Zone',
+    targetId: zone.id,
+    businessLocationId: unitConfig.businessLocationId,
+    unitConfigId: body.unitConfigId,
+    after: { code: zone.code, name: zone.name },
+  });
   res.status(201).json(zone);
 }));
 
@@ -76,6 +86,16 @@ router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
     if (!enforceResourceScope(req, res, unitConfig.businessLocationId)) return;
   }
   const zone = await prisma.zone.update({ where: { id: req.params.id }, data: body });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'zone.update',
+    targetType: 'Zone',
+    targetId: zone.id,
+    businessLocationId: existing.unitConfig.businessLocationId,
+    unitConfigId: existing.unitConfigId,
+    before: { code: existing.code, name: existing.name },
+    after: { code: zone.code, name: zone.name },
+  });
   res.json(zone);
 }));
 
@@ -83,7 +103,7 @@ router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
 router.delete('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const zone = await prisma.zone.findUnique({
     where: { id: req.params.id },
-    include: { _count: { select: { slots: true } }, unitConfig: { select: { businessLocationId: true } } },
+    include: { _count: { select: { slots: true } }, unitConfig: { select: { id: true, businessLocationId: true } } },
   });
   if (!zone) { res.status(404).json({ error: 'Not found' }); return; }
   if (!enforceResourceScope(req, res, zone.unitConfig.businessLocationId)) return;
@@ -92,6 +112,15 @@ router.delete('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADM
     return;
   }
   await prisma.zone.delete({ where: { id: req.params.id } });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'zone.delete',
+    targetType: 'Zone',
+    targetId: zone.id,
+    businessLocationId: zone.unitConfig.businessLocationId,
+    unitConfigId: zone.unitConfigId,
+    before: { code: zone.code, name: zone.name },
+  });
   res.json({ deleted: true });
 }));
 

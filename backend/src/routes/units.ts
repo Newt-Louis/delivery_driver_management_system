@@ -6,6 +6,7 @@ import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { publicReadLimiter } from '../middleware/rateLimit';
 import { getDefaultBusinessLocation, getUnitConfigForDefaultLocation } from '../lib/businessLocation';
+import { recordAuditLog, userActor } from '../services/auditLog';
 
 const router = Router();
 
@@ -147,12 +148,20 @@ router.post('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPE
       sortOrder:       data.sortOrder ?? 0,
     },
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'time_window.create',
+    targetType: 'DeliveryTimeWindow',
+    targetId: win.id,
+    businessLocationId: locationId,
+    after: { unit: win.unit, goodsType: win.goodsType, label: win.label, startTime: win.startTime, endTime: win.endTime },
+  });
   res.status(201).json(win);
 }));
 
 // PATCH /api/units/time-windows/:id  (no /:unit prefix — id is sufficient)
 router.patch('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
-  const existing = await prisma.deliveryTimeWindow.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  const existing = await prisma.deliveryTimeWindow.findUnique({ where: { id: req.params.id }, select: { unit: true, goodsType: true, label: true, startTime: true, endTime: true } });
   if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
   const locationId = await resolveLocationId(req);
   if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
@@ -162,17 +171,34 @@ router.patch('/time-windows/:id', authenticate, enforceScope, requireRole('SUPER
     where: { id: req.params.id },
     data,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'time_window.update',
+    targetType: 'DeliveryTimeWindow',
+    targetId: win.id,
+    businessLocationId: locationId,
+    before: { unit: existing.unit, goodsType: existing.goodsType, label: existing.label, startTime: existing.startTime, endTime: existing.endTime },
+    after: { unit: win.unit, goodsType: win.goodsType, label: win.label, startTime: win.startTime, endTime: win.endTime },
+  });
   res.json(win);
 }));
 
 // DELETE /api/units/time-windows/:id
 router.delete('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
-  const existing = await prisma.deliveryTimeWindow.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  const existing = await prisma.deliveryTimeWindow.findUnique({ where: { id: req.params.id }, select: { unit: true, goodsType: true, label: true, startTime: true, endTime: true } });
   if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
   const locationId = await resolveLocationId(req);
   if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
 
   await prisma.deliveryTimeWindow.delete({ where: { id: req.params.id } });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'time_window.delete',
+    targetType: 'DeliveryTimeWindow',
+    targetId: req.params.id,
+    businessLocationId: locationId,
+    before: { unit: existing.unit, goodsType: existing.goodsType, label: existing.label, startTime: existing.startTime, endTime: existing.endTime },
+  });
   res.status(204).end();
 }));
 // ────────────────────────────────────────────────────────────────────────────
@@ -212,12 +238,20 @@ router.post('/:unit/goods-types', authenticate, enforceScope, requireRole('SUPER
   const item = await prisma.unitGoodsType.create({
     data: { unit, name: data.name, emoji: data.emoji, baseType: data.baseType as GoodsType, sortOrder: data.sortOrder ?? 0 },
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'goods_type.create',
+    targetType: 'UnitGoodsType',
+    targetId: item.id,
+    businessLocationId: locationId,
+    after: { unit: item.unit, name: item.name, emoji: item.emoji, baseType: item.baseType },
+  });
   res.status(201).json(item);
 }));
 
 // PATCH /api/units/goods-types/:id
 router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
-  const existing = await prisma.unitGoodsType.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  const existing = await prisma.unitGoodsType.findUnique({ where: { id: req.params.id }, select: { unit: true, name: true, emoji: true, baseType: true, enabled: true } });
   if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
   const locationId = await resolveLocationId(req);
   if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
@@ -227,17 +261,34 @@ router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERA
     where: { id: req.params.id },
     data,
   });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'goods_type.update',
+    targetType: 'UnitGoodsType',
+    targetId: item.id,
+    businessLocationId: locationId,
+    before: { name: existing.name, emoji: existing.emoji, baseType: existing.baseType, enabled: existing.enabled },
+    after: { name: item.name, emoji: item.emoji, baseType: item.baseType, enabled: item.enabled },
+  });
   res.json(item);
 }));
 
 // DELETE /api/units/goods-types/:id
 router.delete('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
-  const existing = await prisma.unitGoodsType.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  const existing = await prisma.unitGoodsType.findUnique({ where: { id: req.params.id }, select: { unit: true, name: true, emoji: true, baseType: true } });
   if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
   const locationId = await resolveLocationId(req);
   if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
 
   await prisma.unitGoodsType.delete({ where: { id: req.params.id } });
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'goods_type.delete',
+    targetType: 'UnitGoodsType',
+    targetId: req.params.id,
+    businessLocationId: locationId,
+    before: { unit: existing.unit, name: existing.name, emoji: existing.emoji, baseType: existing.baseType },
+  });
   res.status(204).end();
 }));
 // ─────────────────────────────────────────────────────────────────────────────
@@ -441,6 +492,11 @@ router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMI
   const data = unitConfigSchema.parse(req.body);
   const locationId = await resolveLocationId(req);
 
+  const existingConfig = await prisma.unitConfig.findUnique({
+    where: { businessLocationId_unit: { businessLocationId: locationId, unit } },
+    select: { id: true, freshFoodEnabled: true, generalGoodsEnabled: true, thiCongEnabled: true, sundayFreshFoodOnly: true, truckSlotMinutes: true, motorbikeSlotMinutes: true, displayName: true, shortName: true },
+  });
+
   const config = await prisma.unitConfig.upsert({
     where: {
       businessLocationId_unit: {
@@ -454,6 +510,33 @@ router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMI
 
   const { vendorApiKey, poApiKey, ...safe } = config;
   void vendorApiKey; void poApiKey;
+  await recordAuditLog({
+    ...userActor(req.user),
+    action: 'unit_config.update',
+    targetType: 'UnitConfig',
+    targetId: config.id,
+    businessLocationId: locationId,
+    before: existingConfig ? {
+      freshFoodEnabled: existingConfig.freshFoodEnabled,
+      generalGoodsEnabled: existingConfig.generalGoodsEnabled,
+      thiCongEnabled: existingConfig.thiCongEnabled,
+      sundayFreshFoodOnly: existingConfig.sundayFreshFoodOnly,
+      truckSlotMinutes: existingConfig.truckSlotMinutes,
+      motorbikeSlotMinutes: existingConfig.motorbikeSlotMinutes,
+      displayName: existingConfig.displayName,
+      shortName: existingConfig.shortName,
+    } : undefined,
+    after: {
+      freshFoodEnabled: config.freshFoodEnabled,
+      generalGoodsEnabled: config.generalGoodsEnabled,
+      thiCongEnabled: config.thiCongEnabled,
+      sundayFreshFoodOnly: config.sundayFreshFoodOnly,
+      truckSlotMinutes: config.truckSlotMinutes,
+      motorbikeSlotMinutes: config.motorbikeSlotMinutes,
+      displayName: config.displayName,
+      shortName: config.shortName,
+    },
+  });
   res.json(safe);
 }));
 
