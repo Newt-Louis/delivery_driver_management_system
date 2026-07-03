@@ -14,6 +14,13 @@ import { LS_KEY } from '../constants';
 import type { FormState, RegisterFieldErrors, SuccessInfo, Unit } from '../types';
 import { isSundayDate, todayDate } from '../utils/date';
 
+const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
+  1: ['receivingUnit', 'goodsType', 'vehicleType'],
+  2: ['timeSlot', 'vendorName', 'poNumber'],
+  3: ['vehiclePlate', 'driverName', 'driverPhone'],
+  4: [],
+};
+
 export function useRegisterForm() {
   const [step, setStep] = useState(1);
   const [guideOpen, setGuideOpen] = useState(true);
@@ -21,6 +28,8 @@ export function useRegisterForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
+  const [returnToReviewAfterEdit, setReturnToReviewAfterEdit] = useState(false);
+  const [highlightedField, setHighlightedField] = useState<keyof FormState | null>(null);
 
   const [form, setForm] = useState<FormState>(() => {
     const saved = localStorage.getItem(LS_KEY);
@@ -67,6 +76,7 @@ export function useRegisterForm() {
   const set = useCallback((key: keyof FormState, val: string) => {
     setForm(f => ({ ...f, [key]: val }));
     setFieldErrors(e => { const n = { ...e }; delete n[key]; return n; });
+    setHighlightedField(current => current === key ? null : current);
   }, []);
 
   useEffect(() => {
@@ -167,6 +177,17 @@ export function useRegisterForm() {
     }
   }, [form.timeSlot, sundayFreshFoodBlocked]);
 
+  function scrollToFirstError(errs: RegisterFieldErrors) {
+    const firstField = REQUIRED_FIELDS_BY_STEP[step]?.find(field => errs[field]) ?? null;
+    setHighlightedField(firstField);
+    if (!firstField) return;
+
+    window.setTimeout(() => {
+      const fieldEl = contentRef.current?.querySelector<HTMLElement>(`[data-register-field="${firstField}"]`);
+      fieldEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+  }
+
   function validateStep(): boolean {
     const errs: RegisterFieldErrors = {};
     if (step === 1) {
@@ -186,6 +207,7 @@ export function useRegisterForm() {
       if (form.driverPhone.replace(/\D/g, '').length < 9) errs.driverPhone = 'Số điện thoại không hợp lệ (cần ít nhất 9 số)';
     }
     setFieldErrors(errs);
+    scrollToFirstError(errs);
     return Object.keys(errs).length === 0;
   }
 
@@ -200,13 +222,28 @@ export function useRegisterForm() {
         vendorCode: form.vendorCode,
       }));
     }
+    if (returnToReviewAfterEdit) {
+      setReturnToReviewAfterEdit(false);
+      setStep(4);
+      return;
+    }
     setStep(s => Math.min(s + 1, 4));
   }
 
   function back() {
     setFieldErrors({});
+    setHighlightedField(null);
     setSubmitError('');
+    setReturnToReviewAfterEdit(false);
     setStep(s => Math.max(s - 1, 1));
+  }
+
+  function editStepFromReview(targetStep: 1 | 2 | 3) {
+    setFieldErrors({});
+    setHighlightedField(null);
+    setSubmitError('');
+    setReturnToReviewAfterEdit(true);
+    setStep(targetStep);
   }
 
   async function submit() {
@@ -257,7 +294,9 @@ export function useRegisterForm() {
     setSuccess(null);
     setStep(1);
     setFieldErrors({});
+    setHighlightedField(null);
     setSubmitError('');
+    setReturnToReviewAfterEdit(false);
     setAwStatus('idle');
     setAwVendorName('');
     setForm(f => ({
@@ -276,10 +315,10 @@ export function useRegisterForm() {
 
   return {
     step,
-    setStep,
     guideOpen,
     setGuideOpen,
     fieldErrors,
+    highlightedField,
     submitting,
     submitError,
     success,
@@ -303,6 +342,7 @@ export function useRegisterForm() {
     set,
     next,
     back,
+    editStepFromReview,
     submit,
     resetForm,
   };

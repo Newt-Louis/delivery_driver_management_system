@@ -9,7 +9,7 @@ type ReviewSubmitStepProps = {
   awVendorName: string;
   submitError: string;
   set: SetFormField;
-  setStep: (step: number) => void;
+  onEditStep: (step: 1 | 2 | 3) => void;
 };
 
 export default function ReviewSubmitStep({
@@ -19,7 +19,7 @@ export default function ReviewSubmitStep({
   awVendorName,
   submitError,
   set,
-  setStep,
+  onEditStep,
 }: ReviewSubmitStepProps) {
   return (
     <div className="space-y-4">
@@ -64,13 +64,13 @@ export default function ReviewSubmitStep({
       </div>
 
       <div className="flex gap-2">
-        <button onClick={() => setStep(1)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
+        <button onClick={() => onEditStep(1)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
           ✏ Sửa điểm giao
         </button>
-        <button onClick={() => setStep(2)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
+        <button onClick={() => onEditStep(2)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
           ✏ Sửa giờ & đơn hàng
         </button>
-        <button onClick={() => setStep(3)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
+        <button onClick={() => onEditStep(3)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
           ✏ Sửa thông tin xe
         </button>
       </div>

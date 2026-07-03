@@ -1,4 +1,5 @@
 import type { UnitConfig, SlotInfo } from '../../../lib/types';
+import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import OtherTimeModal from '../components/OtherTimeModal';
 import { nextNDates } from '../utils/date';
@@ -7,6 +8,7 @@ import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
 type ScheduleStepProps = {
   form: FormState;
   fieldErrors: RegisterFieldErrors;
+  highlightedField: keyof FormState | null;
   unitConfig: UnitConfig | null;
   slots: SlotInfo[];
   slotsMsg: string;
@@ -22,6 +24,7 @@ type ScheduleStepProps = {
 export default function ScheduleStep({
   form,
   fieldErrors,
+  highlightedField,
   unitConfig,
   slots,
   slotsMsg,
@@ -68,7 +71,7 @@ export default function ScheduleStep({
         </div>
       )}
 
-      <div>
+      <FieldFrame field="timeSlot" highlightedField={highlightedField}>
         <p className="label">Chọn khung giờ <span className="text-red-400">*</span></p>
 
         {slotsLoading && (
@@ -174,7 +177,7 @@ export default function ScheduleStep({
         )}
 
         {fieldErrors.timeSlot && <FieldError text={fieldErrors.timeSlot} />}
-      </div>
+      </FieldFrame>
 
       {showOtherTimeModal && (
         <OtherTimeModal
@@ -189,7 +192,7 @@ export default function ScheduleStep({
         <p className="text-[11px] text-thiso-400 font-semibold uppercase tracking-wider mb-4">Thông tin đơn hàng</p>
       </div>
 
-      <div>
+      <FieldFrame field="vendorName" highlightedField={highlightedField}>
         <label className="label">Tên công ty / Nhà cung cấp <span className="text-red-400">*</span></label>
         <input
           type="text"
@@ -202,9 +205,9 @@ export default function ScheduleStep({
         />
         <FieldHint text="Tên công ty hoặc đơn vị bạn đại diện giao hàng" />
         {fieldErrors.vendorName && <FieldError text={fieldErrors.vendorName} />}
-      </div>
+      </FieldFrame>
 
-      <div>
+      <FieldFrame field="poNumber" highlightedField={highlightedField}>
         <label className="label">Số PO / Mã số thi công <span className="text-red-400">*</span></label>
         <input
           type="text"
@@ -217,7 +220,7 @@ export default function ScheduleStep({
         />
         <FieldHint text="Bắt buộc — sẽ được đối chiếu với hệ thống của đơn vị nhận hàng" />
         {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
-      </div>
+      </FieldFrame>
     </div>
   );
 }

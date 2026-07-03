@@ -10,10 +10,10 @@ import UnitGoodsVehicleStep from '../features/register/steps/UnitGoodsVehicleSte
 export default function Register() {
   const {
     step,
-    setStep,
     guideOpen,
     setGuideOpen,
     fieldErrors,
+    highlightedField,
     submitting,
     submitError,
     success,
@@ -37,6 +37,7 @@ export default function Register() {
     set,
     next,
     back,
+    editStepFromReview,
     submit,
     resetForm,
   } = useRegisterForm();
@@ -87,6 +88,7 @@ export default function Register() {
           <UnitGoodsVehicleStep
             form={form}
             fieldErrors={fieldErrors}
+            highlightedField={highlightedField}
             guideOpen={guideOpen}
             onDismissGuide={() => setGuideOpen(false)}
             unitConfig={unitConfig}
@@ -103,6 +105,7 @@ export default function Register() {
           <ScheduleStep
             form={form}
             fieldErrors={fieldErrors}
+            highlightedField={highlightedField}
             unitConfig={unitConfig}
             slots={slots}
             slotsMsg={slotsMsg}
@@ -120,6 +123,7 @@ export default function Register() {
           <DriverInfoStep
             form={form}
             fieldErrors={fieldErrors}
+            highlightedField={highlightedField}
             rememberInfo={rememberInfo}
             setRememberInfo={setRememberInfo}
             awStatus={awStatus}
@@ -136,7 +140,7 @@ export default function Register() {
             awVendorName={awVendorName}
             submitError={submitError}
             set={set}
-            setStep={setStep}
+            onEditStep={editStepFromReview}
           />
         )}
       </div>

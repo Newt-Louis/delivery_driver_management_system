@@ -1,6 +1,7 @@
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
 import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
 import type { VehicleAvailabilityOption } from '../api';
+import FieldFrame from '../components/FieldFrame';
 import ProcessGuide from '../components/ProcessGuide';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import { UNIT_STYLE, VEHICLE_INFO } from '../constants';
@@ -9,6 +10,7 @@ import type { FormState, RegisterFieldErrors, SetFormField, Unit } from '../type
 type UnitGoodsVehicleStepProps = {
   form: FormState;
   fieldErrors: RegisterFieldErrors;
+  highlightedField: keyof FormState | null;
   guideOpen: boolean;
   onDismissGuide: () => void;
   unitConfig: UnitConfig | null;
@@ -23,6 +25,7 @@ type UnitGoodsVehicleStepProps = {
 export default function UnitGoodsVehicleStep({
   form,
   fieldErrors,
+  highlightedField,
   guideOpen,
   onDismissGuide,
   unitConfig,
@@ -49,7 +52,7 @@ export default function UnitGoodsVehicleStep({
 
       {guideOpen && <ProcessGuide onDismiss={onDismissGuide} />}
 
-      <div>
+      <FieldFrame field="receivingUnit" highlightedField={highlightedField}>
         <p className="label">Bạn giao hàng đến đâu? <span className="text-red-400">*</span></p>
         <div className="space-y-2.5">
           {(['EMART', 'THISKYHALL', 'TENANT'] as Unit[]).map((u) => {
@@ -85,10 +88,10 @@ export default function UnitGoodsVehicleStep({
           })}
         </div>
         {fieldErrors.receivingUnit && <FieldError text={fieldErrors.receivingUnit} />}
-      </div>
+      </FieldFrame>
 
       {form.receivingUnit && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <FieldFrame field="goodsType" highlightedField={highlightedField} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
           <p className="label">Loại hàng bạn giao <span className="text-red-400">*</span></p>
           {!unitConfig && <p className="text-xs text-thiso-400 py-2">Đang tải...</p>}
           {unitConfig && (
@@ -161,11 +164,11 @@ export default function UnitGoodsVehicleStep({
             )
           )}
           {fieldErrors.goodsType && <FieldError text={fieldErrors.goodsType} />}
-        </div>
+        </FieldFrame>
       )}
 
       {form.goodsType && (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <FieldFrame field="vehicleType" highlightedField={highlightedField} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
           <p className="label">Loại phương tiện <span className="text-red-400">*</span></p>
           {vehicleAvailabilityLoading && (
             <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
@@ -208,7 +211,7 @@ export default function UnitGoodsVehicleStep({
           )}
           <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn đúng loại để hệ thống xếp đúng bãi'} />
           {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
-        </div>
+        </FieldFrame>
       )}
     </div>
   );

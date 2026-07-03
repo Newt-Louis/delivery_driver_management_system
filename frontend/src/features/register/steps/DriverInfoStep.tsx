@@ -1,9 +1,11 @@
+import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
 
 type DriverInfoStepProps = {
   form: FormState;
   fieldErrors: RegisterFieldErrors;
+  highlightedField: keyof FormState | null;
   rememberInfo: boolean;
   setRememberInfo: (updater: (value: boolean) => boolean) => void;
   awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
@@ -14,6 +16,7 @@ type DriverInfoStepProps = {
 export default function DriverInfoStep({
   form,
   fieldErrors,
+  highlightedField,
   rememberInfo,
   setRememberInfo,
   awStatus,
@@ -29,7 +32,7 @@ export default function DriverInfoStep({
         </div>
       )}
 
-      <div>
+      <FieldFrame field="vehiclePlate" highlightedField={highlightedField}>
         <label className="label">Biển số xe <span className="text-red-400">*</span></label>
         <input
           type="text"
@@ -45,9 +48,9 @@ export default function DriverInfoStep({
         />
         <FieldHint text="Ví dụ: 51C-123.45 — nhập chữ in hoa, không cần dấu cách" />
         {fieldErrors.vehiclePlate && <FieldError text={fieldErrors.vehiclePlate} />}
-      </div>
+      </FieldFrame>
 
-      <div>
+      <FieldFrame field="driverName" highlightedField={highlightedField}>
         <label className="label">Tên tài xế <span className="text-red-400">*</span></label>
         <input
           type="text"
@@ -59,9 +62,9 @@ export default function DriverInfoStep({
           style={{ fontSize: '16px' }}
         />
         {fieldErrors.driverName && <FieldError text={fieldErrors.driverName} />}
-      </div>
+      </FieldFrame>
 
-      <div>
+      <FieldFrame field="driverPhone" highlightedField={highlightedField}>
         <label className="label">Số điện thoại <span className="text-red-400">*</span></label>
         <input
           type="tel"
@@ -75,7 +78,7 @@ export default function DriverInfoStep({
         />
         <FieldHint text="Số này dùng để liên lạc khi cần. Không bắt buộc mã vùng." />
         {fieldErrors.driverPhone && <FieldError text={fieldErrors.driverPhone} />}
-      </div>
+      </FieldFrame>
 
       <div>
         <label className="label">
