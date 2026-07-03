@@ -2,10 +2,10 @@ import { Router, Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope } from '../middleware/auth';
 
 const router = Router();
-router.use(authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'));
+router.use(authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'));
 
 function dateRange(from?: string, to?: string) {
   const f = from ? new Date(from) : new Date(Date.now() - 30 * 86400_000);
@@ -25,19 +25,38 @@ function slotUnitClause(unit?: string) {
   return Prisma.sql`AND s.assigned_unit = ${u}::"ReceivingUnit"`;
 }
 
+async function resolveReportScope(req: Request): Promise<{ businessLocationId?: string; unitFilter?: string }> {
+  const queryUnit = typeof req.query.unit === 'string' ? req.query.unit : undefined;
+
+  if (req.user?.role !== 'SUPERADMIN' && req.user?.businessLocationId) {
+    const unitConfigs = await prisma.unitConfig.findMany({
+      where: { businessLocationId: req.user.businessLocationId },
+      select: { unit: true },
+    });
+    const scopedUnits = [...new Set(unitConfigs.map((c) => c.unit))];
+    if (scopedUnits.length === 0) return { businessLocationId: req.user.businessLocationId, unitFilter: undefined };
+    const effectiveUnit = queryUnit && scopedUnits.includes(queryUnit as never) ? queryUnit : undefined;
+    return { businessLocationId: req.user.businessLocationId, unitFilter: effectiveUnit };
+  }
+
+  return { unitFilter: queryUnit };
+}
+
 // ─── Overview ─────────────────────────────────────────────────────────────────
 router.get('/overview', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit } = req.query as Record<string, string>;
+  const { from, to } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
-  const unitFilter = unit ? { receivingUnit: unit as never } : {};
+  const unit = unitFilter;
+  const unitWhere = unit ? { receivingUnit: unit as never } : {};
   const uc = unitClause(unit);
 
   const [total, byStatus, avgWait, avgReceiving, checkinOnTime] = await Promise.all([
-    prisma.deliveryRegistration.count({ where: { createdAt: range, ...unitFilter } }),
+    prisma.deliveryRegistration.count({ where: { createdAt: range, ...unitWhere } }),
 
     prisma.deliveryRegistration.groupBy({
       by: ['status'],
-      where: { createdAt: range, ...unitFilter },
+      where: { createdAt: range, ...unitWhere },
       _count: { id: true },
     }),
 
@@ -58,7 +77,7 @@ router.get('/overview', asyncHandler(async (req: Request, res: Response) => {
     `),
 
     prisma.deliveryRegistration.count({
-      where: { createdAt: range, ...unitFilter, checkinTime: { not: null }, requestedTime: { not: null } },
+      where: { createdAt: range, ...unitWhere, checkinTime: { not: null }, requestedTime: { not: null } },
     }),
   ]);
 
@@ -78,21 +97,22 @@ router.get('/overview', asyncHandler(async (req: Request, res: Response) => {
 
 // ─── Breakdown ────────────────────────────────────────────────────────────────
 router.get('/breakdown', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit } = req.query as Record<string, string>;
+  const { from, to } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
-  const unitFilter = unit ? { receivingUnit: unit as never } : {};
+  const unitWhere = unitFilter ? { receivingUnit: unitFilter as never } : {};
 
   const [byGoods, byVehicle, byUnit] = await Promise.all([
     prisma.deliveryRegistration.groupBy({
-      by: ['goodsType'], where: { createdAt: range, ...unitFilter },
+      by: ['goodsType'], where: { createdAt: range, ...unitWhere },
       _count: { id: true }, orderBy: { _count: { id: 'desc' } },
     }),
     prisma.deliveryRegistration.groupBy({
-      by: ['vehicleType'], where: { createdAt: range, ...unitFilter },
+      by: ['vehicleType'], where: { createdAt: range, ...unitWhere },
       _count: { id: true }, orderBy: { _count: { id: 'desc' } },
     }),
     prisma.deliveryRegistration.groupBy({
-      by: ['receivingUnit'], where: { createdAt: range },
+      by: ['receivingUnit'], where: { createdAt: range, ...(unitFilter ? { receivingUnit: unitFilter as never } : {}) },
       _count: { id: true }, orderBy: { _count: { id: 'desc' } },
     }),
   ]);
@@ -106,9 +126,10 @@ router.get('/breakdown', asyncHandler(async (req: Request, res: Response) => {
 
 // ─── Daily trend ──────────────────────────────────────────────────────────────
 router.get('/daily-trend', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit } = req.query as Record<string, string>;
+  const { from, to } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
-  const uc = unitClause(unit);
+  const uc = unitClause(unitFilter);
 
   type TrendRow = { day: Date; total: bigint; completed: bigint };
   const rows = await prisma.$queryRaw<TrendRow[]>(Prisma.sql`
@@ -131,9 +152,10 @@ router.get('/daily-trend', asyncHandler(async (req: Request, res: Response) => {
 
 // ─── Hourly heatmap ───────────────────────────────────────────────────────────
 router.get('/hourly-heatmap', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit } = req.query as Record<string, string>;
+  const { from, to } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
-  const uc = unitClause(unit);
+  const uc = unitClause(unitFilter);
 
   type HeatRow = { hour: number; dow: number; cnt: bigint };
   const rows = await prisma.$queryRaw<HeatRow[]>(Prisma.sql`
@@ -153,11 +175,12 @@ router.get('/hourly-heatmap', asyncHandler(async (req: Request, res: Response) =
 
 // ─── Delivery history (paginated) ─────────────────────────────────────────────
 router.get('/deliveries', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit, goodsType, vehicleType, status, search, page = '1', limit = '50' } = req.query as Record<string, string>;
+  const { from, to, goodsType, vehicleType, status, search, page = '1', limit = '50' } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
   const where = {
     createdAt: range,
-    ...(unit        && { receivingUnit: unit        as never }),
+    ...(unitFilter  && { receivingUnit: unitFilter  as never }),
     ...(goodsType   && { goodsType:   goodsType     as never }),
     ...(vehicleType && { vehicleType: vehicleType   as never }),
     ...(status      && { status:      status        as never }),
@@ -191,9 +214,10 @@ router.get('/deliveries', asyncHandler(async (req: Request, res: Response) => {
 
 // ─── Slot performance ─────────────────────────────────────────────────────────
 router.get('/slot-performance', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit } = req.query as Record<string, string>;
+  const { from, to } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
-  const suc = slotUnitClause(unit);
+  const suc = slotUnitClause(unitFilter);
 
   type SlotRow = {
     slotId: string; slotCode: string; slotName: string;
@@ -251,9 +275,10 @@ router.get('/slot-performance', asyncHandler(async (req: Request, res: Response)
 
 // ─── AI slot recommendations ──────────────────────────────────────────────────
 router.get('/ai-slot-recommendations', asyncHandler(async (req: Request, res: Response) => {
-  const { from, to, unit } = req.query as Record<string, string>;
+  const { from, to } = req.query as Record<string, string>;
+  const { unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
-  const suc = slotUnitClause(unit);
+  const suc = slotUnitClause(unitFilter);
 
   type SlotRow = {
     slotId: string; slotCode: string; vehicleType: string; assignedUnit: string;

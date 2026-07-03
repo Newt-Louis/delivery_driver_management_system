@@ -3,7 +3,7 @@ import { AuditActorType, Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope } from '../middleware/auth';
 
 const router = Router();
 
@@ -21,11 +21,15 @@ const querySchema = z.object({
   cursor: z.string().optional(),
 });
 
-router.get('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const query = querySchema.parse(req.query);
 
+  const forcedBusinessLocationId = req.user?.role !== 'SUPERADMIN'
+    ? req.user?.businessLocationId
+    : query.businessLocationId;
+
   const where: Prisma.AuditLogWhereInput = {
-    ...(query.businessLocationId ? { businessLocationId: query.businessLocationId } : {}),
+    ...(forcedBusinessLocationId ? { businessLocationId: forcedBusinessLocationId } : {}),
     ...(query.unitConfigId ? { unitConfigId: query.unitConfigId } : {}),
     ...(query.action ? { action: query.action } : {}),
     ...(query.targetType ? { targetType: query.targetType } : {}),

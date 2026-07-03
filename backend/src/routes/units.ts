@@ -3,11 +3,26 @@ import { z } from 'zod';
 import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { publicReadLimiter } from '../middleware/rateLimit';
 import { getDefaultBusinessLocation, getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 
 const router = Router();
+
+async function resolveLocationId(req: Request): Promise<string> {
+  if (req.user?.role === 'SUPERADMIN') {
+    return req.scope?.businessLocationId ?? (await getDefaultBusinessLocation()).id;
+  }
+  return req.user!.businessLocationId!;
+}
+
+async function assertUnitInLocation(unit: ReceivingUnit, businessLocationId: string): Promise<boolean> {
+  const config = await prisma.unitConfig.findUnique({
+    where: { businessLocationId_unit: { businessLocationId, unit } },
+    select: { id: true },
+  });
+  return !!config;
+}
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(':').map(Number);
@@ -67,10 +82,10 @@ async function getMatchingOperationalSlots(args: {
 }
 
 // GET /api/units/configs — Admin: all unit configs
-router.get('/configs', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
-  const location = await getDefaultBusinessLocation();
+router.get('/configs', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const locationId = await resolveLocationId(req);
   const configs = await prisma.unitConfig.findMany({
-    where: { businessLocationId: location.id },
+    where: { businessLocationId: locationId },
     orderBy: { unit: 'asc' },
   });
   res.json(configs);
@@ -91,8 +106,10 @@ const timeWindowSchema = z.object({
 });
 
 // GET /api/units/:unit/time-windows?goodsType=FRESH_FOOD&unitGoodsTypeId=xxx
-router.get('/:unit/time-windows', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.get('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit            = req.params.unit.toUpperCase() as ReceivingUnit;
+  const locationId      = await resolveLocationId(req);
+  if (!await assertUnitInLocation(unit, locationId)) { res.status(404).json({ error: 'Config not found' }); return; }
   const goodsType       = req.query.goodsType       as GoodsType | undefined;
   const unitGoodsTypeId = req.query.unitGoodsTypeId as string    | undefined;
 
@@ -114,8 +131,10 @@ router.get('/:unit/time-windows', authenticate, requireRole('SUPERADMIN', 'ADMIN
 }));
 
 // POST /api/units/:unit/time-windows
-router.post('/:unit/time-windows', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
+  const locationId = await resolveLocationId(req);
+  if (!await assertUnitInLocation(unit, locationId)) { res.status(404).json({ error: 'Config not found' }); return; }
   const data = timeWindowSchema.parse(req.body);
   const win = await prisma.deliveryTimeWindow.create({
     data: {
@@ -132,7 +151,12 @@ router.post('/:unit/time-windows', authenticate, requireRole('SUPERADMIN', 'ADMI
 }));
 
 // PATCH /api/units/time-windows/:id  (no /:unit prefix — id is sufficient)
-router.patch('/time-windows/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const existing = await prisma.deliveryTimeWindow.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+  const locationId = await resolveLocationId(req);
+  if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
   const data = timeWindowSchema.omit({ goodsType: true, unitGoodsTypeId: true }).partial().parse(req.body);
   const win = await prisma.deliveryTimeWindow.update({
     where: { id: req.params.id },
@@ -142,7 +166,12 @@ router.patch('/time-windows/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN
 }));
 
 // DELETE /api/units/time-windows/:id
-router.delete('/time-windows/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const existing = await prisma.deliveryTimeWindow.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+  const locationId = await resolveLocationId(req);
+  if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
   await prisma.deliveryTimeWindow.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));
@@ -175,8 +204,10 @@ router.get('/:unit/goods-types', asyncHandler(async (req: Request, res: Response
 }));
 
 // POST /api/units/:unit/goods-types
-router.post('/:unit/goods-types', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/:unit/goods-types', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
+  const locationId = await resolveLocationId(req);
+  if (!await assertUnitInLocation(unit, locationId)) { res.status(404).json({ error: 'Config not found' }); return; }
   const data = unitGoodsTypeSchema.parse(req.body);
   const item = await prisma.unitGoodsType.create({
     data: { unit, name: data.name, emoji: data.emoji, baseType: data.baseType as GoodsType, sortOrder: data.sortOrder ?? 0 },
@@ -185,7 +216,12 @@ router.post('/:unit/goods-types', authenticate, requireRole('SUPERADMIN', 'ADMIN
 }));
 
 // PATCH /api/units/goods-types/:id
-router.patch('/goods-types/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const existing = await prisma.unitGoodsType.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+  const locationId = await resolveLocationId(req);
+  if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
   const data = unitGoodsTypeSchema.omit({ baseType: true }).partial().parse(req.body);
   const item = await prisma.unitGoodsType.update({
     where: { id: req.params.id },
@@ -195,7 +231,12 @@ router.patch('/goods-types/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_
 }));
 
 // DELETE /api/units/goods-types/:id
-router.delete('/goods-types/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const existing = await prisma.unitGoodsType.findUnique({ where: { id: req.params.id }, select: { unit: true } });
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return; }
+  const locationId = await resolveLocationId(req);
+  if (!await assertUnitInLocation(existing.unit, locationId)) { res.status(403).json({ error: 'Forbidden' }); return; }
+
   await prisma.unitGoodsType.delete({ where: { id: req.params.id } });
   res.status(204).end();
 }));
@@ -395,19 +436,19 @@ const unitConfigSchema = z.object({
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
 });
 
-router.patch('/:unit/config', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
   const data = unitConfigSchema.parse(req.body);
-  const location = await getDefaultBusinessLocation();
+  const locationId = await resolveLocationId(req);
 
   const config = await prisma.unitConfig.upsert({
     where: {
       businessLocationId_unit: {
-        businessLocationId: location.id,
+        businessLocationId: locationId,
         unit,
       },
     },
-    create: { businessLocationId: location.id, unit, ...data },
+    create: { businessLocationId: locationId, unit, ...data },
     update: data,
   });
 

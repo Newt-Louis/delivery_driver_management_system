@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../lib/prisma';
+import type { SocketScope } from '../socket';
 
 export interface AuthUser {
   id: string;
@@ -14,6 +15,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      scope?: SocketScope;
     }
   }
 }
@@ -73,4 +75,65 @@ export function requireRole(...roles: string[]) {
     }
     next();
   };
+}
+
+/**
+ * Enforce businessLocationId scope for non-SUPERADMIN roles.
+ * - SUPERADMIN: optional scope from query params (or undefined = full system access)
+ * - Non-SUPERADMIN: forced scope from user.businessLocationId (query params ignored for businessLocationId)
+ *
+ * Sets req.scope = { businessLocationId?, unitConfigId? }
+ */
+export function enforceScope(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const queryUnitConfigId = typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined;
+
+  if (req.user.role === 'SUPERADMIN') {
+    req.scope = {
+      businessLocationId: typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined,
+      unitConfigId: queryUnitConfigId,
+    };
+  } else {
+    if (!req.user.businessLocationId) {
+      res.status(403).json({ error: 'Tài khoản chưa được gán khu vực hoạt động.' });
+      return;
+    }
+    req.scope = {
+      businessLocationId: req.user.businessLocationId,
+      unitConfigId: queryUnitConfigId,
+    };
+  }
+  next();
+}
+
+/**
+ * Verify a resource belongs to the user's enforced scope.
+ * For SUPERADMIN: always allowed (full system access).
+ * For non-SUPERADMIN: resource's businessLocationId must match user's scope.
+ *
+ * @returns true if allowed, false if access denied (response already sent)
+ */
+export function enforceResourceScope(
+  req: Request,
+  res: Response,
+  resourceBusinessLocationId: string | null | undefined,
+): boolean {
+  if (!req.user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return false;
+  }
+  if (req.user.role === 'SUPERADMIN') return true;
+  if (!resourceBusinessLocationId) {
+    res.status(403).json({ error: 'Không thể xác định khu vực của tài nguyên này.' });
+    return false;
+  }
+  if (resourceBusinessLocationId !== req.user.businessLocationId) {
+    res.status(403).json({ error: 'Tài nguyên không thuộc khu vực của bạn.' });
+    return false;
+  }
+  return true;
 }

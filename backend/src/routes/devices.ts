@@ -4,7 +4,7 @@ import { DeviceType } from '@prisma/client';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { recordAuditLog, userActor } from '../services/auditLog';
 
 const router = Router();
@@ -33,16 +33,23 @@ const createSchema = z.object({
 
 const updateSchema = createSchema.omit({ code: true, businessLocationId: true }).partial();
 
-router.get('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (_req: Request, res: Response) => {
+router.get('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+  const where: Record<string, unknown> = {};
+  if (req.user?.role !== 'SUPERADMIN' && req.user?.businessLocationId) {
+    where.businessLocationId = req.user.businessLocationId;
+  }
   const devices = await prisma.device.findMany({
+    where,
     select: SAFE_SELECT,
     orderBy: [{ isActive: 'desc' }, { deviceType: 'asc' }, { code: 'asc' }],
   });
   res.json(devices);
 }));
 
-router.post('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.post('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = createSchema.parse(req.body);
+
+  if (!enforceResourceScope(req, res, body.businessLocationId)) return;
 
   const location = await prisma.businessLocation.findUnique({ where: { id: body.businessLocationId } });
   if (!location) {
@@ -84,13 +91,14 @@ router.post('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHand
   res.status(201).json(device);
 }));
 
-router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const body = updateSchema.parse(req.body);
   const existing = await prisma.device.findUnique({ where: { id: req.params.id } });
   if (!existing) {
     res.status(404).json({ error: 'Device not found' });
     return;
   }
+  if (!enforceResourceScope(req, res, existing.businessLocationId)) return;
 
   const deviceSecretHash = body.deviceSecret
     ? await bcrypt.hash(body.deviceSecret, 10)
@@ -129,12 +137,13 @@ router.patch('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), async
   res.json(device);
 }));
 
-router.delete('/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
+router.delete('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const existing = await prisma.device.findUnique({ where: { id: req.params.id } });
   if (!existing) {
     res.status(404).json({ error: 'Device not found' });
     return;
   }
+  if (!enforceResourceScope(req, res, existing.businessLocationId)) return;
 
   const device = await prisma.device.update({
     where: { id: req.params.id },
