@@ -277,6 +277,8 @@ function TrackContent({ code }: { code: string }) {
   const prevStatusRef   = useRef<string | null>(null);
   const prevPositionRef = useRef<number | null>(null);
   const wakeLockRef = useRef<{ release(): Promise<void> } | null>(null);
+  const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const audioIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [wakeLockActive, setWakeLockActive] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [deviceAlertsReady, setDeviceAlertsReady] = useState(
@@ -291,6 +293,19 @@ function TrackContent({ code }: { code: string }) {
     buzz([40]);
     localStorage.setItem('track_device_alerts_ready', '1');
     setDeviceAlertsReady(true);
+  }
+
+  function stopCalledAlerts() {
+    if (vibrationIntervalRef.current) {
+      clearInterval(vibrationIntervalRef.current);
+      vibrationIntervalRef.current = null;
+    }
+    if (audioIntervalRef.current) {
+      clearInterval(audioIntervalRef.current);
+      audioIntervalRef.current = null;
+    }
+    // Stop any ongoing vibration immediately
+    buzz([]);
   }
 
   // Unlock AudioContext on first user touch (required by iOS Safari).
@@ -517,10 +532,18 @@ function TrackContent({ code }: { code: string }) {
 
     if (delivery.status === 'CALLED') {
       const slot = delivery.assignedSlot?.code ?? 'dock';
+      // First fire immediately
       buzz([300, 150, 300, 150, 600, 150, 600]);
-      playChimeWithCtx(ensureAudio(), 10); // 10-second bell, same as waiting screen
+      playChimeWithCtx(ensureAudio(), 10);
       sendNotification(`🚛 Xe bạn được gọi vào ${slot}!`, delivery.vehiclePlate, 'called');
       setStatusAlert({ title: `🚛 Được gọi vào ${slot}!`, body: `${delivery.vehiclePlate} — Di chuyển vào dock ngay`, level: 'urgent' });
+      // Repeat alerts until dismissed
+      vibrationIntervalRef.current = setInterval(() => {
+        buzz([300, 150, 300, 150, 600]);
+      }, 3000);
+      audioIntervalRef.current = setInterval(() => {
+        playChimeWithCtx(ensureAudio(), 10);
+      }, 10000);
     } else if (delivery.status === 'WAITING') {
       buzz([120]);
       playBeeps([{ freq: 660, start: 0, dur: 0.3 }]);
@@ -532,6 +555,16 @@ function TrackContent({ code }: { code: string }) {
       sendNotification('✅ Giao hàng hoàn thành!', delivery.vehiclePlate, 'completed');
       setStatusAlert({ title: '✅ Giao hàng hoàn thành!', body: 'Cảm ơn bạn — bạn có thể rời đi', level: 'info' });
     }
+  }, [delivery?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Stop repeating alerts when status changes away from CALLED or delivery unmounts
+  useEffect(() => {
+    if (!delivery || delivery.status !== 'CALLED') {
+      stopCalledAlerts();
+    }
+    return () => {
+      stopCalledAlerts();
+    };
   }, [delivery?.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track queue position changes for WAITING deliveries
@@ -644,10 +677,8 @@ function TrackContent({ code }: { code: string }) {
       {/* Full-screen status alert overlay */}
       {statusAlert && (
         <div
-          className={`fixed inset-0 z-[60] flex flex-col items-center justify-center p-8 text-center
-            ${statusAlert.level === 'urgent' ? 'bg-sky-600' : 'bg-green-600'}
-          `}
-          onClick={() => setStatusAlert(null)}
+          className="fixed inset-0 z-[60] flex flex-col items-center justify-center p-8 text-center bg-green-600"
+          onClick={() => { setStatusAlert(null); stopCalledAlerts(); }}
         >
           {statusAlert.level === 'urgent' && (
             <div className="absolute inset-0 animate-ping opacity-20 rounded-none bg-white pointer-events-none" />
