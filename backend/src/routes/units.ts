@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, VehicleType } from '@prisma/client';
+import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
@@ -16,6 +16,54 @@ function timeToMinutes(t: string): number {
 
 function minutesToTime(m: number): string {
   return `${Math.floor(m / 60).toString().padStart(2, '0')}:${(m % 60).toString().padStart(2, '0')}`;
+}
+
+function unitAcceptsGoods(config: { freshFoodEnabled: boolean; generalGoodsEnabled: boolean; thiCongEnabled: boolean }, goodsType: GoodsType): boolean {
+  if (goodsType === GoodsType.FRESH_FOOD) return config.freshFoodEnabled;
+  if (goodsType === GoodsType.GENERAL_GOODS || goodsType === GoodsType.AUTO_WAREHOUSE) return config.generalGoodsEnabled;
+  if (goodsType === GoodsType.THI_CONG) return config.thiCongEnabled;
+  return false;
+}
+
+function slotAcceptsGoods(slot: { acceptedGoods: GoodsType[]; autoWarehouseOnly: boolean }, goodsType: GoodsType): boolean {
+  const acceptedGoods = slot.acceptedGoods;
+
+  if (slot.autoWarehouseOnly) {
+    return goodsType === GoodsType.AUTO_WAREHOUSE;
+  }
+  if (goodsType === GoodsType.AUTO_WAREHOUSE) {
+    return false;
+  }
+  if (acceptedGoods.length === 0) {
+    return true;
+  }
+  return acceptedGoods.includes(goodsType);
+}
+
+async function getMatchingOperationalSlots(args: {
+  unitConfigId: string;
+  unit: ReceivingUnit;
+  goodsType: GoodsType;
+  vehicleType?: VehicleType;
+}) {
+  const slots = await prisma.slot.findMany({
+    where: {
+      assignedUnit: args.unit,
+      isActive: true,
+      status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
+      ...(args.vehicleType ? { vehicleType: args.vehicleType } : {}),
+      zone: { unitConfigId: args.unitConfigId },
+    },
+    select: {
+      id: true,
+      vehicleType: true,
+      maxCapacity: true,
+      acceptedGoods: true,
+      autoWarehouseOnly: true,
+    },
+  });
+
+  return slots.filter(slot => slotAcceptsGoods(slot, args.goodsType));
 }
 
 // GET /api/units/configs — Admin: all unit configs
@@ -164,6 +212,53 @@ router.get('/:unit/config', asyncHandler(async (req: Request, res: Response) => 
   res.json(safe);
 }));
 
+// GET /api/units/:unit/vehicle-availability?goodsType=FRESH_FOOD&unitGoodsTypeId=xxx
+router.get('/:unit/vehicle-availability', publicReadLimiter, asyncHandler(async (req: Request, res: Response) => {
+  const unit = req.params.unit.toUpperCase() as ReceivingUnit;
+  const goodsType = req.query.goodsType as GoodsType | undefined;
+
+  if (!goodsType) {
+    res.status(400).json({ error: 'goodsType required' });
+    return;
+  }
+
+  const config = await getUnitConfigForDefaultLocation(unit);
+  if (!config) { res.status(404).json({ error: 'Config not found' }); return; }
+
+  if (!unitAcceptsGoods(config, goodsType)) {
+    res.json({ vehicles: [], reason: 'Đơn vị này không nhận loại hàng đã chọn' });
+    return;
+  }
+
+  const slots = await getMatchingOperationalSlots({
+    unitConfigId: config.id,
+    unit,
+    goodsType,
+  });
+
+  const capacityByVehicle = new Map<VehicleType, { slotCount: number; capacity: number }>();
+  for (const slot of slots) {
+    const current = capacityByVehicle.get(slot.vehicleType) ?? { slotCount: 0, capacity: 0 };
+    capacityByVehicle.set(slot.vehicleType, {
+      slotCount: current.slotCount + 1,
+      capacity: current.capacity + slot.maxCapacity,
+    });
+  }
+
+  const vehicleOrder: VehicleType[] = [VehicleType.TRUCK, VehicleType.MOTORBIKE, VehicleType.OTHER];
+  const vehicles = vehicleOrder
+    .map(vehicleType => {
+      const stats = capacityByVehicle.get(vehicleType);
+      return stats ? { vehicleType, ...stats } : null;
+    })
+    .filter(Boolean);
+
+  res.json({
+    vehicles,
+    reason: vehicles.length === 0 ? 'Không có slot khả dụng cho loại hàng này' : undefined,
+  });
+}));
+
 // GET /api/units/:unit/slots?date=YYYY-MM-DD&goodsType=FRESH_FOOD&vehicleType=TRUCK&unitGoodsTypeId=xxx
 router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req: Request, res: Response) => {
   const unit = req.params.unit.toUpperCase() as ReceivingUnit;
@@ -190,23 +285,25 @@ router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req: Request, 
     return;
   }
 
-  // Check enabled
-  if (goodsType === 'FRESH_FOOD' && !config.freshFoodEnabled) {
-    res.json({ slots: [], reason: 'Đơn vị này không nhận hàng tươi sống' });
-    return;
-  }
-  if ((goodsType === 'GENERAL_GOODS' || goodsType === 'AUTO_WAREHOUSE') && !config.generalGoodsEnabled) {
-    res.json({ slots: [], reason: 'Đơn vị này không nhận hàng thường' });
-    return;
-  }
-  if (goodsType === 'THI_CONG' && !config.thiCongEnabled) {
-    res.json({ slots: [], reason: 'Đơn vị này không nhận hàng thi công' });
+  if (!unitAcceptsGoods(config, goodsType as GoodsType)) {
+    res.json({ slots: [], reason: 'Đơn vị này không nhận loại hàng đã chọn' });
     return;
   }
 
   const isMotorbike = vehicleType === 'MOTORBIKE';
   const slotMinutes = isMotorbike ? config.motorbikeSlotMinutes : config.truckSlotMinutes;
-  const maxPerSlot = isMotorbike ? config.motorbikeMaxPerSlot : config.truckMaxPerSlot;
+  const matchingSlots = await getMatchingOperationalSlots({
+    unitConfigId: config.id,
+    unit,
+    goodsType: goodsType as GoodsType,
+    vehicleType: vehicleType as VehicleType,
+  });
+  const maxPerSlot = matchingSlots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
+
+  if (maxPerSlot <= 0) {
+    res.json({ slots: [], reason: 'Không có slot khả dụng cho loại xe và loại hàng này' });
+    return;
+  }
 
   // Prefer windows scoped to the specific custom goods type; fall back to base-type windows.
   let timeWindows = unitGoodsTypeId
@@ -244,7 +341,7 @@ router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req: Request, 
       goodsType: goodsType as GoodsType,
       vehicleType: vehicleType as VehicleType,
       requestedTime: { gte: dayStart, lte: dayEnd },
-      status: DeliveryStatus.REGISTERED,
+      status: { in: [DeliveryStatus.REGISTERED, DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
     },
     select: { requestedTime: true },
   });

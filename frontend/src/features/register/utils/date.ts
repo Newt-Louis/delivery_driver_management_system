@@ -18,3 +18,9 @@ export function nextNDates(n: number): DateOption[] {
   }
   return result;
 }
+
+export function isSundayDate(date: string): boolean {
+  const [year, month, day] = date.split('-').map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(year, month - 1, day).getDay() === 0;
+}

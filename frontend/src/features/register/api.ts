@@ -20,11 +20,18 @@ export type RegisterDeliveryPayload = {
   poNumber: string;
   vendorCode?: string;
   requestedTime?: string;
+  deliveryDate?: string;
   note?: string;
 };
 
 export type RegisterDeliveryResponse = {
   registrationCode: string;
+};
+
+export type VehicleAvailabilityOption = {
+  vehicleType: VehicleType;
+  slotCount: number;
+  capacity: number;
 };
 
 export async function getUnitConfig(unit: ReceivingUnit): Promise<UnitConfig> {
@@ -42,6 +49,14 @@ export async function getSlotAvailability(
   params: SlotAvailabilityParams,
 ): Promise<{ slots: SlotInfo[]; reason?: string }> {
   const res = await api.get(`/api/units/${unit}/slots`, { params });
+  return res.data;
+}
+
+export async function getVehicleAvailability(
+  unit: ReceivingUnit,
+  params: { goodsType: GoodsType; unitGoodsTypeId?: string },
+): Promise<{ vehicles: VehicleAvailabilityOption[]; reason?: string }> {
+  const res = await api.get(`/api/units/${unit}/vehicle-availability`, { params });
   return res.data;
 }
 

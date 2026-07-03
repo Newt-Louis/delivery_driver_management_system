@@ -16,6 +16,7 @@ import { getScopeForDelivery } from '../services/realtimeScope';
 import { recordAuditLog, systemActor, userActor } from '../services/auditLog';
 import { reserveRegistrationCode } from '../services/registrationSequence';
 import { publicWriteLimiter } from '../middleware/rateLimit';
+import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -109,8 +110,20 @@ const registerSchema = z.object({
   poNumber: z.string().optional(),
   vendorCode: z.string().optional(),
   requestedTime: z.string().optional(),
+  deliveryDate: z.string().optional(),
   note: z.string().optional(),
 });
+
+function isSundayDeliveryDate(requestedTime?: Date | null, deliveryDate?: string): boolean {
+  if (requestedTime) {
+    return requestedTime.getDay() === 0;
+  }
+  if (!deliveryDate) return false;
+
+  const [year, month, day] = deliveryDate.split('-').map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(year, month - 1, day).getDay() === 0;
+}
 
 // POST /api/deliveries/auto-dispatch/:unit  — manually trigger auto-assign for a unit
 router.post('/auto-dispatch/:unit', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
@@ -161,6 +174,19 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
     } else {
       resolvedVendorCode = normalized;
     }
+  }
+
+  const config = await getUnitConfigForDefaultLocation(body.receivingUnit);
+  if (
+    config?.sundayFreshFoodOnly
+    && isSundayDeliveryDate(requestedTime, body.deliveryDate)
+    && resolvedGoodsType !== GoodsType.FRESH_FOOD
+  ) {
+    res.status(422).json({
+      error: 'SundayFreshFoodOnly',
+      message: 'Chủ nhật chỉ nhận hàng tươi sống',
+    });
+    return;
   }
 
   const delivery = await prisma.$transaction(async (tx) => {

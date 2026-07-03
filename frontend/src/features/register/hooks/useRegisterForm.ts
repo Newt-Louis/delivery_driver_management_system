@@ -5,12 +5,14 @@ import {
   getSlotAvailability,
   getUnitConfig,
   getUnitGoodsTypes,
+  getVehicleAvailability,
   registerDelivery,
   type SlotAvailabilityParams,
+  type VehicleAvailabilityOption,
 } from '../api';
 import { LS_KEY } from '../constants';
 import type { FormState, RegisterFieldErrors, SuccessInfo, Unit } from '../types';
-import { todayDate } from '../utils/date';
+import { isSundayDate, todayDate } from '../utils/date';
 
 export function useRegisterForm() {
   const [step, setStep] = useState(1);
@@ -46,11 +48,21 @@ export function useRegisterForm() {
   const [slots, setSlots] = useState<SlotInfo[]>([]);
   const [slotsMsg, setSlotsMsg] = useState('');
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [vehicleAvailability, setVehicleAvailability] = useState<VehicleAvailabilityOption[]>([]);
+  const [vehicleAvailabilityMsg, setVehicleAvailabilityMsg] = useState('');
+  const [vehicleAvailabilityLoading, setVehicleAvailabilityLoading] = useState(false);
   const [awStatus, setAwStatus] = useState<'idle' | 'loading' | 'match' | 'nomatch'>('idle');
   const [awVendorName, setAwVendorName] = useState('');
   const awDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showOtherTimeModal, setShowOtherTimeModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const sundayFreshFoodBlocked = Boolean(
+    unitConfig?.sundayFreshFoodOnly
+      && form.deliveryDate
+      && isSundayDate(form.deliveryDate)
+      && form.goodsType
+      && form.goodsType !== 'FRESH_FOOD',
+  );
 
   const set = useCallback((key: keyof FormState, val: string) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -61,11 +73,41 @@ export function useRegisterForm() {
     if (!form.receivingUnit) {
       setUnitConfig(null);
       setCustomGoodsTypes([]);
+      setVehicleAvailability([]);
+      setVehicleAvailabilityMsg('');
       return;
     }
     getUnitConfig(form.receivingUnit).then(setUnitConfig).catch(() => {});
     getUnitGoodsTypes(form.receivingUnit).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
   }, [form.receivingUnit]);
+
+  useEffect(() => {
+    if (!form.receivingUnit || !form.goodsType) {
+      setVehicleAvailability([]);
+      setVehicleAvailabilityMsg('');
+      return;
+    }
+
+    setVehicleAvailability([]);
+    setVehicleAvailabilityMsg('');
+    setVehicleAvailabilityLoading(true);
+    const params = {
+      goodsType: form.goodsType,
+      ...(form.unitGoodsTypeId ? { unitGoodsTypeId: form.unitGoodsTypeId } : {}),
+    };
+
+    getVehicleAvailability(form.receivingUnit, params)
+      .then(data => {
+        const vehicles = data.vehicles ?? [];
+        setVehicleAvailability(vehicles);
+        setVehicleAvailabilityMsg(data.reason ?? '');
+        if (form.vehicleType && !vehicles.some(v => v.vehicleType === form.vehicleType)) {
+          setForm(f => ({ ...f, vehicleType: '' }));
+        }
+      })
+      .catch(() => setVehicleAvailabilityMsg('Không thể tải loại phương tiện khả dụng. Vui lòng thử lại.'))
+      .finally(() => setVehicleAvailabilityLoading(false));
+  }, [form.receivingUnit, form.goodsType, form.unitGoodsTypeId]);
 
   useEffect(() => {
     if (step !== 2 || !form.receivingUnit || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
@@ -119,6 +161,12 @@ export function useRegisterForm() {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
+  useEffect(() => {
+    if (sundayFreshFoodBlocked && form.timeSlot) {
+      setForm(f => ({ ...f, timeSlot: '' }));
+    }
+  }, [form.timeSlot, sundayFreshFoodBlocked]);
+
   function validateStep(): boolean {
     const errs: RegisterFieldErrors = {};
     if (step === 1) {
@@ -127,7 +175,8 @@ export function useRegisterForm() {
       else if (!form.vehicleType) errs.vehicleType = 'Vui lòng chọn loại phương tiện';
     }
     if (step === 2) {
-      if (!form.timeSlot) errs.timeSlot = 'Vui lòng chọn khung giờ giao hàng';
+      if (sundayFreshFoodBlocked) errs.timeSlot = 'Chủ nhật chỉ nhận hàng tươi sống';
+      else if (!form.timeSlot) errs.timeSlot = 'Vui lòng chọn khung giờ giao hàng';
       if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
       if (!form.poNumber.trim()) errs.poNumber = 'Vui lòng nhập Số PO hoặc Mã số thi công';
     }
@@ -180,6 +229,7 @@ export function useRegisterForm() {
         poNumber: form.poNumber,
         vendorCode: form.vendorCode || undefined,
         requestedTime,
+        deliveryDate: form.deliveryDate,
         note: form.note || undefined,
       });
       setSuccess({
@@ -241,6 +291,10 @@ export function useRegisterForm() {
     slots,
     slotsMsg,
     slotsLoading,
+    vehicleAvailability,
+    vehicleAvailabilityMsg,
+    vehicleAvailabilityLoading,
+    sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
     showOtherTimeModal,

@@ -13,6 +13,7 @@ type ScheduleStepProps = {
   slotsLoading: boolean;
   slotMinutes: number | undefined;
   maxPerSlot: number | undefined;
+  sundayFreshFoodBlocked: boolean;
   showOtherTimeModal: boolean;
   setShowOtherTimeModal: (value: boolean) => void;
   set: SetFormField;
@@ -27,6 +28,7 @@ export default function ScheduleStep({
   slotsLoading,
   slotMinutes,
   maxPerSlot,
+  sundayFreshFoodBlocked,
   showOtherTimeModal,
   setShowOtherTimeModal,
   set,
@@ -80,6 +82,13 @@ export default function ScheduleStep({
           <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 flex items-start gap-2">
             <span className="flex-shrink-0">⚠</span>
             <span>{slotsMsg}</span>
+          </div>
+        )}
+
+        {sundayFreshFoodBlocked && !slotsMsg && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 flex items-start gap-2">
+            <span className="flex-shrink-0">⚠</span>
+            <span>Chủ nhật chỉ nhận hàng tươi sống</span>
           </div>
         )}
 
@@ -141,26 +150,28 @@ export default function ScheduleStep({
           </div>
         )}
 
-        <div className="mt-3">
-          <button
-            type="button"
-            onClick={() => setShowOtherTimeModal(true)}
-            className={`w-full h-12 flex items-center justify-center gap-2 rounded-xl border-2 font-semibold text-sm transition-all
-              ${form.timeSlot === 'OTHER'
-                ? 'border-amber-500 bg-amber-500 text-white'
-                : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
-          >
-            <span>⏰</span>
-            <span>
-              {form.timeSlot === 'OTHER'
-                ? '✓ Không có giờ cụ thể (đã chọn)'
-                : 'Khác — Đăng ký không có giờ cụ thể'}
-            </span>
-          </button>
-          {form.timeSlot !== 'OTHER' && (
-            <p className="text-[11px] text-thiso-400 mt-1 text-center">Dùng khi tất cả slot đầy hoặc không tìm được giờ phù hợp</p>
-          )}
-        </div>
+        {!sundayFreshFoodBlocked && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setShowOtherTimeModal(true)}
+              className={`w-full h-12 flex items-center justify-center gap-2 rounded-xl border-2 font-semibold text-sm transition-all
+                ${form.timeSlot === 'OTHER'
+                  ? 'border-amber-500 bg-amber-500 text-white'
+                  : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100'}`}
+            >
+              <span>⏰</span>
+              <span>
+                {form.timeSlot === 'OTHER'
+                  ? '✓ Không có giờ cụ thể (đã chọn)'
+                  : 'Khác — Đăng ký không có giờ cụ thể'}
+              </span>
+            </button>
+            {form.timeSlot !== 'OTHER' && (
+              <p className="text-[11px] text-thiso-400 mt-1 text-center">Dùng khi tất cả slot đầy hoặc không tìm được giờ phù hợp</p>
+            )}
+          </div>
+        )}
 
         {fieldErrors.timeSlot && <FieldError text={fieldErrors.timeSlot} />}
       </div>

@@ -1,9 +1,10 @@
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
 import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
+import type { VehicleAvailabilityOption } from '../api';
 import ProcessGuide from '../components/ProcessGuide';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import { UNIT_STYLE, VEHICLE_INFO } from '../constants';
-import type { FormState, RegisterFieldErrors, SetFormField, Unit, VehicleType } from '../types';
+import type { FormState, RegisterFieldErrors, SetFormField, Unit } from '../types';
 
 type UnitGoodsVehicleStepProps = {
   form: FormState;
@@ -12,6 +13,9 @@ type UnitGoodsVehicleStepProps = {
   onDismissGuide: () => void;
   unitConfig: UnitConfig | null;
   customGoodsTypes: UnitGoodsType[];
+  vehicleAvailability: VehicleAvailabilityOption[];
+  vehicleAvailabilityMsg: string;
+  vehicleAvailabilityLoading: boolean;
   brandUnits: Record<Unit, UnitBranding>;
   set: SetFormField;
 };
@@ -23,6 +27,9 @@ export default function UnitGoodsVehicleStep({
   onDismissGuide,
   unitConfig,
   customGoodsTypes,
+  vehicleAvailability,
+  vehicleAvailabilityMsg,
+  vehicleAvailabilityLoading,
   brandUnits,
   set,
 }: UnitGoodsVehicleStepProps) {
@@ -160,28 +167,45 @@ export default function UnitGoodsVehicleStep({
       {form.goodsType && (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-200">
           <p className="label">Loại phương tiện <span className="text-red-400">*</span></p>
-          <div className="grid grid-cols-3 gap-3">
-            {(Object.keys(VEHICLE_INFO) as VehicleType[]).map((v) => {
-              const info = VEHICLE_INFO[v];
-              const active = form.vehicleType === v;
-              const mins = v === 'TRUCK' ? unitConfig?.truckSlotMinutes : v === 'MOTORBIKE' ? unitConfig?.motorbikeSlotMinutes : null;
-              return (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => set('vehicleType', v)}
-                  className={`p-3.5 rounded-2xl border-2 text-center transition-all
-                    ${active
-                      ? `${info.activeBorder} ${info.activeBg} shadow-card-md scale-[1.03]`
-                      : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                >
-                  <div className="text-2xl mb-1.5">{info.icon}</div>
-                  <p className="font-bold text-xs text-thiso-800">{info.label}</p>
-                  {mins && <p className="text-[10px] text-thiso-400 mt-0.5">{mins} phút</p>}
-                </button>
-              );
-            })}
-          </div>
+          {vehicleAvailabilityLoading && (
+            <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
+              Đang kiểm tra slot phù hợp...
+            </div>
+          )}
+          {!vehicleAvailabilityLoading && vehicleAvailability.length > 0 && (
+            <div className="grid grid-cols-3 gap-3">
+              {vehicleAvailability.map(({ vehicleType, slotCount, capacity }) => {
+                const info = VEHICLE_INFO[vehicleType];
+                const active = form.vehicleType === vehicleType;
+                const mins = vehicleType === 'TRUCK'
+                  ? unitConfig?.truckSlotMinutes
+                  : vehicleType === 'MOTORBIKE'
+                    ? unitConfig?.motorbikeSlotMinutes
+                    : null;
+                return (
+                  <button
+                    key={vehicleType}
+                    type="button"
+                    onClick={() => set('vehicleType', vehicleType)}
+                    className={`p-3.5 rounded-2xl border-2 text-center transition-all
+                      ${active
+                        ? `${info.activeBorder} ${info.activeBg} shadow-card-md scale-[1.03]`
+                        : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
+                  >
+                    <div className="text-2xl mb-1.5">{info.icon}</div>
+                    <p className="font-bold text-xs text-thiso-800">{info.label}</p>
+                    {mins && <p className="text-[10px] text-thiso-400 mt-0.5">{mins} phút</p>}
+                    <p className="text-[10px] text-thiso-400 mt-0.5">{slotCount} slot · {capacity} chỗ</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && (
+            <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
+              {vehicleAvailabilityMsg || 'Không có slot phù hợp cho loại hàng này.'}
+            </div>
+          )}
           <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn đúng loại để hệ thống xếp đúng bãi'} />
           {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
         </div>

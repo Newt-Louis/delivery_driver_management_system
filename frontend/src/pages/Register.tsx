@@ -25,6 +25,10 @@ export default function Register() {
     slots,
     slotsMsg,
     slotsLoading,
+    vehicleAvailability,
+    vehicleAvailabilityMsg,
+    vehicleAvailabilityLoading,
+    sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
     showOtherTimeModal,
@@ -87,6 +91,9 @@ export default function Register() {
             onDismissGuide={() => setGuideOpen(false)}
             unitConfig={unitConfig}
             customGoodsTypes={customGoodsTypes}
+            vehicleAvailability={vehicleAvailability}
+            vehicleAvailabilityMsg={vehicleAvailabilityMsg}
+            vehicleAvailabilityLoading={vehicleAvailabilityLoading}
             brandUnits={brandUnits}
             set={set}
           />
@@ -102,6 +109,7 @@ export default function Register() {
             slotsLoading={slotsLoading}
             slotMinutes={slotMinutes}
             maxPerSlot={maxPerSlot}
+            sundayFreshFoodBlocked={sundayFreshFoodBlocked}
             showOtherTimeModal={showOtherTimeModal}
             setShowOtherTimeModal={setShowOtherTimeModal}
             set={set}
@@ -152,7 +160,8 @@ export default function Register() {
             <button
               type="button"
               onClick={next}
-              className="h-12 flex-1 rounded-xl bg-thiso-800 text-white font-bold text-base hover:bg-thiso-900 transition-colors active:scale-[0.98]"
+              disabled={step === 2 && sundayFreshFoodBlocked}
+              className="h-12 flex-1 rounded-xl bg-thiso-800 text-white font-bold text-base hover:bg-thiso-900 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-thiso-800"
             >
               Tiếp theo →
             </button>
