@@ -1,6 +1,8 @@
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
 import {
   DeliveryStatus,
   GoodsType,
@@ -16,6 +18,7 @@ import { completeDelivery } from '../services/deliveryLifecycle';
 import { triggerAutoAssign } from '../services/autoAssign';
 import { getVNDateKey } from '../lib/dateVN';
 import { getIO, initSocket } from '../socket';
+import deliveryRoutes from '../routes/deliveries';
 
 const server = createServer();
 initSocket(server);
@@ -27,6 +30,13 @@ after(async () => {
 
 let counter = 0;
 
+const ACTIVE_REGISTRATION_STATUSES: DeliveryStatus[] = [
+  DeliveryStatus.REGISTERED,
+  DeliveryStatus.WAITING,
+  DeliveryStatus.CALLED,
+  DeliveryStatus.RECEIVING,
+  DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
+];
 type TestScope = {
   prefix: string;
   businessLocationId: string;
@@ -49,7 +59,13 @@ function nextPrefix(label: string): string {
 async function cleanupPrefix(prefix: string): Promise<void> {
   const [deliveries, slots, zones, unitConfigs, locations, users] = await Promise.all([
     prisma.deliveryRegistration.findMany({
-      where: { registrationCode: { startsWith: prefix } },
+      where: {
+        OR: [
+          { registrationCode: { startsWith: prefix } },
+          { vehiclePlate: { startsWith: prefix } },
+          { note: prefix },
+        ],
+      },
       select: { id: true },
     }),
     prisma.slot.findMany({
@@ -269,12 +285,42 @@ async function restoreTicketSequence(snapshot: TicketSequenceSnapshot): Promise<
   });
 }
 
+function localDateTimeAfterDays(days: number, hour: number, minute: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  date.setHours(hour, minute, 0, 0);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  const hh = String(date.getHours()).padStart(2, '0');
+  const mi = String(date.getMinutes()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:00`;
+}
+async function withRegisterServer<T>(fn: (baseUrl: string) => Promise<T>): Promise<T> {
+  const app = express();
+  app.use(express.json());
+  app.use('/api/deliveries', deliveryRoutes);
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+  });
+
+  const httpServer = createServer(app);
+  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  const { port } = httpServer.address() as AddressInfo;
+  try {
+    return await fn(`http://127.0.0.1:${port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      httpServer.close((err) => (err ? reject(err) : resolve()));
+    });
+  }
+}
 async function skipAutoAssignIfForeignWaiting(
   t: { skip: (message?: string) => void },
   prefix: string,
   unit: ReceivingUnit,
   vehicleType: VehicleType,
-): Promise<void> {
+): Promise<boolean> {
   const foreignWaiting = await prisma.deliveryRegistration.count({
     where: {
       receivingUnit: unit,
@@ -287,9 +333,119 @@ async function skipAutoAssignIfForeignWaiting(
     t.skip(
       `Skipped auto-assign isolation check because ${foreignWaiting} non-test ${unit}/${vehicleType} WAITING deliveries exist.`,
     );
+    return true;
   }
+  return false;
 }
 
+test('50 concurrent identical registrations create one active delivery', async () => {
+  await withRegisterServer(async (baseUrl) => {
+    const prefix = nextPrefix('REGDUP50');
+    await cleanupPrefix(prefix);
+    const vehiclePlate = `${prefix}PLATE`;
+    const payload = {
+      vendorName: 'Concurrent Vendor',
+      driverName: 'Concurrent Driver',
+      driverPhone: '0900000000',
+      vehiclePlate,
+      vehicleType: 'TRUCK',
+      receivingUnit: 'EMART',
+      goodsType: 'GENERAL_GOODS',
+      note: prefix,
+    };
+
+    try {
+      const responses = await Promise.all(
+        Array.from({ length: 50 }, () => fetch(`${baseUrl}/api/deliveries/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })),
+      );
+
+      const statuses = responses.map((res) => res.status);
+      assert.equal(statuses.filter((status) => status === 201).length, 1);
+      assert.equal(statuses.filter((status) => status === 409).length, 49);
+
+      const deliveries = await prisma.deliveryRegistration.findMany({
+        where: {
+          vehiclePlate,
+          status: { in: ACTIVE_REGISTRATION_STATUSES },
+        },
+      });
+      assert.equal(deliveries.length, 1);
+    } finally {
+      await cleanupPrefix(prefix);
+    }
+  });
+});
+test('50 concurrent registrations for one time slot respect configured capacity', async () => {
+  await withRegisterServer(async (baseUrl) => {
+    const prefix = nextPrefix('REGSLOT50');
+    await cleanupPrefix(prefix);
+    const location = await prisma.businessLocation.findFirst({
+      where: { isActive: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    assert.ok(location);
+
+    const config = await prisma.unitConfig.findUnique({
+      where: {
+        businessLocationId_unit: {
+          businessLocationId: location.id,
+          unit: ReceivingUnit.EMART,
+        },
+      },
+    });
+    assert.ok(config);
+
+    const originalTruckMaxPerSlot = config.truckMaxPerSlot;
+    const requestedTime = localDateTimeAfterDays(30, 3, 17);
+
+    try {
+      await prisma.unitConfig.update({
+        where: { id: config.id },
+        data: { truckMaxPerSlot: 1 },
+      });
+
+      const responses = await Promise.all(
+        Array.from({ length: 50 }, (_, i) => fetch(`${baseUrl}/api/deliveries/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendorName: 'Concurrent Slot Vendor',
+            driverName: `Driver ${i}`,
+            driverPhone: `091${String(i).padStart(7, '0')}`,
+            vehiclePlate: `${prefix}${String(i).padStart(3, '0')}`,
+            vehicleType: 'TRUCK',
+            receivingUnit: 'EMART',
+            goodsType: 'GENERAL_GOODS',
+            requestedTime,
+            note: prefix,
+          }),
+        })),
+      );
+
+      const statuses = responses.map((res) => res.status);
+      assert.equal(statuses.filter((status) => status === 201).length, 1);
+      assert.equal(statuses.filter((status) => status === 409).length, 49);
+
+      const deliveries = await prisma.deliveryRegistration.findMany({
+        where: {
+          note: prefix,
+          status: DeliveryStatus.REGISTERED,
+        },
+      });
+      assert.equal(deliveries.length, 1);
+    } finally {
+      await prisma.unitConfig.update({
+        where: { id: config.id },
+        data: { truckMaxPerSlot: originalTruckMaxPerSlot },
+      });
+      await cleanupPrefix(prefix);
+    }
+  });
+});
 test('20 concurrent check-ins receive unique ticket numbers', async () => {
   const snapshot = await captureTicketSequence(ReceivingUnit.EMART, VehicleType.TRUCK);
   try {
@@ -442,7 +598,7 @@ test('concurrent complete requests complete once and reconcile slot to AVAILABLE
 
 test('3 concurrent complete requests trigger auto-assign for the next delivery only once', async (t) => {
   await withScope('COMPAUTO', ReceivingUnit.EMART, async (scope) => {
-    await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK);
+    if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
     const slot = await createSlot(scope, { suffix: 'S1' });
     const active = await createDelivery(scope, 1, {
       status: DeliveryStatus.CALLED,
@@ -489,7 +645,7 @@ test('3 concurrent complete requests trigger auto-assign for the next delivery o
 
 test('auto-assign does not put AUTO_WAREHOUSE delivery into a normal slot', async (t) => {
   await withScope('AWBLOCK', ReceivingUnit.EMART, async (scope) => {
-    await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK);
+    if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
     const slot = await createSlot(scope, { suffix: 'S1', acceptedGoods: [], autoWarehouseOnly: false });
     const delivery = await createDelivery(scope, 1, {
       status: DeliveryStatus.WAITING,
@@ -515,7 +671,7 @@ test('auto-assign does not put AUTO_WAREHOUSE delivery into a normal slot', asyn
 
 test('auto-assign prioritizes FRESH_FOOD over older general goods for normal slot', async (t) => {
   await withScope('FRESHFIRST', ReceivingUnit.EMART, async (scope) => {
-    await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK);
+    if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
     const slot = await createSlot(scope, { suffix: 'S1', acceptedGoods: [] });
     const olderGeneral = await createDelivery(scope, 1, {
       status: DeliveryStatus.WAITING,

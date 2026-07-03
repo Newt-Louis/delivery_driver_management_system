@@ -13,7 +13,8 @@
     "db:migrate": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
-    "test:load": "artillery run load-test.yml"
+    "test:load": "artillery run load-test.yml",
+    "test:register-race": "node scripts/register-race.js"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
