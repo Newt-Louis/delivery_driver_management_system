@@ -99,6 +99,20 @@ async function getRegistrationSlotCapacity(unit: ReceivingUnit, vehicleType: Veh
   return vehicleType === VehicleType.MOTORBIKE ? config.motorbikeMaxPerSlot : config.truckMaxPerSlot;
 }
 
+async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnit[]> {
+  if (!scope?.businessLocationId && !scope?.unitConfigId) return [];
+
+  const unitConfigs = await prisma.unitConfig.findMany({
+    where: {
+      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+      ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
+    },
+    select: { unit: true },
+  });
+
+  return [...new Set(unitConfigs.map((cfg) => cfg.unit))];
+}
+
 async function ensureRegistrationSlotCapacity(
   tx: Prisma.TransactionClient,
   args: {
