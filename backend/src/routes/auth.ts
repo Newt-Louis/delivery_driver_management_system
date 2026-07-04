@@ -29,21 +29,23 @@ router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: R
   }
 
   const secret = process.env.JWT_SECRET ?? 'fallback-secret';
+  const userPayload = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    unit: user.unit,
+    businessLocationId: user.businessLocationId,
+  };
   const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, name: user.name, businessLocationId: user.businessLocationId },
+    userPayload,
     secret,
     { expiresIn: '24h' }
   );
 
   res.json({
     token,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      businessLocationId: user.businessLocationId,
-    },
+    user: userPayload,
   });
 }));
 

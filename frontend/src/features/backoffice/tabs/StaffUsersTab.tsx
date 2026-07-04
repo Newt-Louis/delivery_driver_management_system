@@ -15,6 +15,7 @@ import type { StaffUser } from '../types';
 type StaffRoleValue = 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
 
 const STAFF_ROLES: StaffRoleValue[] = ['ADMIN_OPE', 'RECEIVING', 'CHECKIN'];
+const UNIT_REQUIRED_ROLES: StaffRoleValue[] = ['RECEIVING', 'CHECKIN'];
 
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -43,9 +44,15 @@ function StaffUserModal({
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const unitRequired = UNIT_REQUIRED_ROLES.includes(form.role);
 
   function set(key: string, value: string | boolean) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key === 'role' && UNIT_REQUIRED_ROLES.includes(value as StaffRoleValue) && !current.unit) {
+        return { ...current, role: value as StaffRoleValue, unit: unitConfigs[0]?.unit ?? '' };
+      }
+      return { ...current, [key]: value };
+    });
     setError('');
   }
 
@@ -53,6 +60,7 @@ function StaffUserModal({
     e.preventDefault();
     if (!form.name.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (!isEdit && form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự.'); return; }
+    if (unitRequired && !form.unit) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn đơn vị.'); return; }
 
     setSaving(true);
     setError('');
@@ -127,13 +135,14 @@ function StaffUserModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Đơn vị</label>
+            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Đơn vị{unitRequired ? ' *' : ''}</label>
             <select className="input w-full" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-              <option value="">— Tất cả đơn vị —</option>
+              {!unitRequired && <option value="">— Tất cả đơn vị —</option>}
               {unitConfigs.map((cfg) => (
                 <option key={cfg.id} value={cfg.unit}>{UNIT_META_U[cfg.unit] ?? cfg.displayName ?? cfg.unit}</option>
               ))}
             </select>
+            {unitRequired && <p className="text-[11px] text-thiso-400 mt-1">Tài khoản thao tác tại hiện trường phải bị giới hạn theo một đơn vị cụ thể.</p>}
           </div>
 
           <div>

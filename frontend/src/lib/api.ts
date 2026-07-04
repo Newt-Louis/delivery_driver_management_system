@@ -7,6 +7,8 @@ export const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+let authRedirecting = false;
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -17,9 +19,12 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     const url: string = err.config?.url ?? '';
+    const hasBearerToken = Boolean(err.config?.headers?.Authorization);
+    const isLogin = url.includes('/api/auth/login');
     // Track action endpoints use staffPin auth — 401 means wrong PIN, not expired session
     const isTrackAction = url.includes('/api/track/');
-    if (err.response?.status === 401 && !isTrackAction) {
+    if (err.response?.status === 401 && hasBearerToken && !isLogin && !isTrackAction && !authRedirecting) {
+      authRedirecting = true;
       const message = err.response?.data?.message ?? 'Phiên đăng nhập hết hạn.';
       localStorage.removeItem('token');
       localStorage.removeItem('user');

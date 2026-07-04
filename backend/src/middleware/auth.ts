@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   role: string;
   name: string;
+  unit: string | null;
   businessLocationId: string | null;
 }
 
@@ -56,6 +57,7 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
         email: user.email,
         role: user.role,
         name: user.name,
+        unit: user.unit,
         businessLocationId: user.businessLocationId,
       };
       next();
@@ -107,6 +109,22 @@ export function enforceScope(req: Request, res: Response, next: NextFunction): v
       unitConfigId: queryUnitConfigId,
     };
   }
+  next();
+}
+
+/**
+ * Public/read-only scope resolver for routes intentionally available without login
+ * (waiting screen, public queue reads). It only trusts explicit query scope.
+ */
+export function resolvePublicScope(req: Request, _res: Response, next: NextFunction): void {
+  const businessLocationId = typeof req.query.businessLocationId === 'string'
+    ? req.query.businessLocationId
+    : undefined;
+  const unitConfigId = typeof req.query.unitConfigId === 'string'
+    ? req.query.unitConfigId
+    : undefined;
+
+  req.scope = { businessLocationId, unitConfigId };
   next();
 }
 

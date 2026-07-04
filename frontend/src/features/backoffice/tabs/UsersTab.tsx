@@ -21,6 +21,7 @@ const ROLE_META: Record<string, { label: string; color: string; icon: string }> 
 const UNIT_META_U: Record<string, string> = {
   EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)',
 };
+const UNIT_REQUIRED_ROLES = ['RECEIVING', 'CHECKIN'];
 
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -47,14 +48,24 @@ function UserModal({
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const unitRequired = UNIT_REQUIRED_ROLES.includes(form.role);
 
   function set(k: string, v: string | boolean) {
-    setForm((f) => ({ ...f, [k]: v }));
+    setForm((f) => {
+      if (k === 'role' && UNIT_REQUIRED_ROLES.includes(v as string) && !f.unit) {
+        return { ...f, role: v as string, unit: 'EMART' };
+      }
+      return { ...f, [k]: v };
+    });
     setError('');
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (unitRequired && !form.unit) {
+      setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn đơn vị.');
+      return;
+    }
     setSaving(true); setError('');
     try {
       const payload = {
@@ -128,15 +139,18 @@ function UserModal({
           </div>
 
           {/* Unit */}
-          <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Đơn vị</label>
-            <select className="input w-full" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-              <option value="">— Tất cả đơn vị —</option>
-              <option value="EMART">🏬 Emart</option>
-              <option value="THISKYHALL">🏢 Thiskyhall</option>
-              <option value="TENANT">🏪 Mall (Khách thuê)</option>
-            </select>
-          </div>
+          {form.role !== 'SUPERADMIN' && (
+            <div>
+              <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Đơn vị{unitRequired ? ' *' : ''}</label>
+              <select className="input w-full" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
+                {!unitRequired && <option value="">— Tất cả đơn vị —</option>}
+                <option value="EMART">🏬 Emart</option>
+                <option value="THISKYHALL">🏢 Thiskyhall</option>
+                <option value="TENANT">🏪 Mall (Khách thuê)</option>
+              </select>
+              {unitRequired && <p className="text-[11px] text-thiso-400 mt-1">RECEIVING và CHECKIN chỉ được thao tác trong một đơn vị cụ thể.</p>}
+            </div>
+          )}
 
           {/* Business Location */}
           {form.role !== 'SUPERADMIN' && (
