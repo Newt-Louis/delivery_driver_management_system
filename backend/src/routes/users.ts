@@ -18,13 +18,15 @@ const SAFE_SELECT = {
 
 const USER_ROLES = ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
 const LOCATION_STAFF_ROLES = ['ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
+const UNIT_REQUIRED_ROLES = ['RECEIVING', 'CHECKIN'] as const;
+const UNIT_VALUES = ['EMART', 'THISKYHALL', 'TENANT'] as const;
 
 const createSchema = z.object({
   name:       z.string().min(1).max(80),
   email:      z.string().email(),
   password:   z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
   role:       z.enum(USER_ROLES),
-  unit:       z.enum(['EMART', 'THISKYHALL', 'TENANT']).nullable().optional(),
+  unit:       z.enum(UNIT_VALUES).nullable().optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
 });
@@ -32,7 +34,7 @@ const createSchema = z.object({
 const updateSchema = z.object({
   name:       z.string().min(1).max(80).optional(),
   role:       z.enum(USER_ROLES).optional(),
-  unit:       z.enum(['EMART', 'THISKYHALL', 'TENANT']).nullable().optional(),
+  unit:       z.enum(UNIT_VALUES).nullable().optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
   isActive:   z.boolean().optional(),
@@ -47,7 +49,7 @@ const locationStaffCreateSchema = z.object({
   email: z.string().trim().email().nullable().optional(),
   password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
   role: z.enum(LOCATION_STAFF_ROLES),
-  unit: z.enum(['EMART', 'THISKYHALL', 'TENANT']).nullable().optional(),
+  unit: z.enum(UNIT_VALUES).nullable().optional(),
   department: z.string().max(100).nullable().optional(),
 });
 
@@ -55,7 +57,7 @@ const locationStaffUpdateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   email: z.string().trim().email().nullable().optional(),
   role: z.enum(LOCATION_STAFF_ROLES).optional(),
-  unit: z.enum(['EMART', 'THISKYHALL', 'TENANT']).nullable().optional(),
+  unit: z.enum(UNIT_VALUES).nullable().optional(),
   department: z.string().max(100).nullable().optional(),
   isActive: z.boolean().optional(),
 });
@@ -78,6 +80,38 @@ async function assertBusinessLocationScope(role: string, businessLocationId: str
     throw Object.assign(new Error('BusinessLocation không tồn tại'), { statusCode: 400 });
   }
   return businessLocationId;
+}
+
+async function assertUnitScope(role: string, unit: string | null | undefined, businessLocationId: string | null) {
+  if (role === 'SUPERADMIN') return null;
+
+  const normalizedUnit = unit ?? null;
+
+  if ((UNIT_REQUIRED_ROLES as readonly string[]).includes(role) && !normalizedUnit) {
+    throw Object.assign(new Error('Tài khoản RECEIVING và CHECKIN bắt buộc phải chọn đơn vị.'), { statusCode: 400 });
+  }
+
+  if (!normalizedUnit) return null;
+
+  if (!businessLocationId) {
+    throw Object.assign(new Error('Không thể gán đơn vị nếu tài khoản chưa thuộc BusinessLocation.'), { statusCode: 400 });
+  }
+
+  const unitConfig = await prisma.unitConfig.findUnique({
+    where: {
+      businessLocationId_unit: {
+        businessLocationId,
+        unit: normalizedUnit as never,
+      },
+    },
+    select: { id: true },
+  });
+
+  if (!unitConfig) {
+    throw Object.assign(new Error('Đơn vị không tồn tại trong BusinessLocation của tài khoản.'), { statusCode: 400 });
+  }
+
+  return normalizedUnit;
 }
 
 async function assertSingleSuperadmin(targetUserId?: string) {
@@ -146,6 +180,7 @@ router.post('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHand
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) { res.status(409).json({ error: 'Email đã được sử dụng' }); return; }
+  const unit = await assertUnitScope(body.role, body.unit ?? null, businessLocationId);
 
   const passwordHash = await bcrypt.hash(body.password, 10);
   const user = await prisma.user.create({
@@ -154,7 +189,7 @@ router.post('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHand
       email,
       passwordHash,
       role: body.role,
-      unit: body.unit ?? null,
+      unit: unit as never,
       department: body.department ?? null,
       businessLocationId,
     },
@@ -188,13 +223,15 @@ router.patch('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyn
   }
 
   const nextRole = body.role ?? existing.role;
+  const nextUnit = body.unit !== undefined ? body.unit : existing.unit;
+  const unit = await assertUnitScope(nextRole, nextUnit ?? null, businessLocationId);
   const email = body.email !== undefined ? normalizeOptionalEmail(body.email, nextRole) : undefined;
   const user = await prisma.user.update({
     where: { id: req.params.id },
     data: {
       ...(body.name !== undefined && { name: body.name }),
       ...(body.role !== undefined && { role: body.role }),
-      ...(body.unit !== undefined && { unit: body.unit ?? null }),
+      unit: unit as never,
       ...(body.department !== undefined && { department: body.department ?? null }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(email !== undefined && { email }),
@@ -290,6 +327,7 @@ router.post('/', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (re
   if (exists) { res.status(409).json({ error: 'Email đã được sử dụng' }); return; }
   if (body.role === 'SUPERADMIN') await assertSingleSuperadmin();
   const businessLocationId = await assertBusinessLocationScope(body.role, body.businessLocationId ?? null);
+  const unit = await assertUnitScope(body.role, body.unit ?? null, businessLocationId);
 
   const passwordHash = await bcrypt.hash(body.password, 10);
   const user = await prisma.user.create({
@@ -298,7 +336,7 @@ router.post('/', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (re
       email: body.email,
       passwordHash,
       role: body.role as never,
-      unit: body.unit ?? null,
+      unit: unit as never,
       department: body.department ?? null,
       businessLocationId,
     },
@@ -337,13 +375,15 @@ router.patch('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(async
     : existing.businessLocationId;
   if (nextRole === 'SUPERADMIN') await assertSingleSuperadmin(req.params.id);
   const businessLocationId = await assertBusinessLocationScope(nextRole, nextBusinessLocationId ?? null);
+  const nextUnit = body.unit !== undefined ? body.unit : existing.unit;
+  const unit = await assertUnitScope(nextRole, nextUnit ?? null, businessLocationId);
 
   const user = await prisma.user.update({
     where: { id: req.params.id },
     data: {
       ...(body.name       !== undefined && { name: body.name }),
       ...(body.role       !== undefined && { role: body.role as never }),
-      ...(body.unit       !== undefined && { unit: body.unit ?? null }),
+      unit: unit as never,
       ...(body.department !== undefined && { department: body.department ?? null }),
       businessLocationId,
       ...(body.isActive   !== undefined && { isActive: body.isActive }),

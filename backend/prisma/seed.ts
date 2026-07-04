@@ -103,9 +103,9 @@ async function main() {
     data: [
       { name: 'Super Admin', email: 'superadmin@mall.com', passwordHash: pw, role: Role.SUPERADMIN },
       { name: 'Admin Location', email: 'admin@mall.com', passwordHash: pw, role: Role.ADMIN_LOC, businessLocationId: defaultLocation.id },
-      { name: 'Admin Vận hành', email: 'operator@mall.com', passwordHash: pw, role: Role.ADMIN_OPE, businessLocationId: defaultLocation.id },
-      { name: 'Nhân viên nhận', email: 'receiving@mall.com', passwordHash: pw, role: Role.RECEIVING, businessLocationId: defaultLocation.id },
-      { name: 'Nhân viên check-in', email: 'checkin@mall.com', passwordHash: pw, role: Role.CHECKIN, businessLocationId: defaultLocation.id },
+      { name: 'Admin Vận hành', email: 'operator@mall.com', passwordHash: pw, role: Role.ADMIN_OPE, unit: ReceivingUnit.EMART, businessLocationId: defaultLocation.id },
+      { name: 'Nhân viên nhận', email: 'receiving@mall.com', passwordHash: pw, role: Role.RECEIVING, unit: ReceivingUnit.EMART, businessLocationId: defaultLocation.id },
+      { name: 'Nhân viên check-in', email: 'checkin@mall.com', passwordHash: pw, role: Role.CHECKIN, unit: ReceivingUnit.EMART, businessLocationId: defaultLocation.id },
     ],
   });
   console.log('✅ Users created  (password: password123)');

@@ -32,7 +32,7 @@ async function getAllSlotsWithDeliveries(activeOnly = true, scope?: SocketScope)
 }
 
 // GET /api/slots — active slots (Dashboard, SlotManagement, CallModal)
-router.get('/', enforceScope, asyncHandler(async (req: Request, res: Response) => {
+router.get('/', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
   res.json(await getAllSlotsWithDeliveries(true, req.scope));
 }));
 

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { DeliveryStatus, GoodsType, ReceivingUnit, VehicleType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
+import { authenticate, requireRole, enforceScope, enforceResourceScope, resolvePublicScope } from '../middleware/auth';
 import { triggerAutoAssign } from '../services/autoAssign';
 import { sendPushToDelivery } from '../services/webPush';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../services/trackRealtime';
@@ -409,7 +409,7 @@ router.get('/', authenticate, enforceScope, asyncHandler(async (req: Request, re
 }));
 
 // GET /api/deliveries/queue
-router.get('/queue', enforceScope, asyncHandler(async (req: Request, res: Response) => {
+router.get('/queue', resolvePublicScope, asyncHandler(async (req: Request, res: Response) => {
   res.json(await getFullQueue(req.scope));
 }));
 

@@ -17,6 +17,8 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  unit: ReceivingUnit | null;
+  department?: string | null;
   businessLocationId: string | null;
 }
 
