@@ -108,12 +108,14 @@ export default function SlotsTab() {
       </div>
 
       <div className="flex flex-wrap gap-3 mb-4 items-center">
+        <label>Đơn vị:</label>
         <select className="input w-auto text-sm" value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)}>
           <option value="">Tất cả đơn vị</option>
           <option value="EMART">Emart</option>
           <option value="THISKYHALL">Thiskyhall</option>
           <option value="TENANT">Tenant</option>
         </select>
+        <label>Loại xe:</label>
         <select className="input w-auto text-sm" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
           <option value="">Tất cả loại xe</option>
           <option value="TRUCK">🚛 Xe Tải</option>

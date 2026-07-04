@@ -41,28 +41,12 @@ function unitAcceptsGoods(config: { freshFoodEnabled: boolean; generalGoodsEnabl
   return false;
 }
 
-function slotAcceptsGoods(slot: { acceptedGoods: GoodsType[]; autoWarehouseOnly: boolean }, goodsType: GoodsType): boolean {
-  const acceptedGoods = slot.acceptedGoods;
-
-  if (slot.autoWarehouseOnly) {
-    return goodsType === GoodsType.AUTO_WAREHOUSE;
-  }
-  if (goodsType === GoodsType.AUTO_WAREHOUSE) {
-    return false;
-  }
-  if (acceptedGoods.length === 0) {
-    return true;
-  }
-  return acceptedGoods.includes(goodsType);
-}
-
 async function getMatchingOperationalSlots(args: {
   unitConfigId: string;
   unit: ReceivingUnit;
-  goodsType: GoodsType;
   vehicleType?: VehicleType;
 }) {
-  const slots = await prisma.slot.findMany({
+  return prisma.slot.findMany({
     where: {
       assignedUnit: args.unit,
       isActive: true,
@@ -78,8 +62,6 @@ async function getMatchingOperationalSlots(args: {
       autoWarehouseOnly: true,
     },
   });
-
-  return slots.filter(slot => slotAcceptsGoods(slot, args.goodsType));
 }
 
 // GET /api/units/configs — Admin: all unit configs
@@ -325,7 +307,6 @@ router.get('/:unit/vehicle-availability', publicReadLimiter, asyncHandler(async 
   const slots = await getMatchingOperationalSlots({
     unitConfigId: config.id,
     unit,
-    goodsType,
   });
 
   const capacityByVehicle = new Map<VehicleType, { slotCount: number; capacity: number }>();
@@ -387,13 +368,12 @@ router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req: Request, 
   const matchingSlots = await getMatchingOperationalSlots({
     unitConfigId: config.id,
     unit,
-    goodsType: goodsType as GoodsType,
     vehicleType: vehicleType as VehicleType,
   });
   const maxPerSlot = matchingSlots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
 
   if (maxPerSlot <= 0) {
-    res.json({ slots: [], reason: 'Không có slot khả dụng cho loại xe và loại hàng này' });
+    res.json({ slots: [], reason: 'Không có slot khả dụng cho loại xe này' });
     return;
   }
 
@@ -425,12 +405,11 @@ router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req: Request, 
   const dayStart = new Date(year, month - 1, day, 0, 0, 0);
   const dayEnd = new Date(year, month - 1, day, 23, 59, 59);
 
-  // Count REGISTERED deliveries across all custom types sharing the same base goodsType —
-  // they all compete for the same physical dock capacity.
+  // All goods types share the same physical capacity for the same unit + vehicle + time.
+  // Goods type is used for eligibility/time-window/dispatch priority, not for splitting capacity.
   const bookings = await prisma.deliveryRegistration.findMany({
     where: {
       receivingUnit: unit,
-      goodsType: goodsType as GoodsType,
       vehicleType: vehicleType as VehicleType,
       requestedTime: { gte: dayStart, lte: dayEnd },
       status: { in: [DeliveryStatus.REGISTERED, DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
