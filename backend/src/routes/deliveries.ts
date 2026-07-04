@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { DeliveryStatus, GoodsType, ReceivingUnit, VehicleType, Prisma } from '@prisma/client';
+import { DeliveryStatus, GoodsType, ReceivingUnit, VehicleType, Prisma, SlotStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope, resolvePublicScope } from '../middleware/auth';
@@ -96,7 +96,21 @@ function advisoryLockId(value: string): number {
 async function getRegistrationSlotCapacity(unit: ReceivingUnit, vehicleType: VehicleType): Promise<number | null> {
   const config = await getUnitConfigForDefaultLocation(unit);
   if (!config) return null;
-  return vehicleType === VehicleType.MOTORBIKE ? config.motorbikeMaxPerSlot : config.truckMaxPerSlot;
+
+  const slots = await prisma.slot.findMany({
+    where: {
+      assignedUnit: unit,
+      vehicleType,
+      isActive: true,
+      status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
+      zone: { unitConfigId: config.id },
+    },
+    select: {
+      maxCapacity: true,
+    },
+  });
+
+  return slots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
 }
 
 async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnit[]> {
@@ -119,7 +133,6 @@ async function ensureRegistrationSlotCapacity(
     requestedTime: Date;
     receivingUnit: ReceivingUnit;
     vehicleType: VehicleType;
-    goodsType: GoodsType;
     maxPerSlot: number | null;
   },
 ): Promise<void> {
@@ -131,7 +144,6 @@ async function ensureRegistrationSlotCapacity(
     'registration-slot',
     args.receivingUnit,
     args.vehicleType,
-    args.goodsType,
     dateKey,
     timeKey,
   ].join(':');
@@ -143,8 +155,15 @@ async function ensureRegistrationSlotCapacity(
     where: {
       receivingUnit: args.receivingUnit,
       vehicleType: args.vehicleType,
-      goodsType: args.goodsType,
-      status: DeliveryStatus.REGISTERED,
+      status: {
+        in: [
+          DeliveryStatus.REGISTERED,
+          DeliveryStatus.WAITING,
+          DeliveryStatus.CALLED,
+          DeliveryStatus.RECEIVING,
+          DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
+        ],
+      },
       requestedTime: { gte: start, lt: end },
     },
     select: { requestedTime: true },
@@ -335,7 +354,6 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
           requestedTime,
           receivingUnit: body.receivingUnit,
           vehicleType: body.vehicleType,
-          goodsType: resolvedGoodsType,
           maxPerSlot,
         });
       }

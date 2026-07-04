@@ -44,7 +44,7 @@ export default function Register() {
 
   const { units: brandUnits } = useBranding();
   const slotMinutes = form.vehicleType === 'MOTORBIKE' ? unitConfig?.motorbikeSlotMinutes : unitConfig?.truckSlotMinutes;
-  const maxPerSlot = form.vehicleType === 'MOTORBIKE' ? unitConfig?.motorbikeMaxPerSlot : unitConfig?.truckMaxPerSlot;
+  const maxPerSlot = slots.find((slot) => !slot.isPast)?.maxPerSlot ?? slots[0]?.maxPerSlot;
 
   if (success) return <SuccessScreen info={success} onReset={resetForm} />;
 

@@ -177,14 +177,9 @@ export default function UnitGoodsVehicleStep({
           )}
           {!vehicleAvailabilityLoading && vehicleAvailability.length > 0 && (
             <div className="grid grid-cols-3 gap-3">
-              {vehicleAvailability.map(({ vehicleType, slotCount, capacity }) => {
+              {vehicleAvailability.map(({ vehicleType }) => {
                 const info = VEHICLE_INFO[vehicleType];
                 const active = form.vehicleType === vehicleType;
-                const mins = vehicleType === 'TRUCK'
-                  ? unitConfig?.truckSlotMinutes
-                  : vehicleType === 'MOTORBIKE'
-                    ? unitConfig?.motorbikeSlotMinutes
-                    : null;
                 return (
                   <button
                     key={vehicleType}
@@ -197,8 +192,6 @@ export default function UnitGoodsVehicleStep({
                   >
                     <div className="text-2xl mb-1.5">{info.icon}</div>
                     <p className="font-bold text-xs text-thiso-800">{info.label}</p>
-                    {mins && <p className="text-[10px] text-thiso-400 mt-0.5">{mins} phút</p>}
-                    <p className="text-[10px] text-thiso-400 mt-0.5">{slotCount} slot · {capacity} chỗ</p>
                   </button>
                 );
               })}

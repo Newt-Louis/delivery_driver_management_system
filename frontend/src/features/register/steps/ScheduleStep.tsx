@@ -61,11 +61,11 @@ export default function ScheduleStep({
         </div>
       </div>
 
-      {unitConfig && form.vehicleType && (
+      {unitConfig && form.vehicleType && slotMinutes && maxPerSlot !== undefined && (
         <div className="flex items-center gap-2 text-xs text-thiso-500 bg-thiso-50 rounded-xl px-3 py-2.5 border border-thiso-100">
           <span>ℹ</span>
           <span>
-            Mỗi slot <strong>{slotMinutes} phút</strong> — tối đa <strong>{maxPerSlot} xe</strong>/slot
+            Mỗi khung giờ <strong>{slotMinutes} phút</strong> — tối đa <strong>{maxPerSlot} xe</strong>
             {form.goodsType === 'FRESH_FOOD' ? ' · Hàng tươi được ưu tiên gọi trước' : ''}
           </span>
         </div>
