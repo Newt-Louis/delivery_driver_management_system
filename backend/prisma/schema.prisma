@@ -43,7 +43,7 @@ enum VehicleType {
 }
 
 enum DeviceType {
-  KIOSK
+  FIXED_DEVICE
   PDA
   TABLET
   TV
@@ -344,7 +344,7 @@ model Device {
   name               String
   businessLocationId String           @map("business_location_id")
   businessLocation   BusinessLocation @relation(fields: [businessLocationId], references: [id])
-  deviceType         DeviceType       @default(KIOSK) @map("device_type")
+  deviceType         DeviceType       @default(FIXED_DEVICE) @map("device_type")
   deviceSecretHash   String           @map("device_secret_hash")
   isActive           Boolean          @default(true) @map("is_active")
   lastSeenAt         DateTime?        @map("last_seen_at")
@@ -363,7 +363,6 @@ model BusinessLocation {
   avatarUrl    String?      @map("avatar_url")
   logoUrl      String?      @map("logo_url")
   tagline      String?      @default("Delivery Management System")
-  kioskBgUrl   String?      @map("kiosk_bg_url")
   isActive     Boolean      @default(true) @map("is_active")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")

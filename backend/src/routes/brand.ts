@@ -45,7 +45,6 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
       avatarUrl:    location.avatarUrl,
       logoUrl:      location.logoUrl,
       tagline:      location.tagline ?? 'Delivery Management System',
-      kioskBgUrl:   location.kioskBgUrl,
     },
     units,
   });
@@ -59,7 +58,6 @@ const mallSchema = z.object({
   avatarUrl:  z.string().nullable().optional(),
   logoUrl:    z.string().nullable().optional(),
   tagline:    z.string().max(200).nullable().optional(),
-  kioskBgUrl: z.string().nullable().optional(),
 });
 
 router.patch('/mall', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
@@ -74,7 +72,6 @@ router.patch('/mall', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyn
       ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
       ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
       ...(data.tagline !== undefined ? { tagline: data.tagline } : {}),
-      ...(data.kioskBgUrl !== undefined ? { kioskBgUrl: data.kioskBgUrl } : {}),
     },
   });
   res.json({ ...updated, mallName: updated.locationName });

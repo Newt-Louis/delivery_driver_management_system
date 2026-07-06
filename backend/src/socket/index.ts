@@ -12,7 +12,6 @@ export type SocketScope = {
 type JoinRealtimeScopePayload = SocketScope & {
   dashboard?: boolean;
   waitingScreen?: boolean;
-  kiosk?: boolean;
 };
 
 function uniq(values: Array<string | null | undefined>): string[] {
@@ -56,7 +55,6 @@ export function initSocket(server: HttpServer): SocketServer {
         const rooms = scopedRooms(scope, {
           dashboard: payload.dashboard,
           waitingScreen: payload.waitingScreen,
-          kiosk: payload.kiosk,
         });
         rooms.forEach((room) => socket.join(room));
         ack?.({ ok: true, rooms });
@@ -69,7 +67,6 @@ export function initSocket(server: HttpServer): SocketServer {
       const rooms = scopedRooms(payload, {
         dashboard: payload.dashboard,
         waitingScreen: payload.waitingScreen,
-        kiosk: payload.kiosk,
       });
       rooms.forEach((room) => socket.leave(room));
     });
@@ -126,18 +123,13 @@ export function waitingScreenRoomName(businessLocationId: string): string {
   return `waiting-screen:${businessLocationId}`;
 }
 
-export function kioskRoomName(businessLocationId: string): string {
-  return `kiosk:${businessLocationId}`;
-}
-
-function scopedRooms(scope: SocketScope, options: { dashboard?: boolean; waitingScreen?: boolean; kiosk?: boolean } = {}): string[] {
+function scopedRooms(scope: SocketScope, options: { dashboard?: boolean; waitingScreen?: boolean } = {}): string[] {
   const businessLocationId = scope.businessLocationId ?? undefined;
   return uniq([
     businessLocationId ? businessLocationRoomName(businessLocationId) : null,
     scope.unitConfigId ? unitConfigRoomName(scope.unitConfigId) : null,
     businessLocationId && options.dashboard ? dashboardRoomName(businessLocationId) : null,
     businessLocationId && options.waitingScreen ? waitingScreenRoomName(businessLocationId) : null,
-    businessLocationId && options.kiosk ? kioskRoomName(businessLocationId) : null,
   ]);
 }
 

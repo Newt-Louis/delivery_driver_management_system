@@ -4,12 +4,11 @@ import { useBranding, UNIT_FALLBACKS } from '../../../context/BrandingContext';
 
 type ReceivingUnitKey = 'EMART' | 'THISKYHALL' | 'TENANT';
 
-function LogoUpload({ value, onChange, label, maxSizeKB = 500, variant = 'logo' }: {
+function LogoUpload({ value, onChange, label, maxSizeKB = 500 }: {
   value: string | null;
   onChange: (v: string | null) => void;
   label: string;
   maxSizeKB?: number;
-  variant?: 'logo' | 'bg';
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -22,21 +21,19 @@ function LogoUpload({ value, onChange, label, maxSizeKB = 500, variant = 'logo' 
     reader.readAsDataURL(file);
   }, [onChange, maxSizeKB]);
 
-  const isBg = variant === 'bg';
-
   return (
     <div>
       <p className="label">{label}</p>
       <div className="flex items-start gap-3">
         <div className={`rounded-xl border-2 border-thiso-200 bg-thiso-50 flex items-center justify-center overflow-hidden flex-shrink-0
-          ${isBg ? 'w-40 h-24' : 'w-16 h-16'}`}>
+          w-16 h-16`}>
           {value
-            ? <img src={value} alt="preview" className={`w-full h-full ${isBg ? 'object-cover' : 'object-contain p-1'}`} />
+            ? <img src={value} alt="preview" className="w-full h-full object-contain p-1" />
             : <span className="text-2xl text-thiso-300">🖼</span>}
         </div>
         <div className="flex flex-col gap-1.5 pt-1">
           <button type="button" className="btn-secondary text-xs py-1.5 px-3" onClick={() => inputRef.current?.click()}>
-            {value ? (isBg ? 'Thay ảnh' : 'Thay logo') : (isBg ? 'Tải lên ảnh' : 'Tải lên logo')}
+            {value ? 'Thay logo' : 'Tải lên logo'}
           </button>
           {value && (
             <button type="button" className="text-xs text-red-500 hover:text-red-700 text-left" onClick={() => onChange(null)}>
@@ -46,9 +43,7 @@ function LogoUpload({ value, onChange, label, maxSizeKB = 500, variant = 'logo' 
           <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
         </div>
         <div className="flex-1 min-w-0 pt-1">
-          {isBg
-            ? <p className="text-[11px] text-thiso-400 leading-relaxed">JPG, PNG — tối đa {maxSizeKB}KB<br/>Khuyến nghị 1920×1080, ảnh sẽ phủ toàn màn hình kiosk</p>
-            : <p className="text-[11px] text-thiso-400 leading-relaxed">PNG, JPG, SVG — tối đa {maxSizeKB}KB<br/>Nền trong suốt (PNG) hiển thị tốt hơn</p>}
+          <p className="text-[11px] text-thiso-400 leading-relaxed">PNG, JPG, SVG — tối đa {maxSizeKB}KB<br/>Nền trong suốt (PNG) hiển thị tốt hơn</p>
         </div>
       </div>
     </div>
@@ -64,7 +59,6 @@ export default function BrandTab() {
   const [mallName,    setMallName]    = useState(mall.mallName);
   const [mallTagline, setMallTagline] = useState(mall.tagline ?? '');
   const [mallLogo,    setMallLogo]    = useState<string | null>(mall.logoUrl);
-  const [kioskBgUrl,  setKioskBgUrl]  = useState<string | null>(mall.kioskBgUrl ?? null);
 
   // Unit states
   const [unitData, setUnitData] = useState<Record<ReceivingUnitKey, {
@@ -83,7 +77,7 @@ export default function BrandTab() {
   async function saveMall() {
     setSaving('mall');
     try {
-      await api.patch('/api/brand/mall', { mallName, tagline: mallTagline || null, logoUrl: mallLogo, kioskBgUrl });
+      await api.patch('/api/brand/mall', { mallName, tagline: mallTagline || null, logoUrl: mallLogo });
       refresh();
       setSaved('mall'); setTimeout(() => setSaved(null), 2000);
     } finally { setSaving(null); }
@@ -131,12 +125,6 @@ export default function BrandTab() {
             <label className="label">Tagline / Mô tả ngắn</label>
             <input className="input" value={mallTagline} onChange={e => setMallTagline(e.target.value)} placeholder="Delivery Management System" />
           </div>
-        </div>
-
-        <div className="border-t border-thiso-100 pt-5">
-          <h4 className="font-semibold text-thiso-700 text-sm mb-1">🖥 Hình nền màn hình Kiosk</h4>
-          <p className="text-[11px] text-thiso-400 mb-3">Hiển thị ở chế độ idle khi không có kết quả quét. Để trống = nền tối mặc định.</p>
-          <LogoUpload label="" value={kioskBgUrl} onChange={setKioskBgUrl} maxSizeKB={2048} variant="bg" />
         </div>
 
         <div className="flex items-center justify-end gap-3">
@@ -220,4 +208,3 @@ export default function BrandTab() {
     </div>
   );
 }
-

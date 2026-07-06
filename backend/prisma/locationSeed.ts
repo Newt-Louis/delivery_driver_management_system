@@ -49,7 +49,6 @@ const businessLocationSeedSchema = z.object({
   avatarUrl: nullableUrl,
   logoUrl: nullableUrl,
   tagline: z.string().trim().optional(),
-  kioskBgUrl: nullableUrl,
   isActive: z.boolean().optional(),
   admin: adminSeedSchema,
   units: z.array(unitSeedSchema).optional().default([]),
@@ -158,7 +157,6 @@ function locationCreateData(location: BusinessLocationSeed) {
     ...(location.avatarUrl !== undefined ? { avatarUrl: location.avatarUrl } : {}),
     ...(location.logoUrl !== undefined ? { logoUrl: location.logoUrl } : {}),
     ...(location.tagline !== undefined ? { tagline: location.tagline } : {}),
-    ...(location.kioskBgUrl !== undefined ? { kioskBgUrl: location.kioskBgUrl } : {}),
     ...(location.isActive !== undefined ? { isActive: location.isActive } : {}),
   };
 }

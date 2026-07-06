@@ -110,30 +110,19 @@ async function main() {
   });
   console.log('✅ Users created  (password: password123)');
 
-  // ── Staff PINs ──────────────────────────────────────────────────────────────
-  await prisma.staffPin.createMany({
-    data: [
-      { name: 'Check-in – Nguyễn Văn Bình', role: Role.CHECKIN, pin: '1111' },
-      { name: 'Check-in – Trần Văn Cường', role: Role.CHECKIN, pin: '2222' },
-      { name: 'Check-in – Lê Thị Dung', role: Role.CHECKIN, pin: '3333' },
-      { name: 'NV Nhận hàng EMART – Phạm Minh Đức', role: Role.RECEIVING, pin: '4444' },
-      { name: 'NV Nhận hàng THISKY – Hoàng Thị Em', role: Role.RECEIVING, pin: '5555' },
-      { name: 'NV Nhận hàng MALL – Vũ Quốc Hùng', role: Role.RECEIVING, pin: '6666' },
-    ],
-  });
-  console.log('✅ Staff PINs created');
-  console.log('   Bảo vệ:    1111 / 2222 / 3333');
-  console.log('   Nhận hàng: 4444 / 5555 / 6666');
+  // Staff PINs are intentionally left empty. The current production flow uses
+  // real user accounts/JWT for check-in and receiving actions.
+  console.log('ℹ️  Staff PINs skipped (reserved for future flows)');
 
   // ── Devices ────────────────────────────────────────────────────────────────
   const deviceSecretHash = await bcrypt.hash('device123', 10);
   await prisma.device.createMany({
     data: [
       {
-        code: 'KIOSK-LOC1',
-        name: 'Kiosk bảo vệ LOC_1',
+        code: 'FIXED-LOC1',
+        name: 'Thiết bị cố định LOC_1',
         businessLocationId: defaultLocation.id,
-        deviceType: DeviceType.KIOSK,
+        deviceType: DeviceType.FIXED_DEVICE,
         deviceSecretHash,
       },
       {
@@ -145,7 +134,7 @@ async function main() {
       },
     ],
   });
-  console.log('✅ Devices created (KIOSK-LOC1/PDA-LOC1, secret: device123)');
+  console.log('✅ Devices created (FIXED-LOC1/PDA-LOC1, secret: device123)');
 
   // ── Unit configs ─────────────────────────────────────────────────────────────
   const unitConfigs = await Promise.all([

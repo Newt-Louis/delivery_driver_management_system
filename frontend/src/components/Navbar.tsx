@@ -27,7 +27,6 @@ const NAV_GROUPS: NavGroup[] = [
     heading: 'Màn hình & Tài xế',
     items: [
       { to: '/waiting-screen', label: 'Màn hình chờ (TV)',    icon: '📺', roles: null },
-      { to: '/kiosk',          label: 'Kiosk check-in',        icon: '📷', roles: null },
       { to: '/register',       label: 'Đăng ký giao hàng',    icon: '📝', roles: null },
       { to: '/track',          label: 'Theo dõi tài xế',      icon: '🚛', roles: null },
     ],

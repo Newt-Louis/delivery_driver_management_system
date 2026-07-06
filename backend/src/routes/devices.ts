@@ -26,7 +26,7 @@ const createSchema = z.object({
   code: z.string().min(2).max(40).toUpperCase(),
   name: z.string().min(1).max(100),
   businessLocationId: z.string().min(1),
-  deviceType: z.nativeEnum(DeviceType).default(DeviceType.KIOSK),
+  deviceType: z.nativeEnum(DeviceType).default(DeviceType.FIXED_DEVICE),
   deviceSecret: z.string().min(6, 'Device secret tối thiểu 6 ký tự').max(100),
   isActive: z.boolean().optional(),
 });

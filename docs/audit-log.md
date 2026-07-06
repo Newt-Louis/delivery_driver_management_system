@@ -36,7 +36,6 @@ Hàm:
 
 - `userActor(user)`
 - `staffActor(staff)`
-- `deviceStaffActor(payload)`
 - `systemActor(label)`
 - `recordAuditLog(input, client = prisma)`
 

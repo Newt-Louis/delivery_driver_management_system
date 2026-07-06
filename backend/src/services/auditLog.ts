@@ -36,23 +36,6 @@ export function staffActor(staff?: { id: string; name?: string | null } | null) 
   };
 }
 
-export function deviceStaffActor(payload?: {
-  deviceId?: string | null;
-  deviceCode?: string | null;
-  staffPinId?: string | null;
-  staffName?: string | null;
-} | null) {
-  return {
-    actorType: AuditActorType.DEVICE,
-    actorId: payload?.deviceId ?? null,
-    actorLabel: [
-      payload?.deviceCode,
-      payload?.staffName ? `staff:${payload.staffName}` : null,
-      payload?.staffPinId ? `pin:${payload.staffPinId}` : null,
-    ].filter(Boolean).join(' / ') || null,
-  };
-}
-
 export function systemActor(label = 'system') {
   return {
     actorType: AuditActorType.SYSTEM,

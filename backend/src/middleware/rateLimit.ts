@@ -67,13 +67,6 @@ export const authLoginLimiter = rateLimit({
   keyGenerator: (req) => `${req.ip}:${String(req.body?.email ?? '').toLowerCase()}`,
 });
 
-export const terminalAuthLimiter = rateLimit({
-  name: 'terminal-auth',
-  windowMs: 60_000,
-  max: 12,
-  keyGenerator: (req) => `${req.ip}:${String(req.body?.deviceCode ?? '').toUpperCase()}`,
-});
-
 export const staffActionLimiter = rateLimit({
   name: 'staff-action',
   windowMs: 60_000,

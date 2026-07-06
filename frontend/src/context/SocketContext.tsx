@@ -13,7 +13,6 @@ function screenFlags(pathname: string) {
   return {
     dashboard: pathname.startsWith('/dashboard') || pathname.startsWith('/docks'),
     waitingScreen: pathname.startsWith('/waiting-screen'),
-    kiosk: pathname.startsWith('/kiosk'),
   };
 }
 

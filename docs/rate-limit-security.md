@@ -14,7 +14,6 @@ Hàm:
 
 - `rateLimit(options)`
 - `authLoginLimiter`
-- `terminalAuthLimiter`
 - `staffActionLimiter`
 - `publicWriteLimiter`
 - `publicLookupLimiter`
@@ -27,10 +26,6 @@ Auth:
 - `POST /api/auth/login`
 - `POST /api/auth/face-id/authenticate/options`
 - `POST /api/auth/face-id/authenticate/verify`
-
-Terminal:
-
-- `POST /api/checkin/terminal-auth`
 
 Staff action:
 

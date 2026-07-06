@@ -17,7 +17,7 @@ Quy ước:
 - Thêm `checkInDelivery()` và `reserveTicketNumber()` để lock delivery row trước khi check-in.
 - Các luồng check-in chính không còn cấp ticket bằng `max(ticketNumber) + 1`.
 - Scan/check-in lặp khi delivery đã `WAITING` trả lại ticket hiện tại, không cấp mới.
-- File chính: `backend/src/services/checkInDelivery.ts`, `backend/src/services/ticketSequence.ts`, `backend/src/routes/deliveries.ts`, `backend/src/routes/checkin.ts`, `backend/src/routes/track.ts`.
+- File chính: `backend/src/services/checkInDelivery.ts`, `backend/src/services/ticketSequence.ts`, `backend/src/routes/deliveries.ts`, `backend/src/routes/track.ts`.
 
 ### 2026-06-30 - Auto-assign Concurrency
 
@@ -55,12 +55,12 @@ Quy ước:
 - Thêm partial unique index để chỉ cho phép một `SUPERADMIN`.
 - File chính: migration `20260630103000_add_operational_indexes`.
 
-### 2026-06-30 - Device Auth Cho Kiosk/PDA
+### 2026-06-30 - Device Registry Cho Thiết Bị Vận Hành
 
-- Thêm model `Device`, route `/api/devices`, terminal auth `/api/checkin/terminal-auth`.
-- Terminal token có `deviceId`, `deviceCode`, `deviceType`, `businessLocationId`, `staffPinId`, `staffRole`.
+- Thêm model `Device` và route CRUD `/api/devices`.
+- Thiết bị được gắn với `businessLocationId`, có `deviceType`, `deviceSecretHash`, `isActive`, `lastSeenAt`.
 - Device API không trả `deviceSecretHash`.
-- File chính: `backend/src/routes/devices.ts`, `backend/src/routes/checkin.ts`, `frontend/src/pages/Kiosk.tsx`.
+- File chính: `backend/src/routes/devices.ts`, `backend/prisma/schema.prisma`.
 
 ### 2026-06-30 - Audit Log Hành Động Quan Trọng
 
@@ -85,7 +85,7 @@ Quy ước:
 ### 2026-07-01 - Rate Limit Cho Auth/PIN/Public API
 
 - Thêm middleware rate limit in-memory.
-- Áp dụng cho login, terminal auth, track staff action, register, push subscribe, track search và slot availability.
+- Áp dụng cho login, track staff action, register, push subscribe, track search và slot availability.
 - File chính: `backend/src/middleware/rateLimit.ts`.
 
 ### 2026-07-01 - Seed BusinessLocation Và UnitConfig Theo JSON
@@ -111,8 +111,8 @@ Quy ước:
 - Bỏ enum `StaffRole`.
 - `StaffPin.role` dùng enum `Role`.
 - Staff PIN chỉ chấp nhận `CHECKIN` hoặc `RECEIVING`.
-- Kiosk/staff action chuyển từ alias `SECURITY` sang `CHECKIN`.
-- File chính: `backend/prisma/schema.prisma`, `backend/src/routes/staffPins.ts`, `backend/src/routes/checkin.ts`, `backend/src/routes/track.ts`.
+- Staff action chuyển từ alias `SECURITY` sang `CHECKIN`.
+- File chính: `backend/prisma/schema.prisma`, `backend/src/routes/staffPins.ts`, `backend/src/routes/track.ts`.
 
 ### 2026-07-02 - Refactor Backoffice Và Chuyển Tab Nhân Viên Sang User
 
@@ -187,8 +187,23 @@ Quy ước:
 - Thêm API đăng ký/xác thực Face ID/passkey.
 - File chính: `backend/prisma/schema.prisma`, `backend/prisma/app-config-seed.json`, `backend/prisma/appConfigSeed.ts`, `backend/src/services/appConfig.ts`, `backend/src/services/staticIpAuth.ts`, `backend/src/services/faceIdAuth.ts`, `backend/src/routes/auth.ts`.
 
+### 2026-07-06 - Loại Bỏ Kiosk Terminal Khỏi Luồng Vận Hành
+
+- Xóa page React `frontend/src/pages/Kiosk.tsx`.
+- Xóa route React `/kiosk`, link navbar và shortcut PWA liên quan.
+- Xóa backend route `/api/checkin` và file `backend/src/routes/checkin.ts`.
+- Dọn helper chỉ phục vụ kiosk terminal: `terminalAuthLimiter`, `deviceStaffActor`, socket room `kiosk`.
+- Gỡ cấu hình hình nền kiosk khỏi tab Brand trong Backoffice.
+- Đổi `DeviceType.KIOSK` thành `DeviceType.FIXED_DEVICE`, thêm migration rename enum và bỏ cột `business_locations.kiosk_bg_url`.
+- Đổi tên certificate tự ký frontend Docker từ `kiosk.*` sang `frontend.*`.
+- Giữ `/api/deliveries/check-in-lookup` làm luồng check-in chuẩn cho trang `/check-in`.
+- Giữ `/api/deliveries/:id/check-in` để dùng cho màn hình danh sách/bấm check-in trực tiếp sau này.
+- Giữ CRUD `/api/devices` cho `SUPERADMIN` và `ADMIN_LOC`.
+- Ghi chú: `staff_pins` hiện là bảng dự phòng, không còn route kiosk terminal sử dụng.
+- Đã kiểm tra bằng `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`, `git diff --check`.
+- File chính: `frontend/src/App.tsx`, `frontend/src/components/Navbar.tsx`, `frontend/public/manifest.json`, `backend/src/index.ts`, `backend/src/socket/index.ts`, `backend/src/middleware/rateLimit.ts`, `backend/src/services/auditLog.ts`, `backend/prisma/schema.prisma`.
+
 ## Ghi Chú Đối Soát Hiện Tại
 
-- `PLAN.md` giai đoạn 2 đã đánh `[COMPLETED]` cho nhiệm vụ 1 đến 7.
-- Nhiệm vụ tiếp theo còn mở: refactor kiosk/device terminal theo đúng trách nhiệm `CHECKIN` và `RECEIVING`.
+- `PLAN.md` giai đoạn 2 đã đánh `[COMPLETED]` cho nhiệm vụ 1 đến 8.
 - Tài liệu chi tiết theo từng mảng nằm trong thư mục `docs/`.

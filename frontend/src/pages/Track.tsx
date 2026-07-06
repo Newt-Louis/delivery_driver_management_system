@@ -938,7 +938,7 @@ function TrackContent({ code }: { code: string }) {
         {/* QR code — tap to fullscreen, shown when not terminal */}
         {!isTerminal && qrDataUrl && (() => {
           const qrHint = delivery.status === 'REGISTERED'
-            ? { who: 'Đến kiosk check-in — quét QR này để vào hàng chờ', icon: '📷', color: 'text-sky-600' }
+            ? { who: 'Đến quầy check-in — quét QR này để vào hàng chờ', icon: '📷', color: 'text-sky-600' }
             : delivery.status === 'WAITING'
             ? { who: 'Đang chờ gọi vào dock — giữ QR sẵn sàng', icon: '⏳', color: 'text-yellow-600' }
             : { who: 'Hiển thị cho nhân viên nhận hàng scan', icon: '📦', color: 'text-sky-600' };

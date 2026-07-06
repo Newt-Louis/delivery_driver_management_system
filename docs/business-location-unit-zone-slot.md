@@ -18,7 +18,7 @@ Cây vận hành chuẩn:
 Models:
 
 - `BusinessLocation`
-  - `code`, `locationName`, `address`, `avatarUrl`, `logoUrl`, `kioskBgUrl`, `isActive`.
+  - `code`, `locationName`, `address`, `avatarUrl`, `logoUrl`, `isActive`.
 - `UnitConfig`
   - `businessLocationId`, `unit`.
   - Cấu hình loại hàng: `freshFoodEnabled`, `generalGoodsEnabled`, `thiCongEnabled`.

@@ -18,7 +18,6 @@ Rooms:
 - `unit-config:{unitConfigId}`
 - `dashboard:{businessLocationId}`
 - `waiting-screen:{businessLocationId}`
-- `kiosk:{businessLocationId}`
 - `track:{registrationCode}`
 
 Events client -> server:
@@ -44,7 +43,6 @@ Hàm chính:
 - `unitConfigRoomName()`
 - `dashboardRoomName()`
 - `waitingScreenRoomName()`
-- `kioskRoomName()`
 - `emitQueueUpdated(queue, scope)`
 - `emitDeliveryCalled(data, scope)`
 - `emitSlotUpdated(slots, scope)`

@@ -95,5 +95,4 @@ Service:
 
 ## Lưu Ý
 
-- `/kiosk` hiện cũng có logic start/complete nhưng không nên xem là luồng chuẩn cho đến khi refactor role/device terminal.
 - Flow chuẩn nên dùng các endpoint rõ ràng trong `/api/deliveries`.
