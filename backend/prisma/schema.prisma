@@ -80,9 +80,60 @@ model User {
   isActive           Boolean           @default(true) @map("is_active")
   createdAt          DateTime          @default(now()) @map("created_at")
   callLogs           CallLog[]
+  faceCredentials    FaceCredential[]
+  authChallenges     AuthChallenge[]
 
   @@index([businessLocationId, role, isActive])
   @@map("users")
+}
+
+model AppConfig {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  category          String
+  value             Json
+  valueType         String   @default("json") @map("value_type")
+  description       String   @default("")
+  isSensitive       Boolean  @default(false) @map("is_sensitive")
+  isRuntimeEditable Boolean  @default(true) @map("is_runtime_editable")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("app_configs")
+}
+
+model FaceCredential {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique @map("credential_id")
+  publicKey    Json      @map("public_key")
+  signCount    Int       @default(0) @map("sign_count")
+  deviceName   String?   @map("device_name")
+  transports   String[]  @default([])
+  isActive     Boolean   @default(true) @map("is_active")
+  lastUsedAt   DateTime? @map("last_used_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, isActive])
+  @@map("face_credentials")
+}
+
+model AuthChallenge {
+  id         String    @id @default(cuid())
+  userId     String?   @map("user_id")
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge  String    @unique
+  type       String
+  metadata   Json?
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, type, expiresAt])
+  @@map("auth_challenges")
 }
 
 model Zone {

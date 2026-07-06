@@ -1,0 +1,34 @@
+[
+  {
+    "key": "auth.static_ip",
+    "category": "auth",
+    "valueType": "json",
+    "description": "Static internet IP allowlist policy for staff/admin login. Disabled by default.",
+    "isSensitive": false,
+    "isRuntimeEditable": true,
+    "value": {
+      "enabled": false,
+      "allowedIps": [],
+      "allowedCidrs": [],
+      "trustProxyHeader": true,
+      "roles": ["ADMIN_LOC", "ADMIN_OPE", "RECEIVING", "CHECKIN"]
+    }
+  },
+  {
+    "key": "auth.face_id",
+    "category": "auth",
+    "valueType": "json",
+    "description": "WebAuthn/passkey policy for Face ID, Touch ID, Windows Hello or Android biometrics. Disabled by default.",
+    "isSensitive": false,
+    "isRuntimeEditable": true,
+    "value": {
+      "enabled": false,
+      "rpName": "Delivery Driver Management",
+      "rpId": null,
+      "origin": null,
+      "userVerification": "required",
+      "roles": ["ADMIN_LOC", "ADMIN_OPE", "RECEIVING", "CHECKIN"],
+      "requireRegisteredCredential": false
+    }
+  }
+]
