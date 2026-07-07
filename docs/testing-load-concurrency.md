@@ -21,7 +21,7 @@ Mục tiêu test:
 
 - Nhiều check-in đồng thời không trùng ticket.
 - Scan/check-in cùng một QR không cấp ticket nhiều lần.
-- Manual call đồng thời chỉ tạo một `CallLog`.
+- Manual call đồng thời ghi event timeline gọi xe đúng kỳ vọng.
 - Multi-capacity slot không vượt `maxCapacity`.
 - Complete đồng thời không release/auto-assign lặp.
 - Auto-assign không đưa `AUTO_WAREHOUSE` vào slot thường.

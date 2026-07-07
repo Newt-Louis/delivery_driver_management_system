@@ -70,13 +70,14 @@ function regCode(prefix: string) {
 async function main() {
   console.log('\n🗑  Clearing all data...');
   await prisma.pushSubscription.deleteMany();
-  await prisma.callLog.deleteMany();
+  await prisma.deliveryHistoryEvent.deleteMany();
+  await prisma.deliveryHistory.deleteMany();
+  await prisma.schedulerJobHistory.deleteMany();
   await prisma.deliveryRegistration.deleteMany();
   await prisma.registrationSequence.deleteMany();
   await prisma.deliveryTimeWindow.deleteMany();
   await prisma.unitGoodsType.deleteMany();
   await prisma.receivingTimeConfig.deleteMany();
-  await prisma.staffPin.deleteMany();
   await prisma.device.deleteMany();
   await prisma.slot.deleteMany();
   await prisma.zone.deleteMany();
@@ -109,10 +110,6 @@ async function main() {
     ],
   });
   console.log('✅ Users created  (password: password123)');
-
-  // Staff PINs are intentionally left empty. The current production flow uses
-  // real user accounts/JWT for check-in and receiving actions.
-  console.log('ℹ️  Staff PINs skipped (reserved for future flows)');
 
   // ── Devices ────────────────────────────────────────────────────────────────
   const deviceSecretHash = await bcrypt.hash('device123', 10);
@@ -451,8 +448,6 @@ async function main() {
   console.log('\n✅ Seed completed!');
   console.log('─────────────────────────────────────────');
   console.log('  Login:        admin@mall.com / password123');
-  console.log('  Bảo vệ PIN:  1111  2222  3333');
-  console.log('  Nhận hàng:   4444  5555  6666');
   console.log('─────────────────────────────────────────');
   console.log('  Ticket codes: EMART-T001…  EMART-M001…');
   console.log('                THISKY-T001… THISKY-M001…');

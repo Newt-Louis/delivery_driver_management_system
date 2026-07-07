@@ -8,13 +8,6 @@ import { getPushPlatformSupport } from '../lib/platform';
 import { useSocket } from '../context/SocketContext';
 import { saveDeliverySession, removeDeliverySession } from '../lib/session';
 
-interface TrackCallLog {
-  id: string;
-  calledAt: string;
-  message: string;
-  slot: { id: string; code: string; name: string } | null;
-}
-
 interface TrackSlot {
   id: string;
   code: string;
@@ -51,7 +44,6 @@ interface TrackDelivery {
   completedTime: string | null;
   status: string;
   assignedSlot: TrackSlot | null;
-  callLogs: TrackCallLog[];
   autoWarehouse: boolean;
   ticketNumber: number | null;
   note: string | null;

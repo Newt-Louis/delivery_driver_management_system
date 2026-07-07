@@ -33,7 +33,7 @@ Hàm chính:
   - Count active deliveries trong slot.
   - Tìm delivery `WAITING` bằng `FOR UPDATE SKIP LOCKED`.
   - Update delivery sang `CALLED`.
-  - Tạo `CallLog`.
+  - Tạo event `AUTO_ASSIGNED` trong `delivery_history_events`.
   - Reconcile slot.
 - `findNextWaitingDeliveryForSlot(tx, slot)`
   - Chọn xe theo unit + vehicle type.
@@ -71,3 +71,4 @@ Sau khi assign:
 - Emit `slot_updated`.
 - Gửi push `delivery-called`.
 - Update track room tương ứng.
+- `callCount` được tính từ các event gọi xe trong `delivery_history_events`.

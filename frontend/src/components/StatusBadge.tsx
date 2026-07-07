@@ -8,6 +8,8 @@ const CONFIG: Record<DeliveryStatus, { label: string; dot: string; bg: string; t
   AUTO_WAREHOUSE_RECEIVING:{ label: 'Kho tự động',   dot: 'bg-purple-500', bg: 'bg-purple-50',  text: 'text-purple-700'},
   COMPLETED:              { label: 'Hoàn tất',       dot: 'bg-sky-500',    bg: 'bg-sky-50',     text: 'text-sky-700'   },
   CANCELLED:              { label: 'Đã hủy',         dot: 'bg-red-400',    bg: 'bg-red-50',     text: 'text-red-600'   },
+  EXPIRED:                { label: 'Hết hạn',        dot: 'bg-purple-400', bg: 'bg-purple-50',  text: 'text-purple-700'},
+  INCOMPLETED:            { label: 'Chưa hoàn tất',  dot: 'bg-orange-400', bg: 'bg-orange-50',  text: 'text-orange-700'},
 };
 
 export default function StatusBadge({ status }: { status: DeliveryStatus }) {

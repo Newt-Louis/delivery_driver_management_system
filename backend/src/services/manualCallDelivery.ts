@@ -1,11 +1,14 @@
 import {
   DeliveryRegistration,
+  DeliveryHistoryEventType,
   DeliveryStatus,
   Prisma,
   Slot,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
+import { recordDeliveryEvent } from '../modules/history/historyService';
+import type { HistoryActor } from '../modules/history/types';
 
 const CALLABLE_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.WAITING,
@@ -14,15 +17,14 @@ const CALLABLE_STATUSES: DeliveryStatus[] = [
 
 type ManualCallDelivery = DeliveryRegistration & {
   assignedSlot: Slot | null;
-  _count: { callLogs: number };
 };
 
 type ManualCallSuccess = {
-  outcome: 'called' | 'already_called';
+  outcome: 'called' | 'recalled' | 'already_called';
   delivery: ManualCallDelivery;
   slot: Slot;
   message: string;
-  callLogCreated: boolean;
+  historyEventCreated: boolean;
   activeCount: number;
 };
 
@@ -52,7 +54,7 @@ function getSlotMismatchMessage(delivery: DeliveryRegistration, slot: Slot): str
 async function refreshDelivery(tx: Prisma.TransactionClient, deliveryId: string): Promise<ManualCallDelivery | null> {
   return tx.deliveryRegistration.findUnique({
     where: { id: deliveryId },
-    include: { assignedSlot: true, _count: { select: { callLogs: true } } },
+    include: { assignedSlot: true },
   });
 }
 
@@ -65,6 +67,7 @@ export async function manualCallDelivery(args: {
   deliveryId: string;
   slotId: string;
   calledByUserId: string;
+  actor?: HistoryActor;
 }): Promise<ManualCallResult> {
   return prisma.$transaction(async (tx) => {
     const lockedDelivery = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
@@ -119,6 +122,21 @@ export async function manualCallDelivery(args: {
     }
 
     if (delivery.status === DeliveryStatus.CALLED && delivery.assignedSlotId === slot.id) {
+      const recalledAt = new Date();
+      const message = `Mời xe ${delivery.vehiclePlate} vào ${slot.name}`;
+      await recordDeliveryEvent(delivery, {
+        ...(args.actor ?? {}),
+        eventType: DeliveryHistoryEventType.RECALLED,
+        fromStatus: delivery.status,
+        toStatus: delivery.status,
+        occurredAt: recalledAt,
+        message,
+        slot,
+      }, tx);
+      await tx.slot.update({
+        where: { id: slot.id },
+        data: { lastUsedAt: recalledAt },
+      });
       const activeCount = await tx.deliveryRegistration.count({
         where: {
           assignedSlotId: slot.id,
@@ -126,11 +144,11 @@ export async function manualCallDelivery(args: {
         },
       });
       return {
-        outcome: 'already_called',
+        outcome: 'recalled',
         delivery,
         slot,
-        message: `Mời xe ${delivery.vehiclePlate} vào ${slot.name}`,
-        callLogCreated: false,
+        message,
+        historyEventCreated: true,
         activeCount,
       };
     }
@@ -155,21 +173,25 @@ export async function manualCallDelivery(args: {
 
     const calledTime = new Date();
     const message = `Mời xe ${delivery.vehiclePlate} vào ${slot.name}`;
+    const eventType = delivery.status === DeliveryStatus.CALLED
+      ? DeliveryHistoryEventType.REASSIGNED_SLOT
+      : DeliveryHistoryEventType.MANUAL_CALLED;
     const updated = await tx.deliveryRegistration.update({
       where: { id: delivery.id },
       data: { status: DeliveryStatus.CALLED, calledTime, assignedSlotId: slot.id },
-      include: { assignedSlot: true, _count: { select: { callLogs: true } } },
+      include: { assignedSlot: true },
     });
 
     const activeCount = activeInTarget + 1;
-    await tx.callLog.create({
-      data: {
-        deliveryRegistrationId: delivery.id,
-        slotId: slot.id,
-        calledByUserId: args.calledByUserId,
-        message,
-      },
-    });
+    await recordDeliveryEvent(updated, {
+      ...(args.actor ?? {}),
+      eventType,
+      fromStatus: delivery.status,
+      toStatus: updated.status,
+      occurredAt: calledTime,
+      message,
+      slot,
+    }, tx);
 
     await tx.slot.update({
       where: { id: slot.id },
@@ -182,7 +204,7 @@ export async function manualCallDelivery(args: {
       delivery: updated,
       slot,
       message,
-      callLogCreated: true,
+      historyEventCreated: true,
       activeCount,
     };
   });

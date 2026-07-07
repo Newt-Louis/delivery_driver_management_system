@@ -21,9 +21,7 @@ api.interceptors.response.use(
     const url: string = err.config?.url ?? '';
     const hasBearerToken = Boolean(err.config?.headers?.Authorization);
     const isLogin = url.includes('/api/auth/login');
-    // Track action endpoints use staffPin auth — 401 means wrong PIN, not expired session
-    const isTrackAction = url.includes('/api/track/');
-    if (err.response?.status === 401 && hasBearerToken && !isLogin && !isTrackAction && !authRedirecting) {
+    if (err.response?.status === 401 && hasBearerToken && !isLogin && !authRedirecting) {
       authRedirecting = true;
       const message = err.response?.data?.message ?? 'Phiên đăng nhập hết hạn.';
       localStorage.removeItem('token');

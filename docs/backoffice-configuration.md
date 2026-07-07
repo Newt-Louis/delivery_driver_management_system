@@ -61,10 +61,6 @@ Auto warehouse vendors:
 
 - `/api/aw-vendors`
 
-Staff PIN:
-
-- `/api/staff-pins`
-
 Devices:
 
 - `/api/devices`
@@ -75,3 +71,4 @@ Devices:
 - Component dùng lại toàn app mới đưa lên `frontend/src/components`.
 - API helper riêng của Backoffice nằm trong `features/backoffice/api.ts`.
 - Khi thêm tab mới, cần cập nhật cả UI role filter và backend route guard.
+- Staff PIN và route `/api/staff-pins` đã bị loại khỏi luồng vận hành trong giai đoạn 3.

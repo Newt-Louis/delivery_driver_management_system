@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
-import { DeliveryStatus, SlotStatus, GoodsType, ReceivingUnit, VehicleType } from '@prisma/client';
+import { DeliveryStatus, SchedulerJobTrigger, SlotStatus, GoodsType, ReceivingUnit, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope } from '../middleware/auth';
-import { expireStaleDeliveries } from '../services/expireStale';
 import type { SocketScope } from '../socket';
+import { getCallHistoryCounts } from '../modules/history/historyRepository';
+import { closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
 
 const router = Router();
 
@@ -106,7 +107,7 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
       where: await scopedDeliveryWhere(scope, {
         status: { in: [DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
       }),
-      include: { assignedSlot: { include: { zone: { include: { unitConfig: true } } } }, _count: { select: { callLogs: true } } },
+      include: { assignedSlot: { include: { zone: { include: { unitConfig: true } } } } },
       orderBy: [{ checkinTime: 'asc' }],
     }),
     prisma.deliveryRegistration.findMany({
@@ -125,10 +126,16 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
     }),
   ]);
 
+  const callCounts = await getCallHistoryCounts(allActive.map((delivery) => delivery.id));
+  const activeWithCallCounts = allActive.map((delivery) => ({
+    ...delivery,
+    callCount: callCounts.get(delivery.id) ?? 0,
+  }));
+
   const result: Record<string, unknown> = {};
 
   for (const unit of [ReceivingUnit.EMART, ReceivingUnit.THISKYHALL, ReceivingUnit.TENANT]) {
-    const active   = allActive.filter((d) => d.receivingUnit === unit);
+    const active   = activeWithCallCounts.filter((d) => d.receivingUnit === unit);
     const upcoming = allUpcoming.filter((d) => d.receivingUnit === unit);
     const slots    = allSlots.filter((s) => s.assignedUnit === unit);
 
@@ -271,10 +278,14 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
 
 // POST /api/dashboard/expire-stale  — manual trigger (admin)
 router.post('/expire-stale', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
-  const result = await expireStaleDeliveries();
-  res.json({ ...result, message: result.total > 0
-    ? `Đã lưu vào lịch sử: ${result.expiredRegistered} đăng ký không check-in, ${result.expiredWaiting} check-in không nhận hàng`
-    : 'Không có bản ghi nào cần xử lý' });
+  const result = await closeDailyDeliveries({ trigger: SchedulerJobTrigger.MANUAL });
+  res.json({
+    ...result,
+    total: result.processed,
+    message: result.processed > 0
+      ? `Đã xử lý ${result.succeeded}/${result.processed} lượt vào lịch sử`
+      : 'Không có bản ghi nào cần xử lý',
+  });
 }));
 
 export default router;

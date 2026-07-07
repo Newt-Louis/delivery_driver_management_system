@@ -207,3 +207,19 @@ Quy ước:
 
 - `PLAN.md` giai đoạn 2 đã đánh `[COMPLETED]` cho nhiệm vụ 1 đến 8.
 - Tài liệu chi tiết theo từng mảng nằm trong thư mục `docs/`.
+
+## Giai Đoạn 3 - Scheduler Và Hệ Thống Lịch Sử
+
+### 2026-07-07 - Lightweight Modular Monolith Cho History/Scheduler
+
+- Tách mẫu kiến trúc backend nhẹ theo module cho `history` và `scheduler`, chưa refactor lan sang các module khác.
+- Thêm schema/migration cho `delivery_history`, `delivery_history_events`, `scheduler_job_histories`, `DeliveryHistoryFinalStatus`, `DeliveryHistoryEventType`, `SchedulerJobStatus`, `SchedulerJobTrigger`, `DeliveryStatus.INCOMPLETED` và `delivery_registrations.cancel_reason`.
+- Thay `CallLog` bằng event timeline trong `delivery_history_events`; call count được tính từ event gọi xe.
+- Loại bỏ model/route/code runtime `StaffPin` và `/api/staff-pins`; route track action dùng staff PIN cũ đã bị gỡ.
+- Register/check-in/manual call/auto assign/start receiving/complete/cancel ghi event timeline.
+- Cancel API bắt buộc có reason; Dashboard mở modal nhập lý do hủy.
+- Scheduler mới chạy job 23:59 theo `Asia/Ho_Chi_Minh` để archive `REGISTERED` no-show và `RECEIVING`/`AUTO_WAREHOUSE_RECEIVING` incomplete; job 120 phút archive `CANCELLED` có reason.
+- Reports delivery history đọc từ `delivery_history`; double-click một dòng lịch sử mở modal timeline từ `delivery_history_events`.
+- File chính: `backend/src/modules/history/*`, `backend/src/modules/scheduler/*`, `backend/prisma/schema.prisma`, migration `20260707090000_add_delivery_history_scheduler`, `backend/src/routes/deliveries.ts`, `backend/src/routes/reports.ts`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Reports.tsx`.
+- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.
+- `npm run test:concurrency` chưa pass vì database test/local chưa apply migration mới, lỗi thiếu cột `delivery_registrations.cancel_reason`; chưa tự chạy migration vì migration có `DROP TABLE call_logs` và `DROP TABLE staff_pins`.

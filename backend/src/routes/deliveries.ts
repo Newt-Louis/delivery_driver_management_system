@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { DeliveryStatus, GoodsType, ReceivingUnit, VehicleType, Prisma, SlotStatus } from '@prisma/client';
+import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, ReceivingUnit, VehicleType, Prisma, SlotStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope, resolvePublicScope } from '../middleware/auth';
@@ -17,6 +17,9 @@ import { getScopeForDelivery } from '../services/realtimeScope';
 import { recordAuditLog, systemActor, userActor } from '../services/auditLog';
 import { reserveRegistrationCode } from '../services/registrationSequence';
 import { publicWriteLimiter } from '../middleware/rateLimit';
+import { archiveDelivery } from '../modules/history/archiveService';
+import { countCallHistoryEvents, getCallHistoryCounts, listDeliveryHistoryEvents } from '../modules/history/historyRepository';
+import { recordDeliveryEvent } from '../modules/history/historyService';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -218,15 +221,22 @@ async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryR
 }
 
 export async function getFullQueue(scope?: SocketScope) {
-  return prisma.deliveryRegistration.findMany({
+  const deliveries = await prisma.deliveryRegistration.findMany({
     where: await queueWhereForScope(scope),
     include: {
       assignedSlot: { include: { zone: { include: { unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } } } },
-      callLogs: { orderBy: { calledAt: 'desc' }, take: 1 },
-      _count: { select: { callLogs: true } },
     },
     orderBy: [{ checkinTime: 'asc' }],
   });
+  return attachCallCounts(deliveries);
+}
+
+async function attachCallCounts<T extends { id: string }>(deliveries: T[]): Promise<Array<T & { callCount: number }>> {
+  const counts = await getCallHistoryCounts(deliveries.map((delivery) => delivery.id));
+  return deliveries.map((delivery) => ({
+    ...delivery,
+    callCount: counts.get(delivery.id) ?? 0,
+  }));
 }
 
 export async function getAllSlots(scope?: SocketScope) {
@@ -360,7 +370,7 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
 
       const registrationCode = await reserveRegistrationCode(tx, body.receivingUnit);
 
-      return tx.deliveryRegistration.create({
+      const delivery = await tx.deliveryRegistration.create({
         data: {
           registrationCode,
           vendorName: body.vendorName,
@@ -378,6 +388,16 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req: Request, r
           note: body.note,
         },
       });
+
+      await recordDeliveryEvent(delivery, {
+        ...systemActor('public-register'),
+        eventType: DeliveryHistoryEventType.REGISTERED,
+        toStatus: delivery.status,
+        occurredAt: delivery.createdAt,
+        message: 'Đăng ký giao hàng',
+      }, tx);
+
+      return delivery;
     });
 
     res.status(201).json(delivery);
@@ -419,11 +439,11 @@ router.get('/', authenticate, enforceScope, asyncHandler(async (req: Request, re
 
   const deliveries = await prisma.deliveryRegistration.findMany({
     where,
-    include: { assignedSlot: true, unitGoodsType: { select: { id: true, name: true, emoji: true, baseType: true } }, _count: { select: { callLogs: true } } },
+    include: { assignedSlot: true, unitGoodsType: { select: { id: true, name: true, emoji: true, baseType: true } } },
     orderBy: [{ checkinTime: 'asc' }, { createdAt: 'desc' }],
   });
 
-  res.json(deliveries);
+  res.json(await attachCallCounts(deliveries));
 }));
 
 // GET /api/deliveries/queue
@@ -482,6 +502,7 @@ router.patch('/check-in-lookup', authenticate, enforceScope, requireRole('SUPERA
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
     resultArgs: { include: { assignedSlot: true } },
+    actor: userActor(req.user),
   });
 
   if (!checkInResult.delivery) {
@@ -503,7 +524,7 @@ router.patch('/check-in-lookup', authenticate, enforceScope, requireRole('SUPERA
     const scope = await getScopeForDelivery(updated);
     const queue = await getFullQueue(scope);
     await recordAuditLog({
-      ...systemActor('public-check-in-route'),
+      ...userActor(req.user),
       action: 'delivery.check_in',
       targetType: 'DeliveryRegistration',
       targetId: updated.id,
@@ -533,14 +554,16 @@ router.get('/:id', authenticate, enforceScope, asyncHandler(async (req: Request,
     where: { id: req.params.id },
     include: {
       assignedSlot: true,
-      callLogs: { include: { slot: true, calledByUser: true }, orderBy: { calledAt: 'desc' } },
-      _count: { select: { callLogs: true } },
     },
   });
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
   const deliveryScope = await getScopeForDelivery(delivery);
   if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
-  res.json(delivery);
+  const [callCount, historyEvents] = await Promise.all([
+    countCallHistoryEvents(delivery.id),
+    listDeliveryHistoryEvents({ originalDeliveryId: delivery.id }),
+  ]);
+  res.json({ ...delivery, callCount, historyEvents });
 }));
 
 // PATCH /api/deliveries/:id/check-in
@@ -570,6 +593,7 @@ router.patch('/:id/check-in', authenticate, enforceScope, requireRole('SUPERADMI
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
     resultArgs: { include: { assignedSlot: true } },
+    actor: userActor(req.user),
   });
 
   if (!checkInResult.delivery) {
@@ -587,7 +611,7 @@ router.patch('/:id/check-in', authenticate, enforceScope, requireRole('SUPERADMI
     const scope = await getScopeForDelivery(updated);
     const queue = await getFullQueue(scope);
     await recordAuditLog({
-      ...systemActor('public-check-in-route'),
+      ...userActor(req.user),
       action: 'delivery.check_in',
       targetType: 'DeliveryRegistration',
       targetId: updated.id,
@@ -621,6 +645,7 @@ router.patch('/:id/call', authenticate, enforceScope, requireRole('SUPERADMIN', 
     deliveryId: req.params.id,
     slotId,
     calledByUserId: req.user!.id,
+    actor: userActor(req.user),
   });
 
   if (result.outcome === 'delivery_not_found') {
@@ -649,8 +674,8 @@ router.patch('/:id/call', authenticate, enforceScope, requireRole('SUPERADMIN', 
   }
 
   const { delivery, slot, message } = result;
-  if (result.callLogCreated) {
-    const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: delivery.id } });
+  if (result.historyEventCreated) {
+    const callCount = await countCallHistoryEvents(delivery.id);
     const scope = await getScopeForDelivery({ ...delivery, assignedSlotId: slot.id });
     await recordAuditLog({
       ...userActor(req.user),
@@ -692,7 +717,7 @@ router.patch('/:id/call', authenticate, enforceScope, requireRole('SUPERADMIN', 
 
   res.json(delivery);
 
-  if (result.callLogCreated) {
+  if (result.historyEventCreated) {
     sendPushToDelivery(delivery.registrationCode, {
       title: `🚛 Mời vào ${slot.code}`,
       body: `Xe ${delivery.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
@@ -720,6 +745,16 @@ router.patch('/:id/start-receiving', authenticate, enforceScope, requireRole('SU
     where: { id: req.params.id },
     data: { status: newStatus, receivingStartTime: new Date() },
     include: { assignedSlot: true },
+  });
+  await recordDeliveryEvent(updated, {
+    ...userActor(req.user),
+    eventType: newStatus === DeliveryStatus.AUTO_WAREHOUSE_RECEIVING
+      ? DeliveryHistoryEventType.AUTO_WAREHOUSE_RECEIVING_STARTED
+      : DeliveryHistoryEventType.RECEIVING_STARTED,
+    fromStatus: delivery.status,
+    toStatus: updated.status,
+    occurredAt: updated.receivingStartTime ?? new Date(),
+    message: 'Bắt đầu nhận hàng',
   });
 
   const scope = await getScopeForDelivery(updated);
@@ -767,7 +802,7 @@ router.patch('/:id/complete', authenticate, enforceScope, requireRole('SUPERADMI
     if (!enforceResourceScope(req, res, preScope.businessLocationId)) return;
   }
 
-  const result = await completeDelivery(req.params.id);
+  const result = await completeDelivery(req.params.id, userActor(req.user));
   if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (result.outcome === 'invalid_status') {
     res.status(409).json({ error: 'Cannot complete delivery in current status', delivery: result.delivery });
@@ -800,6 +835,14 @@ router.patch('/:id/complete', authenticate, enforceScope, requireRole('SUPERADMI
     emitSlotUpdated(slots, scope);
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
     emitTrackUpdatesForQueue(queue).catch(console.error);
+    await archiveDelivery({
+      deliveryId: result.delivery.id,
+      finalStatus: DeliveryHistoryFinalStatus.COMPLETED,
+      archiveReason: 'COMPLETED',
+      ...userActor(req.user),
+      closeReason: 'Hoàn tất nhận hàng',
+      deleteOperationalRow: false,
+    });
   }
 
   res.json({ success: true, delivery: result.delivery, idempotent: !result.changed });
@@ -816,8 +859,13 @@ router.patch('/:id/complete', authenticate, enforceScope, requireRole('SUPERADMI
   }
 }));
 
+const cancelSchema = z.object({
+  reason: z.string().trim().min(3, 'Vui lòng nhập lý do hủy'),
+});
+
 // PATCH /api/deliveries/:id/cancel
 router.patch('/:id/cancel', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
+  const { reason } = cancelSchema.parse(req.body);
   // Scope check: verify delivery belongs to user's scope before operating
   const preDelivery = await prisma.deliveryRegistration.findUnique({
     where: { id: req.params.id },
@@ -828,7 +876,7 @@ router.patch('/:id/cancel', authenticate, enforceScope, requireRole('SUPERADMIN'
     if (!enforceResourceScope(req, res, preScope.businessLocationId)) return;
   }
 
-  const result = await cancelDelivery(req.params.id);
+  const result = await cancelDelivery(req.params.id, reason, userActor(req.user));
   if (!result.delivery) { res.status(404).json({ error: 'Not found' }); return; }
   if (result.outcome === 'invalid_status') {
     res.status(409).json({ error: 'Cannot cancel delivery in current status', delivery: result.delivery });
@@ -849,9 +897,11 @@ router.patch('/:id/cancel', authenticate, enforceScope, requireRole('SUPERADMIN'
         status: result.delivery.status,
         registrationCode: result.delivery.registrationCode,
         vehiclePlate: result.delivery.vehiclePlate,
+        cancelReason: result.delivery.cancelReason,
       },
       metadata: {
         releasedSlotId: result.releasedSlotId,
+        reason,
         source: 'deliveries.cancel',
       },
     });

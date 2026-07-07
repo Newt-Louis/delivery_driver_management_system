@@ -1,6 +1,8 @@
-import { DeliveryRegistration, DeliveryStatus, Prisma } from '@prisma/client';
+import { DeliveryHistoryEventType, DeliveryRegistration, DeliveryStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { reconcileSlotState } from './slotState';
+import { recordDeliveryEvent } from '../modules/history/historyService';
+import type { HistoryActor } from '../modules/history/types';
 
 const COMPLETABLE_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.CALLED,
@@ -37,7 +39,7 @@ async function releaseSlotForDelivery(tx: Prisma.TransactionClient, delivery: De
   return delivery.assignedSlotId;
 }
 
-export async function completeDelivery(deliveryId: string): Promise<CompleteDeliveryResult> {
+export async function completeDelivery(deliveryId: string, actor: HistoryActor = {}): Promise<CompleteDeliveryResult> {
   return prisma.$transaction(async (tx) => {
     await lockDelivery(tx, deliveryId);
 
@@ -56,6 +58,14 @@ export async function completeDelivery(deliveryId: string): Promise<CompleteDeli
       where: { id: delivery.id },
       data: { status: DeliveryStatus.COMPLETED, completedTime: new Date() },
     });
+    await recordDeliveryEvent(completed, {
+      ...actor,
+      eventType: DeliveryHistoryEventType.COMPLETED,
+      fromStatus: delivery.status,
+      toStatus: completed.status,
+      occurredAt: completed.completedTime ?? new Date(),
+      message: 'Hoàn tất nhận hàng',
+    }, tx);
     const releasedSlotId = await releaseSlotForDelivery(tx, delivery);
 
     return {
@@ -67,7 +77,7 @@ export async function completeDelivery(deliveryId: string): Promise<CompleteDeli
   });
 }
 
-export async function cancelDelivery(deliveryId: string): Promise<CancelDeliveryResult> {
+export async function cancelDelivery(deliveryId: string, reason: string, actor: HistoryActor = {}): Promise<CancelDeliveryResult> {
   return prisma.$transaction(async (tx) => {
     await lockDelivery(tx, deliveryId);
 
@@ -84,8 +94,17 @@ export async function cancelDelivery(deliveryId: string): Promise<CancelDelivery
 
     const cancelled = await tx.deliveryRegistration.update({
       where: { id: delivery.id },
-      data: { status: DeliveryStatus.CANCELLED },
+      data: { status: DeliveryStatus.CANCELLED, cancelReason: reason },
     });
+    await recordDeliveryEvent(cancelled, {
+      ...actor,
+      eventType: DeliveryHistoryEventType.CANCELLED,
+      fromStatus: delivery.status,
+      toStatus: cancelled.status,
+      occurredAt: new Date(),
+      message: 'Hủy lượt giao hàng',
+      reason,
+    }, tx);
     const releasedSlotId = await releaseSlotForDelivery(tx, delivery);
 
     return {

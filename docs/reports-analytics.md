@@ -37,10 +37,12 @@ Analytics:
 
 Models:
 
-- `DeliveryRegistration`
+- `DeliveryHistory`
+- `DeliveryHistoryEvent`
 - `Slot`
-- `CallLog`
 - `ReceivingTimeConfig`
+
+Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_history`; timeline chi tiết đọc từ `delivery_history_events`.
 
 ## Quyền
 

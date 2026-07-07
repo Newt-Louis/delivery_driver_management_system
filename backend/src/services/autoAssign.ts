@@ -1,4 +1,4 @@
-import { DeliveryRegistration, DeliveryStatus, GoodsType, Prisma, ReceivingUnit, Slot, SlotStatus } from '@prisma/client';
+import { DeliveryHistoryEventType, DeliveryRegistration, DeliveryStatus, GoodsType, Prisma, ReceivingUnit, Slot, SlotStatus } from '@prisma/client';
 import { formatTicketCode } from '../routes/track';
 import { prisma } from '../lib/prisma';
 import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../socket';
@@ -7,6 +7,8 @@ import { emitTrackUpdatesForQueue } from './trackRealtime';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 import { getScopeForSlot } from './realtimeScope';
 import { recordAuditLog, systemActor } from './auditLog';
+import { countCallHistoryEvents } from '../modules/history/historyRepository';
+import { recordDeliveryEvent } from '../modules/history/historyService';
 
 type AutoAssignScope = {
   businessLocationId?: string;
@@ -70,8 +72,6 @@ async function getFullQueue(scope?: SocketScope) {
     where: await queueWhereForScope(scope),
     include: {
       assignedSlot: { include: { zone: { include: { unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } } } },
-      callLogs: { orderBy: { calledAt: 'desc' }, take: 1 },
-      _count: { select: { callLogs: true } },
     },
     orderBy: [{ checkinTime: 'asc' }],
   });
@@ -208,13 +208,15 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
       data: { status: DeliveryStatus.CALLED, calledTime, assignedSlotId: slot.id },
     });
 
-    await tx.callLog.create({
-      data: {
-        deliveryRegistrationId: next.id,
-        slotId: slot.id,
-        message,
-      },
-    });
+    await recordDeliveryEvent(delivery, {
+      ...systemActor('auto-assign'),
+      eventType: DeliveryHistoryEventType.AUTO_ASSIGNED,
+      fromStatus: next.status,
+      toStatus: delivery.status,
+      occurredAt: calledTime,
+      message,
+      slot,
+    }, tx);
 
     await tx.slot.update({
       where: { id: slot.id },
@@ -232,7 +234,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
 }
 
 async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): Promise<void> {
-  const callCount = await prisma.callLog.count({ where: { deliveryRegistrationId: result.delivery.id } });
+  const callCount = await countCallHistoryEvents(result.delivery.id);
   const scope = await getScopeForSlot(result.slot.id);
 
   await recordAuditLog({

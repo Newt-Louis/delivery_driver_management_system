@@ -23,9 +23,11 @@ Mỗi file tập trung vào một miền nghiệp vụ riêng:
 - [timezone-expire.md](timezone-expire.md): timezone Việt Nam và expire stale deliveries.
 - [seed-and-data-bootstrap.md](seed-and-data-bootstrap.md): seed demo, seed location/unit và seed app config.
 - [testing-load-concurrency.md](testing-load-concurrency.md): concurrency test và load test Artillery.
+- [delivery-history-scheduler.md](delivery-history-scheduler.md): scheduler, history snapshot và timeline chuyến giao hàng.
 
 Lưu ý quan trọng:
 
 - Luồng vận hành chuẩn hiện tại nên đi qua các endpoint rõ ràng trong `/api/deliveries/*`.
 - Kiosk terminal và backend route `/api/checkin` đã bị loại khỏi luồng vận hành. Check-in chuẩn đi qua `/check-in` và `/api/deliveries/check-in-lookup`.
 - Khi sửa code, đọc thêm `AGENTS.md` vì file đó chứa quy tắc bắt buộc và định hướng phát triển.
+- Từ giai đoạn 3, lịch sử gọi xe nằm trong `delivery_history_events`, không còn dùng `CallLog`; Staff PIN cũng đã bị loại khỏi luồng vận hành.

@@ -279,7 +279,7 @@ router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asy
   const existing = await findScopedStaffOr404(req.params.id, businessLocationId);
   if (!existing) { res.status(404).json({ error: 'Không tìm thấy nhân viên trong khu vực này' }); return; }
 
-  const hasLogs = await prisma.callLog.count({ where: { calledByUserId: req.params.id } });
+  const hasLogs = await prisma.deliveryHistoryEvent.count({ where: { actorId: req.params.id } });
   if (hasLogs > 0) {
     const user = await prisma.user.update({
       where: { id: req.params.id },
@@ -428,7 +428,7 @@ router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(asyn
   if (target.role === 'SUPERADMIN') {
     res.status(400).json({ error: 'Không thể xóa tài khoản SUPERADMIN duy nhất' }); return;
   }
-  const hasLogs = await prisma.callLog.count({ where: { calledByUserId: req.params.id } });
+  const hasLogs = await prisma.deliveryHistoryEvent.count({ where: { actorId: req.params.id } });
   if (hasLogs > 0) {
     // Has history — deactivate instead of hard-delete
     const u = await prisma.user.update({

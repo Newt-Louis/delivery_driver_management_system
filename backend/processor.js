@@ -50,7 +50,8 @@ async function cleanupDelivery(registrationCode) {
     try {
       await prisma.$transaction([
         prisma.auditLog.deleteMany({ where: { targetId: delivery.id } }),
-        prisma.callLog.deleteMany({ where: { deliveryRegistrationId: delivery.id } }),
+        prisma.deliveryHistoryEvent.deleteMany({ where: { originalDeliveryId: delivery.id } }),
+        prisma.deliveryHistory.deleteMany({ where: { originalDeliveryId: delivery.id } }),
         prisma.pushSubscription.deleteMany({ where: { deliveryCode: delivery.registrationCode } }),
         prisma.deliveryRegistration.delete({ where: { id: delivery.id } }),
       ]);

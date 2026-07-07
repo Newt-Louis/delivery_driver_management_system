@@ -1,6 +1,8 @@
-import { DeliveryStatus, Prisma } from '@prisma/client';
+import { DeliveryHistoryEventType, DeliveryStatus, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { reserveTicketNumber } from './ticketSequence';
+import { recordDeliveryEvent } from '../modules/history/historyService';
+import type { HistoryActor } from '../modules/history/types';
 
 type DeliveryFindArgs = {
   include?: Prisma.DeliveryRegistrationInclude;
@@ -10,6 +12,7 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
   deliveryId: string;
   resultArgs: TArgs;
   now?: Date;
+  actor?: HistoryActor;
 }): Promise<{
   checkedIn: boolean;
   delivery: Prisma.DeliveryRegistrationGetPayload<TArgs> | null;
@@ -37,6 +40,16 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
       data: { status: DeliveryStatus.WAITING, checkinTime, ticketNumber },
       ...args.resultArgs,
     } as Prisma.DeliveryRegistrationUpdateArgs) as Prisma.DeliveryRegistrationGetPayload<TArgs>;
+
+    await recordDeliveryEvent(updated as Prisma.DeliveryRegistrationGetPayload<Prisma.DeliveryRegistrationDefaultArgs>, {
+      ...(args.actor ?? {}),
+      eventType: DeliveryHistoryEventType.CHECKED_IN,
+      fromStatus: currentRecord.status,
+      toStatus: DeliveryStatus.WAITING,
+      occurredAt: checkinTime,
+      message: 'Check-in tại cổng',
+      metadata: { ticketNumber },
+    }, tx);
 
     return { checkedIn: true, delivery: updated };
   });

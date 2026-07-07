@@ -56,7 +56,7 @@ API lifecycle:
 - `PATCH /api/deliveries/:id/call`
   - Role: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
   - Gọi `manualCallDelivery()`.
-  - Tạo `CallLog` khi có call mới.
+  - Tạo event timeline trong `delivery_history_events` khi gọi mới, gọi lại hoặc đổi slot.
   - Emit `delivery_called`, `queue_updated`, `slot_updated`.
 - `PATCH /api/deliveries/:id/start-receiving`
   - Role: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
@@ -67,6 +67,7 @@ API lifecycle:
   - Release slot và trigger auto-assign tiếp.
 - `PATCH /api/deliveries/:id/cancel`
   - Role: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
+  - Bắt buộc có lý do hủy.
   - Gọi `cancelDelivery()`.
   - Release slot nếu cần.
 

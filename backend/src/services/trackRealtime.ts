@@ -5,10 +5,6 @@ import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 
 const TRACK_INCLUDE = {
   assignedSlot: { include: { zone: { select: { id: true, code: true, name: true } } } },
-  callLogs: {
-    orderBy: { calledAt: 'asc' as const },
-    include: { slot: { select: { id: true, code: true, name: true } } },
-  },
 } as const;
 
 export async function getTrackDelivery(registrationCode: string) {

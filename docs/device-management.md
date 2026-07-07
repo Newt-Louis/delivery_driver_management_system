@@ -45,4 +45,4 @@ Nguyên tắc bảo mật:
 
 - Route `/api/checkin` và frontend `/kiosk` đã bị loại bỏ.
 - `Device` vẫn được giữ lại vì có thể dùng cho kiểm soát thiết bị cố định, IP nội bộ, PDA, TV hoặc policy đăng nhập theo thiết bị trong giai đoạn sau.
-- `staff_pins` hiện là bảng dự phòng cho trường hợp khác, không còn được route kiosk terminal sử dụng.
+- `staff_pins` đã bị loại bỏ trong giai đoạn 3; thiết bị vẫn được giữ cho các policy thiết bị hoặc xác thực nâng cao sau này.
