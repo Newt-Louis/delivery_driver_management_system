@@ -38,7 +38,7 @@ type ManualCallFailure = {
 export type ManualCallResult = ManualCallSuccess | ManualCallFailure;
 
 function isManualCallSuccess(result: ManualCallResult): result is ManualCallSuccess {
-  return result.outcome === 'called' || result.outcome === 'already_called';
+  return result.outcome === 'called' || result.outcome === 'recalled' || result.outcome === 'already_called';
 }
 
 function getSlotMismatchMessage(delivery: DeliveryRegistration, slot: Slot): string | null {

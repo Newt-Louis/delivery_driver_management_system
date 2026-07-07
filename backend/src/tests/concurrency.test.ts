@@ -380,7 +380,7 @@ test('50 concurrent identical registrations create one active delivery', async (
     }
   });
 });
-test('50 concurrent registrations for one time slot respect configured capacity', async () => {
+test('50 concurrent registrations for one time slot respect real slot capacity', async () => {
   await withRegisterServer(async (baseUrl) => {
     const prefix = nextPrefix('REGSLOT50');
     await cleanupPrefix(prefix);
@@ -400,15 +400,41 @@ test('50 concurrent registrations for one time slot respect configured capacity'
     });
     assert.ok(config);
 
-    const originalTruckMaxPerSlot = config.truckMaxPerSlot;
     const requestedTime = localDateTimeAfterDays(30, 3, 17);
+    const zone = await prisma.zone.create({
+      data: {
+        code: `${prefix}Z`,
+        name: `Zone ${prefix}`,
+        unitConfigId: config.id,
+      },
+    });
+    await prisma.slot.create({
+      data: {
+        code: `${prefix}S1`,
+        name: `Slot ${prefix}`,
+        zoneId: zone.id,
+        assignedUnit: ReceivingUnit.EMART,
+        vehicleType: VehicleType.TRUCK,
+        maxCapacity: 1,
+        acceptedGoods: [],
+        status: SlotStatus.AVAILABLE,
+        isActive: true,
+        autoAssign: true,
+      },
+    });
+    const matchingSlots = await prisma.slot.findMany({
+      where: {
+        assignedUnit: ReceivingUnit.EMART,
+        vehicleType: VehicleType.TRUCK,
+        isActive: true,
+        status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
+        zone: { unitConfigId: config.id },
+      },
+      select: { maxCapacity: true },
+    });
+    const expectedCapacity = matchingSlots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
 
     try {
-      await prisma.unitConfig.update({
-        where: { id: config.id },
-        data: { truckMaxPerSlot: 1 },
-      });
-
       const responses = await Promise.all(
         Array.from({ length: 50 }, (_, i) => fetch(`${baseUrl}/api/deliveries/register`, {
           method: 'POST',
@@ -428,8 +454,8 @@ test('50 concurrent registrations for one time slot respect configured capacity'
       );
 
       const statuses = responses.map((res) => res.status);
-      assert.equal(statuses.filter((status) => status === 201).length, 1);
-      assert.equal(statuses.filter((status) => status === 409).length, 49);
+      assert.equal(statuses.filter((status) => status === 201).length, expectedCapacity);
+      assert.equal(statuses.filter((status) => status === 409).length, 50 - expectedCapacity);
 
       const deliveries = await prisma.deliveryRegistration.findMany({
         where: {
@@ -437,12 +463,8 @@ test('50 concurrent registrations for one time slot respect configured capacity'
           status: DeliveryStatus.REGISTERED,
         },
       });
-      assert.equal(deliveries.length, 1);
+      assert.equal(deliveries.length, expectedCapacity);
     } finally {
-      await prisma.unitConfig.update({
-        where: { id: config.id },
-        data: { truckMaxPerSlot: originalTruckMaxPerSlot },
-      });
       await cleanupPrefix(prefix);
     }
   });
@@ -496,7 +518,7 @@ test('5 concurrent scans of the same QR are idempotent', async () => {
   }
 });
 
-test('5 concurrent manual calls for one delivery create only one call log', async () => {
+test('5 concurrent manual calls for one delivery create one call and four recall events', async () => {
   await withScope('MANUALONE', ReceivingUnit.EMART, async (scope) => {
     const [slot, user] = await Promise.all([
       createSlot(scope, { suffix: 'S1' }),

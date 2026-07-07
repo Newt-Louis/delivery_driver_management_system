@@ -221,5 +221,5 @@ Quy ước:
 - Scheduler mới chạy job 23:59 theo `Asia/Ho_Chi_Minh` để archive `REGISTERED` no-show và `RECEIVING`/`AUTO_WAREHOUSE_RECEIVING` incomplete; job 120 phút archive `CANCELLED` có reason.
 - Reports delivery history đọc từ `delivery_history`; double-click một dòng lịch sử mở modal timeline từ `delivery_history_events`.
 - File chính: `backend/src/modules/history/*`, `backend/src/modules/scheduler/*`, `backend/prisma/schema.prisma`, migration `20260707090000_add_delivery_history_scheduler`, `backend/src/routes/deliveries.ts`, `backend/src/routes/reports.ts`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Reports.tsx`.
-- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.
-- `npm run test:concurrency` chưa pass vì database test/local chưa apply migration mới, lỗi thiếu cột `delivery_registrations.cancel_reason`; chưa tự chạy migration vì migration có `DROP TABLE call_logs` và `DROP TABLE staff_pins`.
+- Đã apply migration bằng `npm run db:migrate`.
+- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`, `npm run test:concurrency`.
