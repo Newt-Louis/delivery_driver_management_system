@@ -43,7 +43,7 @@ enum VehicleType {
 }
 
 enum DeviceType {
-  KIOSK
+  FIXED_DEVICE
   PDA
   TABLET
   TV
@@ -65,6 +65,43 @@ enum DeliveryStatus {
   COMPLETED
   CANCELLED
   EXPIRED // auto-archived: past-day no-checkin or no-delivery
+  INCOMPLETED
+}
+
+enum DeliveryHistoryFinalStatus {
+  COMPLETED
+  CANCELLED
+  EXPIRED
+  INCOMPLETED
+}
+
+enum DeliveryHistoryEventType {
+  REGISTERED
+  CHECKED_IN
+  AUTO_ASSIGNED
+  MANUAL_CALLED
+  RECALLED
+  REASSIGNED_SLOT
+  RECEIVING_STARTED
+  AUTO_WAREHOUSE_RECEIVING_STARTED
+  COMPLETED
+  CANCELLED
+  EXPIRED_NO_SHOW
+  EXPIRED_WAITING
+  INCOMPLETED
+  ARCHIVED
+}
+
+enum SchedulerJobStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum SchedulerJobTrigger {
+  SCHEDULED
+  MANUAL
+  STARTUP
 }
 
 model User {
@@ -79,10 +116,60 @@ model User {
   businessLocation   BusinessLocation? @relation(fields: [businessLocationId], references: [id])
   isActive           Boolean           @default(true) @map("is_active")
   createdAt          DateTime          @default(now()) @map("created_at")
-  callLogs           CallLog[]
+  faceCredentials    FaceCredential[]
+  authChallenges     AuthChallenge[]
 
   @@index([businessLocationId, role, isActive])
   @@map("users")
+}
+
+model AppConfig {
+  id                String   @id @default(cuid())
+  key               String   @unique
+  category          String
+  value             Json
+  valueType         String   @default("json") @map("value_type")
+  description       String   @default("")
+  isSensitive       Boolean  @default(false) @map("is_sensitive")
+  isRuntimeEditable Boolean  @default(true) @map("is_runtime_editable")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@map("app_configs")
+}
+
+model FaceCredential {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String    @unique @map("credential_id")
+  publicKey    Json      @map("public_key")
+  signCount    Int       @default(0) @map("sign_count")
+  deviceName   String?   @map("device_name")
+  transports   String[]  @default([])
+  isActive     Boolean   @default(true) @map("is_active")
+  lastUsedAt   DateTime? @map("last_used_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, isActive])
+  @@map("face_credentials")
+}
+
+model AuthChallenge {
+  id         String    @id @default(cuid())
+  userId     String?   @map("user_id")
+  user       User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge  String    @unique
+  type       String
+  metadata   Json?
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, type, expiresAt])
+  @@map("auth_challenges")
 }
 
 model Zone {
@@ -117,7 +204,6 @@ model Slot {
   zoneId            String                 @map("zone_id")
   zone              Zone                   @relation(fields: [zoneId], references: [id])
   deliveries        DeliveryRegistration[] @relation("AssignedSlot")
-  callLogs          CallLog[]
 
   @@index([zoneId])
   @@index([assignedUnit, vehicleType, status, isActive, autoAssign])
@@ -126,33 +212,34 @@ model Slot {
 }
 
 model DeliveryRegistration {
-  id                 String         @id @default(cuid())
-  registrationCode   String         @unique @map("registration_code")
-  vendorName         String         @map("vendor_name")
-  driverName         String         @map("driver_name")
-  driverPhone        String         @map("driver_phone")
-  vehiclePlate       String         @map("vehicle_plate")
-  receivingUnit      ReceivingUnit  @map("receiving_unit")
-  goodsType          GoodsType      @map("goods_type")
-  poNumber           String?        @map("po_number")
-  vendorCode         String?        @map("vendor_code")
-  requestedTime      DateTime?      @map("requested_time")
-  checkinTime        DateTime?      @map("checkin_time")
-  calledTime         DateTime?      @map("called_time")
-  receivingStartTime DateTime?      @map("receiving_start_time")
-  completedTime      DateTime?      @map("completed_time")
-  status             DeliveryStatus @default(REGISTERED)
-  assignedSlotId     String?        @map("assigned_slot_id")
-  assignedSlot       Slot?          @relation("AssignedSlot", fields: [assignedSlotId], references: [id])
-  vehicleType        VehicleType    @default(OTHER) @map("vehicle_type")
-  autoWarehouse      Boolean        @default(false) @map("auto_warehouse")
-  ticketNumber       Int?           @map("ticket_number")
+  id                 String                 @id @default(cuid())
+  registrationCode   String                 @unique @map("registration_code")
+  vendorName         String                 @map("vendor_name")
+  driverName         String                 @map("driver_name")
+  driverPhone        String                 @map("driver_phone")
+  vehiclePlate       String                 @map("vehicle_plate")
+  receivingUnit      ReceivingUnit          @map("receiving_unit")
+  goodsType          GoodsType              @map("goods_type")
+  poNumber           String?                @map("po_number")
+  vendorCode         String?                @map("vendor_code")
+  requestedTime      DateTime?              @map("requested_time")
+  checkinTime        DateTime?              @map("checkin_time")
+  calledTime         DateTime?              @map("called_time")
+  receivingStartTime DateTime?              @map("receiving_start_time")
+  completedTime      DateTime?              @map("completed_time")
+  status             DeliveryStatus         @default(REGISTERED)
+  assignedSlotId     String?                @map("assigned_slot_id")
+  assignedSlot       Slot?                  @relation("AssignedSlot", fields: [assignedSlotId], references: [id])
+  vehicleType        VehicleType            @default(OTHER) @map("vehicle_type")
+  autoWarehouse      Boolean                @default(false) @map("auto_warehouse")
+  ticketNumber       Int?                   @map("ticket_number")
   note               String?
-  unitGoodsTypeId    String?        @map("unit_goods_type_id")
-  unitGoodsType      UnitGoodsType? @relation(fields: [unitGoodsTypeId], references: [id], onDelete: SetNull)
-  createdAt          DateTime       @default(now()) @map("created_at")
-  updatedAt          DateTime       @updatedAt @map("updated_at")
-  callLogs           CallLog[]
+  cancelReason       String?                @map("cancel_reason")
+  unitGoodsTypeId    String?                @map("unit_goods_type_id")
+  unitGoodsType      UnitGoodsType?         @relation(fields: [unitGoodsTypeId], references: [id], onDelete: SetNull)
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+  historyEvents      DeliveryHistoryEvent[]
 
   @@index([status, receivingUnit, vehicleType, checkinTime])
   @@index([assignedSlotId, status])
@@ -189,22 +276,6 @@ model RegistrationSequence {
   @@map("registration_sequences")
 }
 
-model CallLog {
-  id                     String               @id @default(cuid())
-  deliveryRegistrationId String               @map("delivery_registration_id")
-  deliveryRegistration   DeliveryRegistration @relation(fields: [deliveryRegistrationId], references: [id])
-  slotId                 String               @map("slot_id")
-  slot                   Slot                 @relation(fields: [slotId], references: [id])
-  calledByUserId         String?              @map("called_by_user_id") // null for auto-assign
-  calledByUser           User?                @relation(fields: [calledByUserId], references: [id])
-  calledAt               DateTime             @default(now()) @map("called_at")
-  message                String
-
-  @@index([deliveryRegistrationId, calledAt])
-  @@index([slotId, calledAt])
-  @@map("call_logs")
-}
-
 model AuditLog {
   id                 String         @id @default(cuid())
   actorType          AuditActorType @map("actor_type")
@@ -227,6 +298,115 @@ model AuditLog {
   @@index([targetType, targetId, createdAt])
   @@index([actorType, actorId, createdAt])
   @@map("audit_logs")
+}
+
+model DeliveryHistory {
+  id                       String                     @id @default(cuid())
+  originalDeliveryId       String                     @unique @map("original_delivery_id")
+  registrationCode         String                     @unique @map("registration_code")
+  businessLocationId       String?                    @map("business_location_id")
+  unitConfigId             String?                    @map("unit_config_id")
+  receivingUnit            ReceivingUnit              @map("receiving_unit")
+  vendorName               String                     @map("vendor_name")
+  vendorCode               String?                    @map("vendor_code")
+  poNumber                 String?                    @map("po_number")
+  driverName               String                     @map("driver_name")
+  driverPhone              String                     @map("driver_phone")
+  vehiclePlate             String                     @map("vehicle_plate")
+  goodsType                GoodsType                  @map("goods_type")
+  unitGoodsTypeId          String?                    @map("unit_goods_type_id")
+  vehicleType              VehicleType                @map("vehicle_type")
+  autoWarehouse            Boolean                    @default(false) @map("auto_warehouse")
+  requestedTime            DateTime?                  @map("requested_time")
+  registeredAt             DateTime                   @map("registered_at")
+  checkinTime              DateTime?                  @map("checkin_time")
+  calledTime               DateTime?                  @map("called_time")
+  receivingStartTime       DateTime?                  @map("receiving_start_time")
+  completedTime            DateTime?                  @map("completed_time")
+  finalStatus              DeliveryHistoryFinalStatus @map("final_status")
+  closeReason              String?                    @map("close_reason")
+  ticketNumber             Int?                       @map("ticket_number")
+  assignedSlotId           String?                    @map("assigned_slot_id")
+  assignedSlotCode         String?                    @map("assigned_slot_code")
+  assignedSlotName         String?                    @map("assigned_slot_name")
+  callCount                Int                        @default(0) @map("call_count")
+  lastCalledAt             DateTime?                  @map("last_called_at")
+  cancelledAt              DateTime?                  @map("cancelled_at")
+  expiredAt                DateTime?                  @map("expired_at")
+  archivedAt               DateTime                   @default(now()) @map("archived_at")
+  archivedByJobRunId       String?                    @map("archived_by_job_run_id")
+  durationWaitingMinutes   Int?                       @map("duration_waiting_minutes")
+  durationReceivingMinutes Int?                       @map("duration_receiving_minutes")
+  note                     String?
+  metadata                 Json?
+  events                   DeliveryHistoryEvent[]
+  createdAt                DateTime                   @default(now()) @map("created_at")
+  updatedAt                DateTime                   @updatedAt @map("updated_at")
+
+  @@index([businessLocationId, archivedAt])
+  @@index([unitConfigId, archivedAt])
+  @@index([finalStatus, archivedAt])
+  @@index([requestedTime])
+  @@index([vehiclePlate, archivedAt])
+  @@map("delivery_history")
+}
+
+model DeliveryHistoryEvent {
+  id                     String                   @id @default(cuid())
+  deliveryHistoryId      String?                  @map("delivery_history_id")
+  deliveryHistory        DeliveryHistory?         @relation(fields: [deliveryHistoryId], references: [id], onDelete: Cascade)
+  deliveryRegistrationId String?                  @map("delivery_registration_id")
+  deliveryRegistration   DeliveryRegistration?    @relation(fields: [deliveryRegistrationId], references: [id], onDelete: SetNull)
+  originalDeliveryId     String                   @map("original_delivery_id")
+  registrationCode       String                   @map("registration_code")
+  businessLocationId     String?                  @map("business_location_id")
+  unitConfigId           String?                  @map("unit_config_id")
+  eventType              DeliveryHistoryEventType @map("event_type")
+  fromStatus             DeliveryStatus?          @map("from_status")
+  toStatus               DeliveryStatus?          @map("to_status")
+  occurredAt             DateTime                 @default(now()) @map("occurred_at")
+  actorType              AuditActorType?          @map("actor_type")
+  actorId                String?                  @map("actor_id")
+  actorLabel             String?                  @map("actor_label")
+  slotId                 String?                  @map("slot_id")
+  slotCode               String?                  @map("slot_code")
+  slotName               String?                  @map("slot_name")
+  message                String?
+  reason                 String?
+  metadata               Json?
+  createdAt              DateTime                 @default(now()) @map("created_at")
+
+  @@index([deliveryHistoryId, occurredAt])
+  @@index([deliveryRegistrationId, occurredAt])
+  @@index([originalDeliveryId, occurredAt])
+  @@index([registrationCode, occurredAt])
+  @@index([businessLocationId, occurredAt])
+  @@index([unitConfigId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@map("delivery_history_events")
+}
+
+model SchedulerJobHistory {
+  id             String              @id @default(cuid())
+  jobName        String              @map("job_name")
+  businessDate   String?             @map("business_date")
+  timezone       String              @default("Asia/Ho_Chi_Minh")
+  trigger        SchedulerJobTrigger @default(SCHEDULED)
+  status         SchedulerJobStatus  @default(RUNNING)
+  startedAt      DateTime            @default(now()) @map("started_at")
+  finishedAt     DateTime?           @map("finished_at")
+  processedCount Int                 @default(0) @map("processed_count")
+  succeededCount Int                 @default(0) @map("succeeded_count")
+  failedCount    Int                 @default(0) @map("failed_count")
+  metadata       Json?
+  errorMessage   String?             @map("error_message")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@index([jobName, startedAt])
+  @@index([businessDate, jobName])
+  @@index([status, startedAt])
+  @@map("scheduler_job_histories")
 }
 
 model UnitConfig {
@@ -274,26 +454,13 @@ model UnitConfig {
   @@map("unit_configs")
 }
 
-model StaffPin {
-  id        String   @id @default(cuid())
-  name      String
-  role      Role
-  pin       String   @unique
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  @@index([role, active])
-  @@map("staff_pins")
-}
-
 model Device {
   id                 String           @id @default(cuid())
   code               String           @unique
   name               String
   businessLocationId String           @map("business_location_id")
   businessLocation   BusinessLocation @relation(fields: [businessLocationId], references: [id])
-  deviceType         DeviceType       @default(KIOSK) @map("device_type")
+  deviceType         DeviceType       @default(FIXED_DEVICE) @map("device_type")
   deviceSecretHash   String           @map("device_secret_hash")
   isActive           Boolean          @default(true) @map("is_active")
   lastSeenAt         DateTime?        @map("last_seen_at")
@@ -312,7 +479,6 @@ model BusinessLocation {
   avatarUrl    String?      @map("avatar_url")
   logoUrl      String?      @map("logo_url")
   tagline      String?      @default("Delivery Management System")
-  kioskBgUrl   String?      @map("kiosk_bg_url")
   isActive     Boolean      @default(true) @map("is_active")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")

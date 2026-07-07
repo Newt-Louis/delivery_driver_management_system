@@ -22,10 +22,16 @@ interface DeliveryItem {
   vehiclePlate: string; receivingUnit: string; goodsType: string; vehicleType: string;
   status: string; checkinTime: string | null; calledTime: string | null;
   receivingStartTime: string | null; completedTime: string | null;
-  createdAt: string; ticketNumber: number | null;
+  createdAt: string; ticketNumber: number | null; closeReason: string | null;
+  callCount: number; archivedAt: string;
   assignedSlot: { code: string; name: string } | null;
 }
 interface HistoryPage { items: DeliveryItem[]; total: number; pages: number; page: number; limit: number }
+interface DeliveryHistoryEvent {
+  id: string; eventType: string; occurredAt: string;
+  actorLabel: string | null; slotCode: string | null; slotName: string | null;
+  message: string | null; reason: string | null;
+}
 interface SlotPerf {
   slotId: string; slotCode: string; slotName: string;
   vehicleType: string; assignedUnit: string;
@@ -53,15 +59,32 @@ const UNIT_LABEL: Record<string, string> = { EMART: 'Emart', THISKYHALL: 'Thisky
 const STATUS_LABEL: Record<string, string> = {
   REGISTERED: 'Đã đăng ký', WAITING: 'Đang chờ', CALLED: 'Đã gọi',
   RECEIVING: 'Đang nhận', AUTO_WAREHOUSE_RECEIVING: 'Kho tự động',
-  COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy', EXPIRED: 'Hết hạn',
+  COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy', EXPIRED: 'Hết hạn', INCOMPLETED: 'Chưa hoàn tất',
 };
 const STATUS_COLOR: Record<string, string> = {
   COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-600',
   WAITING: 'bg-amber-100 text-amber-700', CALLED: 'bg-sky-100 text-sky-700',
   RECEIVING: 'bg-indigo-100 text-indigo-700', AUTO_WAREHOUSE_RECEIVING: 'bg-purple-100 text-purple-700',
   REGISTERED: 'bg-thiso-100 text-thiso-600', EXPIRED: 'bg-purple-100 text-purple-600',
+  INCOMPLETED: 'bg-orange-100 text-orange-700',
 };
 const DOW_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+const EVENT_LABEL: Record<string, { label: string; icon: string; accent?: string }> = {
+  REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
+  CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
+  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-sky-700' },
+  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-sky-700' },
+  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-sky-700' },
+  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-sky-700' },
+  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' },
+  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
+  COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
+  CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },
+  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '⌛', accent: 'text-red-600' },
+  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '⌛', accent: 'text-red-600' },
+  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-orange-600' },
+  ARCHIVED: { label: 'Đã lưu lịch sử', icon: '🗄️', accent: 'text-thiso-500' },
+};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,6 +179,65 @@ function ExportBtn({ onClick, label = 'Xuất Excel' }: { onClick: () => void; l
     >
       <span>⬇</span>{label}
     </button>
+  );
+}
+
+function historyEventText(ev: DeliveryHistoryEvent): string {
+  const base = EVENT_LABEL[ev.eventType]?.label ?? ev.eventType;
+  const slot = ev.slotCode ? ` → ${ev.slotCode}` : '';
+  const actor = ev.actorLabel ? ` (${ev.actorLabel})` : '';
+  const reason = ev.reason ? `: ${ev.reason}` : '';
+  return `${base}${slot}${actor}${reason}`;
+}
+
+function HistoryTimelineModal({ item, onClose }: { item: DeliveryItem; onClose: () => void }) {
+  const { data: events = [], isLoading } = useQuery<DeliveryHistoryEvent[]>({
+    queryKey: ['reports-history-events', item.id],
+    queryFn: async () => (await api.get(`/api/reports/deliveries/${item.id}/events`)).data,
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-5 py-4 border-b border-thiso-100 flex items-start justify-between gap-3">
+          <div>
+            <div className="font-mono text-xs text-sky-700 font-black">{item.registrationCode}</div>
+            <h3 className="text-xl font-black text-thiso-900">{item.vehiclePlate}</h3>
+            <p className="text-sm text-thiso-500">{item.vendorName} · {item.driverName}</p>
+          </div>
+          <button className="text-2xl text-thiso-300 hover:text-thiso-600 leading-none" onClick={onClose}>×</button>
+        </div>
+        <div className="p-5 overflow-y-auto">
+          <div className="grid grid-cols-2 gap-3 mb-5 text-sm">
+            <div><span className="text-thiso-400">Trạng thái: </span><strong>{STATUS_LABEL[item.status] ?? item.status}</strong></div>
+            <div><span className="text-thiso-400">Số lần gọi: </span><strong>{item.callCount}</strong></div>
+            <div><span className="text-thiso-400">Slot: </span><strong>{item.assignedSlot?.code ?? '—'}</strong></div>
+            <div><span className="text-thiso-400">Lưu lúc: </span><strong>{fmtDt(item.archivedAt)}</strong></div>
+            {item.closeReason && <div className="col-span-2"><span className="text-thiso-400">Lý do: </span><strong>{item.closeReason}</strong></div>}
+          </div>
+
+          {isLoading ? (
+            <div className="py-12 text-center text-thiso-400">Đang tải timeline...</div>
+          ) : events.length === 0 ? (
+            <div className="py-12 text-center text-thiso-400">Chưa có timeline</div>
+          ) : (
+            <ol className="relative border-l-2 border-thiso-100 space-y-4 ml-3">
+              {events.map((ev) => {
+                const meta = EVENT_LABEL[ev.eventType] ?? { icon: '•' };
+                return (
+                  <li key={ev.id} className="relative pl-5">
+                    <span className="absolute -left-[11px] top-0.5 w-5 h-5 rounded-full bg-white border-2 border-thiso-200 flex items-center justify-center text-[11px]">{meta.icon}</span>
+                    <div className={`text-sm font-medium ${meta.accent ?? 'text-thiso-700'}`}>{historyEventText(ev)}</div>
+                    {ev.message && <div className="text-xs text-thiso-500 mt-0.5">{ev.message}</div>}
+                    <div className="text-xs text-thiso-400 mt-0.5">{fmtDt(ev.occurredAt)}</div>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -348,6 +430,7 @@ function HistoryTab({ from, to, unit }: { from: string; to: string; unit: string
   const [vehicleFilter, setVehicleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedHistory, setSelectedHistory] = useState<DeliveryItem | null>(null);
 
   const commonParams = {
     from, to,
@@ -401,16 +484,18 @@ function HistoryTab({ from, to, unit }: { from: string; to: string; unit: string
           });
           const rows = all.data.items as DeliveryItem[];
           downloadCsv('lich-su-giao-hang',
-            ['Mã ĐK', 'Nhà cung cấp', 'Tài xế', 'Biển số', 'Đơn vị', 'Loại hàng', 'Loại xe', 'Slot', 'Trạng thái', 'Check-in', 'Hoàn tất', 'Ngày tạo'],
+            ['Mã ĐK', 'Nhà cung cấp', 'Tài xế', 'Biển số', 'Đơn vị', 'Loại hàng', 'Loại xe', 'Slot', 'Trạng thái', 'Số lần gọi', 'Lý do', 'Check-in', 'Hoàn tất', 'Ngày tạo'],
             rows.map((d) => [d.registrationCode, d.vendorName, d.driverName, d.vehiclePlate,
               UNIT_LABEL[d.receivingUnit] ?? d.receivingUnit, GOODS_LABEL[d.goodsType] ?? d.goodsType,
               VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType, d.assignedSlot?.code ?? '',
-              STATUS_LABEL[d.status] ?? d.status, d.checkinTime ? new Date(d.checkinTime).toLocaleString('vi-VN') : '',
+              STATUS_LABEL[d.status] ?? d.status, d.callCount, d.closeReason ?? '',
+              d.checkinTime ? new Date(d.checkinTime).toLocaleString('vi-VN') : '',
               d.completedTime ? new Date(d.completedTime).toLocaleString('vi-VN') : '',
               new Date(d.createdAt).toLocaleString('vi-VN')]),
           );
         }} label="Xuất tất cả" />
       </div>
+      {selectedHistory && <HistoryTimelineModal item={selectedHistory} onClose={() => setSelectedHistory(null)} />}
 
       <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
@@ -425,17 +510,23 @@ function HistoryTab({ from, to, unit }: { from: string; to: string; unit: string
                 <th className="px-4 py-3">Xe</th>
                 <th className="px-4 py-3">Slot</th>
                 <th className="px-4 py-3">Check-in</th>
+                <th className="px-4 py-3">Gọi</th>
                 <th className="px-4 py-3">Hoàn tất</th>
                 <th className="px-4 py-3">Trạng thái</th>
               </tr>
             </thead>
             <tbody>
-              {isLoading && <tr><td colSpan={10} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>}
+              {isLoading && <tr><td colSpan={11} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>}
               {!isLoading && (!data || data.items.length === 0) && (
-                <tr><td colSpan={10} className="py-12 text-center text-thiso-400">Không có dữ liệu trong khoảng thời gian này</td></tr>
+                <tr><td colSpan={11} className="py-12 text-center text-thiso-400">Không có dữ liệu trong khoảng thời gian này</td></tr>
               )}
               {data?.items.map((d) => (
-                <tr key={d.id} className="border-b border-thiso-50 last:border-0 hover:bg-thiso-50/40 transition-colors">
+                <tr
+                  key={d.id}
+                  className="border-b border-thiso-50 last:border-0 hover:bg-thiso-50/40 transition-colors cursor-pointer"
+                  onDoubleClick={() => setSelectedHistory(d)}
+                  title="Double-click để xem timeline"
+                >
                   <td className="px-4 py-2.5 font-mono text-xs text-thiso-600">{d.registrationCode}</td>
                   <td className="px-4 py-2.5">
                     <div className="font-medium text-thiso-800 text-xs">{d.vendorName}</div>
@@ -447,6 +538,7 @@ function HistoryTab({ from, to, unit }: { from: string; to: string; unit: string
                   <td className="px-4 py-2.5 text-xs text-thiso-600">{VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType}</td>
                   <td className="px-4 py-2.5 text-xs font-mono text-thiso-500">{d.assignedSlot?.code ?? '—'}</td>
                   <td className="px-4 py-2.5 text-xs text-thiso-500">{fmtDt(d.checkinTime)}</td>
+                  <td className="px-4 py-2.5 text-xs text-thiso-500">{d.callCount}</td>
                   <td className="px-4 py-2.5 text-xs text-thiso-500">{fmtDt(d.completedTime)}</td>
                   <td className="px-4 py-2.5">
                     <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLOR[d.status] ?? 'bg-thiso-100 text-thiso-600'}`}>

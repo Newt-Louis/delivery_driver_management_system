@@ -10,7 +10,9 @@ export type DeliveryStatus =
   | 'RECEIVING'
   | 'AUTO_WAREHOUSE_RECEIVING'
   | 'COMPLETED'
-  | 'CANCELLED';
+  | 'CANCELLED'
+  | 'EXPIRED'
+  | 'INCOMPLETED';
 
 export interface User {
   id: string;
@@ -51,12 +53,17 @@ export interface Slot {
   deliveries?: DeliveryRegistration[];
 }
 
-export interface CallLog {
+export interface DeliveryHistoryEvent {
   id: string;
-  calledAt: string;
+  eventType: string;
+  occurredAt: string;
+  fromStatus: DeliveryStatus | null;
+  toStatus: DeliveryStatus | null;
   message: string | null;
-  slot: { id: string; code: string; name: string } | null;
-  calledByUser: { id: string; name: string; role: string } | null;
+  reason: string | null;
+  slotCode: string | null;
+  slotName: string | null;
+  actorLabel: string | null;
 }
 
 export interface DeliveryRegistration {
@@ -82,12 +89,13 @@ export interface DeliveryRegistration {
   autoWarehouse: boolean;
   ticketNumber: number | null;
   note: string | null;
+  cancelReason?: string | null;
   unitGoodsTypeId: string | null;
   unitGoodsType?: { id: string; name: string; emoji: string; baseType: GoodsType } | null;
   createdAt: string;
   updatedAt: string;
-  _count?: { callLogs: number };
-  callLogs?: CallLog[];
+  callCount?: number;
+  historyEvents?: DeliveryHistoryEvent[];
 }
 
 export interface UnitBranding {

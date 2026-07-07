@@ -3,6 +3,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import api from '../lib/api';
+import { getOrCreateDeviceId } from '../lib/authCookies';
 
 function homePathForRole(role?: string) {
   if (role === 'CHECKIN') return '/check-in';
@@ -10,29 +11,51 @@ function homePathForRole(role?: string) {
 }
 
 export default function Login() {
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, isAuthenticated, isLoading, user } = useAuth();
   const { mall, units } = useBranding();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [hasActiveSessionConflict, setHasActiveSessionConflict] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  if (isLoading) return null;
   if (isAuthenticated) return <Navigate to={homePathForRole(user?.role)} replace />;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitLogin(force = false) {
     setError('');
+    setHasActiveSessionConflict(false);
     setLoading(true);
     try {
-      const res = await api.post('/api/auth/login', { email, password });
-      login(res.data.token, res.data.user);
+      const res = await api.post('/api/auth/login', {
+        email,
+        password,
+        deviceId: getOrCreateDeviceId(),
+        deviceName: navigator.userAgent,
+        force,
+      });
+      if (!res.data?.token) {
+        setError('Tài khoản cần bước xác thực bổ sung chưa được hỗ trợ trên giao diện này');
+        return;
+      }
+      login(res.data.token, res.data.user, res.data.session?.expiresInSeconds ?? res.data.expiresInSeconds);
       navigate(homePathForRole(res.data.user?.role));
-    } catch {
-      setError('Email hoặc mật khẩu không đúng');
+    } catch (err: any) {
+      if (err.response?.status === 409 && err.response?.data?.error === 'ActiveSessionExists') {
+        setHasActiveSessionConflict(true);
+        setError(err.response.data.message ?? 'Tài khoản này đang đăng nhập ở thiết bị khác.');
+      } else {
+        setError('Email hoặc mật khẩu không đúng');
+      }
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await submitLogin(false);
   }
 
   return (
@@ -99,6 +122,29 @@ export default function Login() {
             {error && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
                 {error}
+                {hasActiveSessionConflict && (
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      className="btn-danger flex-1 py-2 text-xs"
+                      disabled={loading}
+                      onClick={() => submitLogin(true)}
+                    >
+                      Đăng nhập thiết bị này
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary flex-1 py-2 text-xs"
+                      disabled={loading}
+                      onClick={() => {
+                        setHasActiveSessionConflict(false);
+                        setError('');
+                      }}
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

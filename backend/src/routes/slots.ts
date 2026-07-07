@@ -272,12 +272,13 @@ router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
 router.delete('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const slot = await prisma.slot.findUnique({
     where: { id: req.params.id },
-    include: { _count: { select: { callLogs: true, deliveries: true } }, zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
+    include: { _count: { select: { deliveries: true } }, zone: { include: { unitConfig: { select: { businessLocationId: true } } } } },
   });
   if (!slot) { res.status(404).json({ error: 'Not found' }); return; }
   if (!enforceResourceScope(req, res, slot.zone.unitConfig.businessLocationId)) return;
 
-  if (slot._count.callLogs > 0 || slot._count.deliveries > 0) {
+  const historyEvents = await prisma.deliveryHistoryEvent.count({ where: { slotId: slot.id } });
+  if (historyEvents > 0 || slot._count.deliveries > 0) {
     await prisma.slot.update({ where: { id: req.params.id }, data: { isActive: false, status: SlotStatus.MAINTENANCE } });
     await recordAuditLog({
       ...userActor(req.user),

@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: malluser
       POSTGRES_PASSWORD: mallpass
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     networks:
       - mall-net
     ports:
@@ -22,6 +22,22 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: mall_redis
+    volumes:
+      - ./data/redis:/data
+    networks:
+      - mall-net
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -31,6 +47,7 @@ services:
       DATABASE_URL: postgresql://malluser:mallpass@postgres:5432/malldb
       DIRECT_URL: postgresql://malluser:mallpass@postgres:5432/malldb
       JWT_SECRET: mall-jwt-secret-2024-change-in-production
+      REDIS_URL: redis://redis:6379
       PORT: 4000
       NODE_ENV: production
       TZ: Asia/Ho_Chi_Minh
@@ -38,6 +55,8 @@ services:
       - "4000:4000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - mall-net
@@ -61,6 +80,3 @@ services:
     networks:
       - mall-net
     restart: unless-stopped
-
-volumes:
-  postgres_data:

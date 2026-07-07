@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { prisma } from '../lib/prisma';
+import { AuthSessionError, verifyAccessToken } from '../services/authSession';
 
 let io: SocketServer;
 
@@ -12,7 +13,7 @@ export type SocketScope = {
 type JoinRealtimeScopePayload = SocketScope & {
   dashboard?: boolean;
   waitingScreen?: boolean;
-  kiosk?: boolean;
+  token?: string;
 };
 
 function uniq(values: Array<string | null | undefined>): string[] {
@@ -47,6 +48,7 @@ export function initSocket(server: HttpServer): SocketServer {
       ack?: (res: { ok: boolean; rooms?: string[]; error?: string }) => void,
     ) => {
       try {
+        if (payload.dashboard) await verifyProtectedSocketPayload(payload);
         const scope = await validateSocketScope(payload);
         if (!scope.businessLocationId && !scope.unitConfigId) {
           ack?.({ ok: false, error: 'missing_scope' });
@@ -56,7 +58,6 @@ export function initSocket(server: HttpServer): SocketServer {
         const rooms = scopedRooms(scope, {
           dashboard: payload.dashboard,
           waitingScreen: payload.waitingScreen,
-          kiosk: payload.kiosk,
         });
         rooms.forEach((room) => socket.join(room));
         ack?.({ ok: true, rooms });
@@ -69,7 +70,6 @@ export function initSocket(server: HttpServer): SocketServer {
       const rooms = scopedRooms(payload, {
         dashboard: payload.dashboard,
         waitingScreen: payload.waitingScreen,
-        kiosk: payload.kiosk,
       });
       rooms.forEach((room) => socket.leave(room));
     });
@@ -110,6 +110,17 @@ async function validateSocketScope(payload: SocketScope): Promise<SocketScope> {
   return {};
 }
 
+async function verifyProtectedSocketPayload(payload: JoinRealtimeScopePayload): Promise<void> {
+  const token = payload.token?.trim();
+  if (!token) throw new Error('missing_socket_token');
+  try {
+    await verifyAccessToken(token);
+  } catch (error) {
+    if (error instanceof AuthSessionError) throw error;
+    throw new Error('invalid_socket_token');
+  }
+}
+
 export function businessLocationRoomName(businessLocationId: string): string {
   return `business-location:${businessLocationId}`;
 }
@@ -126,18 +137,13 @@ export function waitingScreenRoomName(businessLocationId: string): string {
   return `waiting-screen:${businessLocationId}`;
 }
 
-export function kioskRoomName(businessLocationId: string): string {
-  return `kiosk:${businessLocationId}`;
-}
-
-function scopedRooms(scope: SocketScope, options: { dashboard?: boolean; waitingScreen?: boolean; kiosk?: boolean } = {}): string[] {
+function scopedRooms(scope: SocketScope, options: { dashboard?: boolean; waitingScreen?: boolean } = {}): string[] {
   const businessLocationId = scope.businessLocationId ?? undefined;
   return uniq([
     businessLocationId ? businessLocationRoomName(businessLocationId) : null,
     scope.unitConfigId ? unitConfigRoomName(scope.unitConfigId) : null,
     businessLocationId && options.dashboard ? dashboardRoomName(businessLocationId) : null,
     businessLocationId && options.waitingScreen ? waitingScreenRoomName(businessLocationId) : null,
-    businessLocationId && options.kiosk ? kioskRoomName(businessLocationId) : null,
   ]);
 }
 

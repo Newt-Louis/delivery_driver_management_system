@@ -5,7 +5,7 @@ import { downloadCsv } from '../lib/export';
 import { useRealtimeScope, useSocket } from '../context/SocketContext';
 import StatusBadge from '../components/StatusBadge';
 import GoodsBadge from '../components/GoodsBadge';
-import type { DeliveryRegistration, Slot, DashboardSummary, DispatchData, UnitDispatch, CallLog } from '../lib/types';
+import type { DeliveryRegistration, Slot, DashboardSummary, DispatchData, UnitDispatch, DeliveryHistoryEvent } from '../lib/types';
 import { minutesSince, formatWait } from '../lib/utils';
 
 // ─── Ticket code helper ────────────────────────────────────────────────────────
@@ -279,9 +279,9 @@ function CallModal({ delivery, slots, preselectedSlotId, onClose, onCall, loadin
             </div>
             <GoodsBadge type={delivery.goodsType} />
           </div>
-          {delivery._count && delivery._count.callLogs > 0 && (
+          {delivery.callCount && delivery.callCount > 0 && (
             <div className="mt-3 bg-white/20 rounded-lg px-3 py-1.5 text-white text-xs">
-              ⚠️ Đã gọi <strong>{delivery._count.callLogs}</strong> lần trước
+              ⚠️ Đã gọi <strong>{delivery.callCount}</strong> lần trước
             </div>
           )}
         </div>
@@ -430,6 +430,7 @@ const GOODS_LABEL: Record<string, string> = {
 const STATUS_LABEL: Record<string, string> = {
   REGISTERED: 'Đã đặt', WAITING: 'Đang chờ', CALLED: 'Đã được gọi', RECEIVING: 'Đang nhận hàng',
   AUTO_WAREHOUSE_RECEIVING: 'Nhận kho tự động', COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy',
+  EXPIRED: 'Hết hạn', INCOMPLETED: 'Chưa hoàn tất',
 };
 const VEHICLE_FULL: Record<string, string> = { TRUCK: '🚛 Xe Tải', MOTORBIKE: '🛵 Xe Máy', OTHER: '🚗 Khác' };
 
@@ -447,6 +448,31 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
+const EVENT_LABEL: Record<string, { label: string; icon: string; accent?: string }> = {
+  REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
+  CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
+  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-sky-700' },
+  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-sky-700' },
+  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-sky-700' },
+  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-sky-700' },
+  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' },
+  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
+  COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
+  CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },
+  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '⌛', accent: 'text-red-600' },
+  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '⌛', accent: 'text-red-600' },
+  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-orange-600' },
+  ARCHIVED: { label: 'Đã lưu lịch sử', icon: '🗄️', accent: 'text-thiso-500' },
+};
+
+function eventLabel(ev: DeliveryHistoryEvent): string {
+  const base = EVENT_LABEL[ev.eventType]?.label ?? ev.eventType;
+  const slot = ev.slotCode ? ` → ${ev.slotCode}` : '';
+  const actor = ev.actorLabel ? ` (${ev.actorLabel})` : '';
+  const reason = ev.reason ? `: ${ev.reason}` : '';
+  return `${base}${slot}${actor}${reason}`;
+}
+
 function DeliveryDetailModal({ id, onClose, onCall, onAction, slots }: {
   id: string;
   onClose: () => void;
@@ -454,7 +480,7 @@ function DeliveryDetailModal({ id, onClose, onCall, onAction, slots }: {
   onAction: (id: string, action: string) => void;
   slots: Slot[];
 }) {
-  const { data: d, isLoading } = useQuery<DeliveryRegistration & { callLogs: CallLog[] }>({
+  const { data: d, isLoading } = useQuery<DeliveryRegistration>({
     queryKey: ['delivery', id],
     queryFn: async () => (await api.get(`/api/deliveries/${id}`)).data,
     staleTime: 5_000,
@@ -469,17 +495,21 @@ function DeliveryDetailModal({ id, onClose, onCall, onAction, slots }: {
   if (d) {
     timeline.push({ time: d.createdAt, label: 'Đăng ký giao hàng', icon: '📝' });
     if (d.checkinTime)        timeline.push({ time: d.checkinTime,        label: 'Check-in tại cổng',       icon: '🔐' });
-    (d.callLogs ?? []).slice().reverse().forEach((cl, i) =>
-      timeline.push({
-        time: cl.calledAt,
-        label: `Gọi vào vị trí${cl.slot ? ` → ${cl.slot.code}` : ''}${cl.calledByUser ? ` (bởi ${cl.calledByUser.name})` : ''}`,
-        icon: i === 0 && (d.callLogs!.length > 1) ? '🔁' : '📣',
-        accent: 'text-sky-700',
-      })
-    );
-    if (d.receivingStartTime) timeline.push({ time: d.receivingStartTime, label: 'Bắt đầu nhận hàng',       icon: '📦', accent: 'text-green-700' });
-    if (d.completedTime)      timeline.push({ time: d.completedTime,      label: 'Hoàn tất nhận hàng',      icon: '✅', accent: 'text-green-700' });
-    if (d.status === 'CANCELLED') timeline.push({ time: d.updatedAt, label: 'Đã hủy', icon: '❌', accent: 'text-red-600' });
+    if (d.historyEvents?.length) {
+      d.historyEvents.forEach((ev) => {
+        const meta = EVENT_LABEL[ev.eventType] ?? { icon: '•' };
+        timeline.push({
+          time: ev.occurredAt,
+          label: eventLabel(ev),
+          icon: meta.icon,
+          accent: meta.accent,
+        });
+      });
+    } else {
+      if (d.receivingStartTime) timeline.push({ time: d.receivingStartTime, label: 'Bắt đầu nhận hàng',       icon: '📦', accent: 'text-green-700' });
+      if (d.completedTime)      timeline.push({ time: d.completedTime,      label: 'Hoàn tất nhận hàng',      icon: '✅', accent: 'text-green-700' });
+      if (d.status === 'CANCELLED') timeline.push({ time: d.updatedAt, label: 'Đã hủy', icon: '❌', accent: 'text-red-600' });
+    }
     timeline.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
   }
 
@@ -523,6 +553,7 @@ function DeliveryDetailModal({ id, onClose, onCall, onAction, slots }: {
               <DetailRow label="Loại hàng" value={GOODS_LABEL[d.goodsType]} />
               {d.poNumber && <DetailRow label="Số PO" value={<span className="font-mono">{d.poNumber}</span>} />}
               {d.note      && <DetailRow label="Ghi chú" value={d.note} />}
+              {d.cancelReason && <DetailRow label="Lý do hủy" value={d.cancelReason} />}
             </div>
 
             {/* Timestamps */}
@@ -580,6 +611,50 @@ function DeliveryDetailModal({ id, onClose, onCall, onAction, slots }: {
             <button className="btn-danger text-sm px-3 py-2 ml-auto" onClick={() => { onAction(d.id, 'cancel'); onClose(); }}>Hủy đơn</button>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CancelReasonModal({
+  onClose,
+  onSubmit,
+  loading,
+}: {
+  onClose: () => void;
+  onSubmit: (reason: string) => void;
+  loading: boolean;
+}) {
+  const [reason, setReason] = useState('');
+  const trimmed = reason.trim();
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget && !loading) onClose(); }}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="px-5 py-4 border-b border-thiso-100">
+          <h3 className="text-lg font-black text-thiso-900">Lý do hủy lượt giao hàng</h3>
+        </div>
+        <div className="p-5">
+          <label className="label" htmlFor="cancel-reason">Lý do hủy</label>
+          <textarea
+            id="cancel-reason"
+            className="input min-h-[120px] resize-none"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            disabled={loading}
+            autoFocus
+          />
+        </div>
+        <div className="px-5 py-4 border-t border-thiso-100 flex justify-end gap-2 bg-thiso-50/60">
+          <button className="btn-secondary" onClick={onClose} disabled={loading}>Đóng</button>
+          <button
+            className="btn-danger"
+            disabled={loading || trimmed.length < 3}
+            onClick={() => onSubmit(trimmed)}
+          >
+            {loading ? 'Đang hủy...' : 'Xác nhận hủy'}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -724,8 +799,8 @@ function QueueTable({
                         <div className="font-mono font-black text-thiso-900 text-base leading-none">{d.vehiclePlate}</div>
                         <div className="text-xs text-thiso-500 mt-1 leading-none">{d.driverName}</div>
                         <div className="text-xs text-thiso-400 mt-0.5 font-mono">{d.driverPhone}</div>
-                        {d._count && d._count.callLogs > 0 && (
-                          <span className="text-[10px] text-emart-600 font-bold mt-0.5 block">📞 Gọi {d._count.callLogs}x</span>
+                        {d.callCount && d.callCount > 0 && (
+                          <span className="text-[10px] text-emart-600 font-bold mt-0.5 block">📞 Gọi {d.callCount}x</span>
                         )}
                       </td>
 
@@ -1014,6 +1089,7 @@ export default function Dashboard() {
   const [callLoading, setCallLoading]   = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [viewId, setViewId]             = useState<string | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
   useEffect(() => {
@@ -1064,13 +1140,18 @@ export default function Dashboard() {
     }
   }
 
-  async function doAction(id: string, action: string) {
+  async function doAction(id: string, action: string, reason?: string) {
+    if (action === 'cancel' && !reason) {
+      setCancelTargetId(id);
+      return;
+    }
     setActionLoading(id + action);
     try {
-      await api.patch(`/api/deliveries/${id}/${action}`);
+      await api.patch(`/api/deliveries/${id}/${action}`, action === 'cancel' ? { reason } : undefined);
       invalidateAll();
     } finally {
       setActionLoading(null);
+      if (action === 'cancel') setCancelTargetId(null);
     }
   }
 
@@ -1123,6 +1204,13 @@ export default function Dashboard() {
           onCall={(d) => { setViewId(null); openCallModal(d); }}
           onAction={(id, action) => { setViewId(null); doAction(id, action); }}
           slots={allSlots}
+        />
+      )}
+      {cancelTargetId && (
+        <CancelReasonModal
+          onClose={() => { if (!actionLoading) setCancelTargetId(null); }}
+          onSubmit={(reason) => doAction(cancelTargetId, 'cancel', reason)}
+          loading={actionLoading === cancelTargetId + 'cancel'}
         />
       )}
 

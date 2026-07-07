@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import {
+  DeliveryHistoryEventType,
   DeliveryStatus,
   GoodsType,
   Prisma,
@@ -106,8 +107,8 @@ async function cleanupPrefix(prefix: string): Promise<void> {
 
   await prisma.$transaction([
     ...(auditOr.length ? [prisma.auditLog.deleteMany({ where: { OR: auditOr } })] : []),
-    ...(deliveryIds.length ? [prisma.callLog.deleteMany({ where: { deliveryRegistrationId: { in: deliveryIds } } })] : []),
-    ...(slotIds.length ? [prisma.callLog.deleteMany({ where: { slotId: { in: slotIds } } })] : []),
+    ...(deliveryIds.length ? [prisma.deliveryHistoryEvent.deleteMany({ where: { originalDeliveryId: { in: deliveryIds } } })] : []),
+    ...(deliveryIds.length ? [prisma.deliveryHistory.deleteMany({ where: { originalDeliveryId: { in: deliveryIds } } })] : []),
     ...(deliveryIds.length ? [prisma.deliveryRegistration.deleteMany({ where: { id: { in: deliveryIds } } })] : []),
     ...(slotIds.length ? [prisma.slot.deleteMany({ where: { id: { in: slotIds } } })] : []),
     ...(zoneIds.length ? [prisma.zone.deleteMany({ where: { id: { in: zoneIds } } })] : []),
@@ -379,7 +380,7 @@ test('50 concurrent identical registrations create one active delivery', async (
     }
   });
 });
-test('50 concurrent registrations for one time slot respect configured capacity', async () => {
+test('50 concurrent registrations for one time slot respect real slot capacity', async () => {
   await withRegisterServer(async (baseUrl) => {
     const prefix = nextPrefix('REGSLOT50');
     await cleanupPrefix(prefix);
@@ -399,15 +400,41 @@ test('50 concurrent registrations for one time slot respect configured capacity'
     });
     assert.ok(config);
 
-    const originalTruckMaxPerSlot = config.truckMaxPerSlot;
     const requestedTime = localDateTimeAfterDays(30, 3, 17);
+    const zone = await prisma.zone.create({
+      data: {
+        code: `${prefix}Z`,
+        name: `Zone ${prefix}`,
+        unitConfigId: config.id,
+      },
+    });
+    await prisma.slot.create({
+      data: {
+        code: `${prefix}S1`,
+        name: `Slot ${prefix}`,
+        zoneId: zone.id,
+        assignedUnit: ReceivingUnit.EMART,
+        vehicleType: VehicleType.TRUCK,
+        maxCapacity: 1,
+        acceptedGoods: [],
+        status: SlotStatus.AVAILABLE,
+        isActive: true,
+        autoAssign: true,
+      },
+    });
+    const matchingSlots = await prisma.slot.findMany({
+      where: {
+        assignedUnit: ReceivingUnit.EMART,
+        vehicleType: VehicleType.TRUCK,
+        isActive: true,
+        status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
+        zone: { unitConfigId: config.id },
+      },
+      select: { maxCapacity: true },
+    });
+    const expectedCapacity = matchingSlots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
 
     try {
-      await prisma.unitConfig.update({
-        where: { id: config.id },
-        data: { truckMaxPerSlot: 1 },
-      });
-
       const responses = await Promise.all(
         Array.from({ length: 50 }, (_, i) => fetch(`${baseUrl}/api/deliveries/register`, {
           method: 'POST',
@@ -427,8 +454,8 @@ test('50 concurrent registrations for one time slot respect configured capacity'
       );
 
       const statuses = responses.map((res) => res.status);
-      assert.equal(statuses.filter((status) => status === 201).length, 1);
-      assert.equal(statuses.filter((status) => status === 409).length, 49);
+      assert.equal(statuses.filter((status) => status === 201).length, expectedCapacity);
+      assert.equal(statuses.filter((status) => status === 409).length, 50 - expectedCapacity);
 
       const deliveries = await prisma.deliveryRegistration.findMany({
         where: {
@@ -436,12 +463,8 @@ test('50 concurrent registrations for one time slot respect configured capacity'
           status: DeliveryStatus.REGISTERED,
         },
       });
-      assert.equal(deliveries.length, 1);
+      assert.equal(deliveries.length, expectedCapacity);
     } finally {
-      await prisma.unitConfig.update({
-        where: { id: config.id },
-        data: { truckMaxPerSlot: originalTruckMaxPerSlot },
-      });
       await cleanupPrefix(prefix);
     }
   });
@@ -495,7 +518,7 @@ test('5 concurrent scans of the same QR are idempotent', async () => {
   }
 });
 
-test('5 concurrent manual calls for one delivery create only one call log', async () => {
+test('5 concurrent manual calls for one delivery create one call and four recall events', async () => {
   await withScope('MANUALONE', ReceivingUnit.EMART, async (scope) => {
     const [slot, user] = await Promise.all([
       createSlot(scope, { suffix: 'S1' }),
@@ -516,12 +539,17 @@ test('5 concurrent manual calls for one delivery create only one call log', asyn
 
     assert.equal(results.filter((result) => manualCallResultIsSuccess(result)).length, 5);
     assert.equal(
-      results.filter((result) => manualCallResultIsSuccess(result) && result.callLogCreated).length,
-      1,
+      results.filter((result) => manualCallResultIsSuccess(result) && result.historyEventCreated).length,
+      5,
     );
-    const callLogs = await prisma.callLog.count({ where: { deliveryRegistrationId: delivery.id } });
+    const callEvents = await prisma.deliveryHistoryEvent.count({
+      where: {
+        originalDeliveryId: delivery.id,
+        eventType: { in: [DeliveryHistoryEventType.MANUAL_CALLED, DeliveryHistoryEventType.RECALLED] },
+      },
+    });
     const final = await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: delivery.id } });
-    assert.equal(callLogs, 1);
+    assert.equal(callEvents, 5);
     assert.equal(final.status, DeliveryStatus.CALLED);
     assert.equal(final.assignedSlotId, slot.id);
   });
@@ -561,10 +589,15 @@ test('10 concurrent motorbike manual calls do not exceed slot maxCapacity=3', as
         },
       },
     });
-    const callLogs = await prisma.callLog.count({ where: { slotId: slot.id } });
+    const callEvents = await prisma.deliveryHistoryEvent.count({
+      where: {
+        slotId: slot.id,
+        eventType: DeliveryHistoryEventType.MANUAL_CALLED,
+      },
+    });
     assert.equal(calledCount, 3);
-    assert.equal(callLogs, 3);
-    assert.equal(results.filter((result) => manualCallResultIsSuccess(result) && result.callLogCreated).length, 3);
+    assert.equal(callEvents, 3);
+    assert.equal(results.filter((result) => manualCallResultIsSuccess(result) && result.historyEventCreated).length, 3);
   });
 });
 
@@ -632,12 +665,17 @@ test('3 concurrent complete requests trigger auto-assign for the next delivery o
       prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: next.id } }),
       prisma.slot.findUniqueOrThrow({ where: { id: slot.id } }),
     ]);
-    const nextCallLogs = await prisma.callLog.count({ where: { deliveryRegistrationId: next.id } });
+    const nextCallEvents = await prisma.deliveryHistoryEvent.count({
+      where: {
+        originalDeliveryId: next.id,
+        eventType: DeliveryHistoryEventType.AUTO_ASSIGNED,
+      },
+    });
     assert.equal(results.filter((result) => result.changed).length, 1);
     assert.equal(finalActive.status, DeliveryStatus.COMPLETED);
     assert.equal(finalNext.status, DeliveryStatus.CALLED);
     assert.equal(finalNext.assignedSlotId, slot.id);
-    assert.equal(nextCallLogs, 1);
+    assert.equal(nextCallEvents, 1);
     assert.equal(finalSlot.status, SlotStatus.OCCUPIED);
     assert.equal(finalSlot.currentDeliveryId, next.id);
   });

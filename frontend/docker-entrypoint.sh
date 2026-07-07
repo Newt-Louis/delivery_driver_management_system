@@ -13,7 +13,7 @@ x509_extensions    = v3_req
 distinguished_name = dn
 [dn]
 CN = ${IP}
-O  = Thiso Mall Kiosk
+O  = Mall Delivery Frontend
 [v3_req]
 subjectAltName     = IP:${IP},IP:127.0.0.1,DNS:localhost
 basicConstraints   = CA:FALSE
@@ -21,8 +21,8 @@ keyUsage           = nonRepudiation,digitalSignature,keyEncipherment
 CONF
 
 openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-  -keyout /etc/ssl/private/kiosk.key \
-  -out    /etc/ssl/certs/kiosk.crt \
+  -keyout /etc/ssl/private/frontend.key \
+  -out    /etc/ssl/certs/frontend.crt \
   -config /tmp/ssl.cnf 2>/dev/null
 
 exec nginx -g 'daemon off;'

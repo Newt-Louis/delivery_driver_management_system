@@ -55,12 +55,6 @@
       "short_name": "Theo dõi",
       "url": "/track",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "Kiosk check-in",
-      "short_name": "Kiosk",
-      "url": "/kiosk",
-      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

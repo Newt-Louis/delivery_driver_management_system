@@ -105,7 +105,8 @@ async function cleanup(note) {
 
   await prisma.$transaction([
     prisma.auditLog.deleteMany({ where: { targetId: { in: ids } } }),
-    prisma.callLog.deleteMany({ where: { deliveryRegistrationId: { in: ids } } }),
+    prisma.deliveryHistoryEvent.deleteMany({ where: { originalDeliveryId: { in: ids } } }),
+    prisma.deliveryHistory.deleteMany({ where: { originalDeliveryId: { in: ids } } }),
     prisma.pushSubscription.deleteMany({ where: { deliveryCode: { in: codes } } }),
     prisma.deliveryRegistration.deleteMany({ where: { id: { in: ids } } }),
   ]);

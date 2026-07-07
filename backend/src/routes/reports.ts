@@ -176,14 +176,15 @@ router.get('/hourly-heatmap', asyncHandler(async (req: Request, res: Response) =
 // ─── Delivery history (paginated) ─────────────────────────────────────────────
 router.get('/deliveries', asyncHandler(async (req: Request, res: Response) => {
   const { from, to, goodsType, vehicleType, status, search, page = '1', limit = '50' } = req.query as Record<string, string>;
-  const { unitFilter } = await resolveReportScope(req);
+  const { businessLocationId, unitFilter } = await resolveReportScope(req);
   const range = dateRange(from, to);
   const where = {
-    createdAt: range,
+    registeredAt: range,
+    ...(businessLocationId && { businessLocationId }),
     ...(unitFilter  && { receivingUnit: unitFilter  as never }),
     ...(goodsType   && { goodsType:   goodsType     as never }),
     ...(vehicleType && { vehicleType: vehicleType   as never }),
-    ...(status      && { status:      status        as never }),
+    ...(status      && { finalStatus: status        as never }),
     ...(search      && {
       OR: [
         { vendorName:       { contains: search, mode: 'insensitive' as const } },
@@ -196,20 +197,52 @@ router.get('/deliveries', asyncHandler(async (req: Request, res: Response) => {
   const skip = (parseInt(page) - 1) * parseInt(limit);
 
   const [items, total] = await Promise.all([
-    prisma.deliveryRegistration.findMany({
-      where, orderBy: { createdAt: 'desc' }, skip, take: parseInt(limit),
+    prisma.deliveryHistory.findMany({
+      where, orderBy: { registeredAt: 'desc' }, skip, take: parseInt(limit),
       select: {
         id: true, registrationCode: true, vendorName: true, driverName: true,
         vehiclePlate: true, receivingUnit: true, goodsType: true, vehicleType: true,
-        status: true, checkinTime: true, calledTime: true,
-        receivingStartTime: true, completedTime: true, createdAt: true,
-        ticketNumber: true, assignedSlot: { select: { code: true, name: true } },
+        finalStatus: true, checkinTime: true, calledTime: true,
+        receivingStartTime: true, completedTime: true, registeredAt: true,
+        ticketNumber: true, assignedSlotCode: true, assignedSlotName: true,
+        closeReason: true, callCount: true, archivedAt: true,
       },
     }),
-    prisma.deliveryRegistration.count({ where }),
+    prisma.deliveryHistory.count({ where }),
   ]);
 
-  res.json({ items, total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / parseInt(limit)) });
+  res.json({
+    items: items.map((item) => ({
+      ...item,
+      status: item.finalStatus,
+      createdAt: item.registeredAt,
+      assignedSlot: item.assignedSlotCode
+        ? { code: item.assignedSlotCode, name: item.assignedSlotName }
+        : null,
+    })),
+    total,
+    page: parseInt(page),
+    limit: parseInt(limit),
+    pages: Math.ceil(total / parseInt(limit)),
+  });
+}));
+
+router.get('/deliveries/:id/events', asyncHandler(async (req: Request, res: Response) => {
+  const history = await prisma.deliveryHistory.findUnique({
+    where: { id: req.params.id },
+    select: { businessLocationId: true },
+  });
+  if (!history) { res.status(404).json({ error: 'Not found' }); return; }
+  if (req.user?.role !== 'SUPERADMIN' && req.user?.businessLocationId && history.businessLocationId !== req.user.businessLocationId) {
+    res.status(403).json({ error: 'Forbidden' });
+    return;
+  }
+
+  const events = await prisma.deliveryHistoryEvent.findMany({
+    where: { deliveryHistoryId: req.params.id },
+    orderBy: [{ occurredAt: 'asc' }, { createdAt: 'asc' }],
+  });
+  res.json(events);
 }));
 
 // ─── Slot performance ─────────────────────────────────────────────────────────

@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-import { prisma } from '../lib/prisma';
 import type { SocketScope } from '../socket';
+import { AuthSessionError, StoredAuthSession, verifyAccessToken } from '../services/authSession';
 
 export interface AuthUser {
   id: string;
@@ -16,6 +15,7 @@ declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
+      authSession?: StoredAuthSession;
       scope?: SocketScope;
     }
   }
@@ -31,38 +31,22 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   }
 
   const token = header.slice(7);
-  let payload: AuthUser;
-  try {
-    const secret = process.env.JWT_SECRET ?? 'fallback-secret';
-    payload = jwt.verify(token, secret) as AuthUser;
-  } catch {
-    res.status(401).json({ error: 'Unauthorized', message: 'Token không hợp lệ hoặc đã hết hạn. Vui lòng đăng nhập lại.' });
-    return;
-  }
-
-  // Verify user still exists in DB (handles reseed / deleted accounts)
-  prisma.user
-    .findUnique({ where: { id: payload.id } })
-    .then((user) => {
-      if (!user || !user.isActive) {
-        res.status(401).json({
-          error: 'Unauthorized',
-          message: 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng xuất và đăng nhập lại.',
+  verifyAccessToken(token)
+    .then(({ user, session }) => {
+      req.user = user;
+      req.authSession = session;
+      next();
+    })
+    .catch((error) => {
+      if (error instanceof AuthSessionError) {
+        res.status(error.statusCode).json({
+          error: error.code,
+          message: error.message,
         });
         return;
       }
-      // Always use fresh data from DB, not stale JWT payload
-      req.user = {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name,
-        unit: user.unit,
-        businessLocationId: user.businessLocationId,
-      };
-      next();
-    })
-    .catch(next);
+      next(error);
+    });
 }
 
 export function requireRole(...roles: string[]) {

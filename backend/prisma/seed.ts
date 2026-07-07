@@ -70,13 +70,14 @@ function regCode(prefix: string) {
 async function main() {
   console.log('\n🗑  Clearing all data...');
   await prisma.pushSubscription.deleteMany();
-  await prisma.callLog.deleteMany();
+  await prisma.deliveryHistoryEvent.deleteMany();
+  await prisma.deliveryHistory.deleteMany();
+  await prisma.schedulerJobHistory.deleteMany();
   await prisma.deliveryRegistration.deleteMany();
   await prisma.registrationSequence.deleteMany();
   await prisma.deliveryTimeWindow.deleteMany();
   await prisma.unitGoodsType.deleteMany();
   await prisma.receivingTimeConfig.deleteMany();
-  await prisma.staffPin.deleteMany();
   await prisma.device.deleteMany();
   await prisma.slot.deleteMany();
   await prisma.zone.deleteMany();
@@ -110,30 +111,15 @@ async function main() {
   });
   console.log('✅ Users created  (password: password123)');
 
-  // ── Staff PINs ──────────────────────────────────────────────────────────────
-  await prisma.staffPin.createMany({
-    data: [
-      { name: 'Check-in – Nguyễn Văn Bình', role: Role.CHECKIN, pin: '1111' },
-      { name: 'Check-in – Trần Văn Cường', role: Role.CHECKIN, pin: '2222' },
-      { name: 'Check-in – Lê Thị Dung', role: Role.CHECKIN, pin: '3333' },
-      { name: 'NV Nhận hàng EMART – Phạm Minh Đức', role: Role.RECEIVING, pin: '4444' },
-      { name: 'NV Nhận hàng THISKY – Hoàng Thị Em', role: Role.RECEIVING, pin: '5555' },
-      { name: 'NV Nhận hàng MALL – Vũ Quốc Hùng', role: Role.RECEIVING, pin: '6666' },
-    ],
-  });
-  console.log('✅ Staff PINs created');
-  console.log('   Bảo vệ:    1111 / 2222 / 3333');
-  console.log('   Nhận hàng: 4444 / 5555 / 6666');
-
   // ── Devices ────────────────────────────────────────────────────────────────
   const deviceSecretHash = await bcrypt.hash('device123', 10);
   await prisma.device.createMany({
     data: [
       {
-        code: 'KIOSK-LOC1',
-        name: 'Kiosk bảo vệ LOC_1',
+        code: 'FIXED-LOC1',
+        name: 'Thiết bị cố định LOC_1',
         businessLocationId: defaultLocation.id,
-        deviceType: DeviceType.KIOSK,
+        deviceType: DeviceType.FIXED_DEVICE,
         deviceSecretHash,
       },
       {
@@ -145,7 +131,7 @@ async function main() {
       },
     ],
   });
-  console.log('✅ Devices created (KIOSK-LOC1/PDA-LOC1, secret: device123)');
+  console.log('✅ Devices created (FIXED-LOC1/PDA-LOC1, secret: device123)');
 
   // ── Unit configs ─────────────────────────────────────────────────────────────
   const unitConfigs = await Promise.all([
@@ -462,8 +448,6 @@ async function main() {
   console.log('\n✅ Seed completed!');
   console.log('─────────────────────────────────────────');
   console.log('  Login:        admin@mall.com / password123');
-  console.log('  Bảo vệ PIN:  1111  2222  3333');
-  console.log('  Nhận hàng:   4444  5555  6666');
   console.log('─────────────────────────────────────────');
   console.log('  Ticket codes: EMART-T001…  EMART-M001…');
   console.log('                THISKY-T001… THISKY-M001…');
