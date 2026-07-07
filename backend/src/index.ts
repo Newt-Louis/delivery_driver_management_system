@@ -9,6 +9,7 @@ import { errorHandler } from './middleware/errorHandler';
 import { prisma } from './lib/prisma';
 import { triggerAutoAssign } from './services/autoAssign';
 import { initWebPush } from './services/webPush';
+import { getRedis } from './services/redis';
 import { startOperationalScheduler } from './modules/scheduler/schedulerService';
 import authRoutes from './routes/auth';
 import deliveryRoutes from './routes/deliveries';
@@ -58,6 +59,8 @@ initSocket(server);
 async function start() {
   await prisma.$connect();
   console.log('Database connected');
+  await getRedis();
+  console.log('Redis connected');
   initWebPush();
 
   server.listen(PORT, () => {

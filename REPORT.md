@@ -223,3 +223,18 @@ Quy ước:
 - File chính: `backend/src/modules/history/*`, `backend/src/modules/scheduler/*`, `backend/prisma/schema.prisma`, migration `20260707090000_add_delivery_history_scheduler`, `backend/src/routes/deliveries.ts`, `backend/src/routes/reports.ts`, `frontend/src/pages/Dashboard.tsx`, `frontend/src/pages/Reports.tsx`.
 - Đã apply migration bằng `npm run db:migrate`.
 - Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`, `npm run test:concurrency`.
+
+### 2026-07-07 - Redis Session Và JWT Cookie Auth
+
+- Thêm Redis service `redis:7-alpine` trong `docker-compose.yml`, container `mall_redis`, port `6379`, volume `./data/redis:/data`, healthcheck và `REDIS_URL`.
+- Backend dùng Redis để lưu session đăng nhập theo `sid`; JWT vẫn gửi qua `Authorization: Bearer`, nhưng middleware phải verify JWT + kiểm tra Redis session + đọc user mới từ DB.
+- Thêm API `/api/auth/me`, `/api/auth/renew`, `/api/auth/logout`; login trả token, user, expiry và session metadata.
+- Thêm phát hiện đăng nhập ở thiết bị khác bằng Redis session; login trả `409 ActiveSessionExists`, client có thể gọi lại với `force: true` để revoke phiên cũ.
+- Thêm config `auth.session` trong `app_configs` để cấu hình `tokenTtlMinutes`, `renewGraceMinutes`, `singleSessionPerUser`.
+- Frontend web lưu JWT vào cookie `dqm_token`, không lưu `token` hoặc `user` mới vào `localStorage`; user state được khôi phục qua `/api/auth/me`.
+- Axios interceptor đọc token từ cookie, tự gọi `/api/auth/renew` một lần khi token hết hạn, rồi retry request cũ.
+- Socket.IO giữ public rooms cho track/waiting screen; dashboard/docks room phải gửi token hợp lệ khi `realtime:join`.
+- Cập nhật tài liệu `docs/auth-role-scope.md` theo workflow login/conflict/renew/logout và contract cho web/mobile/PDA/API consumer.
+- File chính: `backend/src/services/authSession.ts`, `backend/src/services/redis.ts`, `backend/src/routes/auth.ts`, `backend/src/middleware/auth.ts`, `backend/src/socket/index.ts`, `backend/src/services/appConfig.ts`, `backend/prisma/app-config-seed.json`, `frontend/src/lib/authCookies.ts`, `frontend/src/lib/api.ts`, `frontend/src/context/AuthContext.tsx`, `frontend/src/pages/Login.tsx`, `frontend/src/context/SocketContext.tsx`, `docker-compose.yml`.
+- Đã chạy `npm run db:seed_app_config` để upsert `auth.session`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.

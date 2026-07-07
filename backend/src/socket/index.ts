@@ -1,6 +1,7 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { prisma } from '../lib/prisma';
+import { AuthSessionError, verifyAccessToken } from '../services/authSession';
 
 let io: SocketServer;
 
@@ -12,6 +13,7 @@ export type SocketScope = {
 type JoinRealtimeScopePayload = SocketScope & {
   dashboard?: boolean;
   waitingScreen?: boolean;
+  token?: string;
 };
 
 function uniq(values: Array<string | null | undefined>): string[] {
@@ -46,6 +48,7 @@ export function initSocket(server: HttpServer): SocketServer {
       ack?: (res: { ok: boolean; rooms?: string[]; error?: string }) => void,
     ) => {
       try {
+        if (payload.dashboard) await verifyProtectedSocketPayload(payload);
         const scope = await validateSocketScope(payload);
         if (!scope.businessLocationId && !scope.unitConfigId) {
           ack?.({ ok: false, error: 'missing_scope' });
@@ -105,6 +108,17 @@ async function validateSocketScope(payload: SocketScope): Promise<SocketScope> {
   }
 
   return {};
+}
+
+async function verifyProtectedSocketPayload(payload: JoinRealtimeScopePayload): Promise<void> {
+  const token = payload.token?.trim();
+  if (!token) throw new Error('missing_socket_token');
+  try {
+    await verifyAccessToken(token);
+  } catch (error) {
+    if (error instanceof AuthSessionError) throw error;
+    throw new Error('invalid_socket_token');
+  }
 }
 
 export function businessLocationRoomName(businessLocationId: string): string {

@@ -18,14 +18,15 @@ function homePathForRole(role?: string) {
 }
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
-  const { isAuthenticated, hasRole, user } = useAuth();
+  const { isAuthenticated, hasRole, user, isLoading } = useAuth();
+  if (isLoading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (roles && !hasRole(...roles)) return <Navigate to={homePathForRole(user?.role)} replace />;
   return <>{children}</>;
 }
 
 export default function App() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, isLoading } = useAuth();
   const location = useLocation();
 
   // Pages that have their own full-screen layout — hide the global nav
@@ -93,7 +94,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={<Navigate to={isAuthenticated ? homePathForRole(user?.role) : '/register'} replace />} />
+        <Route path="/" element={isLoading ? null : <Navigate to={isAuthenticated ? homePathForRole(user?.role) : '/register'} replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </div>

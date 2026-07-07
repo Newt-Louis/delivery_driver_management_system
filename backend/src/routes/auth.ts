@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate } from '../middleware/auth';
 import { authLoginLimiter } from '../middleware/rateLimit';
 import {
+  getAuthSessionConfig,
   getFaceIdAuthConfig,
   getStaticIpAuthConfig,
   roleIsConfigured,
@@ -18,12 +18,25 @@ import {
   verifyFaceAuthentication,
   verifyFaceRegistration,
 } from '../services/faceIdAuth';
+import {
+  authResponse,
+  createAuthSession,
+  getActiveUserSessions,
+  renewAccessToken,
+  revokeSession,
+  revokeUserSessions,
+  sanitizeSession,
+  userPayload,
+} from '../services/authSession';
 
 const router = Router();
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
+  deviceId: z.string().trim().max(120).nullable().optional(),
+  deviceName: z.string().trim().max(120).nullable().optional(),
+  force: z.boolean().optional(),
 });
 
 const faceOptionsSchema = z.object({
@@ -53,29 +66,6 @@ const faceAuthVerifySchema = z.object({
   }),
 });
 
-function userPayload(user: {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  unit: unknown;
-  businessLocationId: string | null;
-}) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    unit: user.unit,
-    businessLocationId: user.businessLocationId,
-  };
-}
-
-function signLoginToken(payload: ReturnType<typeof userPayload>) {
-  const secret = process.env.JWT_SECRET ?? 'fallback-secret';
-  return jwt.sign(payload, secret, { expiresIn: '24h' });
-}
-
 async function checkStaticIpLoginPolicy(req: Request, user: { role: string }) {
   const staticIpConfig = await getStaticIpAuthConfig();
   const enabled = staticIpConfig.enabled && roleIsConfigured(user.role, staticIpConfig.roles);
@@ -89,6 +79,12 @@ async function checkStaticIpLoginPolicy(req: Request, user: { role: string }) {
     };
   }
   return { enabled, denied: null };
+}
+
+function bearerToken(req: Request): string | null {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) return null;
+  return header.slice(7);
 }
 
 router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: Response) => {
@@ -116,7 +112,6 @@ router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: R
     return;
   }
 
-  const payload = userPayload(user);
   const faceIdConfig = await getFaceIdAuthConfig();
   const faceCredentialCount = await prisma.faceCredential.count({
     where: { userId: user.id, isActive: true },
@@ -134,15 +129,44 @@ router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: R
 
     res.status(202).json({
       faceIdRequired: true,
-      user: payload,
+      user: userPayload(user),
       ...(await createFaceAuthenticationOptions(user, req, faceIdConfig)),
     });
     return;
   }
 
+  const sessionConfig = await getAuthSessionConfig();
+  const activeSessions = sessionConfig.singleSessionPerUser
+    ? await getActiveUserSessions(user.id)
+    : [];
+  const deviceId = body.deviceId?.trim() || null;
+  const sameDeviceSessions = activeSessions.filter((session) => session.deviceId && session.deviceId === deviceId);
+  const conflictingSessions = activeSessions.filter((session) => !session.deviceId || session.deviceId !== deviceId);
+
+  if (sessionConfig.singleSessionPerUser && conflictingSessions.length > 0 && !body.force) {
+    res.status(409).json({
+      error: 'ActiveSessionExists',
+      message: 'Tài khoản này đang đăng nhập ở thiết bị khác.',
+      activeSessions: conflictingSessions.map(sanitizeSession),
+    });
+    return;
+  }
+
+  if (sessionConfig.singleSessionPerUser && body.force) {
+    await revokeUserSessions(user.id);
+  } else if (sameDeviceSessions.length > 0) {
+    await revokeUserSessions(user.id, (session) => session.deviceId === deviceId);
+  }
+
+  const issued = await createAuthSession({
+    user,
+    req,
+    deviceId,
+    deviceName: body.deviceName ?? null,
+  });
+
   res.json({
-    token: signLoginToken(payload),
-    user: payload,
+    ...authResponse(userPayload(user), issued),
     authPolicy: {
       staticIpEnabled: staticIpPolicy.enabled,
       faceIdEnabled: faceIdConfig.enabled,
@@ -158,6 +182,29 @@ router.post('/face-id/register/options', authenticate, asyncHandler(async (req: 
   }
 
   res.json(await createFaceRegistrationOptions(req.user!, req, faceIdConfig));
+}));
+
+router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response) => {
+  res.json({
+    user: req.user,
+    session: req.authSession ? sanitizeSession(req.authSession) : null,
+  });
+}));
+
+router.post('/renew', authLoginLimiter, asyncHandler(async (req: Request, res: Response) => {
+  const token = bearerToken(req);
+  if (!token) {
+    res.status(401).json({ error: 'Unauthorized', message: 'No token provided' });
+    return;
+  }
+
+  const { user, issued } = await renewAccessToken(token);
+  res.json(authResponse(user, issued));
+}));
+
+router.post('/logout', authenticate, asyncHandler(async (req: Request, res: Response) => {
+  if (req.authSession) await revokeSession(req.authSession.id);
+  res.json({ ok: true });
 }));
 
 router.post('/face-id/register/verify', authenticate, asyncHandler(async (req: Request, res: Response) => {
@@ -230,8 +277,13 @@ router.post('/face-id/authenticate/verify', authLoginLimiter, asyncHandler(async
     return;
   }
 
-  const payload = userPayload(user);
-  res.json({ token: signLoginToken(payload), user: payload });
+  const issued = await createAuthSession({
+    user,
+    req,
+    deviceId: null,
+    deviceName: 'Face ID/WebAuthn',
+  });
+  res.json(authResponse(userPayload(user), issued));
 }));
 
 export default router;

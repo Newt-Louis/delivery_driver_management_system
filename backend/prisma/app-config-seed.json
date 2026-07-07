@@ -30,5 +30,18 @@
       "roles": ["ADMIN_LOC", "ADMIN_OPE", "RECEIVING", "CHECKIN"],
       "requireRegisteredCredential": false
     }
+  },
+  {
+    "key": "auth.session",
+    "category": "auth",
+    "valueType": "json",
+    "description": "JWT/session lifetime policy in minutes. Used by login, renew and Redis session expiry.",
+    "isSensitive": false,
+    "isRuntimeEditable": true,
+    "value": {
+      "tokenTtlMinutes": 480,
+      "renewGraceMinutes": 60,
+      "singleSessionPerUser": true
+    }
   }
 ]

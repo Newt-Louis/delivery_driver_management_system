@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { useLocation } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import api from '../lib/api';
+import { getAuthToken } from '../lib/authCookies';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? '';
 
@@ -36,7 +37,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     socketRef.current = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
-      auth: { token: localStorage.getItem('token') ?? undefined },
+      auth: { token: getAuthToken() ?? undefined },
     });
   }
 
@@ -60,8 +61,16 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         setScope(nextScope);
         if (!nextScope.businessLocationId && !nextScope.unitConfigId) return;
 
-        joinedPayload = { ...nextScope, ...screenFlags(location.pathname) };
-        const emitJoin = () => socket.emit('realtime:join', joinedPayload);
+        const flags = screenFlags(location.pathname);
+        joinedPayload = {
+          ...nextScope,
+          ...flags,
+          ...(flags.dashboard ? { token: getAuthToken() ?? undefined } : {}),
+        };
+        const emitJoin = () => {
+          socket.auth = { token: getAuthToken() ?? undefined };
+          socket.emit('realtime:join', joinedPayload);
+        };
         if (socket.connected) emitJoin();
         else socket.once('connect', emitJoin);
       } catch {
