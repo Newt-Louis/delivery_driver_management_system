@@ -264,3 +264,16 @@ Quy ước:
 - File chính: `backend/prisma/schema.prisma`, `backend/src/routes/units.ts`, `backend/src/routes/brand.ts`, `backend/src/routes/users.ts`, `backend/src/services/unitPermission.ts`, `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`, `frontend/src/features/backoffice/tabs/BrandTab.tsx`, `frontend/src/context/BrandingContext.tsx`, `frontend/src/lib/types.ts`.
 - Đã apply migration bằng `npx prisma migrate deploy`.
 - Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Redis Cache Cho Auth User, Unit Permission Và App Config
+
+- Rà soát luồng `CHECKIN`/`RECEIVING`: các thao tác check-in lookup, check-in by id, manual call, auto-dispatch, start receiving, complete và cancel đều đi qua helper kiểm tra `user_unit_permissions`.
+- Chuyển cache unit permission từ in-memory `Map` sang Redis key `auth:user:{userId}:unit-permissions`, cache miss mới query DB.
+- Thêm Redis cache user profile an toàn tại `auth:user:{userId}:profile`; auth middleware đọc session Redis rồi lấy user từ Redis/DB fallback, không đọc DB trên mọi request nữa.
+- Khi ADMIN_LOC/SUPERADMIN create/update/reset password/deactivate/delete user, backend refresh hoặc xóa Redis cache đúng user id; deactivate/delete cũng revoke session.
+- Thêm cache `app_configs` theo key `app-config:{key}` và helper `upsertAppConfigValue()`, `refreshAppConfigCache()`, `invalidateAppConfigCache()`.
+- Thêm devDependency `redis-commander` và script `npm run redis:ui` để xem Redis trên trình duyệt tại `http://localhost:8081` bằng tài khoản dev/dev, chạy read-only.
+- Cập nhật tài liệu `docs/auth-role-scope.md`, thêm `docs/redis-cache-debug.md`.
+- File chính: `backend/src/services/authSession.ts`, `backend/src/services/unitPermission.ts`, `backend/src/services/appConfig.ts`, `backend/src/routes/users.ts`, `backend/package.json`, `backend/package-lock.json`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run redis:ui -- --test`.
+- Lưu ý: `npm install --save-dev redis-commander` báo audit hiện có 33 vulnerabilities trong dependency tree dev/tooling; chưa chạy `npm audit fix` vì có thể gây thay đổi ngoài phạm vi.

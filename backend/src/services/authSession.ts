@@ -62,8 +62,17 @@ function userSessionsKey(userId: string): string {
   return `auth:user:${userId}:sessions`;
 }
 
+function userProfileKey(userId: string): string {
+  return `auth:user:${userId}:profile`;
+}
+
 function jwtSecret(): string {
   return process.env.JWT_SECRET ?? 'fallback-secret';
+}
+
+function authUserCacheSeconds(): number {
+  const raw = Number(process.env.AUTH_USER_CACHE_SECONDS ?? 3600);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 3600;
 }
 
 function secondsUntil(isoDate: string): number {
@@ -110,6 +119,16 @@ function parseSession(raw: string | null): StoredAuthSession | null {
   }
 }
 
+function parseCachedAuthUser(raw: string | null): SafeAuthUser | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as SafeAuthUser;
+    return parsed?.id && parsed?.email && parsed?.role ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 async function readSession(sessionId: string): Promise<StoredAuthSession | null> {
   const redis = await getRedis();
   return parseSession(await redis.get(sessionKey(sessionId)));
@@ -120,6 +139,45 @@ async function writeSession(session: StoredAuthSession): Promise<void> {
   await redis.set(sessionKey(session.id), JSON.stringify(session), { EX: secondsUntil(session.expiresAt) });
   await redis.sAdd(userSessionsKey(session.userId), session.id);
   await redis.expire(userSessionsKey(session.userId), secondsUntil(session.expiresAt));
+}
+
+async function writeAuthUserCache(user: SafeAuthUser): Promise<void> {
+  const redis = await getRedis();
+  await redis.set(userProfileKey(user.id), JSON.stringify(user), { EX: authUserCacheSeconds() });
+}
+
+async function readAuthUserCache(userId: string): Promise<SafeAuthUser | null> {
+  const redis = await getRedis();
+  return parseCachedAuthUser(await redis.get(userProfileKey(userId)));
+}
+
+export async function invalidateAuthUserCache(userId: string): Promise<void> {
+  const redis = await getRedis();
+  await redis.del(userProfileKey(userId));
+}
+
+export async function refreshAuthUserCache(userId: string): Promise<SafeAuthUser | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      unit: true,
+      businessLocationId: true,
+      isActive: true,
+    },
+  });
+
+  if (!user || !user.isActive) {
+    await invalidateAuthUserCache(userId);
+    return null;
+  }
+
+  const safeUser = userPayload(user);
+  await writeAuthUserCache(safeUser);
+  return safeUser;
 }
 
 export async function getActiveUserSessions(userId: string): Promise<StoredAuthSession[]> {
@@ -189,7 +247,9 @@ export async function createAuthSession(args: {
   };
   await writeSession(session);
 
-  const token = signToken(userPayload(args.user), session.id, config);
+  const safeUser = userPayload(args.user);
+  await writeAuthUserCache(safeUser);
+  const token = signToken(safeUser, session.id, config);
   return {
     token: token.token,
     tokenExpiresAt: token.expiresAt,
@@ -221,15 +281,15 @@ async function resolveActiveSessionAndUser(payload: AuthJwtPayload): Promise<{ u
     throw new AuthSessionError(401, 'SessionExpired', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
   }
 
-  const user = await prisma.user.findUnique({ where: { id: session.userId } });
-  if (!user || !user.isActive) {
+  const user = await readAuthUserCache(session.userId) ?? await refreshAuthUserCache(session.userId);
+  if (!user) {
     await revokeSession(session.id);
     throw new AuthSessionError(401, 'UserInactive', 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.');
   }
 
   const touchedSession = { ...session, lastSeenAt: new Date().toISOString() };
   await writeSession(touchedSession);
-  return { user: userPayload(user), session: touchedSession };
+  return { user, session: touchedSession };
 }
 
 export async function verifyAccessToken(token: string): Promise<{ user: SafeAuthUser; session: StoredAuthSession }> {

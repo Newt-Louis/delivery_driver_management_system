@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { getRedis } from './redis';
 
 export const APP_CONFIG_KEYS = {
   staticIpAuth: 'auth.static_ip',
@@ -55,6 +56,15 @@ const DEFAULT_AUTH_SESSION: AuthSessionConfig = {
   singleSessionPerUser: true,
 };
 
+function appConfigCacheKey(key: string): string {
+  return `app-config:${key}`;
+}
+
+function appConfigCacheSeconds(): number {
+  const raw = Number(process.env.APP_CONFIG_CACHE_SECONDS ?? 86400);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 86400;
+}
+
 function asRecord(value: Prisma.JsonValue | null | undefined): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   return value as Record<string, unknown>;
@@ -83,11 +93,56 @@ function asNullableString(value: unknown, fallback: string | null): string | nul
 }
 
 async function getRawConfig(key: string): Promise<Record<string, unknown>> {
+  const redis = await getRedis();
+  const cached = await redis.get(appConfigCacheKey(key));
+  if (cached) {
+    try {
+      return JSON.parse(cached) as Record<string, unknown>;
+    } catch {
+      await redis.del(appConfigCacheKey(key));
+    }
+  }
+
   const config = await prisma.appConfig.findUnique({
     where: { key },
     select: { value: true },
   });
-  return asRecord(config?.value);
+  const value = asRecord(config?.value);
+  await redis.set(appConfigCacheKey(key), JSON.stringify(value), { EX: appConfigCacheSeconds() });
+  return value;
+}
+
+export async function invalidateAppConfigCache(key: string): Promise<void> {
+  const redis = await getRedis();
+  await redis.del(appConfigCacheKey(key));
+}
+
+export async function refreshAppConfigCache(key: string): Promise<Record<string, unknown>> {
+  await invalidateAppConfigCache(key);
+  return getRawConfig(key);
+}
+
+export async function upsertAppConfigValue(args: {
+  key: string;
+  value: Prisma.InputJsonValue;
+  category?: string;
+  description?: string;
+}): Promise<void> {
+  await prisma.appConfig.upsert({
+    where: { key: args.key },
+    update: {
+      value: args.value,
+      ...(args.category !== undefined ? { category: args.category } : {}),
+      ...(args.description !== undefined ? { description: args.description } : {}),
+    },
+    create: {
+      key: args.key,
+      value: args.value,
+      category: args.category ?? 'system',
+      description: args.description ?? '',
+    },
+  });
+  await refreshAppConfigCache(args.key);
 }
 
 export async function getStaticIpAuthConfig(): Promise<StaticIpAuthConfig> {

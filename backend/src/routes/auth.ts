@@ -35,7 +35,7 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
   deviceId: z.string().trim().max(120).nullable().optional(),
-  deviceName: z.string().trim().max(120).nullable().optional(),
+  deviceName: z.string().trim().nullable().optional(),
   force: z.boolean().optional(),
 });
 

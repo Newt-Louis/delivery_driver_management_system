@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 import { recordAuditLog, userActor } from '../services/auditLog';
+import { invalidateAuthUserCache, refreshAuthUserCache, revokeUserSessions } from '../services/authSession';
 import {
   assertUnitConfigsInLocation,
   invalidateUserUnitPermissionCache,
@@ -279,6 +280,7 @@ router.post('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHand
     select: SAFE_SELECT,
   });
   await replaceUserUnitPermissions(created.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(created.id);
   const user = (await prisma.user.findUnique({ where: { id: created.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
@@ -331,6 +333,8 @@ router.patch('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyn
     select: SAFE_SELECT,
   });
   await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(updated.id);
+  if (body.isActive === false) await revokeUserSessions(updated.id);
   const user = (await prisma.user.findUnique({ where: { id: updated.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
@@ -354,6 +358,7 @@ router.patch('/location-staff/:id/reset-password', authenticate, requireRole('AD
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+  await refreshAuthUserCache(req.params.id);
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.reset_password',
@@ -379,7 +384,9 @@ router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asy
       data: { isActive: false },
       select: SAFE_SELECT,
     });
-    invalidateUserUnitPermissionCache(req.params.id);
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.deactivate',
@@ -392,7 +399,9 @@ router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asy
     res.json({ deactivated: true, user: serializeUser(user) });
   } else {
     await prisma.user.delete({ where: { id: req.params.id } });
-    invalidateUserUnitPermissionCache(req.params.id);
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.delete',
@@ -443,6 +452,7 @@ router.post('/', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (re
     select: SAFE_SELECT,
   });
   await replaceUserUnitPermissions(created.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(created.id);
   const user = (await prisma.user.findUnique({ where: { id: created.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
@@ -499,6 +509,8 @@ router.patch('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(async
     select: SAFE_SELECT,
   });
   await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(updated.id);
+  if (body.isActive === false) await revokeUserSessions(updated.id);
   const user = (await prisma.user.findUnique({ where: { id: updated.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
@@ -517,6 +529,7 @@ router.patch('/:id/reset-password', authenticate, requireRole('SUPERADMIN'), asy
   const { password } = resetPwSchema.parse(req.body);
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+  await refreshAuthUserCache(req.params.id);
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.reset_password',
@@ -546,7 +559,9 @@ router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(asyn
       data: { isActive: false },
       select: SAFE_SELECT,
     });
-    invalidateUserUnitPermissionCache(req.params.id);
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.deactivate',
@@ -558,7 +573,9 @@ router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(asyn
   } else {
     const deletedUser = await prisma.user.findUnique({ where: { id: req.params.id }, select: SAFE_SELECT });
     await prisma.user.delete({ where: { id: req.params.id } });
-    invalidateUserUnitPermissionCache(req.params.id);
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.delete',

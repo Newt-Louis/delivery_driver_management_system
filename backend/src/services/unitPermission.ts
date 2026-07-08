@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { ReceivingUnit } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { getRedis } from './redis';
 
 type PermissionUnit = {
   id: string;
@@ -10,26 +11,30 @@ type PermissionUnit = {
   businessLocationId: string;
 };
 
-type PermissionCacheEntry = {
-  expiresAt: number;
-  units: PermissionUnit[];
-};
+function unitPermissionKey(userId: string): string {
+  return `auth:user:${userId}:unit-permissions`;
+}
 
-const CACHE_TTL_MS = 60_000;
-const unitPermissionCache = new Map<string, PermissionCacheEntry>();
+function unitPermissionCacheSeconds(): number {
+  const raw = Number(process.env.UNIT_PERMISSION_CACHE_SECONDS ?? 3600);
+  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 3600;
+}
 
 export function roleRequiresUnitPermission(role: string | null | undefined): boolean {
   return role === 'CHECKIN' || role === 'RECEIVING';
 }
 
-export function invalidateUserUnitPermissionCache(userId: string): void {
-  unitPermissionCache.delete(userId);
+function parseCachedPermissions(raw: string | null): PermissionUnit[] | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as PermissionUnit[];
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
-export async function getUserUnitPermissions(userId: string): Promise<PermissionUnit[]> {
-  const cached = unitPermissionCache.get(userId);
-  if (cached && cached.expiresAt > Date.now()) return cached.units;
-
+async function queryUserUnitPermissions(userId: string): Promise<PermissionUnit[]> {
   const rows = await prisma.userUnitPermission.findMany({
     where: { userId },
     select: {
@@ -46,9 +51,49 @@ export async function getUserUnitPermissions(userId: string): Promise<Permission
     orderBy: { unitConfig: { unit: 'asc' } },
   });
 
-  const units = rows.map((row) => row.unitConfig);
-  unitPermissionCache.set(userId, { units, expiresAt: Date.now() + CACHE_TTL_MS });
+  return rows.map((row) => row.unitConfig);
+}
+
+async function writeUserUnitPermissionCache(userId: string, units: PermissionUnit[]): Promise<void> {
+  const redis = await getRedis();
+  await redis.set(unitPermissionKey(userId), JSON.stringify(units), { EX: unitPermissionCacheSeconds() });
+}
+
+export async function invalidateUserUnitPermissionCache(userId: string): Promise<void> {
+  const redis = await getRedis();
+  await redis.del(unitPermissionKey(userId));
+}
+
+export async function refreshUserUnitPermissionCache(userId: string): Promise<PermissionUnit[]> {
+  const units = await queryUserUnitPermissions(userId);
+  await writeUserUnitPermissionCache(userId, units);
   return units;
+}
+
+export async function getUserUnitPermissions(userId: string): Promise<PermissionUnit[]> {
+  const redis = await getRedis();
+  const cached = parseCachedPermissions(await redis.get(unitPermissionKey(userId)));
+  if (cached) return cached;
+
+  return refreshUserUnitPermissionCache(userId);
+}
+
+export async function getUserUnitPermissionsFromDb(userId: string): Promise<PermissionUnit[]> {
+  return prisma.userUnitPermission.findMany({
+    where: { userId },
+    select: {
+      unitConfig: {
+        select: {
+          id: true,
+          unit: true,
+          displayName: true,
+          icon: true,
+          businessLocationId: true,
+        },
+      },
+    },
+    orderBy: { unitConfig: { unit: 'asc' } },
+  }).then((rows) => rows.map((row) => row.unitConfig));
 }
 
 export async function replaceUserUnitPermissions(userId: string, unitConfigIds: string[]): Promise<void> {
@@ -62,7 +107,7 @@ export async function replaceUserUnitPermissions(userId: string, unitConfigIds: 
       });
     }
   });
-  invalidateUserUnitPermissionCache(userId);
+  await refreshUserUnitPermissionCache(userId);
 }
 
 export async function assertUnitConfigsInLocation(unitConfigIds: string[], businessLocationId: string): Promise<PermissionUnit[]> {
