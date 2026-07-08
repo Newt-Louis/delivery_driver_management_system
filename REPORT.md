@@ -346,3 +346,20 @@ Quy ước:
 - Role khác CHECKIN/RECEIVING → `unitPermissions` là `undefined`.
 - File chính: `backend/src/routes/auth.ts`.
 - Đã kiểm tra: `npm run build` trong `backend`.
+
+### 2026-07-08 - Rà soát và Sửa Lỗi Scheduler
+
+- **Vấn đề:** Scheduler `archive-cancelled-deliveries` (2 tiếng/lần) không hoạt động sau hơn 2 tiếng chạy. Timer reference leak trong mảng `timers`, không có guard chống chạy trùng, không có heartbeat logging.
+- **Scheduler — `backend/src/modules/scheduler/schedulerService.ts`:**
+  - Rewrite toàn bộ timer management: mỗi job type có `JobState` object `{ isRunning, timer, lastRunAt, lastResult, nextRunAt }` thay vì array `ManagedTimer[]`.
+  - Thêm guard `isRunning` per job: nếu job đang chạy → skip lần tiếp theo, log warning, schedule lại.
+  - Timer reference quản lý bằng `clearTimeout` trước khi schedule mới → không leak.
+  - Thêm heartbeat log mỗi 30 phút: `[scheduler] heartbeat at ...` để xác nhận scheduler đang sống.
+  - Thêm startup log: `[scheduler] Starting operational scheduler (Asia/Ho_Chi_Minh)`.
+  - Export `getSchedulerStatus()` trả về next run time, isRunning, last run info cho health endpoint.
+- **Index — `backend/src/index.ts`:**
+  - Capture scheduler return value: `const scheduler = startOperationalScheduler()`.
+  - Thêm `GET /health/scheduler` endpoint trả JSON: `{ status, scheduler: { dailyClose, cancelledArchive } }`.
+  - Thêm graceful shutdown handler: listen `SIGTERM`/`SIGINT` → `scheduler.stop()`, `server.close()`, `prisma.$disconnect()`. Force exit sau 10s nếu graceful hang.
+- File chính: `backend/src/modules/scheduler/schedulerService.ts`, `backend/src/index.ts`.
+- Đã kiểm tra: `npm run build` trong `backend`.
