@@ -105,22 +105,36 @@ enum SchedulerJobTrigger {
 }
 
 model User {
-  id                 String            @id @default(cuid())
+  id                 String               @id @default(cuid())
   name               String
-  email              String            @unique
-  passwordHash       String            @map("password_hash")
-  role               Role              @default(CHECKIN)
+  email              String               @unique
+  passwordHash       String               @map("password_hash")
+  role               Role                 @default(CHECKIN)
   unit               ReceivingUnit? // optional unit assignment
   department         String? // free-text department / shift label
-  businessLocationId String?           @map("business_location_id")
-  businessLocation   BusinessLocation? @relation(fields: [businessLocationId], references: [id])
-  isActive           Boolean           @default(true) @map("is_active")
-  createdAt          DateTime          @default(now()) @map("created_at")
+  businessLocationId String?              @map("business_location_id")
+  businessLocation   BusinessLocation?    @relation(fields: [businessLocationId], references: [id])
+  isActive           Boolean              @default(true) @map("is_active")
+  createdAt          DateTime             @default(now()) @map("created_at")
   faceCredentials    FaceCredential[]
   authChallenges     AuthChallenge[]
+  unitPermissions    UserUnitPermission[]
 
   @@index([businessLocationId, role, isActive])
   @@map("users")
+}
+
+model UserUnitPermission {
+  id           String     @id @default(cuid())
+  userId       String     @map("user_id")
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  unitConfigId String     @map("unit_config_id")
+  unitConfig   UnitConfig @relation(fields: [unitConfigId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@unique([userId, unitConfigId])
+  @@index([unitConfigId])
+  @@map("user_unit_permissions")
 }
 
 model AppConfig {
@@ -410,11 +424,12 @@ model SchedulerJobHistory {
 }
 
 model UnitConfig {
-  id                 String           @id @default(cuid())
+  id                 String               @id @default(cuid())
   unit               ReceivingUnit
-  businessLocationId String           @map("business_location_id")
-  businessLocation   BusinessLocation @relation(fields: [businessLocationId], references: [id])
+  businessLocationId String               @map("business_location_id")
+  businessLocation   BusinessLocation     @relation(fields: [businessLocationId], references: [id])
   zones              Zone[]
+  userPermissions    UserUnitPermission[]
 
   // FRESH FOOD
   freshFoodEnabled Boolean @default(true) @map("fresh_food_enabled")

@@ -7,6 +7,7 @@ export interface StaffUserPayload {
   password?: string;
   role: 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
   unit?: string | null;
+  unitConfigIds?: string[];
   department?: string | null;
   isActive?: boolean;
 }

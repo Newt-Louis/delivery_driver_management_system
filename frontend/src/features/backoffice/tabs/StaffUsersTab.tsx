@@ -38,7 +38,8 @@ function StaffUserModal({
     email: user?.email?.endsWith('@internal.local') ? '' : user?.email ?? '',
     password: '',
     role: (user?.role ?? 'CHECKIN') as StaffRoleValue,
-    unit: user?.unit ?? '',
+    unitConfigIds: user?.unitPermissions?.map((unit) => unit.id)
+      ?? (user?.unit ? unitConfigs.filter((cfg) => cfg.unit === user.unit).map((cfg) => cfg.id) : []),
     department: user?.department ?? '',
     isActive: user?.isActive ?? true,
   });
@@ -46,12 +47,27 @@ function StaffUserModal({
   const [saving, setSaving] = useState(false);
   const unitRequired = UNIT_REQUIRED_ROLES.includes(form.role);
 
-  function set(key: string, value: string | boolean) {
+  function selectedUnitConfigs(ids = form.unitConfigIds) {
+    return unitConfigs.filter((cfg) => ids.includes(cfg.id));
+  }
+
+  function set(key: string, value: string | boolean | string[]) {
     setForm((current) => {
-      if (key === 'role' && UNIT_REQUIRED_ROLES.includes(value as StaffRoleValue) && !current.unit) {
-        return { ...current, role: value as StaffRoleValue, unit: unitConfigs[0]?.unit ?? '' };
+      if (key === 'role' && UNIT_REQUIRED_ROLES.includes(value as StaffRoleValue) && current.unitConfigIds.length === 0) {
+        return { ...current, role: value as StaffRoleValue, unitConfigIds: unitConfigs[0]?.id ? [unitConfigs[0].id] : [] };
       }
       return { ...current, [key]: value };
+    });
+    setError('');
+  }
+
+  function toggleUnit(unitConfigId: string) {
+    setForm((current) => {
+      const exists = current.unitConfigIds.includes(unitConfigId);
+      const unitConfigIds = exists
+        ? current.unitConfigIds.filter((id) => id !== unitConfigId)
+        : [...current.unitConfigIds, unitConfigId];
+      return { ...current, unitConfigIds };
     });
     setError('');
   }
@@ -60,16 +76,18 @@ function StaffUserModal({
     e.preventDefault();
     if (!form.name.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (!isEdit && form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự.'); return; }
-    if (unitRequired && !form.unit) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn đơn vị.'); return; }
+    if (unitRequired && form.unitConfigIds.length === 0) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn ít nhất một đơn vị.'); return; }
 
     setSaving(true);
     setError('');
     try {
+      const selectedUnits = selectedUnitConfigs();
       const payload = {
         name: form.name.trim(),
         email: form.email.trim() || null,
         role: form.role,
-        unit: form.unit || null,
+        unit: selectedUnits[0]?.unit ?? null,
+        unitConfigIds: unitRequired ? form.unitConfigIds : [],
         department: form.department.trim() || null,
         isActive: form.isActive,
       };
@@ -135,14 +153,27 @@ function StaffUserModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Đơn vị{unitRequired ? ' *' : ''}</label>
-            <select className="input w-full" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-              {!unitRequired && <option value="">— Tất cả đơn vị —</option>}
-              {unitConfigs.map((cfg) => (
-                <option key={cfg.id} value={cfg.unit}>{UNIT_META_U[cfg.unit] ?? cfg.displayName ?? cfg.unit}</option>
-              ))}
-            </select>
-            {unitRequired && <p className="text-[11px] text-thiso-400 mt-1">Tài khoản thao tác tại hiện trường phải bị giới hạn theo một đơn vị cụ thể.</p>}
+            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-2">Đơn vị được phép{unitRequired ? ' *' : ''}</label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {unitConfigs.map((cfg) => {
+                const checked = form.unitConfigIds.includes(cfg.id);
+                const disabled = !unitRequired;
+                return (
+                  <button
+                    key={cfg.id}
+                    type="button"
+                    onClick={() => !disabled && toggleUnit(cfg.id)}
+                    className={`text-left px-3 py-2 rounded-xl border transition-colors ${checked ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-thiso-200 text-thiso-500'} ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-sky-300'}`}
+                  >
+                    <div className="text-sm font-bold">{UNIT_META_U[cfg.unit] ?? cfg.displayName ?? cfg.unit}</div>
+                    <div className="text-[11px] text-thiso-400">{cfg.displayName || cfg.unit}</div>
+                  </button>
+                );
+              })}
+            </div>
+            {unitRequired
+              ? <p className="text-[11px] text-thiso-400 mt-1">Có thể chọn nhiều đơn vị cho tài khoản hiện trường.</p>
+              : <p className="text-[11px] text-thiso-400 mt-1">ADMIN_OPE thao tác theo khu vực nên không cần chọn đơn vị.</p>}
           </div>
 
           <div>
@@ -276,7 +307,7 @@ export default function StaffUsersTab() {
   const filtered = staffUsers.filter((user) => {
     if (!showInactive && !user.isActive) return false;
     if (filterRole && user.role !== filterRole) return false;
-    if (filterUnit && user.unit !== filterUnit) return false;
+    if (filterUnit && !((user.unitPermissions ?? []).some((unit) => unit.unit === filterUnit) || user.unit === filterUnit)) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!user.name.toLowerCase().includes(q) && !user.email.toLowerCase().includes(q) && !(user.department ?? '').toLowerCase().includes(q)) return false;
@@ -391,7 +422,17 @@ export default function StaffUsersTab() {
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${meta.color}`}>{meta.icon} {meta.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-thiso-600">{user.unit ? UNIT_META_U[user.unit] : <span className="text-thiso-300 text-xs">—</span>}</td>
+                    <td className="px-4 py-3 text-sm text-thiso-600">
+                      {user.unitPermissions?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {user.unitPermissions.map((unit) => (
+                            <span key={unit.id} className="text-[11px] px-2 py-1 rounded-full bg-thiso-50 text-thiso-600 font-semibold">
+                              {UNIT_META_U[unit.unit] ?? unit.displayName ?? unit.unit}
+                            </span>
+                          ))}
+                        </div>
+                      ) : user.unit ? UNIT_META_U[user.unit] : <span className="text-thiso-300 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-sm text-thiso-600">{user.department ?? <span className="text-thiso-300 text-xs">—</span>}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>

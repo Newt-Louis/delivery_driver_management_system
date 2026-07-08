@@ -5,6 +5,7 @@ Thư mục này chia tài liệu theo từng tính năng đang có trong hệ th
 Mỗi file tập trung vào một miền nghiệp vụ riêng:
 
 - [auth-role-scope.md](auth-role-scope.md): đăng nhập, JWT, role và scope theo `BusinessLocation`.
+- [multi-unit-permissions.md](multi-unit-permissions.md): phân quyền nhiều `UnitConfig` cho `CHECKIN` và `RECEIVING`.
 - [app-config-advanced-auth.md](app-config-advanced-auth.md): cấu hình ứng dụng, IP nội bộ và Face ID/WebAuthn.
 - [business-location-unit-zone-slot.md](business-location-unit-zone-slot.md): cây dữ liệu `BusinessLocation -> UnitConfig -> Zone -> Slot`.
 - [driver-registration.md](driver-registration.md): luồng tài xế đăng ký giao hàng tại `/register`.

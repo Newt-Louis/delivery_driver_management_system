@@ -238,3 +238,16 @@ Quy ước:
 - File chính: `backend/src/services/authSession.ts`, `backend/src/services/redis.ts`, `backend/src/routes/auth.ts`, `backend/src/middleware/auth.ts`, `backend/src/socket/index.ts`, `backend/src/services/appConfig.ts`, `backend/prisma/app-config-seed.json`, `frontend/src/lib/authCookies.ts`, `frontend/src/lib/api.ts`, `frontend/src/context/AuthContext.tsx`, `frontend/src/pages/Login.tsx`, `frontend/src/context/SocketContext.tsx`, `docker-compose.yml`.
 - Đã chạy `npm run db:seed_app_config` để upsert `auth.session`.
 - Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Phân Quyền Nhiều Unit Cho CHECKIN/RECEIVING
+
+- Thêm bảng `user_unit_permissions` để gán nhiều `UnitConfig` cho một user và backfill từ `User.unit` hiện có.
+- Giữ `User.unit` như unit chính/legacy, nhưng quyền thao tác thật của `CHECKIN` và `RECEIVING` lấy từ `unitPermissions`.
+- Thêm service `unitPermission` có cache in-memory, replace permission và invalidate cache khi cập nhật user.
+- API user cấp `SUPERADMIN` và API staff cấp `ADMIN_LOC` nhận `unitConfigIds`, validate tất cả unit phải thuộc đúng `businessLocationId`.
+- Backend enforce unit permission cho check-in, manual call, auto-dispatch, start receiving, complete và cancel với role hiện trường.
+- Staff Users tab trong Backoffice chuyển sang chọn nhiều đơn vị cho `CHECKIN`/`RECEIVING`, hiển thị chip unit và filter theo danh sách permission.
+- Cập nhật tài liệu `docs/multi-unit-permissions.md`.
+- File chính: `backend/prisma/schema.prisma`, migration `20260708090000_add_user_unit_permissions`, `backend/src/services/unitPermission.ts`, `backend/src/routes/users.ts`, `backend/src/routes/deliveries.ts`, `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`, `frontend/src/features/backoffice/api.ts`, `frontend/src/features/backoffice/types.ts`, `frontend/src/lib/types.ts`.
+- Đã apply migration bằng `npx prisma migrate deploy`.
+- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.

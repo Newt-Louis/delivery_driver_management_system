@@ -20,6 +20,7 @@ export interface User {
   email: string;
   role: Role;
   unit: ReceivingUnit | null;
+  unitPermissions?: Array<Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'businessLocationId'>>;
   department?: string | null;
   businessLocationId: string | null;
 }
