@@ -108,7 +108,7 @@ async function getRawConfig(key: string): Promise<Record<string, unknown>> {
     select: { value: true },
   });
   const value = asRecord(config?.value);
-  await redis.set(appConfigCacheKey(key), JSON.stringify(value), { EX: appConfigCacheSeconds() });
+  await redis.set(appConfigCacheKey(key), JSON.stringify(value));
   return value;
 }
 
