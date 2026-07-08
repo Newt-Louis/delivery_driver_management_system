@@ -73,7 +73,7 @@ export default function UnitGoodsVehicleStep({
                 {brand.logoUrl ? (
                   <img src={brand.logoUrl} alt={brand.displayName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
                 ) : (
-                  <span className="text-3xl flex-shrink-0">{fb.icon}</span>
+                  <span className="text-3xl flex-shrink-0">{brand.icon || fb.icon}</span>
                 )}
                 <div className="flex-1 min-w-0">
                   <p className={`font-bold text-base ${active ? style.activeText : 'text-thiso-800'}`}>{brand.displayName}</p>

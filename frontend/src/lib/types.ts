@@ -20,7 +20,7 @@ export interface User {
   email: string;
   role: Role;
   unit: ReceivingUnit | null;
-  unitPermissions?: Array<Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'businessLocationId'>>;
+  unitPermissions?: Array<Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'icon' | 'businessLocationId'>>;
   department?: string | null;
   businessLocationId: string | null;
 }
@@ -103,6 +103,7 @@ export interface UnitBranding {
   displayName: string;
   shortName: string;
   description: string;
+  icon: string | null;
   logoUrl: string | null;
   primaryColor: string;
 }
@@ -153,6 +154,7 @@ export interface UnitConfig {
   displayName: string;
   shortName: string;
   description: string;
+  icon: string | null;
   logoUrl: string | null;
   primaryColor: string;
 }

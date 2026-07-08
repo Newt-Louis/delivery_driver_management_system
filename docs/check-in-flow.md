@@ -69,17 +69,9 @@ Service:
 
 - `CHECKIN` không được call/start/complete/cancel delivery trong `/api/deliveries`.
 - `RECEIVING` không được vào `/check-in` trên frontend.
+- `CHECKIN` chỉ được check-in delivery thuộc unit đã được gán trong `user_unit_permissions`.
+- Multi-unit allowlist cho `CHECKIN` và `RECEIVING` được quản lý trong Backoffice tab Nhân Viên.
 
-Chưa đủ:
+Lưu ý:
 
-- `CHECKIN` chưa bị chặn theo `User.unit`.
-- Check-in endpoint hiện chỉ enforce `businessLocationId`, chưa enforce unit-level permission.
-- Chưa có multi-unit allowlist cho `CHECKIN`.
 - Audit của `check-in-lookup` có chỗ dùng `systemActor('public-check-in-route')`, cần đổi thành user actor nếu cần truy vết đúng nhân sự.
-
-## Hướng Cần Làm Tiếp
-
-- Thêm enforcement: role `CHECKIN` chỉ check-in delivery có `receivingUnit` nằm trong unit được phép.
-- Nếu chỉ cần một unit: dùng `User.unit`.
-- Nếu cần nhiều unit: thêm bảng allowlist, ví dụ `UserUnitPermission`.
-- Lỗi mong muốn khi sai unit: `không phải đơn vị được phép đăng ký vào`.

@@ -25,6 +25,8 @@ Schema mới:
 
 Migration `20260708090000_add_user_unit_permissions` backfill dữ liệu cũ: user `CHECKIN`/`RECEIVING` có `unit` sẽ được gán permission tới `UnitConfig` tương ứng trong cùng `BusinessLocation`.
 
+`UnitConfig.icon` là field optional để hiển thị unit đẹp hơn trên UI. Migration `20260708103000_add_unit_config_icon` thêm cột nullable `icon` vào `unit_configs`. Giá trị này có thể là emoji hoặc chuỗi class icon, nhưng frontend hiện render như text.
+
 ## Backend Helper Và Cache
 
 File chính: `backend/src/services/unitPermission.ts`.
@@ -49,6 +51,7 @@ Các response user trả thêm:
       "id": "unit_config_id",
       "unit": "EMART",
       "displayName": "EMART",
+      "icon": "🏬",
       "businessLocationId": "..."
     }
   ]
@@ -71,6 +74,12 @@ Các API create/update user nhận thêm:
 - `PATCH /api/users/location-staff/:id`
 
 Với role `CHECKIN`/`RECEIVING`, backend bắt buộc có ít nhất một unit permission. Nếu client cũ chỉ gửi `unit`, backend sẽ dùng `unit` để resolve một `UnitConfig` tương ứng nhằm giữ tương thích.
+
+Unit config API:
+
+- `GET /api/units/configs` trả toàn bộ config trong `BusinessLocation`, bao gồm `icon`.
+- `PATCH /api/units/:unit/config` nhận `icon?: string | null` để ADMIN_LOC/SUPERADMIN cấu hình icon.
+- `GET /api/brand` trả `icon` trong từng unit branding để các màn hình public dùng cùng dữ liệu từ database.
 
 ## Delivery Enforcement
 
@@ -95,14 +104,24 @@ Nếu user không có quyền trên unit của delivery, backend trả `403`:
 
 ## Frontend Backoffice
 
-Tab nhân viên của `ADMIN_LOC` hỗ trợ chọn nhiều đơn vị cho role:
+Tab nhân viên của `ADMIN_LOC` dùng danh sách unit từ `GET /api/units/configs`, không hardcode unit trên React.
+
+Khi tạo tài khoản mới:
+
+- Role `CHECKIN` và `RECEIVING` chỉ được chọn đúng một unit chính.
+- Frontend gửi `unitConfigIds` gồm đúng unit đó và giữ `unit` bằng `ReceivingUnit` của unit đầu tiên để tương thích.
+
+Khi chỉnh sửa tài khoản:
+
+- Role `CHECKIN` và `RECEIVING` hỗ trợ chọn thêm/bớt nhiều unit permission.
+- Role khác như `ADMIN_OPE` không hiển thị/chặn thao tác multi-unit vì quyền theo `BusinessLocation`.
+
+Các role được áp dụng unit permission:
 
 - `CHECKIN`
 - `RECEIVING`
 
-UI gửi `unitConfigIds` và giữ `unit` là unit đầu tiên trong danh sách để tương thích với field legacy.
-
-Filter theo đơn vị trong bảng nhân viên dựa trên `unitPermissions`, không chỉ dựa vào `user.unit`.
+Filter theo đơn vị trong bảng nhân viên dựa trên `unitPermissions`, không chỉ dựa vào `user.unit`. Label/icon ưu tiên `icon`, `displayName`, `shortName`, rồi tới `unit`.
 
 ## Lưu Ý Vận Hành
 

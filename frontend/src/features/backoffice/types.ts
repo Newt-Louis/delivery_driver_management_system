@@ -21,6 +21,7 @@ export interface SystemUser {
     id: string;
     unit: ReceivingUnit;
     displayName: string;
+    icon?: string | null;
     businessLocationId: string;
   }>;
   department: string | null;

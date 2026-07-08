@@ -6,6 +6,7 @@ type PermissionUnit = {
   id: string;
   unit: ReceivingUnit;
   displayName: string;
+  icon: string | null;
   businessLocationId: string;
 };
 
@@ -37,6 +38,7 @@ export async function getUserUnitPermissions(userId: string): Promise<Permission
           id: true,
           unit: true,
           displayName: true,
+          icon: true,
           businessLocationId: true,
         },
       },
@@ -69,7 +71,7 @@ export async function assertUnitConfigsInLocation(unitConfigIds: string[], busin
 
   const unitConfigs = await prisma.unitConfig.findMany({
     where: { id: { in: uniqueIds }, businessLocationId },
-    select: { id: true, unit: true, displayName: true, businessLocationId: true },
+    select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
     orderBy: { unit: 'asc' },
   });
 
@@ -92,7 +94,7 @@ export async function resolveLegacyUnitConfigId(args: {
         unit: args.unit as ReceivingUnit,
       },
     },
-    select: { id: true, unit: true, displayName: true, businessLocationId: true },
+    select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
   });
   return unitConfig;
 }

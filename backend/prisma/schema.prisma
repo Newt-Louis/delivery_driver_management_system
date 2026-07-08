@@ -458,6 +458,7 @@ model UnitConfig {
   displayName  String  @default("") @map("display_name")
   shortName    String  @default("") @map("short_name")
   description  String  @default("") @map("description")
+  icon         String? @map("icon")
   logoUrl      String? @map("logo_url")
   primaryColor String  @default("#1C1C1C") @map("primary_color")
 

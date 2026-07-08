@@ -63,11 +63,11 @@ export default function BrandTab() {
   // Unit states
   const [unitData, setUnitData] = useState<Record<ReceivingUnitKey, {
     displayName: string; shortName: string; description: string;
-    logoUrl: string | null; primaryColor: string;
+    icon: string; logoUrl: string | null; primaryColor: string;
   }>>({
-    EMART:      { displayName: units.EMART?.displayName      ?? '', shortName: units.EMART?.shortName      ?? '', description: units.EMART?.description      ?? '', logoUrl: units.EMART?.logoUrl      ?? null, primaryColor: units.EMART?.primaryColor      ?? '#FF9500' },
-    THISKYHALL: { displayName: units.THISKYHALL?.displayName ?? '', shortName: units.THISKYHALL?.shortName ?? '', description: units.THISKYHALL?.description ?? '', logoUrl: units.THISKYHALL?.logoUrl ?? null, primaryColor: units.THISKYHALL?.primaryColor ?? '#27A55E' },
-    TENANT:     { displayName: units.TENANT?.displayName     ?? '', shortName: units.TENANT?.shortName     ?? '', description: units.TENANT?.description     ?? '', logoUrl: units.TENANT?.logoUrl     ?? null, primaryColor: units.TENANT?.primaryColor     ?? '#1C1C1C' },
+    EMART:      { displayName: units.EMART?.displayName      ?? '', shortName: units.EMART?.shortName      ?? '', description: units.EMART?.description      ?? '', icon: units.EMART?.icon      ?? '', logoUrl: units.EMART?.logoUrl      ?? null, primaryColor: units.EMART?.primaryColor      ?? '#FF9500' },
+    THISKYHALL: { displayName: units.THISKYHALL?.displayName ?? '', shortName: units.THISKYHALL?.shortName ?? '', description: units.THISKYHALL?.description ?? '', icon: units.THISKYHALL?.icon ?? '', logoUrl: units.THISKYHALL?.logoUrl ?? null, primaryColor: units.THISKYHALL?.primaryColor ?? '#27A55E' },
+    TENANT:     { displayName: units.TENANT?.displayName     ?? '', shortName: units.TENANT?.shortName     ?? '', description: units.TENANT?.description     ?? '', icon: units.TENANT?.icon     ?? '', logoUrl: units.TENANT?.logoUrl     ?? null, primaryColor: units.TENANT?.primaryColor     ?? '#1C1C1C' },
   });
 
   function setUnit(unit: ReceivingUnitKey, field: string, value: string | null) {
@@ -147,7 +147,7 @@ export default function BrandTab() {
                 <div className="w-10 h-10 rounded-xl bg-white border border-thiso-100 flex items-center justify-center overflow-hidden">
                   {d.logoUrl
                     ? <img src={d.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-                    : <span className="text-2xl">{fb.icon}</span>}
+                    : <span className="text-2xl">{d.icon || fb.icon}</span>}
                 </div>
                 <div>
                   <h4 className="font-bold text-thiso-800">{d.displayName || fb.displayName}</h4>
@@ -170,6 +170,17 @@ export default function BrandTab() {
               </div>
 
               <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="label">Icon</label>
+                  <input
+                    className="input bg-white"
+                    value={d.icon}
+                    onChange={e => setUnit(unit, 'icon', e.target.value)}
+                    placeholder={fb.icon ?? ''}
+                    maxLength={40}
+                  />
+                  <p className="text-[11px] text-thiso-400 mt-1">Emoji hoặc class icon, có thể để trống</p>
+                </div>
                 <div className="col-span-2">
                   <label className="label">Mô tả / địa chỉ cổng</label>
                   <input className="input bg-white" value={d.description} onChange={e => setUnit(unit, 'description', e.target.value)} placeholder={fb.description} />

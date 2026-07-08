@@ -8,10 +8,10 @@ import { getDefaultBusinessLocation } from '../lib/businessLocation';
 
 const router = Router();
 
-const UNIT_DEFAULTS: Record<ReceivingUnit, { displayName: string; shortName: string; description: string; primaryColor: string }> = {
-  EMART:      { displayName: 'Emart',             shortName: 'Emart',    description: 'Siêu thị',              primaryColor: '#FF9500' },
-  THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall',  description: 'Trung tâm thương mại',  primaryColor: '#27A55E' },
-  TENANT:     { displayName: 'Mall (Khách thuê)', shortName: 'Mall',     description: 'Khu vực khách thuê',    primaryColor: '#1C1C1C' },
+const UNIT_DEFAULTS: Record<ReceivingUnit, { displayName: string; shortName: string; description: string; primaryColor: string; icon: string }> = {
+  EMART:      { displayName: 'Emart',             shortName: 'Emart',    description: 'Siêu thị',              primaryColor: '#FF9500', icon: '🏬' },
+  THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall',  description: 'Trung tâm thương mại',  primaryColor: '#27A55E', icon: '🏢' },
+  TENANT:     { displayName: 'Mall (Khách thuê)', shortName: 'Mall',     description: 'Khu vực khách thuê',    primaryColor: '#1C1C1C', icon: '🏪' },
 };
 
 // GET /api/brand — public: mall branding + all unit brandings
@@ -19,7 +19,7 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
   const location = await getDefaultBusinessLocation();
   const unitConfigs = await prisma.unitConfig.findMany({
     where: { businessLocationId: location.id },
-    select: { unit: true, displayName: true, shortName: true, description: true, logoUrl: true, primaryColor: true },
+    select: { unit: true, displayName: true, shortName: true, description: true, icon: true, logoUrl: true, primaryColor: true },
   });
 
   const units: Record<string, object> = {};
@@ -30,6 +30,7 @@ router.get('/', asyncHandler(async (_req: Request, res: Response) => {
       displayName:  cfg?.displayName  || def.displayName,
       shortName:    cfg?.shortName    || def.shortName,
       description:  cfg?.description  || def.description,
+      icon:         cfg?.icon         || def.icon,
       logoUrl:      cfg?.logoUrl      ?? null,
       primaryColor: cfg?.primaryColor || def.primaryColor,
     };

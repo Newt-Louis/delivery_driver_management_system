@@ -24,7 +24,7 @@ const SAFE_SELECT = {
   unitPermissions: {
     select: {
       unitConfig: {
-        select: { id: true, unit: true, displayName: true, businessLocationId: true },
+        select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
       },
     },
   },

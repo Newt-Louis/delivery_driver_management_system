@@ -462,6 +462,7 @@ const unitConfigSchema = z.object({
   displayName:  z.string().max(100).optional(),
   shortName:    z.string().max(40).optional(),
   description:  z.string().max(200).optional(),
+  icon:         z.string().max(40).nullable().optional(),
   logoUrl:      z.string().nullable().optional(),
   primaryColor: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
 });
@@ -473,7 +474,7 @@ router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMI
 
   const existingConfig = await prisma.unitConfig.findUnique({
     where: { businessLocationId_unit: { businessLocationId: locationId, unit } },
-    select: { id: true, freshFoodEnabled: true, generalGoodsEnabled: true, thiCongEnabled: true, sundayFreshFoodOnly: true, truckSlotMinutes: true, motorbikeSlotMinutes: true, displayName: true, shortName: true },
+    select: { id: true, freshFoodEnabled: true, generalGoodsEnabled: true, thiCongEnabled: true, sundayFreshFoodOnly: true, truckSlotMinutes: true, motorbikeSlotMinutes: true, displayName: true, shortName: true, icon: true },
   });
 
   const config = await prisma.unitConfig.upsert({
@@ -504,6 +505,7 @@ router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMI
       motorbikeSlotMinutes: existingConfig.motorbikeSlotMinutes,
       displayName: existingConfig.displayName,
       shortName: existingConfig.shortName,
+      icon: existingConfig.icon,
     } : undefined,
     after: {
       freshFoodEnabled: config.freshFoodEnabled,
@@ -514,6 +516,7 @@ router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMI
       motorbikeSlotMinutes: config.motorbikeSlotMinutes,
       displayName: config.displayName,
       shortName: config.shortName,
+      icon: config.icon,
     },
   });
   res.json(safe);

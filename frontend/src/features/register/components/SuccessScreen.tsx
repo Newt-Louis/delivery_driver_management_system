@@ -58,7 +58,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     const fb = UNIT_FALLBACKS[info.receivingUnit];
     const logoHtml = ub.logoUrl
       ? `<img src="${ub.logoUrl}" style="width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-right:6px"/>`
-      : fb.icon;
+      : ub.icon || fb.icon;
     win.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
 <title>Phiếu ${info.code}</title>
@@ -103,7 +103,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
           <span className="text-3xl">✅</span>
         </div>
         <h2 className="text-xl font-black text-white">Đăng ký thành công!</h2>
-        <p className="text-green-100 text-sm mt-1">{unitFb.icon} {unitBrand.displayName}</p>
+        <p className="text-green-100 text-sm mt-1">{unitBrand.icon || unitFb.icon} {unitBrand.displayName}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-5 pb-6 max-w-sm mx-auto w-full space-y-4">

@@ -251,3 +251,16 @@ Quy ước:
 - File chính: `backend/prisma/schema.prisma`, migration `20260708090000_add_user_unit_permissions`, `backend/src/services/unitPermission.ts`, `backend/src/routes/users.ts`, `backend/src/routes/deliveries.ts`, `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`, `frontend/src/features/backoffice/api.ts`, `frontend/src/features/backoffice/types.ts`, `frontend/src/lib/types.ts`.
 - Đã apply migration bằng `npx prisma migrate deploy`.
 - Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Điều Chỉnh UI Unit Permission Và Icon UnitConfig
+
+- Điều chỉnh tab Nhân Viên: tạo mới `CHECKIN`/`RECEIVING` chỉ chọn một unit chính; khi edit mới được chọn nhiều unit permission.
+- UI multi-unit chỉ áp dụng cho `CHECKIN` và `RECEIVING`; role khác như `ADMIN_OPE` không cần chọn unit.
+- Tab Nhân Viên lấy label/icon unit từ `/api/units/configs`, không dùng hardcode `UNIT_META_U` cho chọn và hiển thị permission.
+- Thêm cột nullable `unit_configs.icon`, migration `20260708103000_add_unit_config_icon`.
+- API `/api/units/configs`, `/api/units/:unit/config`, `/api/brand` trả/nhận `icon`; tab Thương hiệu có ô cấu hình icon cho từng unit.
+- Register, ticket thành công và waiting screen ưu tiên icon từ database nếu có.
+- Cập nhật `docs/multi-unit-permissions.md` và `docs/check-in-flow.md`.
+- File chính: `backend/prisma/schema.prisma`, `backend/src/routes/units.ts`, `backend/src/routes/brand.ts`, `backend/src/routes/users.ts`, `backend/src/services/unitPermission.ts`, `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`, `frontend/src/features/backoffice/tabs/BrandTab.tsx`, `frontend/src/context/BrandingContext.tsx`, `frontend/src/lib/types.ts`.
+- Đã apply migration bằng `npx prisma migrate deploy`.
+- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.

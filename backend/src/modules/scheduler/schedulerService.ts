@@ -40,12 +40,14 @@ function scheduleNextDailyClose(timers: ManagedTimer[]): void {
 }
 
 function scheduleCancelledArchive(timers: ManagedTimer[]): void {
+  const nextRun = new Date(Date.now() + CANCELLED_ARCHIVE_INTERVAL_MS);
   const timer = setTimeout(() => {
     archiveCancelledDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED })
       .catch((error) => console.error('[scheduler] archive-cancelled-deliveries failed', error))
       .finally(() => scheduleCancelledArchive(timers));
   }, CANCELLED_ARCHIVE_INTERVAL_MS);
   timers.push(timer);
+  console.log(`[scheduler] archive-cancelled-deliveries scheduled at ${nextRun.toISOString()} (${TIMEZONE})`);
 }
 
 export function startOperationalScheduler() {
