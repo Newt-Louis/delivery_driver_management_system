@@ -10,6 +10,7 @@ import Backoffice from './pages/Backoffice';
 import Track from './pages/Track';
 import ReceivingTimes from './pages/ReceivingTimes';
 import Reports from './pages/Reports';
+import Histories from './pages/Histories';
 import Navbar from './components/Navbar';
 
 function homePathForRole(role?: string) {
@@ -91,6 +92,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
               <Reports />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/histories"
+          element={
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
+              <Histories />
             </ProtectedRoute>
           }
         />

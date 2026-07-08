@@ -26,6 +26,7 @@ import pushRoutes from './routes/push';
 import awVendorRoutes from './routes/awVendors';
 import deviceRoutes from './routes/devices';
 import auditLogRoutes from './routes/auditLogs';
+import historiesRoutes from './routes/histories';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -48,6 +49,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/aw-vendors', awVendorRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/histories', historiesRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
