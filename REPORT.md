@@ -277,3 +277,72 @@ Quy ước:
 - File chính: `backend/src/services/authSession.ts`, `backend/src/services/unitPermission.ts`, `backend/src/services/appConfig.ts`, `backend/src/routes/users.ts`, `backend/package.json`, `backend/package-lock.json`.
 - Đã kiểm tra: `npm run build` trong `backend`, `npm run redis:ui -- --test`.
 - Lưu ý: `npm install --save-dev redis-commander` báo audit hiện có 33 vulnerabilities trong dependency tree dev/tooling; chưa chạy `npm audit fix` vì có thể gây thay đổi ngoài phạm vi.
+
+### 2026-07-08 - Redis Session Architecture: TTL Removal + Socket.IO Ping/Pong Cleanup
+
+- **Mục tiêu:** Chuyển Redis session từ TTL-based sang event-based. Session không tự hết hạn; chỉ xóa khi Socket.IO detect user mất kết nối (5 lần ping không nhận pong = 75 phút). JWT cookie còn hạn = user luôn được tự động đăng nhập lại qua `/me`.
+- **Backend — authSession.ts:**
+  - Bỏ TTL khỏi `writeSession()`: `redis.set(key, data)` không dùng `EX`. Session chỉ bị xóa bởi logout/revoke/Socket.IO cleanup.
+  - Bỏ TTL khỏi `writeAuthUserCache()`: profile cache tồn tại vô hạn, chỉ invalidate khi admin thay đổi.
+  - Mở rộng `SafeAuthUser` thành `FullAuthSession`: thêm `ip`, `deviceId`, `deviceName`, `userAgent`, `sid`, `createdAt`, `lastSeenAt`. `writeAuthUserCache()` giờ lưu full session data.
+  - Sửa `resolveActiveSessionAndUser()`: khi session Redis không tìm thấy nhưng JWT hợp lệ → tự tạo session mới từ JWT payload + DB user → trả user + session mới. User không bao giờ thấy trang login trừ khi JWT cookie hết hạn.
+  - Xóa `authUserCacheSeconds()` (không còn cần).
+- **Backend — unitPermission.ts:**
+  - Bỏ TTL khỏi `writeUserUnitPermissionCache()`: permission cache tồn tại vô hạn.
+  - Xóa `unitPermissionCacheSeconds()` (không còn cần).
+- **Backend — socket/index.ts:**
+  - Cấu hình Socket.IO: `pingInterval: 15 phút`, `pingTimeout: 20s`.
+  - Thêm `disconnectedSockets: Map<socketId, { userId, timer, missedPongs }>` để track disconnect.
+  - Khi socket disconnect → start timer 15 phút. Mỗi lần timer fire → tăng `missedPongs`. Nếu >= 5 → gọi `cleanupUserRedisData()` xóa session + profile + permission cache.
+  - Khi socket reconnect lại (cùng userId) → cancel timer, xóa khỏi map.
+  - Export `cleanupUserRedisData(userId)` để dùng trong cả socket handler và safety job.
+  - Lưu `userId` vào `socket.data` khi `realtime:join` với token hợp lệ.
+- **Frontend — SocketContext.tsx:**
+  - Thêm listener `socket.on('reconnect')` → tự动 emit `realtime:join` lại với token mới nhất để vào lại dashboard/docks room.
+- **Kiến trúc hoạt động:**
+  - Login → session Redis không TTL, profile cache không TTL, permission cache không TTL.
+  - User hoạt động bình thường → session luôn sẵn sàng, không bao giờ hết hạn.
+  - User đóng browser → Socket.IO disconnect → 75 phút không reconnect → cleanup Redis → giải phóng RAM.
+  - User mở lại app → JWT cookie còn hạn → `/me` tự tạo session mới → không thấy trang login.
+- File chính: `backend/src/services/authSession.ts`, `backend/src/services/unitPermission.ts`, `backend/src/socket/index.ts`, `frontend/src/context/SocketContext.tsx`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Trang Lịch Sử (`/histories`) Và API Histories
+
+- **Backend — route mới `backend/src/routes/histories.ts`:**
+  - `GET /api/histories/delivery` — phân trang `delivery_history` với sort, filter, search. Scope theo `businessLocationId` (SUPERADMIN không bị scope). Hỗ trợ sort ASC/DESC trên 12 trường.
+  - `GET /api/histories/delivery/:id/events` — lấy `delivery_history_events` theo `deliveryHistoryId`, scope đúng `businessLocationId`.
+  - `GET /api/histories/audit` — phân trang `audit_logs` với sort, filter, search. Scope theo `businessLocationId`.
+  - Middleware: `authenticate`, `enforceScope`, `requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE')`.
+  - Đã mount trong `backend/src/index.ts` tại `/api/histories`.
+- **Frontend — feature module `frontend/src/features/histories/`:**
+  - `types.ts`: types cho `DeliveryHistoryItem`, `AuditLogItem`, `PaginatedResponse<T>`, sort field, column config.
+  - `constants.ts`: labels tiếng Việt cho status/goods/vehicle/unit/event, column configs mặc định, storage keys.
+  - `api.ts`: API helpers `getDeliveryHistory()`, `getDeliveryHistoryEvents()`, `getAuditLogs()`.
+  - `hooks/useDeliveryHistory.ts`: React Query hook quản lý state page/sort/filter/search.
+  - `hooks/useAuditLogs.ts`: tương tự cho audit logs.
+  - `components/PlaceholderTab.tsx`: "Tính năng đang phát triển".
+  - `components/ColumnToggle.tsx`: dropdown bật/tắt cột, lưu localStorage.
+  - `components/DeliveryTable.tsx`: bảng phân trang với sort header, double-click → modal timeline.
+  - `components/AuditTable.tsx`: bảng phân trang, double-click → modal JSON chi tiết.
+  - `components/TimelineModal.tsx`: modal hiển thị timeline từ `delivery_history_events`.
+  - `components/AuditDetailModal.tsx`: modal JSON before/after/metadata.
+- **Frontend — page `frontend/src/pages/Histories.tsx`:**
+  - Shell page với 3 tab: Truy cập (placeholder), Giao/Nhận (delivery history), Audit.
+  - Tab Giao/Nhận: filter theo status/unit/goods/vehicle/ngày, search text, column toggle, sort, double-click modal.
+  - Tab Audit: filter theo actorType/action/targetType/ngày, search text, column toggle, sort, double-click modal.
+- **Route & Navigation:**
+  - Route `/histories` với `ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}` trong `App.tsx`.
+  - Nav item "Lịch sử" (`📜`) nằm dưới "Báo cáo" trong nhóm "Phân tích" tại `Navbar.tsx`.
+- File chính: `backend/src/routes/histories.ts`, `backend/src/index.ts`, `frontend/src/features/histories/*`, `frontend/src/pages/Histories.tsx`, `frontend/src/App.tsx`, `frontend/src/components/Navbar.tsx`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Thêm unitPermissions Vào Login/Me Response
+
+- Thêm import `getUserUnitPermissions` và `roleRequiresUnitPermission` vào `backend/src/routes/auth.ts`.
+- `POST /api/auth/login`: trả thêm `unitPermissions` (mảng `[{id, unit, displayName, icon, businessLocationId}]`) khi role là CHECKIN/RECEIVING.
+- `GET /api/auth/me`: tương tự, để khi mở lại app cũng có data permission.
+- `POST /api/auth/face-id/authenticate/verify`: face-id login cũng trả permission.
+- Role khác CHECKIN/RECEIVING → `unitPermissions` là `undefined`.
+- File chính: `backend/src/routes/auth.ts`.
+- Đã kiểm tra: `npm run build` trong `backend`.

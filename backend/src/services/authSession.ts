@@ -16,6 +16,16 @@ export type SafeAuthUser = {
   businessLocationId: string | null;
 };
 
+export type FullAuthSession = SafeAuthUser & {
+  ip: string;
+  deviceId: string | null;
+  deviceName: string | null;
+  userAgent: string | null;
+  sid: string;
+  createdAt: string;
+  lastSeenAt: string;
+};
+
 export type StoredAuthSession = {
   id: string;
   userId: string;
@@ -70,11 +80,6 @@ function jwtSecret(): string {
   return process.env.JWT_SECRET ?? 'fallback-secret';
 }
 
-function authUserCacheSeconds(): number {
-  const raw = Number(process.env.AUTH_USER_CACHE_SECONDS ?? 3600);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 3600;
-}
-
 function secondsUntil(isoDate: string): number {
   return Math.max(1, Math.ceil((new Date(isoDate).getTime() - Date.now()) / 1000));
 }
@@ -122,8 +127,8 @@ function parseSession(raw: string | null): StoredAuthSession | null {
 function parseCachedAuthUser(raw: string | null): SafeAuthUser | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as SafeAuthUser;
-    return parsed?.id && parsed?.email && parsed?.role ? parsed : null;
+    const parsed = JSON.parse(raw);
+    return parsed?.id && parsed?.email && parsed?.role ? { id: parsed.id, email: parsed.email, role: parsed.role, name: parsed.name, unit: parsed.unit ?? null, businessLocationId: parsed.businessLocationId ?? null } : null;
   } catch {
     return null;
   }
@@ -136,14 +141,23 @@ async function readSession(sessionId: string): Promise<StoredAuthSession | null>
 
 async function writeSession(session: StoredAuthSession): Promise<void> {
   const redis = await getRedis();
-  await redis.set(sessionKey(session.id), JSON.stringify(session), { EX: secondsUntil(session.expiresAt) });
+  await redis.set(sessionKey(session.id), JSON.stringify(session));
   await redis.sAdd(userSessionsKey(session.userId), session.id);
-  await redis.expire(userSessionsKey(session.userId), secondsUntil(session.expiresAt));
 }
 
-async function writeAuthUserCache(user: SafeAuthUser): Promise<void> {
+async function writeAuthUserCache(user: SafeAuthUser, session?: StoredAuthSession): Promise<void> {
   const redis = await getRedis();
-  await redis.set(userProfileKey(user.id), JSON.stringify(user), { EX: authUserCacheSeconds() });
+  const data: FullAuthSession = {
+    ...user,
+    ip: session?.ip ?? '',
+    deviceId: session?.deviceId ?? null,
+    deviceName: session?.deviceName ?? null,
+    userAgent: session?.userAgent ?? null,
+    sid: session?.id ?? '',
+    createdAt: session?.createdAt ?? new Date().toISOString(),
+    lastSeenAt: session?.lastSeenAt ?? new Date().toISOString(),
+  };
+  await redis.set(userProfileKey(user.id), JSON.stringify(data));
 }
 
 async function readAuthUserCache(userId: string): Promise<SafeAuthUser | null> {
@@ -248,7 +262,7 @@ export async function createAuthSession(args: {
   await writeSession(session);
 
   const safeUser = userPayload(args.user);
-  await writeAuthUserCache(safeUser);
+  await writeAuthUserCache(safeUser, session);
   const token = signToken(safeUser, session.id, config);
   return {
     token: token.token,
@@ -277,8 +291,33 @@ function verifyJwt(token: string, ignoreExpiration = false): AuthJwtPayload {
 
 async function resolveActiveSessionAndUser(payload: AuthJwtPayload): Promise<{ user: SafeAuthUser; session: StoredAuthSession }> {
   const session = await readSession(payload.sid);
+
+  // Session expired or not found — auto-recreate from JWT if user still active
   if (!session || session.userId !== payload.sub || new Date(session.expiresAt).getTime() <= Date.now()) {
-    throw new AuthSessionError(401, 'SessionExpired', 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+    const user = await readAuthUserCache(payload.sub) ?? await refreshAuthUserCache(payload.sub);
+    if (!user) {
+      throw new AuthSessionError(401, 'UserInactive', 'Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.');
+    }
+
+    // Create a fresh session from JWT payload
+    const config = await getAuthSessionConfig();
+    const now = new Date();
+    const newSession: StoredAuthSession = {
+      id: payload.sid,
+      userId: payload.sub,
+      deviceId: payload.sid ? null : null,
+      deviceName: null,
+      ip: '',
+      userAgent: null,
+      createdAt: now.toISOString(),
+      lastSeenAt: now.toISOString(),
+      expiresAt: new Date(now.getTime() + sessionWindowSeconds(config) * 1000).toISOString(),
+      tokenTtlMinutes: config.tokenTtlMinutes,
+      renewGraceMinutes: config.renewGraceMinutes,
+    };
+    await writeSession(newSession);
+    await writeAuthUserCache(user, newSession);
+    return { user, session: newSession };
   }
 
   const user = await readAuthUserCache(session.userId) ?? await refreshAuthUserCache(session.userId);
@@ -289,6 +328,7 @@ async function resolveActiveSessionAndUser(payload: AuthJwtPayload): Promise<{ u
 
   const touchedSession = { ...session, lastSeenAt: new Date().toISOString() };
   await writeSession(touchedSession);
+  await writeAuthUserCache(user, touchedSession);
   return { user, session: touchedSession };
 }
 

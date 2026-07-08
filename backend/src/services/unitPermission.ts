@@ -15,11 +15,6 @@ function unitPermissionKey(userId: string): string {
   return `auth:user:${userId}:unit-permissions`;
 }
 
-function unitPermissionCacheSeconds(): number {
-  const raw = Number(process.env.UNIT_PERMISSION_CACHE_SECONDS ?? 3600);
-  return Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 3600;
-}
-
 export function roleRequiresUnitPermission(role: string | null | undefined): boolean {
   return role === 'CHECKIN' || role === 'RECEIVING';
 }
@@ -56,7 +51,7 @@ async function queryUserUnitPermissions(userId: string): Promise<PermissionUnit[
 
 async function writeUserUnitPermissionCache(userId: string, units: PermissionUnit[]): Promise<void> {
   const redis = await getRedis();
-  await redis.set(unitPermissionKey(userId), JSON.stringify(units), { EX: unitPermissionCacheSeconds() });
+  await redis.set(unitPermissionKey(userId), JSON.stringify(units));
 }
 
 export async function invalidateUserUnitPermissionCache(userId: string): Promise<void> {
