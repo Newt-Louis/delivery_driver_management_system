@@ -6,6 +6,7 @@ export interface UnitBranding {
   displayName: string;
   shortName: string;
   description: string;
+  icon: string | null;
   logoUrl: string | null;
   primaryColor: string;
 }
@@ -29,7 +30,7 @@ export interface BrandingData {
 }
 
 // Static fallbacks — used until API responds and when fields are empty
-const UNIT_FALLBACKS: Record<ReceivingUnit, UnitBranding & { icon: string }> = {
+const UNIT_FALLBACKS: Record<ReceivingUnit, UnitBranding> = {
   EMART:      { displayName: 'Emart',             shortName: 'Emart',   description: 'Siêu thị',             logoUrl: null, primaryColor: '#FF9500', icon: '🏬' },
   THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall', description: 'Trung tâm thương mại', logoUrl: null, primaryColor: '#27A55E', icon: '🏢' },
   TENANT:     { displayName: 'Mall (Khách thuê)', shortName: 'Mall',    description: 'Khu vực khách thuê',   logoUrl: null, primaryColor: '#1C1C1C', icon: '🏪' },
@@ -73,6 +74,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
           displayName:  units[u]?.displayName  || fb.displayName,
           shortName:    units[u]?.shortName    || fb.shortName,
           description:  units[u]?.description  || fb.description,
+          icon:         units[u]?.icon         || fb.icon,
           logoUrl:      units[u]?.logoUrl      ?? null,
           primaryColor: units[u]?.primaryColor || fb.primaryColor,
         };
@@ -109,11 +111,11 @@ export function useBranding(): BrandingData {
   return useContext(BrandingContext);
 }
 
-export function useUnitBrand(unit: ReceivingUnit): UnitBranding & { icon: string } {
+export function useUnitBrand(unit: ReceivingUnit): UnitBranding {
   const { units } = useContext(BrandingContext);
   const fb = UNIT_FALLBACKS[unit];
   const u = units[unit];
-  return { ...u, icon: fb.icon };
+  return { ...u, icon: u.icon || fb.icon };
 }
 
 // Expose fallbacks for non-hook contexts (e.g. print windows)

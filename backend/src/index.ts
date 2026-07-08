@@ -10,7 +10,7 @@ import { prisma } from './lib/prisma';
 import { triggerAutoAssign } from './services/autoAssign';
 import { initWebPush } from './services/webPush';
 import { getRedis } from './services/redis';
-import { startOperationalScheduler } from './modules/scheduler/schedulerService';
+import { startOperationalScheduler, getSchedulerStatus } from './modules/scheduler/schedulerService';
 import authRoutes from './routes/auth';
 import deliveryRoutes from './routes/deliveries';
 import slotRoutes from './routes/slots';
@@ -26,6 +26,7 @@ import pushRoutes from './routes/push';
 import awVendorRoutes from './routes/awVendors';
 import deviceRoutes from './routes/devices';
 import auditLogRoutes from './routes/auditLogs';
+import historiesRoutes from './routes/histories';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -48,8 +49,10 @@ app.use('/api/push', pushRoutes);
 app.use('/api/aw-vendors', awVendorRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/histories', historiesRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
+app.get('/health/scheduler', (_req, res) => res.json({ status: 'ok', scheduler: getSchedulerStatus() }));
 
 app.use(errorHandler);
 
@@ -67,7 +70,23 @@ async function start() {
     console.log(`Backend running on http://localhost:${PORT}`);
   });
 
-  startOperationalScheduler();
+  const scheduler = startOperationalScheduler();
+
+  // Graceful shutdown
+  function shutdown(signal: string) {
+    console.log(`\n[scheduler] Received ${signal}, shutting down...`);
+    scheduler.stop();
+    server.close(() => {
+      prisma.$disconnect().then(() => {
+        console.log('[scheduler] Shutdown complete');
+        process.exit(0);
+      });
+    });
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => process.exit(1), 10_000).unref();
+  }
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   // On startup: drain the full WAITING backlog for all units.
   // Loop until no more assignments are made (handles multi-capacity motorbike slots).

@@ -17,6 +17,13 @@ export interface SystemUser {
   email: string;
   role: string;
   unit: ReceivingUnit | null;
+  unitPermissions?: Array<{
+    id: string;
+    unit: ReceivingUnit;
+    displayName: string;
+    icon?: string | null;
+    businessLocationId: string;
+  }>;
   department: string | null;
   businessLocationId: string | null;
   isActive: boolean;

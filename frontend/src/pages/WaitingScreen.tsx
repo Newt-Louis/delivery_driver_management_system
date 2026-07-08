@@ -22,7 +22,7 @@ interface BrandConfig {
   mall: { mallName: string; logoUrl: string | null; tagline: string };
   units: Record<string, {
     displayName: string; shortName: string;
-    logoUrl: string | null; primaryColor: string;
+    icon?: string | null; logoUrl: string | null; primaryColor: string;
   }>;
 }
 
@@ -75,7 +75,7 @@ function DarkCalledOverlay({ evt, brand, onDismiss }: {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden shadow-2xl">
         <div className="px-6 py-3 flex items-center gap-3" style={{ background: primaryColor }}>
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={def.icon} px={30} />
+          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={30} />
           <span className="text-white font-black text-lg tracking-widest">{displayName}</span>
           {callCount > 1 && (
             <span className="ml-auto bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full">
@@ -311,7 +311,7 @@ function DarkUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fals
     <div className="flex flex-col h-full min-h-0">
       <div className="rounded-t-2xl px-4 py-3 flex items-center justify-between shrink-0" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={def.icon} px={compact ? 22 : 28} />
+          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={compact ? 22 : 28} />
           <div className="font-black tracking-widest text-white leading-none"
                style={{ fontSize: compact ? '0.85rem' : 'clamp(0.85rem, 1.5vw, 1.1rem)' }}>
             {compact ? shortName : displayName}
@@ -401,7 +401,7 @@ function BrightCalledOverlay({ evt, brand, onDismiss }: {
       <div className="relative z-10 text-center px-8 w-full max-w-5xl mx-auto">
         {/* Unit + instruction */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={def.icon} px={38} />
+          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={38} />
           <div className="text-left">
             <p className="text-white/70 font-black text-base uppercase tracking-[0.25em]">
               📣 Mời xe di chuyển vào vị trí nhận hàng
@@ -564,7 +564,7 @@ function BrightUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fa
            style={{ background: primaryColor, paddingTop: compact ? '0.9rem' : '0.85rem', paddingBottom: compact ? '0.9rem' : '0.85rem' }}>
         {/* Centered logo + name */}
         <div className="absolute inset-0 flex items-center justify-center gap-3 pointer-events-none">
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={def.icon} px={compact ? 32 : 38} />
+          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={compact ? 32 : 38} />
           <span className="leading-none"
                 style={{
                   fontFamily: "'Inter', sans-serif",
@@ -827,7 +827,7 @@ export default function WaitingScreen() {
                         ${isActive ? (brightMobile ? 'text-gray-800' : 'text-white') : brightMobile ? 'text-gray-400' : 'text-thiso-500'}`}>
                 {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t" style={{ background: color }} />}
                 {calledCnt > 0 && <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
-                <span className="mr-1 inline-flex items-center"><UnitLogo logoUrl={cfg?.logoUrl} icon={def.icon} px={16} /></span>
+                <span className="mr-1 inline-flex items-center"><UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={16} /></span>
                 {cfg?.shortName || def.shortName}
                 {cnt > 0 && <span className="ml-1 opacity-60 text-[10px]">({cnt})</span>}
               </button>

@@ -6,6 +6,14 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
 import { recordAuditLog, userActor } from '../services/auditLog';
+import { invalidateAuthUserCache, refreshAuthUserCache, revokeUserSessions } from '../services/authSession';
+import {
+  assertUnitConfigsInLocation,
+  invalidateUserUnitPermissionCache,
+  replaceUserUnitPermissions,
+  resolveLegacyUnitConfigId,
+  roleRequiresUnitPermission,
+} from '../services/unitPermission';
 
 const router = Router();
 
@@ -14,6 +22,13 @@ const SAFE_SELECT = {
   role: true, unit: true, department: true,
   businessLocationId: true,
   isActive: true, createdAt: true,
+  unitPermissions: {
+    select: {
+      unitConfig: {
+        select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
+      },
+    },
+  },
 } as const;
 
 const USER_ROLES = ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
@@ -27,6 +42,7 @@ const createSchema = z.object({
   password:   z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
   role:       z.enum(USER_ROLES),
   unit:       z.enum(UNIT_VALUES).nullable().optional(),
+  unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
 });
@@ -35,6 +51,7 @@ const updateSchema = z.object({
   name:       z.string().min(1).max(80).optional(),
   role:       z.enum(USER_ROLES).optional(),
   unit:       z.enum(UNIT_VALUES).nullable().optional(),
+  unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
   isActive:   z.boolean().optional(),
@@ -50,6 +67,7 @@ const locationStaffCreateSchema = z.object({
   password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
   role: z.enum(LOCATION_STAFF_ROLES),
   unit: z.enum(UNIT_VALUES).nullable().optional(),
+  unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
 });
 
@@ -58,9 +76,21 @@ const locationStaffUpdateSchema = z.object({
   email: z.string().trim().email().nullable().optional(),
   role: z.enum(LOCATION_STAFF_ROLES).optional(),
   unit: z.enum(UNIT_VALUES).nullable().optional(),
+  unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   isActive: z.boolean().optional(),
 });
+
+function serializeUser<T extends { unitPermissions?: { unitConfig: unknown }[] }>(user: T) {
+  return {
+    ...user,
+    unitPermissions: user.unitPermissions?.map((permission) => permission.unitConfig) ?? [],
+  };
+}
+
+function permissionIdsFromUser(user: { unitPermissions?: { unitConfig: { id: string } }[] }): string[] {
+  return user.unitPermissions?.map((permission) => permission.unitConfig.id) ?? [];
+}
 
 async function assertBusinessLocationScope(role: string, businessLocationId: string | null | undefined) {
   if (role === 'SUPERADMIN') {
@@ -112,6 +142,55 @@ async function assertUnitScope(role: string, unit: string | null | undefined, bu
   }
 
   return normalizedUnit;
+}
+
+async function resolveUnitAssignment(args: {
+  role: string;
+  unit: string | null | undefined;
+  unitConfigIds: string[] | undefined;
+  existingUnitConfigIds?: string[];
+  businessLocationId: string | null;
+}) {
+  if (!args.businessLocationId) {
+    const unit = await assertUnitScope(args.role, args.unit, args.businessLocationId);
+    return { unit, unitConfigIds: [] as string[], unitPermissions: [] };
+  }
+
+  if (!roleRequiresUnitPermission(args.role)) {
+    const unit = await assertUnitScope(args.role, args.unit, args.businessLocationId);
+    return { unit, unitConfigIds: [] as string[], unitPermissions: [] };
+  }
+
+  const requestedIds = args.unitConfigIds !== undefined
+    ? [...new Set(args.unitConfigIds)]
+    : [...new Set(args.existingUnitConfigIds ?? [])];
+
+  let unitPermissions = requestedIds.length > 0
+    ? await assertUnitConfigsInLocation(requestedIds, args.businessLocationId)
+    : [];
+
+  if (unitPermissions.length === 0 && args.unit) {
+    const legacyUnitConfig = await resolveLegacyUnitConfigId({
+      businessLocationId: args.businessLocationId,
+      unit: args.unit,
+    });
+    if (legacyUnitConfig) unitPermissions = [legacyUnitConfig];
+  }
+
+  if (unitPermissions.length === 0) {
+    throw Object.assign(new Error('Tài khoản RECEIVING và CHECKIN bắt buộc phải chọn ít nhất một đơn vị.'), { statusCode: 400 });
+  }
+
+  const requestedLegacyUnit = args.unit ?? null;
+  const legacyUnit = requestedLegacyUnit && unitPermissions.some((permission) => permission.unit === requestedLegacyUnit)
+    ? requestedLegacyUnit
+    : unitPermissions[0].unit;
+
+  return {
+    unit: legacyUnit,
+    unitConfigIds: unitPermissions.map((permission) => permission.id),
+    unitPermissions,
+  };
 }
 
 async function assertSingleSuperadmin(targetUserId?: string) {
@@ -168,7 +247,7 @@ router.get('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHandl
     select: SAFE_SELECT,
     orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { unit: 'asc' }, { name: 'asc' }],
   });
-  res.json(users);
+  res.json(users.map(serializeUser));
 }));
 
 // POST /api/users/location-staff
@@ -180,30 +259,38 @@ router.post('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHand
 
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) { res.status(409).json({ error: 'Email đã được sử dụng' }); return; }
-  const unit = await assertUnitScope(body.role, body.unit ?? null, businessLocationId);
+  const assignment = await resolveUnitAssignment({
+    role: body.role,
+    unit: body.unit ?? null,
+    unitConfigIds: body.unitConfigIds,
+    businessLocationId,
+  });
 
   const passwordHash = await bcrypt.hash(body.password, 10);
-  const user = await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       name: body.name,
       email,
       passwordHash,
       role: body.role,
-      unit: unit as never,
+      unit: assignment.unit as never,
       department: body.department ?? null,
       businessLocationId,
     },
     select: SAFE_SELECT,
   });
+  await replaceUserUnitPermissions(created.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(created.id);
+  const user = (await prisma.user.findUnique({ where: { id: created.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.create',
     targetType: 'User',
     targetId: user.id,
     businessLocationId,
-    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department },
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, unitPermissions: serializeUser(user).unitPermissions, department: user.department },
   });
-  res.status(201).json(user);
+  res.status(201).json(serializeUser(user));
 }));
 
 // PATCH /api/users/location-staff/:id
@@ -224,14 +311,20 @@ router.patch('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyn
 
   const nextRole = body.role ?? existing.role;
   const nextUnit = body.unit !== undefined ? body.unit : existing.unit;
-  const unit = await assertUnitScope(nextRole, nextUnit ?? null, businessLocationId);
+  const assignment = await resolveUnitAssignment({
+    role: nextRole,
+    unit: nextUnit ?? null,
+    unitConfigIds: body.unitConfigIds,
+    existingUnitConfigIds: permissionIdsFromUser(existing),
+    businessLocationId,
+  });
   const email = body.email !== undefined ? normalizeOptionalEmail(body.email, nextRole) : undefined;
-  const user = await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: req.params.id },
     data: {
       ...(body.name !== undefined && { name: body.name }),
       ...(body.role !== undefined && { role: body.role }),
-      unit: unit as never,
+      unit: assignment.unit as never,
       ...(body.department !== undefined && { department: body.department ?? null }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(email !== undefined && { email }),
@@ -239,16 +332,20 @@ router.patch('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyn
     },
     select: SAFE_SELECT,
   });
+  await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(updated.id);
+  if (body.isActive === false) await revokeUserSessions(updated.id);
+  const user = (await prisma.user.findUnique({ where: { id: updated.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.update',
     targetType: 'User',
     targetId: user.id,
     businessLocationId,
-    before: { name: existing.name, email: existing.email, role: existing.role, unit: existing.unit, department: existing.department, isActive: existing.isActive },
-    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department, isActive: user.isActive },
+    before: { name: existing.name, email: existing.email, role: existing.role, unit: existing.unit, unitPermissions: serializeUser(existing).unitPermissions, department: existing.department, isActive: existing.isActive },
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, unitPermissions: serializeUser(user).unitPermissions, department: user.department, isActive: user.isActive },
   });
-  res.json(user);
+  res.json(serializeUser(user));
 }));
 
 // PATCH /api/users/location-staff/:id/reset-password
@@ -261,6 +358,7 @@ router.patch('/location-staff/:id/reset-password', authenticate, requireRole('AD
 
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+  await refreshAuthUserCache(req.params.id);
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.reset_password',
@@ -286,6 +384,9 @@ router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asy
       data: { isActive: false },
       select: SAFE_SELECT,
     });
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.deactivate',
@@ -295,9 +396,12 @@ router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asy
       before: { name: existing.name, email: existing.email, role: existing.role, isActive: existing.isActive },
       after: { name: user.name, email: user.email, role: user.role, isActive: user.isActive },
     });
-    res.json({ deactivated: true, user });
+    res.json({ deactivated: true, user: serializeUser(user) });
   } else {
     await prisma.user.delete({ where: { id: req.params.id } });
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.delete',
@@ -316,7 +420,7 @@ router.get('/', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (_re
     select: SAFE_SELECT,
     orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }],
   });
-  res.json(users);
+  res.json(users.map(serializeUser));
 }));
 
 // POST /api/users
@@ -327,30 +431,38 @@ router.post('/', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (re
   if (exists) { res.status(409).json({ error: 'Email đã được sử dụng' }); return; }
   if (body.role === 'SUPERADMIN') await assertSingleSuperadmin();
   const businessLocationId = await assertBusinessLocationScope(body.role, body.businessLocationId ?? null);
-  const unit = await assertUnitScope(body.role, body.unit ?? null, businessLocationId);
+  const assignment = await resolveUnitAssignment({
+    role: body.role,
+    unit: body.unit ?? null,
+    unitConfigIds: body.unitConfigIds,
+    businessLocationId,
+  });
 
   const passwordHash = await bcrypt.hash(body.password, 10);
-  const user = await prisma.user.create({
+  const created = await prisma.user.create({
     data: {
       name: body.name,
       email: body.email,
       passwordHash,
       role: body.role as never,
-      unit: unit as never,
+      unit: assignment.unit as never,
       department: body.department ?? null,
       businessLocationId,
     },
     select: SAFE_SELECT,
   });
+  await replaceUserUnitPermissions(created.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(created.id);
+  const user = (await prisma.user.findUnique({ where: { id: created.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.create',
     targetType: 'User',
     targetId: user.id,
     businessLocationId,
-    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department },
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, unitPermissions: serializeUser(user).unitPermissions, department: user.department },
   });
-  res.status(201).json(user);
+  res.status(201).json(serializeUser(user));
 }));
 
 // PATCH /api/users/:id
@@ -376,30 +488,40 @@ router.patch('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(async
   if (nextRole === 'SUPERADMIN') await assertSingleSuperadmin(req.params.id);
   const businessLocationId = await assertBusinessLocationScope(nextRole, nextBusinessLocationId ?? null);
   const nextUnit = body.unit !== undefined ? body.unit : existing.unit;
-  const unit = await assertUnitScope(nextRole, nextUnit ?? null, businessLocationId);
+  const assignment = await resolveUnitAssignment({
+    role: nextRole,
+    unit: nextUnit ?? null,
+    unitConfigIds: body.unitConfigIds,
+    existingUnitConfigIds: permissionIdsFromUser(existing),
+    businessLocationId,
+  });
 
-  const user = await prisma.user.update({
+  const updated = await prisma.user.update({
     where: { id: req.params.id },
     data: {
       ...(body.name       !== undefined && { name: body.name }),
       ...(body.role       !== undefined && { role: body.role as never }),
-      unit: unit as never,
+      unit: assignment.unit as never,
       ...(body.department !== undefined && { department: body.department ?? null }),
       businessLocationId,
       ...(body.isActive   !== undefined && { isActive: body.isActive }),
     },
     select: SAFE_SELECT,
   });
+  await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
+  await refreshAuthUserCache(updated.id);
+  if (body.isActive === false) await revokeUserSessions(updated.id);
+  const user = (await prisma.user.findUnique({ where: { id: updated.id }, select: SAFE_SELECT }))!;
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.update',
     targetType: 'User',
     targetId: user.id,
     businessLocationId,
-    before: { name: existing.name, email: existing.email, role: existing.role, unit: existing.unit, department: existing.department, isActive: existing.isActive },
-    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, department: user.department, isActive: user.isActive },
+    before: { name: existing.name, email: existing.email, role: existing.role, unit: existing.unit, unitPermissions: serializeUser(existing).unitPermissions, department: existing.department, isActive: existing.isActive },
+    after: { name: user.name, email: user.email, role: user.role, unit: user.unit, unitPermissions: serializeUser(user).unitPermissions, department: user.department, isActive: user.isActive },
   });
-  res.json(user);
+  res.json(serializeUser(user));
 }));
 
 // PATCH /api/users/:id/reset-password
@@ -407,6 +529,7 @@ router.patch('/:id/reset-password', authenticate, requireRole('SUPERADMIN'), asy
   const { password } = resetPwSchema.parse(req.body);
   const passwordHash = await bcrypt.hash(password, 10);
   await prisma.user.update({ where: { id: req.params.id }, data: { passwordHash } });
+  await refreshAuthUserCache(req.params.id);
   await recordAuditLog({
     ...userActor(req.user),
     action: 'user.reset_password',
@@ -436,6 +559,9 @@ router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(asyn
       data: { isActive: false },
       select: SAFE_SELECT,
     });
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.deactivate',
@@ -443,16 +569,19 @@ router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(asyn
       targetId: req.params.id,
       after: { name: u.name, email: u.email, role: u.role, isActive: u.isActive },
     });
-    res.json({ deactivated: true, user: u });
+    res.json({ deactivated: true, user: serializeUser(u) });
   } else {
     const deletedUser = await prisma.user.findUnique({ where: { id: req.params.id }, select: SAFE_SELECT });
     await prisma.user.delete({ where: { id: req.params.id } });
+    await invalidateAuthUserCache(req.params.id);
+    await invalidateUserUnitPermissionCache(req.params.id);
+    await revokeUserSessions(req.params.id);
     await recordAuditLog({
       ...userActor(req.user),
       action: 'user.delete',
       targetType: 'User',
       targetId: req.params.id,
-      before: deletedUser ? { name: deletedUser.name, email: deletedUser.email, role: deletedUser.role } : undefined,
+      before: deletedUser ? { name: deletedUser.name, email: deletedUser.email, role: deletedUser.role, unitPermissions: serializeUser(deletedUser).unitPermissions } : undefined,
     });
     res.json({ deleted: true });
   }

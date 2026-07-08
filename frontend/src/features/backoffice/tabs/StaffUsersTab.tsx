@@ -9,7 +9,7 @@ import {
   resetLocationStaffPassword,
   updateLocationStaffUser,
 } from '../api';
-import { STAFF_ROLE_META, UNIT_META_U } from '../constants';
+import { STAFF_ROLE_META } from '../constants';
 import type { StaffUser } from '../types';
 
 type StaffRoleValue = 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
@@ -19,6 +19,22 @@ const UNIT_REQUIRED_ROLES: StaffRoleValue[] = ['RECEIVING', 'CHECKIN'];
 
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
+}
+
+function unitLabel(unit: Pick<UnitConfig, 'unit' | 'displayName' | 'shortName' | 'icon'>) {
+  return unit.displayName || unit.shortName || unit.unit;
+}
+
+function unitIcon(unit: Pick<UnitConfig, 'icon'>) {
+  return unit.icon?.trim() || '🏬';
+}
+
+function staffPermissionUnitLabel(unit: NonNullable<StaffUser['unitPermissions']>[number]) {
+  return unit.displayName || unit.unit;
+}
+
+function staffPermissionUnitIcon(unit: NonNullable<StaffUser['unitPermissions']>[number]) {
+  return unit.icon?.trim() || '🏬';
 }
 
 function StaffUserModal({
@@ -33,25 +49,49 @@ function StaffUserModal({
   onSaved: () => void;
 }) {
   const isEdit = !!user;
+  const initialUnitConfigIds = user?.unitPermissions?.map((unit) => unit.id)
+    ?? (user?.unit ? unitConfigs.filter((cfg) => cfg.unit === user.unit).map((cfg) => cfg.id) : []);
   const [form, setForm] = useState({
     name: user?.name ?? '',
     email: user?.email?.endsWith('@internal.local') ? '' : user?.email ?? '',
     password: '',
     role: (user?.role ?? 'CHECKIN') as StaffRoleValue,
-    unit: user?.unit ?? '',
+    primaryUnitConfigId: initialUnitConfigIds[0] ?? unitConfigs[0]?.id ?? '',
+    unitConfigIds: initialUnitConfigIds,
     department: user?.department ?? '',
     isActive: user?.isActive ?? true,
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const unitRequired = UNIT_REQUIRED_ROLES.includes(form.role);
+  const canEditMultiUnit = isEdit && unitRequired;
 
-  function set(key: string, value: string | boolean) {
+  function selectedUnitConfigs(ids = form.unitConfigIds) {
+    return unitConfigs.filter((cfg) => ids.includes(cfg.id));
+  }
+
+  function set(key: string, value: string | boolean | string[]) {
     setForm((current) => {
-      if (key === 'role' && UNIT_REQUIRED_ROLES.includes(value as StaffRoleValue) && !current.unit) {
-        return { ...current, role: value as StaffRoleValue, unit: unitConfigs[0]?.unit ?? '' };
+      if (key === 'role' && UNIT_REQUIRED_ROLES.includes(value as StaffRoleValue)) {
+        const primaryUnitConfigId = current.primaryUnitConfigId || unitConfigs[0]?.id || '';
+        const unitConfigIds = isEdit
+          ? (current.unitConfigIds.length > 0 ? current.unitConfigIds : (primaryUnitConfigId ? [primaryUnitConfigId] : []))
+          : (primaryUnitConfigId ? [primaryUnitConfigId] : []);
+        return { ...current, role: value as StaffRoleValue, primaryUnitConfigId, unitConfigIds };
       }
       return { ...current, [key]: value };
+    });
+    setError('');
+  }
+
+  function toggleUnit(unitConfigId: string) {
+    if (!canEditMultiUnit) return;
+    setForm((current) => {
+      const exists = current.unitConfigIds.includes(unitConfigId);
+      const unitConfigIds = exists
+        ? current.unitConfigIds.filter((id) => id !== unitConfigId)
+        : [...current.unitConfigIds, unitConfigId];
+      return { ...current, unitConfigIds };
     });
     setError('');
   }
@@ -60,16 +100,22 @@ function StaffUserModal({
     e.preventDefault();
     if (!form.name.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (!isEdit && form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự.'); return; }
-    if (unitRequired && !form.unit) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn đơn vị.'); return; }
+    if (unitRequired && !isEdit && !form.primaryUnitConfigId) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn một đơn vị.'); return; }
+    if (unitRequired && isEdit && form.unitConfigIds.length === 0) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn ít nhất một đơn vị.'); return; }
 
     setSaving(true);
     setError('');
     try {
+      const selectedIds = unitRequired
+        ? (isEdit ? form.unitConfigIds : [form.primaryUnitConfigId])
+        : [];
+      const selectedUnits = selectedUnitConfigs(selectedIds);
       const payload = {
         name: form.name.trim(),
         email: form.email.trim() || null,
         role: form.role,
-        unit: form.unit || null,
+        unit: selectedUnits[0]?.unit ?? null,
+        unitConfigIds: selectedIds,
         department: form.department.trim() || null,
         isActive: form.isActive,
       };
@@ -135,14 +181,50 @@ function StaffUserModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Đơn vị{unitRequired ? ' *' : ''}</label>
-            <select className="input w-full" value={form.unit} onChange={(e) => set('unit', e.target.value)}>
-              {!unitRequired && <option value="">— Tất cả đơn vị —</option>}
-              {unitConfigs.map((cfg) => (
-                <option key={cfg.id} value={cfg.unit}>{UNIT_META_U[cfg.unit] ?? cfg.displayName ?? cfg.unit}</option>
-              ))}
-            </select>
-            {unitRequired && <p className="text-[11px] text-thiso-400 mt-1">Tài khoản thao tác tại hiện trường phải bị giới hạn theo một đơn vị cụ thể.</p>}
+            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-2">
+              {canEditMultiUnit ? 'Đơn vị được phép' : 'Đơn vị chính'}{unitRequired ? ' *' : ''}
+            </label>
+            {!unitRequired ? (
+              <div className="rounded-xl border border-thiso-100 bg-thiso-50 px-3 py-2 text-sm text-thiso-500">
+                Role này thao tác theo khu vực nên không cần chỉ định unit.
+              </div>
+            ) : !isEdit ? (
+              <select
+                className="input w-full"
+                value={form.primaryUnitConfigId}
+                onChange={(e) => setForm((current) => ({
+                  ...current,
+                  primaryUnitConfigId: e.target.value,
+                  unitConfigIds: e.target.value ? [e.target.value] : [],
+                }))}
+              >
+                {unitConfigs.map((cfg) => (
+                  <option key={cfg.id} value={cfg.id}>{unitIcon(cfg)} {unitLabel(cfg)}</option>
+                ))}
+              </select>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {unitConfigs.map((cfg) => {
+                  const checked = form.unitConfigIds.includes(cfg.id);
+                  return (
+                    <button
+                      key={cfg.id}
+                      type="button"
+                      onClick={() => toggleUnit(cfg.id)}
+                      className={`text-left px-3 py-2 rounded-xl border transition-colors ${checked ? 'border-sky-500 bg-sky-50 text-sky-700' : 'border-thiso-200 text-thiso-500'} hover:border-sky-300`}
+                    >
+                      <div className="text-sm font-bold">{unitIcon(cfg)} {unitLabel(cfg)}</div>
+                      <div className="text-[11px] text-thiso-400">{cfg.shortName || cfg.unit}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {canEditMultiUnit
+              ? <p className="text-[11px] text-thiso-400 mt-1">Có thể chọn thêm nhiều đơn vị cho tài khoản hiện trường.</p>
+              : unitRequired
+                ? <p className="text-[11px] text-thiso-400 mt-1">Tài khoản mới chỉ chọn một đơn vị chính; có thể mở rộng thêm khi chỉnh sửa.</p>
+                : <p className="text-[11px] text-thiso-400 mt-1">ADMIN_OPE thao tác theo khu vực nên không cần chọn đơn vị.</p>}
           </div>
 
           <div>
@@ -276,7 +358,7 @@ export default function StaffUsersTab() {
   const filtered = staffUsers.filter((user) => {
     if (!showInactive && !user.isActive) return false;
     if (filterRole && user.role !== filterRole) return false;
-    if (filterUnit && user.unit !== filterUnit) return false;
+    if (filterUnit && !((user.unitPermissions ?? []).some((unit) => unit.unit === filterUnit) || user.unit === filterUnit)) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!user.name.toLowerCase().includes(q) && !user.email.toLowerCase().includes(q) && !(user.department ?? '').toLowerCase().includes(q)) return false;
@@ -325,7 +407,7 @@ export default function StaffUsersTab() {
         </select>
         <select className="input text-sm py-2 min-w-[140px]" value={filterUnit} onChange={(e) => setFilterUnit(e.target.value)}>
           <option value="">Tất cả đơn vị</option>
-          {unitConfigs.map((cfg) => <option key={cfg.id} value={cfg.unit}>{UNIT_META_U[cfg.unit] ?? cfg.unit}</option>)}
+          {unitConfigs.map((cfg) => <option key={cfg.id} value={cfg.unit}>{unitIcon(cfg)} {unitLabel(cfg)}</option>)}
         </select>
         </div>
         <button className="btn-primary ml-auto" onClick={() => setModal('create')}>+ Thêm nhân viên</button>
@@ -391,7 +473,17 @@ export default function StaffUsersTab() {
                     <td className="px-4 py-3">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full whitespace-nowrap ${meta.color}`}>{meta.icon} {meta.label}</span>
                     </td>
-                    <td className="px-4 py-3 text-sm text-thiso-600">{user.unit ? UNIT_META_U[user.unit] : <span className="text-thiso-300 text-xs">—</span>}</td>
+                    <td className="px-4 py-3 text-sm text-thiso-600">
+                      {user.unitPermissions?.length ? (
+                        <div className="flex flex-wrap gap-1">
+                          {user.unitPermissions.map((unit) => (
+                            <span key={unit.id} className="text-[11px] px-2 py-1 rounded-full bg-thiso-50 text-thiso-600 font-semibold">
+                              {staffPermissionUnitIcon(unit)} {staffPermissionUnitLabel(unit)}
+                            </span>
+                          ))}
+                        </div>
+                      ) : user.unit ? user.unit : <span className="text-thiso-300 text-xs">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-sm text-thiso-600">{user.department ?? <span className="text-thiso-300 text-xs">—</span>}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>

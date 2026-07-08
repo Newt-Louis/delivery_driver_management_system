@@ -28,6 +28,7 @@ import {
   sanitizeSession,
   userPayload,
 } from '../services/authSession';
+import { getUserUnitPermissions, roleRequiresUnitPermission } from '../services/unitPermission';
 
 const router = Router();
 
@@ -35,7 +36,7 @@ const loginSchema = z.object({
   email: z.string().email(),
   password: z.string().min(1),
   deviceId: z.string().trim().max(120).nullable().optional(),
-  deviceName: z.string().trim().max(120).nullable().optional(),
+  deviceName: z.string().trim().nullable().optional(),
   force: z.boolean().optional(),
 });
 
@@ -167,6 +168,9 @@ router.post('/login', authLoginLimiter, asyncHandler(async (req: Request, res: R
 
   res.json({
     ...authResponse(userPayload(user), issued),
+    unitPermissions: roleRequiresUnitPermission(user.role)
+      ? await getUserUnitPermissions(user.id)
+      : undefined,
     authPolicy: {
       staticIpEnabled: staticIpPolicy.enabled,
       faceIdEnabled: faceIdConfig.enabled,
@@ -187,6 +191,9 @@ router.post('/face-id/register/options', authenticate, asyncHandler(async (req: 
 router.get('/me', authenticate, asyncHandler(async (req: Request, res: Response) => {
   res.json({
     user: req.user,
+    unitPermissions: roleRequiresUnitPermission(req.user!.role)
+      ? await getUserUnitPermissions(req.user!.id)
+      : undefined,
     session: req.authSession ? sanitizeSession(req.authSession) : null,
   });
 }));
@@ -283,7 +290,12 @@ router.post('/face-id/authenticate/verify', authLoginLimiter, asyncHandler(async
     deviceId: null,
     deviceName: 'Face ID/WebAuthn',
   });
-  res.json(authResponse(userPayload(user), issued));
+  res.json({
+    ...authResponse(userPayload(user), issued),
+    unitPermissions: roleRequiresUnitPermission(user.role)
+      ? await getUserUnitPermissions(user.id)
+      : undefined,
+  });
 }));
 
 export default router;

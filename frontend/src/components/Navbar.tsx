@@ -36,6 +36,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: '/receiving-times', label: 'Thời gian nhận hàng', icon: '⏱', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'] },
       { to: '/reports',         label: 'Báo cáo',              icon: '📈', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'] },
+      { to: '/histories',       label: 'Lịch sử',              icon: '📜', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'] },
     ],
   },
   {

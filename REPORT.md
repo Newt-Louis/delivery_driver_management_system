@@ -238,3 +238,128 @@ Quy ước:
 - File chính: `backend/src/services/authSession.ts`, `backend/src/services/redis.ts`, `backend/src/routes/auth.ts`, `backend/src/middleware/auth.ts`, `backend/src/socket/index.ts`, `backend/src/services/appConfig.ts`, `backend/prisma/app-config-seed.json`, `frontend/src/lib/authCookies.ts`, `frontend/src/lib/api.ts`, `frontend/src/context/AuthContext.tsx`, `frontend/src/pages/Login.tsx`, `frontend/src/context/SocketContext.tsx`, `docker-compose.yml`.
 - Đã chạy `npm run db:seed_app_config` để upsert `auth.session`.
 - Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Phân Quyền Nhiều Unit Cho CHECKIN/RECEIVING
+
+- Thêm bảng `user_unit_permissions` để gán nhiều `UnitConfig` cho một user và backfill từ `User.unit` hiện có.
+- Giữ `User.unit` như unit chính/legacy, nhưng quyền thao tác thật của `CHECKIN` và `RECEIVING` lấy từ `unitPermissions`.
+- Thêm service `unitPermission` có cache in-memory, replace permission và invalidate cache khi cập nhật user.
+- API user cấp `SUPERADMIN` và API staff cấp `ADMIN_LOC` nhận `unitConfigIds`, validate tất cả unit phải thuộc đúng `businessLocationId`.
+- Backend enforce unit permission cho check-in, manual call, auto-dispatch, start receiving, complete và cancel với role hiện trường.
+- Staff Users tab trong Backoffice chuyển sang chọn nhiều đơn vị cho `CHECKIN`/`RECEIVING`, hiển thị chip unit và filter theo danh sách permission.
+- Cập nhật tài liệu `docs/multi-unit-permissions.md`.
+- File chính: `backend/prisma/schema.prisma`, migration `20260708090000_add_user_unit_permissions`, `backend/src/services/unitPermission.ts`, `backend/src/routes/users.ts`, `backend/src/routes/deliveries.ts`, `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`, `frontend/src/features/backoffice/api.ts`, `frontend/src/features/backoffice/types.ts`, `frontend/src/lib/types.ts`.
+- Đã apply migration bằng `npx prisma migrate deploy`.
+- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Điều Chỉnh UI Unit Permission Và Icon UnitConfig
+
+- Điều chỉnh tab Nhân Viên: tạo mới `CHECKIN`/`RECEIVING` chỉ chọn một unit chính; khi edit mới được chọn nhiều unit permission.
+- UI multi-unit chỉ áp dụng cho `CHECKIN` và `RECEIVING`; role khác như `ADMIN_OPE` không cần chọn unit.
+- Tab Nhân Viên lấy label/icon unit từ `/api/units/configs`, không dùng hardcode `UNIT_META_U` cho chọn và hiển thị permission.
+- Thêm cột nullable `unit_configs.icon`, migration `20260708103000_add_unit_config_icon`.
+- API `/api/units/configs`, `/api/units/:unit/config`, `/api/brand` trả/nhận `icon`; tab Thương hiệu có ô cấu hình icon cho từng unit.
+- Register, ticket thành công và waiting screen ưu tiên icon từ database nếu có.
+- Cập nhật `docs/multi-unit-permissions.md` và `docs/check-in-flow.md`.
+- File chính: `backend/prisma/schema.prisma`, `backend/src/routes/units.ts`, `backend/src/routes/brand.ts`, `backend/src/routes/users.ts`, `backend/src/services/unitPermission.ts`, `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`, `frontend/src/features/backoffice/tabs/BrandTab.tsx`, `frontend/src/context/BrandingContext.tsx`, `frontend/src/lib/types.ts`.
+- Đã apply migration bằng `npx prisma migrate deploy`.
+- Đã kiểm tra: `npx prisma format`, `npx prisma validate`, `npx prisma generate`, `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Redis Cache Cho Auth User, Unit Permission Và App Config
+
+- Rà soát luồng `CHECKIN`/`RECEIVING`: các thao tác check-in lookup, check-in by id, manual call, auto-dispatch, start receiving, complete và cancel đều đi qua helper kiểm tra `user_unit_permissions`.
+- Chuyển cache unit permission từ in-memory `Map` sang Redis key `auth:user:{userId}:unit-permissions`, cache miss mới query DB.
+- Thêm Redis cache user profile an toàn tại `auth:user:{userId}:profile`; auth middleware đọc session Redis rồi lấy user từ Redis/DB fallback, không đọc DB trên mọi request nữa.
+- Khi ADMIN_LOC/SUPERADMIN create/update/reset password/deactivate/delete user, backend refresh hoặc xóa Redis cache đúng user id; deactivate/delete cũng revoke session.
+- Thêm cache `app_configs` theo key `app-config:{key}` và helper `upsertAppConfigValue()`, `refreshAppConfigCache()`, `invalidateAppConfigCache()`.
+- Thêm devDependency `redis-commander` và script `npm run redis:ui` để xem Redis trên trình duyệt tại `http://localhost:8081` bằng tài khoản dev/dev, chạy read-only.
+- Cập nhật tài liệu `docs/auth-role-scope.md`, thêm `docs/redis-cache-debug.md`.
+- File chính: `backend/src/services/authSession.ts`, `backend/src/services/unitPermission.ts`, `backend/src/services/appConfig.ts`, `backend/src/routes/users.ts`, `backend/package.json`, `backend/package-lock.json`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run redis:ui -- --test`.
+- Lưu ý: `npm install --save-dev redis-commander` báo audit hiện có 33 vulnerabilities trong dependency tree dev/tooling; chưa chạy `npm audit fix` vì có thể gây thay đổi ngoài phạm vi.
+
+### 2026-07-08 - Redis Session Architecture: TTL Removal + Socket.IO Ping/Pong Cleanup
+
+- **Mục tiêu:** Chuyển Redis session từ TTL-based sang event-based. Session không tự hết hạn; chỉ xóa khi Socket.IO detect user mất kết nối (5 lần ping không nhận pong = 75 phút). JWT cookie còn hạn = user luôn được tự động đăng nhập lại qua `/me`.
+- **Backend — authSession.ts:**
+  - Bỏ TTL khỏi `writeSession()`: `redis.set(key, data)` không dùng `EX`. Session chỉ bị xóa bởi logout/revoke/Socket.IO cleanup.
+  - Bỏ TTL khỏi `writeAuthUserCache()`: profile cache tồn tại vô hạn, chỉ invalidate khi admin thay đổi.
+  - Mở rộng `SafeAuthUser` thành `FullAuthSession`: thêm `ip`, `deviceId`, `deviceName`, `userAgent`, `sid`, `createdAt`, `lastSeenAt`. `writeAuthUserCache()` giờ lưu full session data.
+  - Sửa `resolveActiveSessionAndUser()`: khi session Redis không tìm thấy nhưng JWT hợp lệ → tự tạo session mới từ JWT payload + DB user → trả user + session mới. User không bao giờ thấy trang login trừ khi JWT cookie hết hạn.
+  - Xóa `authUserCacheSeconds()` (không còn cần).
+- **Backend — unitPermission.ts:**
+  - Bỏ TTL khỏi `writeUserUnitPermissionCache()`: permission cache tồn tại vô hạn.
+  - Xóa `unitPermissionCacheSeconds()` (không còn cần).
+- **Backend — socket/index.ts:**
+  - Cấu hình Socket.IO: `pingInterval: 15 phút`, `pingTimeout: 20s`.
+  - Thêm `disconnectedSockets: Map<socketId, { userId, timer, missedPongs }>` để track disconnect.
+  - Khi socket disconnect → start timer 15 phút. Mỗi lần timer fire → tăng `missedPongs`. Nếu >= 5 → gọi `cleanupUserRedisData()` xóa session + profile + permission cache.
+  - Khi socket reconnect lại (cùng userId) → cancel timer, xóa khỏi map.
+  - Export `cleanupUserRedisData(userId)` để dùng trong cả socket handler và safety job.
+  - Lưu `userId` vào `socket.data` khi `realtime:join` với token hợp lệ.
+- **Frontend — SocketContext.tsx:**
+  - Thêm listener `socket.on('reconnect')` → tự动 emit `realtime:join` lại với token mới nhất để vào lại dashboard/docks room.
+- **Kiến trúc hoạt động:**
+  - Login → session Redis không TTL, profile cache không TTL, permission cache không TTL.
+  - User hoạt động bình thường → session luôn sẵn sàng, không bao giờ hết hạn.
+  - User đóng browser → Socket.IO disconnect → 75 phút không reconnect → cleanup Redis → giải phóng RAM.
+  - User mở lại app → JWT cookie còn hạn → `/me` tự tạo session mới → không thấy trang login.
+- File chính: `backend/src/services/authSession.ts`, `backend/src/services/unitPermission.ts`, `backend/src/socket/index.ts`, `frontend/src/context/SocketContext.tsx`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Trang Lịch Sử (`/histories`) Và API Histories
+
+- **Backend — route mới `backend/src/routes/histories.ts`:**
+  - `GET /api/histories/delivery` — phân trang `delivery_history` với sort, filter, search. Scope theo `businessLocationId` (SUPERADMIN không bị scope). Hỗ trợ sort ASC/DESC trên 12 trường.
+  - `GET /api/histories/delivery/:id/events` — lấy `delivery_history_events` theo `deliveryHistoryId`, scope đúng `businessLocationId`.
+  - `GET /api/histories/audit` — phân trang `audit_logs` với sort, filter, search. Scope theo `businessLocationId`.
+  - Middleware: `authenticate`, `enforceScope`, `requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE')`.
+  - Đã mount trong `backend/src/index.ts` tại `/api/histories`.
+- **Frontend — feature module `frontend/src/features/histories/`:**
+  - `types.ts`: types cho `DeliveryHistoryItem`, `AuditLogItem`, `PaginatedResponse<T>`, sort field, column config.
+  - `constants.ts`: labels tiếng Việt cho status/goods/vehicle/unit/event, column configs mặc định, storage keys.
+  - `api.ts`: API helpers `getDeliveryHistory()`, `getDeliveryHistoryEvents()`, `getAuditLogs()`.
+  - `hooks/useDeliveryHistory.ts`: React Query hook quản lý state page/sort/filter/search.
+  - `hooks/useAuditLogs.ts`: tương tự cho audit logs.
+  - `components/PlaceholderTab.tsx`: "Tính năng đang phát triển".
+  - `components/ColumnToggle.tsx`: dropdown bật/tắt cột, lưu localStorage.
+  - `components/DeliveryTable.tsx`: bảng phân trang với sort header, double-click → modal timeline.
+  - `components/AuditTable.tsx`: bảng phân trang, double-click → modal JSON chi tiết.
+  - `components/TimelineModal.tsx`: modal hiển thị timeline từ `delivery_history_events`.
+  - `components/AuditDetailModal.tsx`: modal JSON before/after/metadata.
+- **Frontend — page `frontend/src/pages/Histories.tsx`:**
+  - Shell page với 3 tab: Truy cập (placeholder), Giao/Nhận (delivery history), Audit.
+  - Tab Giao/Nhận: filter theo status/unit/goods/vehicle/ngày, search text, column toggle, sort, double-click modal.
+  - Tab Audit: filter theo actorType/action/targetType/ngày, search text, column toggle, sort, double-click modal.
+- **Route & Navigation:**
+  - Route `/histories` với `ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}` trong `App.tsx`.
+  - Nav item "Lịch sử" (`📜`) nằm dưới "Báo cáo" trong nhóm "Phân tích" tại `Navbar.tsx`.
+- File chính: `backend/src/routes/histories.ts`, `backend/src/index.ts`, `frontend/src/features/histories/*`, `frontend/src/pages/Histories.tsx`, `frontend/src/App.tsx`, `frontend/src/components/Navbar.tsx`.
+- Đã kiểm tra: `npm run build` trong `backend`, `npm run build` trong `frontend`.
+
+### 2026-07-08 - Thêm unitPermissions Vào Login/Me Response
+
+- Thêm import `getUserUnitPermissions` và `roleRequiresUnitPermission` vào `backend/src/routes/auth.ts`.
+- `POST /api/auth/login`: trả thêm `unitPermissions` (mảng `[{id, unit, displayName, icon, businessLocationId}]`) khi role là CHECKIN/RECEIVING.
+- `GET /api/auth/me`: tương tự, để khi mở lại app cũng có data permission.
+- `POST /api/auth/face-id/authenticate/verify`: face-id login cũng trả permission.
+- Role khác CHECKIN/RECEIVING → `unitPermissions` là `undefined`.
+- File chính: `backend/src/routes/auth.ts`.
+- Đã kiểm tra: `npm run build` trong `backend`.
+
+### 2026-07-08 - Rà soát và Sửa Lỗi Scheduler
+
+- **Vấn đề:** Scheduler `archive-cancelled-deliveries` (2 tiếng/lần) không hoạt động sau hơn 2 tiếng chạy. Timer reference leak trong mảng `timers`, không có guard chống chạy trùng, không có heartbeat logging.
+- **Scheduler — `backend/src/modules/scheduler/schedulerService.ts`:**
+  - Rewrite toàn bộ timer management: mỗi job type có `JobState` object `{ isRunning, timer, lastRunAt, lastResult, nextRunAt }` thay vì array `ManagedTimer[]`.
+  - Thêm guard `isRunning` per job: nếu job đang chạy → skip lần tiếp theo, log warning, schedule lại.
+  - Timer reference quản lý bằng `clearTimeout` trước khi schedule mới → không leak.
+  - Thêm heartbeat log mỗi 30 phút: `[scheduler] heartbeat at ...` để xác nhận scheduler đang sống.
+  - Thêm startup log: `[scheduler] Starting operational scheduler (Asia/Ho_Chi_Minh)`.
+  - Export `getSchedulerStatus()` trả về next run time, isRunning, last run info cho health endpoint.
+- **Index — `backend/src/index.ts`:**
+  - Capture scheduler return value: `const scheduler = startOperationalScheduler()`.
+  - Thêm `GET /health/scheduler` endpoint trả JSON: `{ status, scheduler: { dailyClose, cancelledArchive } }`.
+  - Thêm graceful shutdown handler: listen `SIGTERM`/`SIGINT` → `scheduler.stop()`, `server.close()`, `prisma.$disconnect()`. Force exit sau 10s nếu graceful hang.
+- File chính: `backend/src/modules/scheduler/schedulerService.ts`, `backend/src/index.ts`.
+- Đã kiểm tra: `npm run build` trong `backend`.

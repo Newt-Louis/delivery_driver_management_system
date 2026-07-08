@@ -1,7 +1,9 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
 import { prisma } from '../lib/prisma';
-import { AuthSessionError, verifyAccessToken } from '../services/authSession';
+import { AuthSessionError, verifyAccessToken, type SafeAuthUser } from '../services/authSession';
+import { getRedis } from '../services/redis';
+import { invalidateUserUnitPermissionCache } from '../services/unitPermission';
 
 let io: SocketServer;
 
@@ -16,17 +18,91 @@ type JoinRealtimeScopePayload = SocketScope & {
   token?: string;
 };
 
+const PING_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+const MAX_MISSED_PONGS = 5;
+
+interface DisconnectedEntry {
+  userId: string;
+  timer: ReturnType<typeof setTimeout>;
+  missedPongs: number;
+}
+
+const disconnectedSockets = new Map<string, DisconnectedEntry>();
+
 function uniq(values: Array<string | null | undefined>): string[] {
   return [...new Set(values.filter((v): v is string => Boolean(v)))];
+}
+
+export async function cleanupUserRedisData(userId: string): Promise<void> {
+  const redis = await getRedis();
+
+  // Remove all sessions for this user
+  const sessionIds = await redis.sMembers(`auth:user:${userId}:sessions`);
+  for (const sid of sessionIds) {
+    await redis.del(`auth:session:${sid}`);
+  }
+  await redis.del(`auth:user:${userId}:sessions`);
+
+  // Remove profile + permission caches
+  await redis.del(`auth:user:${userId}:profile`);
+  await invalidateUserUnitPermissionCache(userId);
+
+  console.log(`[socket] Cleaned up Redis data for user ${userId}`);
+}
+
+function startDisconnectTimer(socketId: string, userId: string): void {
+  const existing = disconnectedSockets.get(socketId);
+  if (existing) {
+    clearTimeout(existing.timer);
+    disconnectedSockets.delete(socketId);
+  }
+
+  const entry: DisconnectedEntry = {
+    userId,
+    timer: setTimeout(async () => {
+      const e = disconnectedSockets.get(socketId);
+      if (!e) return;
+
+      e.missedPongs++;
+      if (e.missedPongs >= MAX_MISSED_PONGS) {
+        disconnectedSockets.delete(socketId);
+        try {
+          await cleanupUserRedisData(e.userId);
+        } catch (err) {
+          console.error(`[socket] Failed to cleanup Redis for user ${e.userId}`, err);
+        }
+      } else {
+        // Restart timer for next ping cycle
+        startDisconnectTimer(socketId, userId);
+      }
+    }, PING_INTERVAL_MS),
+    missedPongs: 0,
+  };
+
+  disconnectedSockets.set(socketId, entry);
+}
+
+function cancelDisconnectTimer(socketId: string): void {
+  const entry = disconnectedSockets.get(socketId);
+  if (entry) {
+    clearTimeout(entry.timer);
+    disconnectedSockets.delete(socketId);
+  }
 }
 
 export function initSocket(server: HttpServer): SocketServer {
   io = new SocketServer(server, {
     cors: { origin: '*', methods: ['GET', 'POST'] },
+    pingInterval: PING_INTERVAL_MS,
+    pingTimeout: 20_000,
   });
 
   io.on('connection', (socket) => {
     console.log(`Client connected: ${socket.id}`);
+
+    // If this socket reconnects, cancel any pending disconnect cleanup
+    cancelDisconnectTimer(socket.id);
+
     socket.on('track:join', (rawCode: unknown, ack?: (res: { ok: boolean; room?: string; error?: string }) => void) => {
       const code = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
       if (!code) {
@@ -48,7 +124,10 @@ export function initSocket(server: HttpServer): SocketServer {
       ack?: (res: { ok: boolean; rooms?: string[]; error?: string }) => void,
     ) => {
       try {
-        if (payload.dashboard) await verifyProtectedSocketPayload(payload);
+        if (payload.dashboard) {
+          const user = await verifyProtectedSocketPayload(payload);
+          socket.data = { ...socket.data, userId: user.id };
+        }
         const scope = await validateSocketScope(payload);
         if (!scope.businessLocationId && !scope.unitConfigId) {
           ack?.({ ok: false, error: 'missing_scope' });
@@ -74,7 +153,15 @@ export function initSocket(server: HttpServer): SocketServer {
       rooms.forEach((room) => socket.leave(room));
     });
 
-    socket.on('disconnect', () => console.log(`Client disconnected: ${socket.id}`));
+    socket.on('disconnect', () => {
+      console.log(`Client disconnected: ${socket.id}`);
+      // Try to resolve userId from socket data before starting timer
+      // userId is stored via socket.data when connection is established with valid token
+      const userId = (socket.data as { userId?: string })?.userId;
+      if (userId) {
+        startDisconnectTimer(socket.id, userId);
+      }
+    });
   });
 
   return io;
@@ -110,15 +197,11 @@ async function validateSocketScope(payload: SocketScope): Promise<SocketScope> {
   return {};
 }
 
-async function verifyProtectedSocketPayload(payload: JoinRealtimeScopePayload): Promise<void> {
+async function verifyProtectedSocketPayload(payload: JoinRealtimeScopePayload): Promise<SafeAuthUser> {
   const token = payload.token?.trim();
   if (!token) throw new Error('missing_socket_token');
-  try {
-    await verifyAccessToken(token);
-  } catch (error) {
-    if (error instanceof AuthSessionError) throw error;
-    throw new Error('invalid_socket_token');
-  }
+  const result = await verifyAccessToken(token);
+  return result.user;
 }
 
 export function businessLocationRoomName(businessLocationId: string): string {

@@ -79,8 +79,19 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
 
     joinScope();
+
+    // Re-join rooms after reconnect
+    function onReconnect() {
+      if (!cancelled && joinedPayload) {
+        socket.auth = { token: getAuthToken() ?? undefined };
+        socket.emit('realtime:join', joinedPayload);
+      }
+    }
+    socket.on('reconnect', onReconnect);
+
     return () => {
       cancelled = true;
+      socket.off('reconnect', onReconnect);
       if (joinedPayload) socket.emit('realtime:leave', joinedPayload);
     };
   }, [location.pathname, location.search]);

@@ -20,6 +20,7 @@ import { publicWriteLimiter } from '../middleware/rateLimit';
 import { archiveDelivery } from '../modules/history/archiveService';
 import { countCallHistoryEvents, getCallHistoryCounts, listDeliveryHistoryEvents } from '../modules/history/historyRepository';
 import { recordDeliveryEvent } from '../modules/history/historyService';
+import { enforceDeliveryUnitPermission, enforceUserUnitPermissionForUnit } from '../services/unitPermission';
 import {
   emitQueueUpdated,
   emitDeliveryCalled,
@@ -294,6 +295,7 @@ router.post('/auto-dispatch/:unit', authenticate, requireRole('SUPERADMIN', 'ADM
     res.status(400).json({ error: 'Đơn vị không hợp lệ' });
     return;
   }
+  if (!await enforceUserUnitPermissionForUnit(req, res, unit as ReceivingUnit, 'receiving')) return;
   const called = await triggerAutoAssign(unit as ReceivingUnit);
   res.json({
     called,
@@ -478,6 +480,7 @@ router.patch('/check-in-lookup', authenticate, enforceScope, requireRole('SUPERA
 
   const deliveryScope = await getScopeForDelivery(delivery);
   if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+  if (!await enforceDeliveryUnitPermission(req, res, delivery, 'checkin')) return;
 
   if (delivery.status === DeliveryStatus.WAITING) {
     res.json(delivery);
@@ -559,6 +562,7 @@ router.get('/:id', authenticate, enforceScope, asyncHandler(async (req: Request,
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
   const deliveryScope = await getScopeForDelivery(delivery);
   if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+  if (!await enforceDeliveryUnitPermission(req, res, delivery, 'checkin')) return;
   const [callCount, historyEvents] = await Promise.all([
     countCallHistoryEvents(delivery.id),
     listDeliveryHistoryEvents({ originalDeliveryId: delivery.id }),
@@ -575,6 +579,7 @@ router.patch('/:id/check-in', authenticate, enforceScope, requireRole('SUPERADMI
   if (!delivery) { res.status(404).json({ error: 'Not found' }); return; }
   const deliveryScope = await getScopeForDelivery(delivery);
   if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+  if (!await enforceDeliveryUnitPermission(req, res, delivery, 'checkin')) return;
   if (delivery.status === DeliveryStatus.WAITING) {
     res.json(delivery);
     return;
@@ -661,6 +666,7 @@ router.patch('/:id/call', authenticate, enforceScope, requireRole('SUPERADMIN', 
   if (result.delivery) {
     const deliveryScope = await getScopeForDelivery(result.delivery);
     if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+    if (!await enforceDeliveryUnitPermission(req, res, result.delivery, 'receiving')) return;
   }
 
   if (!manualCallResultIsSuccess(result)) {
@@ -734,6 +740,7 @@ router.patch('/:id/start-receiving', authenticate, enforceScope, requireRole('SU
 
   const deliveryScope = await getScopeForDelivery(delivery);
   if (!enforceResourceScope(req, res, deliveryScope.businessLocationId)) return;
+  if (!await enforceDeliveryUnitPermission(req, res, delivery, 'receiving')) return;
 
   if (delivery.status !== DeliveryStatus.CALLED) {
     res.status(400).json({ error: 'Delivery must be in CALLED status' }); return;
@@ -800,6 +807,7 @@ router.patch('/:id/complete', authenticate, enforceScope, requireRole('SUPERADMI
   if (preDelivery) {
     const preScope = await getScopeForDelivery(preDelivery);
     if (!enforceResourceScope(req, res, preScope.businessLocationId)) return;
+    if (!await enforceDeliveryUnitPermission(req, res, preDelivery, 'receiving')) return;
   }
 
   const result = await completeDelivery(req.params.id, userActor(req.user));
@@ -874,6 +882,7 @@ router.patch('/:id/cancel', authenticate, enforceScope, requireRole('SUPERADMIN'
   if (preDelivery) {
     const preScope = await getScopeForDelivery(preDelivery);
     if (!enforceResourceScope(req, res, preScope.businessLocationId)) return;
+    if (!await enforceDeliveryUnitPermission(req, res, preDelivery, 'receiving')) return;
   }
 
   const result = await cancelDelivery(req.params.id, reason, userActor(req.user));

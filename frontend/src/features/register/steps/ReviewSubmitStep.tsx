@@ -21,6 +21,10 @@ export default function ReviewSubmitStep({
   set,
   onEditStep,
 }: ReviewSubmitStepProps) {
+  const receivingUnit = form.receivingUnit as Unit;
+  const unitBrand = brandUnits[receivingUnit] ?? UNIT_FALLBACKS[receivingUnit];
+  const unitFallback = UNIT_FALLBACKS[receivingUnit];
+
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-thiso-100 shadow-card overflow-hidden">
@@ -29,7 +33,7 @@ export default function ReviewSubmitStep({
         </div>
         <div className="divide-y divide-thiso-100">
           {[
-            { icon: '🏢', label: 'Đơn vị nhận', value: `${UNIT_FALLBACKS[form.receivingUnit as Unit]?.icon ?? ''} ${(brandUnits[form.receivingUnit as Unit] ?? UNIT_FALLBACKS[form.receivingUnit as Unit])?.displayName ?? form.receivingUnit}` },
+            { icon: '🏢', label: 'Đơn vị nhận', value: `${unitBrand?.icon || unitFallback?.icon || ''} ${unitBrand?.displayName ?? form.receivingUnit}` },
             { icon: '📦', label: 'Loại hàng', value: GOODS_LABEL[form.goodsType] ?? form.goodsType },
             { icon: '🚗', label: 'Biển số xe', value: form.vehiclePlate, mono: true },
             { icon: VEHICLE_INFO[form.vehicleType as VehicleType]?.icon ?? '🚗', label: 'Loại xe', value: VEHICLE_INFO[form.vehicleType as VehicleType]?.label ?? form.vehicleType },
