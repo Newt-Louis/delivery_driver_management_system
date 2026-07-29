@@ -422,150 +422,6 @@ function BreakdownTab({ from, to, unit }: { from: string; to: string; unit: stri
   );
 }
 
-// ─── History Tab ──────────────────────────────────────────────────────────────
-
-function HistoryTab({ from, to, unit }: { from: string; to: string; unit: string }) {
-  const [page, setPage] = useState(1);
-  const [goodsFilter, setGoodsFilter] = useState('');
-  const [vehicleFilter, setVehicleFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedHistory, setSelectedHistory] = useState<DeliveryItem | null>(null);
-
-  const commonParams = {
-    from, to,
-    unit: unit || undefined,
-    goodsType: goodsFilter || undefined,
-    vehicleType: vehicleFilter || undefined,
-    status: statusFilter || undefined,
-    search: searchQuery.trim() || undefined,
-  };
-
-  const { data, isLoading } = useQuery<HistoryPage>({
-    queryKey: ['reports-history', from, to, unit, goodsFilter, vehicleFilter, statusFilter, searchQuery, page],
-    queryFn: async () => (await api.get('/api/reports/deliveries', {
-      params: { ...commonParams, page, limit: 50 },
-    })).data,
-  });
-
-  return (
-    <div>
-      <div className="flex flex-wrap gap-2 mb-4">
-        {/* Free-text search */}
-        <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5 min-w-[220px]">
-          <span className="text-thiso-400 text-sm">🔍</span>
-          <input
-            type="text"
-            placeholder="Tìm nhà CC, tài xế, biển số, mã ĐK..."
-            value={searchQuery}
-            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
-            className="flex-1 text-sm text-thiso-700 bg-transparent outline-none placeholder:text-thiso-300"
-          />
-          {searchQuery && (
-            <button onClick={() => { setSearchQuery(''); setPage(1); }} className="text-thiso-300 hover:text-thiso-500 text-xs">✕</button>
-          )}
-        </div>
-        <select className="input text-sm py-1.5 min-w-[160px]" value={goodsFilter} onChange={(e) => { setGoodsFilter(e.target.value); setPage(1); }}>
-          <option value="">Tất cả loại hàng</option>
-          {Object.entries(GOODS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select className="input text-sm py-1.5 min-w-[140px]" value={vehicleFilter} onChange={(e) => { setVehicleFilter(e.target.value); setPage(1); }}>
-          <option value="">Tất cả xe</option>
-          {Object.entries(VEHICLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-        </select>
-        <select className="input text-sm py-1.5 min-w-[140px]" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
-          <option value="">Tất cả trạng thái</option>
-          {Object.entries(STATUS_LABEL).map(([k, v]) => <option key={k} value={k}>{k === 'EXPIRED' ? '🕓 ' : ''}{v}</option>)}
-        </select>
-        {data && <span className="text-xs text-thiso-400 self-center">Tổng: {data.total.toLocaleString()} lượt</span>}
-        <ExportBtn onClick={async () => {
-          const all = await api.get('/api/reports/deliveries', {
-            params: { ...commonParams, limit: 9999 },
-          });
-          const rows = all.data.items as DeliveryItem[];
-          downloadCsv('lich-su-giao-hang',
-            ['Mã ĐK', 'Nhà cung cấp', 'Tài xế', 'Biển số', 'Đơn vị', 'Loại hàng', 'Loại xe', 'Slot', 'Trạng thái', 'Số lần gọi', 'Lý do', 'Check-in', 'Hoàn tất', 'Ngày tạo'],
-            rows.map((d) => [d.registrationCode, d.vendorName, d.driverName, d.vehiclePlate,
-              UNIT_LABEL[d.receivingUnit] ?? d.receivingUnit, GOODS_LABEL[d.goodsType] ?? d.goodsType,
-              VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType, d.assignedSlot?.code ?? '',
-              STATUS_LABEL[d.status] ?? d.status, d.callCount, d.closeReason ?? '',
-              d.checkinTime ? new Date(d.checkinTime).toLocaleString('vi-VN') : '',
-              d.completedTime ? new Date(d.completedTime).toLocaleString('vi-VN') : '',
-              new Date(d.createdAt).toLocaleString('vi-VN')]),
-          );
-        }} label="Xuất tất cả" />
-      </div>
-      {selectedHistory && <HistoryTimelineModal item={selectedHistory} onClose={() => setSelectedHistory(null)} />}
-
-      <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-thiso-50 text-xs text-thiso-400 uppercase border-b border-thiso-100 text-left">
-                <th className="px-4 py-3">Mã ĐK</th>
-                <th className="px-4 py-3">Nhà CC · Tài xế</th>
-                <th className="px-4 py-3">Biển số</th>
-                <th className="px-4 py-3">Đơn vị</th>
-                <th className="px-4 py-3">Loại hàng</th>
-                <th className="px-4 py-3">Xe</th>
-                <th className="px-4 py-3">Slot</th>
-                <th className="px-4 py-3">Check-in</th>
-                <th className="px-4 py-3">Gọi</th>
-                <th className="px-4 py-3">Hoàn tất</th>
-                <th className="px-4 py-3">Trạng thái</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && <tr><td colSpan={11} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>}
-              {!isLoading && (!data || data.items.length === 0) && (
-                <tr><td colSpan={11} className="py-12 text-center text-thiso-400">Không có dữ liệu trong khoảng thời gian này</td></tr>
-              )}
-              {data?.items.map((d) => (
-                <tr
-                  key={d.id}
-                  className="border-b border-thiso-50 last:border-0 hover:bg-thiso-50/40 transition-colors cursor-pointer"
-                  onDoubleClick={() => setSelectedHistory(d)}
-                  title="Double-click để xem timeline"
-                >
-                  <td className="px-4 py-2.5 font-mono text-xs text-thiso-600">{d.registrationCode}</td>
-                  <td className="px-4 py-2.5">
-                    <div className="font-medium text-thiso-800 text-xs">{d.vendorName}</div>
-                    <div className="text-[11px] text-thiso-400">{d.driverName}</div>
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs font-bold text-thiso-700">{d.vehiclePlate}</td>
-                  <td className="px-4 py-2.5 text-xs text-thiso-600">{UNIT_LABEL[d.receivingUnit] ?? d.receivingUnit}</td>
-                  <td className="px-4 py-2.5 text-xs text-thiso-600">{GOODS_LABEL[d.goodsType] ?? d.goodsType}</td>
-                  <td className="px-4 py-2.5 text-xs text-thiso-600">{VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType}</td>
-                  <td className="px-4 py-2.5 text-xs font-mono text-thiso-500">{d.assignedSlot?.code ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-xs text-thiso-500">{fmtDt(d.checkinTime)}</td>
-                  <td className="px-4 py-2.5 text-xs text-thiso-500">{d.callCount}</td>
-                  <td className="px-4 py-2.5 text-xs text-thiso-500">{fmtDt(d.completedTime)}</td>
-                  <td className="px-4 py-2.5">
-                    <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLOR[d.status] ?? 'bg-thiso-100 text-thiso-600'}`}>
-                      {STATUS_LABEL[d.status] ?? d.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {data && data.pages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-thiso-100 bg-thiso-50">
-            <span className="text-xs text-thiso-400">Trang {data.page} / {data.pages}</span>
-            <div className="flex gap-2">
-              <button disabled={page <= 1} onClick={() => setPage(page - 1)}
-                className="px-3 py-1 text-xs border border-thiso-200 rounded-lg bg-white hover:bg-thiso-50 disabled:opacity-40">← Trước</button>
-              <button disabled={page >= data.pages} onClick={() => setPage(page + 1)}
-                className="px-3 py-1 text-xs border border-thiso-200 rounded-lg bg-white hover:bg-thiso-50 disabled:opacity-40">Tiếp →</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 // ─── Slot Performance Tab ─────────────────────────────────────────────────────
 
 function SlotTab({ from, to, unit }: { from: string; to: string; unit: string }) {
@@ -826,7 +682,6 @@ export default function Reports() {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview',   label: '📊 Tổng quan' },
     { id: 'breakdown',  label: '🗂 Phân tích' },
-    { id: 'history',    label: '📋 Lịch sử' },
     { id: 'slots',      label: '🚪 Hiệu suất Slot' },
     { id: 'ai',         label: '🤖 AI Đề xuất' },
   ];
@@ -863,7 +718,6 @@ export default function Reports() {
         {/* Tab content */}
         {tab === 'overview'  && <OverviewTab  from={from} to={to} unit={unit} />}
         {tab === 'breakdown' && <BreakdownTab from={from} to={to} unit={unit} />}
-        {tab === 'history'   && <HistoryTab   from={from} to={to} unit={unit} />}
         {tab === 'slots'     && <SlotTab      from={from} to={to} unit={unit} />}
         {tab === 'ai'        && <AiTab        from={from} to={to} unit={unit} />}
       </div>

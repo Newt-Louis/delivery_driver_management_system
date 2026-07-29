@@ -62,6 +62,10 @@ Job hiện có:
 
 Mỗi job run đều ghi `scheduler_job_histories`.
 
+Scheduler hiện chạy trong chính backend process qua `startOperationalScheduler()` sau khi server listen. `schedulerService.ts` quản lý timer theo từng job state, có guard `isRunning` để tránh overlap, heartbeat log mỗi 30 phút, graceful stop khi process nhận `SIGTERM`/`SIGINT`, và endpoint `GET /health/scheduler` để xem `nextRunAt`, `lastRunAt`, `isRunning`, `lastProcessed`, `lastSucceeded`, `lastFailed`.
+
+Hiện chưa có queue worker riêng. Scheduler chỉ quyết định khi nào kích hoạt job; nếu sau này cần retry/backoff/dedupe phức tạp hoặc job dài, queue/worker sẽ là một tầng thiết kế khác.
+
 ## History Module
 
 Module chính:

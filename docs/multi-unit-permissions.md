@@ -33,8 +33,10 @@ File chính: `backend/src/services/unitPermission.ts`.
 
 Helper chính:
 
-- `getUserUnitPermissions(userId)`: đọc permission và cache in-memory 60 giây.
-- `replaceUserUnitPermissions(userId, unitConfigIds)`: replace toàn bộ permission của user và invalidate cache.
+- `getUserUnitPermissions(userId)`: đọc permission từ Redis key `auth:user:{userId}:unit-permissions`, cache miss mới query DB.
+- `refreshUserUnitPermissionCache(userId)`: query DB rồi ghi lại Redis.
+- `invalidateUserUnitPermissionCache(userId)`: xóa Redis key permission của user.
+- `replaceUserUnitPermissions(userId, unitConfigIds)`: replace toàn bộ permission của user trong DB rồi refresh Redis cache.
 - `enforceDeliveryUnitPermission(req, res, delivery, operation)`: chặn thao tác delivery theo unit.
 - `enforceUserUnitPermissionForUnit(req, res, receivingUnit, operation)`: chặn thao tác trực tiếp theo `ReceivingUnit`.
 
@@ -125,6 +127,6 @@ Filter theo đơn vị trong bảng nhân viên dựa trên `unitPermissions`, k
 
 ## Lưu Ý Vận Hành
 
-- Khi ADMIN_LOC/SUPERADMIN cập nhật permission, backend replace toàn bộ danh sách và invalidate cache user tương ứng.
+- Khi ADMIN_LOC/SUPERADMIN cập nhật permission, backend replace toàn bộ danh sách và refresh Redis cache user tương ứng.
 - Nếu đổi role khỏi `CHECKIN`/`RECEIVING`, backend xóa danh sách unit permission vì role đó không cần permission unit.
 - Nếu sau này cần multi-unit permission cho `ADMIN_OPE`, mở rộng `roleRequiresUnitPermission()` thay vì tự viết điều kiện riêng trong từng route.

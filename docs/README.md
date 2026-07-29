@@ -31,5 +31,7 @@ Lưu ý quan trọng:
 
 - Luồng vận hành chuẩn hiện tại nên đi qua các endpoint rõ ràng trong `/api/deliveries/*`.
 - Kiosk terminal và backend route `/api/checkin` đã bị loại khỏi luồng vận hành. Check-in chuẩn đi qua `/check-in` và `/api/deliveries/check-in-lookup`.
-- Khi sửa code, đọc thêm `AGENTS.md` vì file đó chứa quy tắc bắt buộc và định hướng phát triển.
+- Khi cần hiểu logic hệ thống, ưu tiên đọc tài liệu trong `docs/` theo miền nghiệp vụ trước khi mở code chi tiết.
+- Khi sửa code, đọc thêm `AGENTS.md` vì file đó chứa quy tắc khởi tạo và các điểm cần nhớ cho coding agent.
 - Từ giai đoạn 3, lịch sử gọi xe nằm trong `delivery_history_events`, không còn dùng `CallLog`; Staff PIN cũng đã bị loại khỏi luồng vận hành.
+- `REPORT.md`, `PLAN.md`, `DETAIL_PLAN.md` là tài liệu điều phối tiến độ; không dùng chúng làm nguồn chính để hiểu trạng thái kỹ thuật nếu chưa được cập nhật sau một giai đoạn mới.

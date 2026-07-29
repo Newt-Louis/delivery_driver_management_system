@@ -14,7 +14,6 @@ Hàm:
 
 - `rateLimit(options)`
 - `authLoginLimiter`
-- `staffActionLimiter`
 - `publicWriteLimiter`
 - `publicLookupLimiter`
 - `publicReadLimiter`
@@ -26,10 +25,6 @@ Auth:
 - `POST /api/auth/login`
 - `POST /api/auth/face-id/authenticate/options`
 - `POST /api/auth/face-id/authenticate/verify`
-
-Staff action:
-
-- `POST /api/track/:code/action`
 
 Public write:
 
@@ -61,7 +56,8 @@ Limiter hiện là in-memory single-instance. Nếu scale nhiều backend contai
 
 ## Bảo Mật Khác
 
-- JWT middleware đọc lại user từ DB để chặn token cũ.
+- JWT middleware verify token, kiểm tra Redis session/profile và fallback DB khi cache miss. User bị deactivate/delete sẽ bị chặn sau khi cache/session được refresh hoặc revoke.
 - UnitConfig public endpoint strip `vendorApiKey` và `poApiKey`.
 - Device API không trả `deviceSecretHash`.
 - Audit log không ghi password/secret/token.
+- Route staff PIN/action cũ trên track đã bị loại khỏi luồng vận hành; tài xế chỉ dùng các endpoint public read/search/subscribe.

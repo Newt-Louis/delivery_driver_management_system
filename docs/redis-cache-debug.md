@@ -4,6 +4,8 @@
 
 Redis trong hệ thống này là cache/session store, không có ràng buộc tự động với PostgreSQL.
 
+Các key auth/session/app-config hiện được ghi bằng `redis.set(...)` không kèm TTL. Việc dọn dữ liệu dựa vào logout, revoke user/session, Socket.IO disconnect cleanup hoặc thao tác invalidate/refresh chủ động trong code ghi DB.
+
 Các dữ liệu chính:
 
 - `auth:session:{sessionId}`: phiên đăng nhập.
@@ -19,6 +21,7 @@ Nếu database thay đổi, Redis chỉ thay đổi khi code chủ động refre
 - Login tạo Redis session và ghi `auth:user:{userId}:profile`.
 - Middleware auth đọc session, rồi đọc user profile từ Redis.
 - Nếu user profile cache miss, backend đọc DB, ghi lại Redis và tiếp tục xử lý.
+- Nếu session key mất nhưng JWT vẫn hợp lệ và user còn active, backend tự tạo lại session Redis trong `/api/auth/me` hoặc request protected tiếp theo.
 - Cập nhật user qua ADMIN_LOC/SUPERADMIN refresh `auth:user:{userId}:profile`.
 - Cập nhật unit permission refresh `auth:user:{userId}:unit-permissions`.
 - Deactivate/delete user xóa profile, xóa unit permission cache và revoke session.
@@ -26,6 +29,8 @@ Nếu database thay đổi, Redis chỉ thay đổi khi code chủ động refre
 ## Luồng Đồng Bộ App Config
 
 Các hàm trong `backend/src/services/appConfig.ts` đọc cache `app-config:{key}` trước, fallback DB khi cache miss.
+
+App config cache hiện không dùng TTL. Biến/hàm TTL cũ nếu còn trong code không phải cơ chế đang được áp dụng cho `redis.set(app-config:...)`.
 
 Khi SUPERADMIN cập nhật app config, code nên dùng:
 

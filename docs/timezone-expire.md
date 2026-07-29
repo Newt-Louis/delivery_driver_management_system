@@ -37,10 +37,12 @@ Tự động:
 
 - `close-daily-deliveries` chạy 23:59 theo timezone `Asia/Ho_Chi_Minh`.
 - `archive-cancelled-deliveries` chạy mỗi 120 phút.
+- Scheduler chạy trong backend process qua `startOperationalScheduler()`, không phải queue worker/container cron riêng.
 
 Thủ công:
 
 - `POST /api/dashboard/expire-stale` gọi manual job `closeDailyDeliveries()`.
+- `GET /health/scheduler` trả trạng thái scheduler hiện tại.
 
 ## Rule Hiện Tại
 

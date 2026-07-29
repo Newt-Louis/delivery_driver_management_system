@@ -60,6 +60,7 @@ Service:
   - Lock row delivery.
   - Nếu đã `WAITING`, trả lại kết quả idempotent, không cấp lại ticket.
   - Nếu `REGISTERED`, chuyển sang `WAITING`, set `checkinTime`, cấp `ticketNumber`.
+  - Ghi event `CHECKED_IN` trong `delivery_history_events`.
 - `reserveTicketNumber()`
   - Cấp ticket atomic theo ngày VN + receiving unit + vehicle type.
 
@@ -71,7 +72,4 @@ Service:
 - `RECEIVING` không được vào `/check-in` trên frontend.
 - `CHECKIN` chỉ được check-in delivery thuộc unit đã được gán trong `user_unit_permissions`.
 - Multi-unit allowlist cho `CHECKIN` và `RECEIVING` được quản lý trong Backoffice tab Nhân Viên.
-
-Lưu ý:
-
-- Audit của `check-in-lookup` có chỗ dùng `systemActor('public-check-in-route')`, cần đổi thành user actor nếu cần truy vết đúng nhân sự.
+- Audit check-in hiện ghi actor từ user đang đăng nhập qua `userActor(req.user)`.

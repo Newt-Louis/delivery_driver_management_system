@@ -46,7 +46,9 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 
 ## Quyền
 
-- Reports được thiết kế cho admin/operation; cần tiếp tục đảm bảo scope theo `businessLocationId`.
+- Reports backend gắn middleware ở cấp router: `authenticate`, `enforceScope`, `requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING')`.
+- Frontend route `/reports` hiện mở cho `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
+- Non-`SUPERADMIN` bị ép scope theo `businessLocationId`; `SUPERADMIN` có thể xem rộng hơn tùy query/API.
 - Analytics:
   - View: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
   - Analyze/accept: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.

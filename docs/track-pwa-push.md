@@ -30,10 +30,11 @@ API:
 - `GET /api/track/search`
 - `GET /api/track/:code`
 - `POST /api/track/active-session`
-- `POST /api/track/:code/action`
 - `GET /api/push/vapid-public-key`
 - `POST /api/push/subscribe`
 - `DELETE /api/push/unsubscribe`
+
+Track hiện là bề mặt public read/notification cho tài xế. Route staff PIN/action cũ đã bị gỡ; các thao tác check-in/receiving/cancel đi qua tài khoản nội bộ và `/api/deliveries/*`.
 
 ## Backend
 

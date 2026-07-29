@@ -36,7 +36,7 @@ Redis keys:
 - `auth:user:{userId}:unit-permissions`: danh sách `UnitConfig` mà user `CHECKIN`/`RECEIVING` được thao tác.
 - `app-config:{key}`: cache JSON của từng dòng `app_configs`.
 
-Nếu session Redis bị xóa, hết hạn, bị revoke, hoặc user DB bị deactivate/delete, API protected trả `401`.
+Session Redis hiện không đặt TTL ở Redis. Nếu key session bị xóa do logout/revoke/Socket.IO cleanup nhưng JWT vẫn còn hợp lệ và user DB còn active, `resolveActiveSessionAndUser()` tự tạo lại session Redis từ JWT payload rồi cho request tiếp tục. API protected chỉ trả `401` khi JWT không hợp lệ/hết hạn, user không còn active, hoặc session bị revoke theo cách không thể phục hồi từ JWT hợp lệ.
 
 Redis không tự đồng bộ với PostgreSQL. Mọi thao tác ghi database phải chủ động refresh hoặc xóa key Redis tương ứng. Route quản trị user hiện refresh profile/unit permission sau create/update/reset password, và xóa cache + revoke session khi deactivate/delete. App config nên dùng helper `upsertAppConfigValue()` hoặc gọi `refreshAppConfigCache(key)` sau khi SUPERADMIN lưu thay đổi.
 
@@ -142,7 +142,7 @@ Key `auth.session`:
 
 Static IP và Face ID/WebAuthn vẫn tồn tại trong backend nhưng không phải workflow chính ở giai đoạn này.
 
-Các config auth được cache trong Redis theo key `app-config:{key}`. Thời gian cache mặc định là 86400 giây, có thể đổi bằng biến môi trường `APP_CONFIG_CACHE_SECONDS`. Khi SUPERADMIN cập nhật một dòng `app_configs`, backend phải refresh đúng key đó để request sau đọc config mới ngay.
+Các config auth được cache trong Redis theo key `app-config:{key}` và hiện không đặt TTL. Khi SUPERADMIN cập nhật một dòng `app_configs`, backend phải dùng `upsertAppConfigValue()` hoặc refresh đúng key đó để request sau đọc config mới ngay.
 
 ## Unit Permission Cache
 
@@ -183,6 +183,7 @@ Frontend protected routes:
 - `/backoffice`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
 - `/receiving-times`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
 - `/reports`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
+- `/histories`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
 
 ## Scope Theo BusinessLocation
 

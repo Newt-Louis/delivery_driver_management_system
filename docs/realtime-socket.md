@@ -67,14 +67,15 @@ File:
 - Resolve scope từ query `businessLocationId`, `locationId`, `unitConfigId`.
 - Nếu query không có scope, gọi `/api/brand` để lấy location mặc định.
 - Join room theo route hiện tại.
+- Dashboard/docks gửi token hiện tại trong payload `realtime:join` và tự join lại sau reconnect.
 
 ## Scope
 
 - Non-superadmin API vận hành được scope theo `businessLocationId` trong middleware.
 - Socket room cũng scope theo `BusinessLocation`/`UnitConfig`.
 - Nếu không suy ra được scope, backend còn fallback global để không làm hỏng flow cũ.
+- Track room public chỉ theo `registrationCode`; dashboard/docks room yêu cầu token hợp lệ khi join.
 
 ## Lưu Ý
 
-- README cũ có thể nhắc `dock_updated`, nhưng code hiện dùng `slot_updated`.
 - Track tài xế có room riêng theo `registrationCode`, không dùng dashboard room.

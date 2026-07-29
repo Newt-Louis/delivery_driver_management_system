@@ -121,7 +121,7 @@ Hàng chờ được sắp xếp: **điểm cao nhất → thời gian check-in 
 | -------------------- | --------------------------- |
 | `queue_updated`      | Danh sách hàng chờ cập nhật |
 | `delivery_called`    | Xe được gọi vào dock        |
-| `dock_updated`       | Trạng thái dock thay đổi    |
+| `slot_updated`       | Trạng thái slot/dock thay đổi |
 | `delivery_completed` | Xe hoàn tất nhận hàng       |
 
 ---

@@ -40,7 +40,7 @@ API:
 
 Rule:
 
-- `GET /api/aw-vendors/check?unit=...&vendorCode=...` là public check cho register form.
+- `GET /api/aw-vendors/check?code=...&unit=...` là public check cho register form.
 - Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
 - Slot thường loại `AUTO_WAREHOUSE`.
 - Khi start receiving delivery có `autoWarehouse = true`, status chuyển `AUTO_WAREHOUSE_RECEIVING`.
@@ -54,7 +54,7 @@ Files:
 
 Register:
 
-- Khi user nhập vendor code và receiving unit, frontend debounce check `/api/aw-vendors/check`.
+- Khi user nhập vendor code và receiving unit, frontend debounce check `/api/aw-vendors/check` với params `{ code, unit }`.
 - Nếu match, hiển thị thông tin vendor kho tự động và submit delivery với flag liên quan.
 
 Backoffice:
