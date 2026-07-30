@@ -44,6 +44,10 @@ Analytics:
 - `backend/src/modules/reports/reportRepository.ts`
 - `backend/src/modules/reports/reportTypes.ts`
 - `backend/src/routes/analytics.ts`
+- `backend/src/modules/analytics/analyticsFormRequest.ts`
+- `backend/src/modules/analytics/analyticsRepository.ts`
+- `backend/src/modules/analytics/analyticsService.ts`
+- `backend/src/modules/analytics/analyticsTypes.ts`
 
 Models:
 
@@ -69,5 +73,6 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 - `routes/reports.ts` chỉ giữ vai trò route/controller mỏng: parse query, resolve scope, gọi service và trả response.
 - Report query GET được validate trong `reportFormRequest.ts`; history/audit query GET được validate trong `backend/src/modules/history/historyFormRequest.ts`.
 - Query report nằm trong `reportRepository.ts`; tính toán rate, utilization và recommendation nằm trong `reportService.ts`.
+- `routes/analytics.ts` là route mỏng; thống kê live average, analyze và accept recommendation nằm trong `backend/src/modules/analytics`.
 - Date range trong reports cần thống nhất timezone VN nếu báo cáo theo ngày vận hành.
 - `ReceivingTimeConfig` unique theo `[unit, vehicleType, goodsType]`.

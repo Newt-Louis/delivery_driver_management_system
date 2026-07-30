@@ -8,8 +8,11 @@ Backend là API độc lập, không chỉ phục vụ trình duyệt. Web, mobi
 
 ## Thành Phần Chính
 
-- `backend/src/routes/auth.ts`: login, me, renew, logout, Face ID/WebAuthn endpoints.
-- `backend/src/middleware/auth.ts`: verify Bearer JWT, kiểm tra Redis session, lấy user profile từ Redis/DB fallback.
+- `backend/src/routes/auth.ts`: controller mỏng cho login, me, renew, logout và Face ID/WebAuthn endpoints.
+- `backend/src/modules/auth/authFormRequest.ts`: Zod schema và parser cho body/header của `/api/auth`.
+- `backend/src/modules/auth/authService.ts`: điều phối login, static IP policy, Face ID/WebAuthn, session conflict, renew/logout và response auth.
+- `backend/src/modules/auth/authRepository.ts`: truy vấn user và Face ID credential count cho auth route.
+- `backend/src/middleware/auth.ts`: Express middleware dùng chung cho JWT auth, role, private/public scope và resource scope.
 - `backend/src/services/authSession.ts`: tạo session Redis, ký JWT, cache user profile, renew, revoke, phát hiện session đang hoạt động.
 - `backend/src/services/redis.ts`: kết nối Redis qua `REDIS_URL`.
 - `backend/src/services/appConfig.ts`: đọc cấu hình auth trong `app_configs` qua Redis cache.
@@ -26,7 +29,7 @@ JWT vẫn là access token gửi qua header:
 Authorization: Bearer <token>
 ```
 
-JWT payload có `sub` là user id và `sid` là Redis session id. Backend không chỉ tin JWT payload; sau khi verify signature/expiry, middleware đọc session `auth:session:{sid}` trong Redis, rồi lấy user profile từ Redis key `auth:user:{userId}:profile`. Nếu cache miss, backend mới đọc database và ghi lại Redis.
+JWT payload có `sub` là user id và `sid` là Redis session id. Backend không chỉ tin JWT payload; sau khi verify signature/expiry, `services/authSession.ts` đọc session `auth:session:{sid}` trong Redis, rồi lấy user profile từ Redis key `auth:user:{userId}:profile`. Nếu cache miss, backend mới đọc database và ghi lại Redis. `middleware/auth.ts` gọi `verifyAccessToken()` rồi chuyển kết quả thành `req.user` và `req.authSession`.
 
 Redis keys:
 
