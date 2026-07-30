@@ -1,8 +1,8 @@
 import { SchedulerJobTrigger } from '@prisma/client';
+import { helperFunctions } from '../../helperFunction';
 import { archiveCancelledDeliveries, closeDailyDeliveries, type SchedulerJobResult } from './deliveryJobs';
 
 const TIMEZONE = 'Asia/Ho_Chi_Minh';
-const VN_OFFSET_MS = 7 * 60 * 60 * 1000;
 const DAILY_CLOSE_HOUR = 23;
 const DAILY_CLOSE_MINUTE = 59;
 const CANCELLED_ARCHIVE_INTERVAL_MS = 120 * 60 * 1000;
@@ -20,26 +20,8 @@ const dailyCloseJob: JobState = { isRunning: false, timer: null, lastRunAt: null
 const cancelledArchiveJob: JobState = { isRunning: false, timer: null, lastRunAt: null, lastResult: null, nextRunAt: null };
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-function nextVietnamDailyRunUtc(hour: number, minute: number, from = new Date()): Date {
-  const vnNow = new Date(from.getTime() + VN_OFFSET_MS);
-  let target = new Date(Date.UTC(
-    vnNow.getUTCFullYear(),
-    vnNow.getUTCMonth(),
-    vnNow.getUTCDate(),
-    hour,
-    minute,
-    0,
-    0,
-  ) - VN_OFFSET_MS);
-
-  if (target <= from) {
-    target = new Date(target.getTime() + 24 * 60 * 60 * 1000);
-  }
-  return target;
-}
-
 function scheduleNextDailyClose(): void {
-  const nextRun = nextVietnamDailyRunUtc(DAILY_CLOSE_HOUR, DAILY_CLOSE_MINUTE);
+  const nextRun = helperFunctions.nextVietnamDailyRunUtc(DAILY_CLOSE_HOUR, DAILY_CLOSE_MINUTE);
   const delay = Math.max(1_000, nextRun.getTime() - Date.now());
   dailyCloseJob.nextRunAt = nextRun;
 

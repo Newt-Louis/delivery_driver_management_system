@@ -19,9 +19,14 @@ Reports:
 - `GET /api/reports/breakdown`
 - `GET /api/reports/daily-trend`
 - `GET /api/reports/hourly-heatmap`
-- `GET /api/reports/deliveries`
 - `GET /api/reports/slot-performance`
 - `GET /api/reports/ai-slot-recommendations`
+
+Delivery/audit history:
+
+- `GET /api/histories/delivery`
+- `GET /api/histories/delivery/:id/events`
+- `GET /api/histories/audit`
 
 Analytics:
 
@@ -33,6 +38,11 @@ Analytics:
 ## Backend Files
 
 - `backend/src/routes/reports.ts`
+- `backend/src/modules/reports/reportFormRequest.ts`
+- `backend/src/modules/reports/reportScope.ts`
+- `backend/src/modules/reports/reportService.ts`
+- `backend/src/modules/reports/reportRepository.ts`
+- `backend/src/modules/reports/reportTypes.ts`
 - `backend/src/routes/analytics.ts`
 
 Models:
@@ -42,7 +52,7 @@ Models:
 - `Slot`
 - `ReceivingTimeConfig`
 
-Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_history`; timeline chi tiết đọc từ `delivery_history_events`.
+Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_history`; timeline chi tiết đọc từ `delivery_history_events`. Các API này thuộc route `/api/histories`, không nằm trong `/api/reports`.
 
 ## Quyền
 
@@ -56,5 +66,8 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 ## Lưu Ý Kỹ Thuật
 
 - Raw SQL phải dùng `Prisma.sql`, không nối chuỗi SQL thủ công.
+- `routes/reports.ts` chỉ giữ vai trò route/controller mỏng: parse query, resolve scope, gọi service và trả response.
+- Report query GET được validate trong `reportFormRequest.ts`; history/audit query GET được validate trong `backend/src/modules/history/historyFormRequest.ts`.
+- Query report nằm trong `reportRepository.ts`; tính toán rate, utilization và recommendation nằm trong `reportService.ts`.
 - Date range trong reports cần thống nhất timezone VN nếu báo cáo theo ngày vận hành.
 - `ReceivingTimeConfig` unique theo `[unit, vehicleType, goodsType]`.

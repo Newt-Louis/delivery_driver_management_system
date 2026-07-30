@@ -74,6 +74,7 @@ Module chính:
 - `backend/src/modules/history/historyRepository.ts`
 - `backend/src/modules/history/historyService.ts`
 - `backend/src/modules/history/archiveService.ts`
+- `backend/src/modules/history/historyFormRequest.ts`
 
 Nguyên tắc:
 
@@ -86,5 +87,5 @@ Nguyên tắc:
 
 - Dashboard hiển thị số lần gọi từ `callCount`.
 - Dashboard bắt buộc nhập lý do khi hủy chuyến.
-- Reports đọc danh sách lịch sử từ `delivery_history`.
-- Double-click một dòng lịch sử để mở modal timeline từ `delivery_history_events`.
+- Trang Histories đọc danh sách lịch sử từ `delivery_history` qua `/api/histories/delivery`.
+- Double-click một dòng lịch sử trong Histories để mở modal timeline từ `delivery_history_events`.

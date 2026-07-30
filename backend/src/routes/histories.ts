@@ -1,31 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { Prisma, AuditActorType, DeliveryHistoryFinalStatus, ReceivingUnit, GoodsType, VehicleType } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
+import { HistoryFormRequest } from '../modules/history/historyFormRequest';
 
 const router = Router();
 
 // ─── Delivery History ─────────────────────────────────────────────────────────
 
-const DELIVERY_SORT_FIELDS = new Set([
-  'registrationCode', 'registeredAt', 'checkinTime', 'calledTime', 'receivingStartTime',
-  'completedTime', 'archivedAt', 'finalStatus', 'receivingUnit',
-  'goodsType', 'vehicleType', 'ticketNumber', 'callCount',
-]);
-
 router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
-  const {
-    page = '1', limit = '50',
-    sortField = 'registeredAt', sortDir = 'desc',
-    from, to, finalStatus, receivingUnit, goodsType, vehicleType, search,
-  } = req.query as Record<string, string>;
-
-  const safeSortField = DELIVERY_SORT_FIELDS.has(sortField) ? sortField : 'registeredAt';
-  const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc';
-  const pageNum = Math.max(1, parseInt(page) || 1);
-  const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
-  const skip = (pageNum - 1) * limitNum;
+  const form = HistoryFormRequest.parseDeliveryHistoryQuery(req.query as Record<string, unknown>);
 
   const where: Prisma.DeliveryHistoryWhereInput = {};
 
@@ -35,22 +20,22 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
   }
 
   // Date range
-  if (from || to) {
+  if (form.from || form.to) {
     where.registeredAt = {
-      ...(from ? { gte: new Date(from) } : {}),
-      ...(to ? { lte: new Date(to + 'T23:59:59.999Z') } : {}),
+      ...(form.from ? { gte: form.from } : {}),
+      ...(form.to ? { lte: form.to } : {}),
     };
   }
 
   // Filters
-  if (finalStatus) where.finalStatus = finalStatus as DeliveryHistoryFinalStatus;
-  if (receivingUnit) where.receivingUnit = receivingUnit as ReceivingUnit;
-  if (goodsType) where.goodsType = goodsType as GoodsType;
-  if (vehicleType) where.vehicleType = vehicleType as VehicleType;
+  if (form.finalStatus) where.finalStatus = form.finalStatus;
+  if (form.receivingUnit) where.receivingUnit = form.receivingUnit;
+  if (form.goodsType) where.goodsType = form.goodsType;
+  if (form.vehicleType) where.vehicleType = form.vehicleType;
 
   // Search
-  if (search && search.trim()) {
-    const q = search.trim();
+  if (form.search) {
+    const q = form.search;
     where.OR = [
       { vendorName: { contains: q, mode: 'insensitive' } },
       { driverName: { contains: q, mode: 'insensitive' } },
@@ -59,14 +44,14 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
     ];
   }
 
-  const orderBy = { [safeSortField]: safeSortDir } as Prisma.DeliveryHistoryOrderByWithRelationInput;
+  const orderBy = { [form.sortField]: form.sortDir } as Prisma.DeliveryHistoryOrderByWithRelationInput;
 
   const [items, total] = await Promise.all([
     prisma.deliveryHistory.findMany({
       where,
       orderBy,
-      skip,
-      take: limitNum,
+      skip: form.skip,
+      take: form.limit,
       select: {
         id: true,
         registrationCode: true,
@@ -104,9 +89,9 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
   res.json({
     items,
     total,
-    page: pageNum,
-    limit: limitNum,
-    pages: Math.ceil(total / limitNum),
+    page: form.page,
+    limit: form.limit,
+    pages: Math.ceil(total / form.limit),
   });
 }));
 
@@ -145,22 +130,8 @@ router.get('/delivery/:id/events', authenticate, enforceScope, requireRole('SUPE
 
 // ─── Audit Logs ───────────────────────────────────────────────────────────────
 
-const AUDIT_SORT_FIELDS = new Set([
-  'createdAt', 'actorType', 'action', 'targetType',
-]);
-
 router.get('/audit', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
-  const {
-    page = '1', limit = '50',
-    sortField = 'createdAt', sortDir = 'desc',
-    from, to, actorType, action, targetType, search,
-  } = req.query as Record<string, string>;
-
-  const safeSortField = AUDIT_SORT_FIELDS.has(sortField) ? sortField : 'createdAt';
-  const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc';
-  const pageNum = Math.max(1, parseInt(page) || 1);
-  const limitNum = Math.min(200, Math.max(1, parseInt(limit) || 50));
-  const skip = (pageNum - 1) * limitNum;
+  const form = HistoryFormRequest.parseAuditHistoryQuery(req.query as Record<string, unknown>);
 
   const where: Prisma.AuditLogWhereInput = {};
 
@@ -170,21 +141,21 @@ router.get('/audit', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
   }
 
   // Date range
-  if (from || to) {
+  if (form.from || form.to) {
     where.createdAt = {
-      ...(from ? { gte: new Date(from) } : {}),
-      ...(to ? { lte: new Date(to + 'T23:59:59.999Z') } : {}),
+      ...(form.from ? { gte: form.from } : {}),
+      ...(form.to ? { lte: form.to } : {}),
     };
   }
 
   // Filters
-  if (actorType) where.actorType = actorType as AuditActorType;
-  if (action) where.action = { contains: action, mode: 'insensitive' };
-  if (targetType) where.targetType = { contains: targetType, mode: 'insensitive' };
+  if (form.actorType) where.actorType = form.actorType;
+  if (form.action) where.action = { contains: form.action, mode: 'insensitive' };
+  if (form.targetType) where.targetType = { contains: form.targetType, mode: 'insensitive' };
 
   // Search
-  if (search && search.trim()) {
-    const q = search.trim();
+  if (form.search) {
+    const q = form.search;
     where.OR = [
       { actorLabel: { contains: q, mode: 'insensitive' } },
       { action: { contains: q, mode: 'insensitive' } },
@@ -193,14 +164,14 @@ router.get('/audit', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
     ];
   }
 
-  const orderBy = { [safeSortField]: safeSortDir } as Prisma.AuditLogOrderByWithRelationInput;
+  const orderBy = { [form.sortField]: form.sortDir } as Prisma.AuditLogOrderByWithRelationInput;
 
   const [items, total] = await Promise.all([
     prisma.auditLog.findMany({
       where,
       orderBy,
-      skip,
-      take: limitNum,
+      skip: form.skip,
+      take: form.limit,
       select: {
         id: true,
         actorType: true,
@@ -223,9 +194,9 @@ router.get('/audit', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
   res.json({
     items,
     total,
-    page: pageNum,
-    limit: limitNum,
-    pages: Math.ceil(total / limitNum),
+    page: form.page,
+    limit: form.limit,
+    pages: Math.ceil(total / form.limit),
   });
 }));
 

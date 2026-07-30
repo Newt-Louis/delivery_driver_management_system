@@ -5,7 +5,7 @@ import { downloadCsv } from '../lib/export';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab = 'overview' | 'history' | 'breakdown' | 'slots' | 'ai';
+type Tab = 'overview' | 'breakdown' | 'slots' | 'ai';
 
 interface Overview {
   total: number; completed: number; cancelled: number;
@@ -17,21 +17,6 @@ interface BreakdownItem { key: string; count: number }
 interface Breakdown { byGoods: BreakdownItem[]; byVehicle: BreakdownItem[]; byUnit: BreakdownItem[] }
 interface DayTrend { day: string; total: number; completed: number }
 interface HeatCell { hour: number; dow: number; count: number }
-interface DeliveryItem {
-  id: string; registrationCode: string; vendorName: string; driverName: string;
-  vehiclePlate: string; receivingUnit: string; goodsType: string; vehicleType: string;
-  status: string; checkinTime: string | null; calledTime: string | null;
-  receivingStartTime: string | null; completedTime: string | null;
-  createdAt: string; ticketNumber: number | null; closeReason: string | null;
-  callCount: number; archivedAt: string;
-  assignedSlot: { code: string; name: string } | null;
-}
-interface HistoryPage { items: DeliveryItem[]; total: number; pages: number; page: number; limit: number }
-interface DeliveryHistoryEvent {
-  id: string; eventType: string; occurredAt: string;
-  actorLabel: string | null; slotCode: string | null; slotName: string | null;
-  message: string | null; reason: string | null;
-}
 interface SlotPerf {
   slotId: string; slotCode: string; slotName: string;
   vehicleType: string; assignedUnit: string;
@@ -61,40 +46,13 @@ const STATUS_LABEL: Record<string, string> = {
   RECEIVING: 'Đang nhận', AUTO_WAREHOUSE_RECEIVING: 'Kho tự động',
   COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy', EXPIRED: 'Hết hạn', INCOMPLETED: 'Chưa hoàn tất',
 };
-const STATUS_COLOR: Record<string, string> = {
-  COMPLETED: 'bg-green-100 text-green-700', CANCELLED: 'bg-red-100 text-red-600',
-  WAITING: 'bg-amber-100 text-amber-700', CALLED: 'bg-sky-100 text-sky-700',
-  RECEIVING: 'bg-indigo-100 text-indigo-700', AUTO_WAREHOUSE_RECEIVING: 'bg-purple-100 text-purple-700',
-  REGISTERED: 'bg-thiso-100 text-thiso-600', EXPIRED: 'bg-purple-100 text-purple-600',
-  INCOMPLETED: 'bg-orange-100 text-orange-700',
-};
 const DOW_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-const EVENT_LABEL: Record<string, { label: string; icon: string; accent?: string }> = {
-  REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
-  CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
-  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-sky-700' },
-  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-sky-700' },
-  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-sky-700' },
-  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-sky-700' },
-  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' },
-  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
-  COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
-  CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },
-  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '⌛', accent: 'text-red-600' },
-  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '⌛', accent: 'text-red-600' },
-  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-orange-600' },
-  ARCHIVED: { label: 'Đã lưu lịch sử', icon: '🗄️', accent: 'text-thiso-500' },
-};
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function fmt(n: number | null | undefined, suffix = '') {
   if (n == null) return '—';
   return n.toLocaleString('vi-VN', { maximumFractionDigits: 1 }) + suffix;
-}
-function fmtDt(iso: string | null | undefined) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
 }
 function defaultFrom() { return new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10) }
 function defaultTo() { return new Date().toISOString().slice(0, 10) }
@@ -179,65 +137,6 @@ function ExportBtn({ onClick, label = 'Xuất Excel' }: { onClick: () => void; l
     >
       <span>⬇</span>{label}
     </button>
-  );
-}
-
-function historyEventText(ev: DeliveryHistoryEvent): string {
-  const base = EVENT_LABEL[ev.eventType]?.label ?? ev.eventType;
-  const slot = ev.slotCode ? ` → ${ev.slotCode}` : '';
-  const actor = ev.actorLabel ? ` (${ev.actorLabel})` : '';
-  const reason = ev.reason ? `: ${ev.reason}` : '';
-  return `${base}${slot}${actor}${reason}`;
-}
-
-function HistoryTimelineModal({ item, onClose }: { item: DeliveryItem; onClose: () => void }) {
-  const { data: events = [], isLoading } = useQuery<DeliveryHistoryEvent[]>({
-    queryKey: ['reports-history-events', item.id],
-    queryFn: async () => (await api.get(`/api/reports/deliveries/${item.id}/events`)).data,
-  });
-
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <div className="px-5 py-4 border-b border-thiso-100 flex items-start justify-between gap-3">
-          <div>
-            <div className="font-mono text-xs text-sky-700 font-black">{item.registrationCode}</div>
-            <h3 className="text-xl font-black text-thiso-900">{item.vehiclePlate}</h3>
-            <p className="text-sm text-thiso-500">{item.vendorName} · {item.driverName}</p>
-          </div>
-          <button className="text-2xl text-thiso-300 hover:text-thiso-600 leading-none" onClick={onClose}>×</button>
-        </div>
-        <div className="p-5 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-3 mb-5 text-sm">
-            <div><span className="text-thiso-400">Trạng thái: </span><strong>{STATUS_LABEL[item.status] ?? item.status}</strong></div>
-            <div><span className="text-thiso-400">Số lần gọi: </span><strong>{item.callCount}</strong></div>
-            <div><span className="text-thiso-400">Slot: </span><strong>{item.assignedSlot?.code ?? '—'}</strong></div>
-            <div><span className="text-thiso-400">Lưu lúc: </span><strong>{fmtDt(item.archivedAt)}</strong></div>
-            {item.closeReason && <div className="col-span-2"><span className="text-thiso-400">Lý do: </span><strong>{item.closeReason}</strong></div>}
-          </div>
-
-          {isLoading ? (
-            <div className="py-12 text-center text-thiso-400">Đang tải timeline...</div>
-          ) : events.length === 0 ? (
-            <div className="py-12 text-center text-thiso-400">Chưa có timeline</div>
-          ) : (
-            <ol className="relative border-l-2 border-thiso-100 space-y-4 ml-3">
-              {events.map((ev) => {
-                const meta = EVENT_LABEL[ev.eventType] ?? { icon: '•' };
-                return (
-                  <li key={ev.id} className="relative pl-5">
-                    <span className="absolute -left-[11px] top-0.5 w-5 h-5 rounded-full bg-white border-2 border-thiso-200 flex items-center justify-center text-[11px]">{meta.icon}</span>
-                    <div className={`text-sm font-medium ${meta.accent ?? 'text-thiso-700'}`}>{historyEventText(ev)}</div>
-                    {ev.message && <div className="text-xs text-thiso-500 mt-0.5">{ev.message}</div>}
-                    <div className="text-xs text-thiso-400 mt-0.5">{fmtDt(ev.occurredAt)}</div>
-                  </li>
-                );
-              })}
-            </ol>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 

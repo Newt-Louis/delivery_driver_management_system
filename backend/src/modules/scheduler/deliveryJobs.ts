@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
+import { helperFunctions } from '../../helperFunction';
 import { archiveDelivery } from '../history/archiveService';
 import { systemActor } from '../../services/auditLog';
 import { startSchedulerJobHistory, finishSchedulerJobHistory } from './jobHistory';
@@ -17,10 +18,6 @@ export type SchedulerJobResult = {
   succeeded: number;
   failed: number;
 };
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
 
 export async function closeDailyDeliveries(args: {
   businessDate?: string;
@@ -104,7 +101,7 @@ export async function closeDailyDeliveries(args: {
       succeeded++;
     } catch (error) {
       failed++;
-      errors.push({ deliveryId: candidate.id, error: errorMessage(error) });
+      errors.push({ deliveryId: candidate.id, error: helperFunctions.errorMessage(error) });
     }
   }
 
@@ -162,7 +159,7 @@ export async function archiveCancelledDeliveries(args: {
       succeeded++;
     } catch (error) {
       failed++;
-      errors.push({ deliveryId: candidate.id, error: errorMessage(error) });
+      errors.push({ deliveryId: candidate.id, error: helperFunctions.errorMessage(error) });
     }
   }
 

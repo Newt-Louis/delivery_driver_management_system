@@ -6,6 +6,7 @@ import {
   Prisma,
 } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
+import { helperFunctions } from '../../helperFunction';
 import { reconcileSlotState } from '../../services/slotState';
 import { countCallHistoryEvents, getLastCallHistoryEvent, recordDeliveryHistoryEvent } from './historyRepository';
 import { resolveDeliveryScope } from './historyService';
@@ -14,26 +15,6 @@ import type { ArchiveDeliveryInput } from './types';
 type DeliveryWithSlot = DeliveryRegistration & {
   assignedSlot: { id: string; code: string; name: string } | null;
 };
-
-function minutesBetween(start?: Date | null, end?: Date | null): number | null {
-  if (!start || !end) return null;
-  return Math.max(0, Math.round((end.getTime() - start.getTime()) / 60_000));
-}
-
-function closeEventType(reason: ArchiveDeliveryInput['archiveReason']): DeliveryHistoryEventType {
-  switch (reason) {
-    case 'COMPLETED':
-      return DeliveryHistoryEventType.COMPLETED;
-    case 'CANCELLED':
-      return DeliveryHistoryEventType.CANCELLED;
-    case 'EXPIRED_NO_SHOW':
-      return DeliveryHistoryEventType.EXPIRED_NO_SHOW;
-    case 'EXPIRED_WAITING':
-      return DeliveryHistoryEventType.EXPIRED_WAITING;
-    case 'INCOMPLETED':
-      return DeliveryHistoryEventType.INCOMPLETED;
-  }
-}
 
 async function lockDelivery(tx: Prisma.TransactionClient, deliveryId: string): Promise<void> {
   await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
@@ -73,7 +54,7 @@ async function ensureCloseEvent(
   input: ArchiveDeliveryInput,
   scope: Awaited<ReturnType<typeof resolveDeliveryScope>>,
 ): Promise<void> {
-  const eventType = closeEventType(input.archiveReason);
+  const eventType = helperFunctions.deliveryCloseEventType(input.archiveReason);
   const existing = await tx.deliveryHistoryEvent.count({
     where: {
       originalDeliveryId: delivery.id,
@@ -101,18 +82,6 @@ async function ensureCloseEvent(
   }, tx);
 }
 
-function closeTimestamp(
-  delivery: DeliveryWithSlot,
-  finalStatus: DeliveryHistoryFinalStatus,
-  occurredAt: Date,
-): Date | null {
-  if (finalStatus === DeliveryHistoryFinalStatus.COMPLETED) return delivery.completedTime ?? occurredAt;
-  if (finalStatus === DeliveryHistoryFinalStatus.CANCELLED) return occurredAt;
-  if (finalStatus === DeliveryHistoryFinalStatus.EXPIRED) return occurredAt;
-  if (finalStatus === DeliveryHistoryFinalStatus.INCOMPLETED) return occurredAt;
-  return null;
-}
-
 export async function archiveDelivery(input: ArchiveDeliveryInput) {
   return prisma.$transaction(async (tx) => {
     await lockDelivery(tx, input.deliveryId);
@@ -135,7 +104,7 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
 
     const callCount = await countCallHistoryEvents(delivery.id, tx);
     const lastCall = await getLastCallHistoryEvent(delivery.id, tx);
-    const closeAt = closeTimestamp(delivery, input.finalStatus, occurredAt);
+    const closeAt = helperFunctions.deliveryCloseTimestamp(input.finalStatus, delivery.completedTime, occurredAt);
 
     const history = await tx.deliveryHistory.upsert({
       where: { originalDeliveryId: delivery.id },
@@ -173,8 +142,8 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
         expiredAt: input.finalStatus === DeliveryHistoryFinalStatus.EXPIRED ? closeAt : null,
         archivedAt: occurredAt,
         archivedByJobRunId: input.jobRunId ?? null,
-        durationWaitingMinutes: minutesBetween(delivery.checkinTime, delivery.calledTime ?? delivery.receivingStartTime ?? closeAt),
-        durationReceivingMinutes: minutesBetween(delivery.receivingStartTime, delivery.completedTime ?? closeAt),
+        durationWaitingMinutes: helperFunctions.minutesBetween(delivery.checkinTime, delivery.calledTime ?? delivery.receivingStartTime ?? closeAt),
+        durationReceivingMinutes: helperFunctions.minutesBetween(delivery.receivingStartTime, delivery.completedTime ?? closeAt),
         note: delivery.note,
         metadata: {
           archiveReason: input.archiveReason,
@@ -193,8 +162,8 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
         expiredAt: input.finalStatus === DeliveryHistoryFinalStatus.EXPIRED ? closeAt : null,
         archivedAt: occurredAt,
         archivedByJobRunId: input.jobRunId ?? null,
-        durationWaitingMinutes: minutesBetween(delivery.checkinTime, delivery.calledTime ?? delivery.receivingStartTime ?? closeAt),
-        durationReceivingMinutes: minutesBetween(delivery.receivingStartTime, delivery.completedTime ?? closeAt),
+        durationWaitingMinutes: helperFunctions.minutesBetween(delivery.checkinTime, delivery.calledTime ?? delivery.receivingStartTime ?? closeAt),
+        durationReceivingMinutes: helperFunctions.minutesBetween(delivery.receivingStartTime, delivery.completedTime ?? closeAt),
         note: delivery.note,
         metadata: {
           archiveReason: input.archiveReason,

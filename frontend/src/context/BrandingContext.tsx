@@ -32,8 +32,8 @@ export interface BrandingData {
 // Static fallbacks — used until API responds and when fields are empty
 const UNIT_FALLBACKS: Record<ReceivingUnit, UnitBranding> = {
   EMART:      { displayName: 'Emart',             shortName: 'Emart',   description: 'Siêu thị',             logoUrl: null, primaryColor: '#FF9500', icon: '🏬' },
-  THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall', description: 'Trung tâm thương mại', logoUrl: null, primaryColor: '#27A55E', icon: '🏢' },
-  TENANT:     { displayName: 'Mall (Khách thuê)', shortName: 'Mall',    description: 'Khu vực khách thuê',   logoUrl: null, primaryColor: '#1C1C1C', icon: '🏪' },
+  THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall', description: 'Trung tâm hội nghị', logoUrl: null, primaryColor: '#27A55E', icon: '🏢' },
+  TENANT:     { displayName: 'Thiso Mall', shortName: 'Mall',    description: 'Trung tâm thương mại',   logoUrl: null, primaryColor: '#1C1C1C', icon: '🏪' },
 };
 
 const MALL_FALLBACK: MallBranding = {
