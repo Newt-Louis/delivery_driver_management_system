@@ -54,6 +54,11 @@ export type IssuedAuthSession = {
   sessionExpiresInSeconds: number;
 };
 
+export type AuthRequestInfo = {
+  ip: string;
+  userAgent: string | null;
+};
+
 export class AuthSessionError extends Error {
   constructor(
     public readonly statusCode: number,
@@ -240,19 +245,24 @@ export function sanitizeSession(session: StoredAuthSession) {
 
 export async function createAuthSession(args: {
   user: Pick<User, 'id' | 'name' | 'email' | 'role' | 'unit' | 'businessLocationId'>;
-  req: Request;
+  req?: Request;
+  requestInfo?: AuthRequestInfo;
   deviceId?: string | null;
   deviceName?: string | null;
 }): Promise<IssuedAuthSession> {
   const config = await getAuthSessionConfig();
   const now = new Date();
+  const requestInfo = args.requestInfo ?? {
+    ip: args.req ? getRequestIp(args.req, true) : '',
+    userAgent: args.req && typeof args.req.headers['user-agent'] === 'string' ? args.req.headers['user-agent'] : null,
+  };
   const session: StoredAuthSession = {
     id: randomUUID(),
     userId: args.user.id,
     deviceId: args.deviceId?.trim() || null,
     deviceName: args.deviceName?.trim().slice(0, 120) || null,
-    ip: getRequestIp(args.req, true),
-    userAgent: typeof args.req.headers['user-agent'] === 'string' ? args.req.headers['user-agent'] : null,
+    ip: requestInfo.ip,
+    userAgent: requestInfo.userAgent,
     createdAt: now.toISOString(),
     lastSeenAt: now.toISOString(),
     expiresAt: new Date(now.getTime() + sessionWindowSeconds(config) * 1000).toISOString(),

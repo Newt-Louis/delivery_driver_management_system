@@ -1,22 +1,7 @@
 import type { AuditLogItem } from '../types';
 import { ACTOR_TYPE_LABEL } from '../constants';
-
-function fmtDt(iso: string | null | undefined) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'medium' });
-}
-
-function JsonBlock({ label, data }: { label: string; data: Record<string, unknown> | null }) {
-  if (!data) return null;
-  return (
-    <div className="mt-3">
-      <div className="text-xs font-bold text-thiso-500 mb-1">{label}</div>
-      <pre className="bg-thiso-50 rounded-xl p-3 text-xs text-thiso-700 overflow-x-auto max-h-48 overflow-y-auto">
-        {JSON.stringify(data, null, 2)}
-      </pre>
-    </div>
-  );
-}
+import { formatDateTime } from '../formatters';
+import { JsonBlock } from './TableParts';
 
 interface AuditDetailModalProps {
   item: AuditLogItem;
@@ -30,7 +15,7 @@ export default function AuditDetailModal({ item, onClose }: AuditDetailModalProp
         <div className="px-5 py-4 border-b border-thiso-100 flex items-start justify-between gap-3">
           <div>
             <h3 className="text-lg font-black text-thiso-900">Chi tiết Audit Log</h3>
-            <p className="text-xs text-thiso-400 mt-0.5">{fmtDt(item.createdAt)}</p>
+            <p className="text-xs text-thiso-400 mt-0.5">{formatDateTime(item.createdAt, 'medium')}</p>
           </div>
           <button className="text-2xl text-thiso-300 hover:text-thiso-600 leading-none" onClick={onClose}>×</button>
         </div>

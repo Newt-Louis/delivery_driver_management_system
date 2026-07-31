@@ -2,19 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getDeliveryHistoryEvents } from '../api';
 import type { DeliveryHistoryItem, DeliveryHistoryEventItem } from '../types';
 import { EVENT_LABEL, STATUS_LABEL } from '../constants';
-
-function fmtDt(iso: string | null | undefined) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-function eventText(ev: DeliveryHistoryEventItem): string {
-  const base = EVENT_LABEL[ev.eventType]?.label ?? ev.eventType;
-  const slot = ev.slotCode ? ` → ${ev.slotCode}` : '';
-  const actor = ev.actorLabel ? ` (${ev.actorLabel})` : '';
-  const reason = ev.reason ? `: ${ev.reason}` : '';
-  return `${base}${slot}${actor}${reason}`;
-}
+import { formatDateTime, formatEventText } from '../formatters';
 
 interface TimelineModalProps {
   item: DeliveryHistoryItem;
@@ -43,7 +31,7 @@ export default function TimelineModal({ item, onClose }: TimelineModalProps) {
             <div><span className="text-thiso-400">Trạng thái: </span><strong>{STATUS_LABEL[item.finalStatus] ?? item.finalStatus}</strong></div>
             <div><span className="text-thiso-400">Số lần gọi: </span><strong>{item.callCount}</strong></div>
             <div><span className="text-thiso-400">Slot: </span><strong>{item.assignedSlotCode ?? '—'}</strong></div>
-            <div><span className="text-thiso-400">Lưu lúc: </span><strong>{fmtDt(item.archivedAt)}</strong></div>
+            <div><span className="text-thiso-400">Lưu lúc: </span><strong>{formatDateTime(item.archivedAt)}</strong></div>
             {item.closeReason && <div className="col-span-2"><span className="text-thiso-400">Lý do: </span><strong>{item.closeReason}</strong></div>}
           </div>
 
@@ -58,9 +46,9 @@ export default function TimelineModal({ item, onClose }: TimelineModalProps) {
                 return (
                   <li key={ev.id} className="relative pl-5">
                     <span className="absolute -left-[11px] top-0.5 w-5 h-5 rounded-full bg-white border-2 border-thiso-200 flex items-center justify-center text-[11px]">{meta.icon}</span>
-                    <div className={`text-sm font-medium ${meta.accent ?? 'text-thiso-700'}`}>{eventText(ev)}</div>
+                    <div className={`text-sm font-medium ${meta.accent ?? 'text-thiso-700'}`}>{formatEventText(ev)}</div>
                     {ev.message && <div className="text-xs text-thiso-500 mt-0.5">{ev.message}</div>}
-                    <div className="text-xs text-thiso-400 mt-0.5">{fmtDt(ev.occurredAt)}</div>
+                    <div className="text-xs text-thiso-400 mt-0.5">{formatDateTime(ev.occurredAt)}</div>
                   </li>
                 );
               })}

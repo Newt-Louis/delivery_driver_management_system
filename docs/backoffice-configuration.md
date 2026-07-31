@@ -65,6 +65,15 @@ Devices:
 
 - `/api/devices`
 
+Backend refactor hiện tại:
+
+- `/api/units/*` dùng `backend/src/modules/units/*`.
+- `/api/users/*` dùng `backend/src/modules/users/*`.
+- `/api/zones` dùng `backend/src/modules/zones/*`.
+- `/api/slots` dùng `backend/src/modules/slots/*`.
+- `/api/devices` dùng `backend/src/modules/devices/*`.
+- Các route tương ứng giữ vai trò controller mỏng: guard, parse request và trả response.
+
 ## Lưu Ý Kiến Trúc
 
 - Component chỉ dùng riêng cho Backoffice nên để trong `features/backoffice`.

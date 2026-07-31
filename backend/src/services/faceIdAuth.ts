@@ -12,6 +12,13 @@ type WebAuthnClientData = {
   origin: string;
 };
 
+export type WebAuthnRequestContext = {
+  hostname: string;
+  protocol: string;
+  host: string;
+  forwardedProto?: string | string[];
+};
+
 type CoseKey = Map<number, unknown>;
 
 const CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -28,15 +35,34 @@ function sha256(data: Buffer | string): Buffer {
   return crypto.createHash('sha256').update(data).digest();
 }
 
-function getRpId(req: Request, config: FaceIdAuthConfig): string {
-  if (config.rpId) return config.rpId;
-  return req.hostname.split(':')[0];
+type WebAuthnRequestSource = Request | WebAuthnRequestContext;
+
+function requestHostname(source: WebAuthnRequestSource): string {
+  return source.hostname;
 }
 
-function getExpectedOrigin(req: Request, config: FaceIdAuthConfig): string {
+function requestProtocol(source: WebAuthnRequestSource): string {
+  return source.protocol;
+}
+
+function requestHost(source: WebAuthnRequestSource): string {
+  if ('get' in source) return source.get('host') ?? '';
+  return source.host;
+}
+
+function requestForwardedProto(source: WebAuthnRequestSource): string | string[] | undefined {
+  return 'headers' in source ? source.headers['x-forwarded-proto'] : source.forwardedProto;
+}
+
+function getRpId(req: WebAuthnRequestSource, config: FaceIdAuthConfig): string {
+  if (config.rpId) return config.rpId;
+  return requestHostname(req).split(':')[0];
+}
+
+function getExpectedOrigin(req: WebAuthnRequestSource, config: FaceIdAuthConfig): string {
   if (config.origin) return config.origin;
-  const proto = req.headers['x-forwarded-proto'] ?? req.protocol;
-  return `${Array.isArray(proto) ? proto[0] : proto}://${req.get('host')}`;
+  const proto = requestForwardedProto(req) ?? requestProtocol(req);
+  return `${Array.isArray(proto) ? proto[0] : proto}://${requestHost(req)}`;
 }
 
 function parseClientDataJSON(encoded: string): WebAuthnClientData {
@@ -214,7 +240,7 @@ async function consumeChallenge(challenge: string, type: string) {
   return row;
 }
 
-export async function createFaceRegistrationOptions(user: SafeUser, req: Request, config: FaceIdAuthConfig) {
+export async function createFaceRegistrationOptions(user: SafeUser, req: WebAuthnRequestSource, config: FaceIdAuthConfig) {
   const rpId = getRpId(req, config);
   const origin = getExpectedOrigin(req, config);
   const challenge = await createChallenge({
@@ -291,7 +317,7 @@ export async function verifyFaceRegistration(args: {
   return credential;
 }
 
-export async function createFaceAuthenticationOptions(user: SafeUser, req: Request, config: FaceIdAuthConfig) {
+export async function createFaceAuthenticationOptions(user: SafeUser, req: WebAuthnRequestSource, config: FaceIdAuthConfig) {
   const credentials = await prisma.faceCredential.findMany({
     where: { userId: user.id, isActive: true },
     select: { credentialId: true, transports: true },

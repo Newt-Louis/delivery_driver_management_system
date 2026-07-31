@@ -1,4 +1,4 @@
-import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus } from '@prisma/client';
+import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, GoodsType } from '@prisma/client';
 
 export const helperFunctions = {
   minutesBetween(start?: Date | null, end?: Date | null): number | null {
@@ -52,6 +52,27 @@ export const helperFunctions = {
 
   roundOne(value: number | null | undefined): number {
     return Math.round((value ?? 0) * 10) / 10;
+  },
+
+  timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  },
+
+  minutesToTime(minutes: number): string {
+    return `${Math.floor(minutes / 60).toString().padStart(2, '0')}:${(minutes % 60).toString().padStart(2, '0')}`;
+  },
+
+  unitAcceptsGoods(
+    config: { freshFoodEnabled: boolean; generalGoodsEnabled: boolean; thiCongEnabled: boolean },
+    goodsType: GoodsType,
+  ): boolean {
+    if (goodsType === GoodsType.FRESH_FOOD) return config.freshFoodEnabled;
+    if (goodsType === GoodsType.GENERAL_GOODS || goodsType === GoodsType.AUTO_WAREHOUSE) {
+      return config.generalGoodsEnabled;
+    }
+    if (goodsType === GoodsType.THI_CONG) return config.thiCongEnabled;
+    return false;
   },
 
   operatingWindowMinutes(range: { gte: Date; lte: Date }, hoursPerDay = 15) {

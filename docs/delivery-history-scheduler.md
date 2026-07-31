@@ -89,3 +89,4 @@ Nguyên tắc:
 - Dashboard bắt buộc nhập lý do khi hủy chuyến.
 - Trang Histories đọc danh sách lịch sử từ `delivery_history` qua `/api/histories/delivery`.
 - Double-click một dòng lịch sử trong Histories để mở modal timeline từ `delivery_history_events`.
+- Feature Histories nằm trong `frontend/src/features/histories`, gồm API helper, hooks, bảng giao/nhận, bảng audit, modal timeline/audit detail, formatter dùng chung và component bảng/pagination dùng chung.

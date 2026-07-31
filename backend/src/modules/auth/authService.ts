@@ -1,6 +1,5 @@
-import { Request } from 'express';
 import bcrypt from 'bcryptjs';
-import type { SafeAuthUser, StoredAuthSession } from '../../services/authSession';
+import type { AuthRequestInfo, SafeAuthUser, StoredAuthSession } from '../../services/authSession';
 import {
   authResponse,
   createAuthSession,
@@ -17,14 +16,16 @@ import {
   getStaticIpAuthConfig,
   roleIsConfigured,
 } from '../../services/appConfig';
-import { getRequestIp, ipIsAllowedByConfig } from '../../services/staticIpAuth';
+import { getRequestIpFromSource, ipIsAllowedByConfig, type RequestIpSource } from '../../services/staticIpAuth';
 import {
   createFaceAuthenticationOptions,
   createFaceRegistrationOptions,
   verifyFaceAuthentication,
   verifyFaceRegistration,
+  type WebAuthnRequestContext,
 } from '../../services/faceIdAuth';
 import { getUserUnitPermissions, roleRequiresUnitPermission } from '../../services/unitPermission';
+import { domainError } from '../shared/domainError';
 import type {
   FaceAuthVerifyRequest,
   FaceOptionsRequest,
@@ -33,14 +34,7 @@ import type {
 } from './authFormRequest';
 import { countActiveFaceCredentials, findUserByEmail } from './authRepository';
 
-type AuthRouteResult = {
-  statusCode: number;
-  body: unknown;
-};
-
-function response(statusCode: number, body: unknown): AuthRouteResult {
-  return { statusCode, body };
-}
+export type AuthRequestContext = AuthRequestInfo & RequestIpSource & WebAuthnRequestContext;
 
 async function unitPermissionsFor(user: Pick<SafeAuthUser, 'id' | 'role'>) {
   return roleRequiresUnitPermission(user.role)
@@ -48,12 +42,12 @@ async function unitPermissionsFor(user: Pick<SafeAuthUser, 'id' | 'role'>) {
     : undefined;
 }
 
-async function checkStaticIpLoginPolicy(req: Request, user: { role: string }) {
+async function checkStaticIpLoginPolicy(context: AuthRequestContext, user: { role: string }) {
   const staticIpConfig = await getStaticIpAuthConfig();
   const enabled = staticIpConfig.enabled && roleIsConfigured(user.role, staticIpConfig.roles);
   if (!enabled) return { enabled, denied: null };
 
-  const ip = getRequestIp(req, staticIpConfig.trustProxyHeader);
+  const ip = getRequestIpFromSource(context, staticIpConfig.trustProxyHeader);
   if (!ipIsAllowedByConfig(ip, staticIpConfig)) {
     return {
       enabled,
@@ -63,22 +57,21 @@ async function checkStaticIpLoginPolicy(req: Request, user: { role: string }) {
   return { enabled, denied: null };
 }
 
-export async function login(body: LoginRequest, req: Request): Promise<AuthRouteResult> {
+export async function login(body: LoginRequest, context: AuthRequestContext) {
   const user = await findUserByEmail(body.email);
   if (!user || !user.isActive) {
-    return response(401, { error: 'Invalid credentials' });
+    throw domainError.unauthorized('Invalid credentials', { error: 'Invalid credentials' });
   }
 
   const valid = await bcrypt.compare(body.password, user.passwordHash);
   if (!valid) {
-    return response(401, { error: 'Invalid credentials' });
+    throw domainError.unauthorized('Invalid credentials', { error: 'Invalid credentials' });
   }
 
-  const staticIpPolicy = await checkStaticIpLoginPolicy(req, user);
+  const staticIpPolicy = await checkStaticIpLoginPolicy(context, user);
   if (staticIpPolicy.denied) {
-    return response(403, {
+    throw domainError.forbidden(staticIpPolicy.denied.message, {
       error: 'StaticIpRequired',
-      message: staticIpPolicy.denied.message,
       ip: staticIpPolicy.denied.ip,
     });
   }
@@ -89,17 +82,16 @@ export async function login(body: LoginRequest, req: Request): Promise<AuthRoute
 
   if (faceIdApplies && (faceCredentialCount > 0 || faceIdConfig.requireRegisteredCredential)) {
     if (faceCredentialCount === 0) {
-      return response(403, {
+      throw domainError.forbidden('Tài khoản này bắt buộc dùng Face ID nhưng chưa có thiết bị được đăng ký.', {
         error: 'FaceIdRequired',
-        message: 'Tài khoản này bắt buộc dùng Face ID nhưng chưa có thiết bị được đăng ký.',
       });
     }
 
-    return response(202, {
+    return {
       faceIdRequired: true,
       user: userPayload(user),
-      ...(await createFaceAuthenticationOptions(user, req, faceIdConfig)),
-    });
+      ...(await createFaceAuthenticationOptions(user, context, faceIdConfig)),
+    };
   }
 
   const sessionConfig = await getAuthSessionConfig();
@@ -111,9 +103,7 @@ export async function login(body: LoginRequest, req: Request): Promise<AuthRoute
   const conflictingSessions = activeSessions.filter((session) => !session.deviceId || session.deviceId !== deviceId);
 
   if (sessionConfig.singleSessionPerUser && conflictingSessions.length > 0 && !body.force) {
-    return response(409, {
-      error: 'ActiveSessionExists',
-      message: 'Tài khoản này đang đăng nhập ở thiết bị khác.',
+    throw domainError.conflict('Tài khoản này đang đăng nhập ở thiết bị khác.', 'ActiveSessionExists', {
       activeSessions: conflictingSessions.map(sanitizeSession),
     });
   }
@@ -126,55 +116,55 @@ export async function login(body: LoginRequest, req: Request): Promise<AuthRoute
 
   const issued = await createAuthSession({
     user,
-    req,
+    requestInfo: context,
     deviceId,
     deviceName: body.deviceName ?? null,
   });
 
-  return response(200, {
+  return {
     ...authResponse(userPayload(user), issued),
     unitPermissions: await unitPermissionsFor(user),
     authPolicy: {
       staticIpEnabled: staticIpPolicy.enabled,
       faceIdEnabled: faceIdConfig.enabled,
     },
-  });
+  };
 }
 
-export async function currentUser(user: SafeAuthUser, session?: StoredAuthSession | null): Promise<AuthRouteResult> {
-  return response(200, {
+export async function currentUser(user: SafeAuthUser, session?: StoredAuthSession | null) {
+  return {
     user,
     unitPermissions: await unitPermissionsFor(user),
     session: session ? sanitizeSession(session) : null,
-  });
+  };
 }
 
-export async function renew(token: string): Promise<AuthRouteResult> {
+export async function renew(token: string) {
   const { user, issued } = await renewAccessToken(token);
-  return response(200, authResponse(user, issued));
+  return authResponse(user, issued);
 }
 
-export async function logout(session?: StoredAuthSession | null): Promise<AuthRouteResult> {
+export async function logout(session?: StoredAuthSession | null) {
   if (session) await revokeSession(session.id);
-  return response(200, { ok: true });
+  return { ok: true };
 }
 
-export async function faceRegistrationOptions(user: SafeAuthUser, req: Request): Promise<AuthRouteResult> {
+export async function faceRegistrationOptions(user: SafeAuthUser, context: AuthRequestContext) {
   const faceIdConfig = await getFaceIdAuthConfig();
   if (!faceIdConfig.enabled || !roleIsConfigured(user.role, faceIdConfig.roles)) {
-    return response(409, { error: 'FaceIdDisabled', message: 'Face ID/WebAuthn chưa được bật cho tài khoản này.' });
+    throw domainError.conflict('Face ID/WebAuthn chưa được bật cho tài khoản này.', 'FaceIdDisabled');
   }
 
-  return response(200, await createFaceRegistrationOptions(user, req, faceIdConfig));
+  return createFaceRegistrationOptions(user, context, faceIdConfig);
 }
 
 export async function verifyFaceRegistrationForUser(
   user: SafeAuthUser,
   body: FaceRegisterVerifyRequest,
-): Promise<AuthRouteResult> {
+) {
   const faceIdConfig = await getFaceIdAuthConfig();
   if (!faceIdConfig.enabled || !roleIsConfigured(user.role, faceIdConfig.roles)) {
-    return response(409, { error: 'FaceIdDisabled', message: 'Face ID/WebAuthn chưa được bật cho tài khoản này.' });
+    throw domainError.conflict('Face ID/WebAuthn chưa được bật cho tài khoản này.', 'FaceIdDisabled');
   }
 
   const credential = await verifyFaceRegistration({
@@ -185,38 +175,38 @@ export async function verifyFaceRegistrationForUser(
     transports: body.credential.response.transports,
   });
 
-  return response(201, {
+  return {
     id: credential.id,
     credentialId: credential.credentialId,
     deviceName: credential.deviceName,
     createdAt: credential.createdAt,
-  });
+  };
 }
 
 export async function faceAuthenticationOptions(
   body: FaceOptionsRequest,
-  req: Request,
-): Promise<AuthRouteResult> {
+  context: AuthRequestContext,
+) {
   const faceIdConfig = await getFaceIdAuthConfig();
   if (!faceIdConfig.enabled) {
-    return response(409, { error: 'FaceIdDisabled', message: 'Face ID/WebAuthn chưa được bật.' });
+    throw domainError.conflict('Face ID/WebAuthn chưa được bật.', 'FaceIdDisabled');
   }
 
   const user = await findUserByEmail(body.email);
   if (!user || !user.isActive || !roleIsConfigured(user.role, faceIdConfig.roles)) {
-    return response(404, { error: 'FaceIdUnavailable', message: 'Tài khoản chưa hỗ trợ Face ID.' });
+    throw domainError.notFound('Tài khoản chưa hỗ trợ Face ID.', { error: 'FaceIdUnavailable' });
   }
 
-  return response(200, await createFaceAuthenticationOptions(user, req, faceIdConfig));
+  return createFaceAuthenticationOptions(user, context, faceIdConfig);
 }
 
 export async function verifyFaceAuthenticationForLogin(
   body: FaceAuthVerifyRequest,
-  req: Request,
-): Promise<AuthRouteResult> {
+  context: AuthRequestContext,
+) {
   const faceIdConfig = await getFaceIdAuthConfig();
   if (!faceIdConfig.enabled) {
-    return response(409, { error: 'FaceIdDisabled', message: 'Face ID/WebAuthn chưa được bật.' });
+    throw domainError.conflict('Face ID/WebAuthn chưa được bật.', 'FaceIdDisabled');
   }
 
   const user = await verifyFaceAuthentication({
@@ -227,27 +217,26 @@ export async function verifyFaceAuthenticationForLogin(
   });
 
   if (!roleIsConfigured(user.role, faceIdConfig.roles)) {
-    return response(403, { error: 'FaceIdUnavailable', message: 'Role này chưa được bật Face ID.' });
+    throw domainError.forbidden('Role này chưa được bật Face ID.', { error: 'FaceIdUnavailable' });
   }
 
-  const staticIpPolicy = await checkStaticIpLoginPolicy(req, user);
+  const staticIpPolicy = await checkStaticIpLoginPolicy(context, user);
   if (staticIpPolicy.denied) {
-    return response(403, {
+    throw domainError.forbidden(staticIpPolicy.denied.message, {
       error: 'StaticIpRequired',
-      message: staticIpPolicy.denied.message,
       ip: staticIpPolicy.denied.ip,
     });
   }
 
   const issued = await createAuthSession({
     user,
-    req,
+    requestInfo: context,
     deviceId: null,
     deviceName: 'Face ID/WebAuthn',
   });
 
-  return response(200, {
+  return {
     ...authResponse(userPayload(user), issued),
     unitPermissions: await unitPermissionsFor(user),
-  });
+  };
 }

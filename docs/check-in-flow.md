@@ -36,9 +36,12 @@ Route:
 
 ## Backend
 
-File:
+Files:
 
-- `backend/src/routes/deliveries.ts`
+- `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint `/api/deliveries/*`.
+- `backend/src/modules/deliveries/deliveryFormRequest.ts`: parse payload check-in lookup và các payload delivery khác.
+- `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery/queue và attach call count.
+- `backend/src/modules/deliveries/deliveryService.ts`: điều phối check-in lookup, check-in by id, scope/unit-permission, audit, socket emit, track realtime và trigger auto-assign.
 - `backend/src/services/checkInDelivery.ts`
 - `backend/src/services/ticketSequence.ts`
 

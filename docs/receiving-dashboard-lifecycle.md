@@ -45,7 +45,10 @@ Socket events lắng nghe:
 Files:
 
 - `backend/src/routes/dashboard.ts`
-- `backend/src/routes/deliveries.ts`
+- `backend/src/routes/deliveries.ts`: controller mỏng cho lifecycle endpoint.
+- `backend/src/modules/deliveries/deliveryFormRequest.ts`: parse payload call/cancel/register/check-in.
+- `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, slot list và scope unit.
+- `backend/src/modules/deliveries/deliveryService.ts`: điều phối call/start/complete/cancel, scope/unit permission, audit, socket emit, track realtime, push và archive.
 - `backend/src/services/manualCallDelivery.ts`
 - `backend/src/services/deliveryLifecycle.ts`
 - `backend/src/services/slotState.ts`

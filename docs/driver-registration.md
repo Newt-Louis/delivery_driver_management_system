@@ -55,13 +55,24 @@ API chính:
 - `GET /api/units/:unit/slots`
 - `GET /api/aw-vendors/check`
 
-Hàm quan trọng trong `backend/src/routes/deliveries.ts`:
+Module backend:
 
-- `normalizeVehiclePlate()`
-- `findActiveDeliveryByPlate()`
-- `sendDuplicateRegistration()`
-- `ensureRegistrationSlotCapacity()`
-- `isSundayDeliveryDate()`
+- `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint đăng ký và lifecycle delivery.
+- `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, check-in lookup, call/cancel và query list.
+- `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, slot capacity, duplicate plate và auto-warehouse vendor.
+- `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate active plate, capacity lock, Sunday fresh-food-only, history event và response.
+- `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
+- `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
+- `backend/src/modules/units/unitRepository.ts`: query cấu hình unit, khung giờ, slot vận hành và booking active.
+- `backend/src/modules/units/unitService.ts`: rule nhận loại hàng, tính capacity theo slot active và strip secret khỏi public config.
+
+Hàm quan trọng trong module:
+
+- `normalizeVehiclePlate()` trong `deliveryRepository.ts`.
+- `findActiveDeliveryByPlate()` trong `deliveryRepository.ts`.
+- `ensureRegistrationSlotCapacity()` trong `deliveryService.ts`.
+- `isSundayDeliveryDate()` trong `deliveryService.ts`.
+- `getAvailableSlots()` và `getVehicleAvailability()` trong `modules/units/unitService.ts`.
 
 Service:
 

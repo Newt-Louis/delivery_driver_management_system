@@ -77,12 +77,28 @@ Slots:
 - `POST /api/slots/:id/reconcile`
 - `POST /api/slots/reconcile`
 
+Module backend:
+
+- `backend/src/routes/zones.ts`: controller mỏng cho endpoint zone.
+- `backend/src/modules/zones/zoneFormRequest.ts`: validate payload zone bằng Zod.
+- `backend/src/modules/zones/zoneRepository.ts`: query `Zone`/`UnitConfig`.
+- `backend/src/modules/zones/zoneService.ts`: rule tạo/sửa/xóa zone, scope decision và audit.
+- `backend/src/routes/units.ts`: controller mỏng cho endpoint unit config, custom goods type, time window và availability public.
+- `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API bằng Zod.
+- `backend/src/modules/units/unitRepository.ts`: query `BusinessLocation`, `UnitConfig`, `UnitGoodsType`, `DeliveryTimeWindow`, `Slot` và booking active.
+- `backend/src/modules/units/unitService.ts`: rule scope location, CRUD unit settings, tính vehicle/slot availability, proxy vendor/PO và audit.
+- `backend/src/routes/slots.ts`: controller mỏng cho endpoint slot.
+- `backend/src/modules/slots/slotFormRequest.ts`: validate payload/status/query slot bằng Zod.
+- `backend/src/modules/slots/slotRepository.ts`: query slot/zone/delivery/history.
+- `backend/src/modules/slots/slotService.ts`: rule CRUD, assign trực tiếp, reconcile, audit và emit `slot_updated`.
+
 ## Hàm Quan Trọng
 
-- `resolveLocationId(req)` trong `routes/units.ts`.
-- `assertUnitInLocation(unit, businessLocationId)` trong `routes/units.ts`.
-- `getMatchingOperationalSlots()` trong `routes/units.ts`.
-- `validateZoneForUnit()` trong `routes/slots.ts`.
+- `resolveLocationId(user, scope)` trong `modules/units/unitService.ts`.
+- `assertUnitInLocation(unit, businessLocationId)` trong `modules/units/unitService.ts`.
+- `listMatchingOperationalSlots()` trong `modules/units/unitRepository.ts`.
+- `timeToMinutes()`, `minutesToTime()` và `unitAcceptsGoods()` trong `helperFunction.ts`.
+- `validateZoneForUnit()` trong `modules/slots/slotRepository.ts`.
 - `reconcileSlotState()` trong `services/slotState.ts`.
 - `reconcileOneSlot()` và `reconcileAllSlots()` trong `services/slotState.ts`.
 

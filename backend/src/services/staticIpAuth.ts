@@ -1,6 +1,12 @@
 import { Request } from 'express';
 import { StaticIpAuthConfig } from './appConfig';
 
+export type RequestIpSource = {
+  headers: Record<string, string | string[] | undefined>;
+  socketRemoteAddress?: string | null;
+  ip?: string | null;
+};
+
 function normalizeIp(ip: string): string {
   const cleaned = ip.trim();
   if (cleaned.startsWith('::ffff:')) return cleaned.slice('::ffff:'.length);
@@ -28,19 +34,27 @@ function cidrContainsIp(cidr: string, ip: string): boolean {
   return (baseInt & mask) === (ipInt & mask);
 }
 
-export function getRequestIp(req: Request, trustProxyHeader: boolean): string {
+export function getRequestIpFromSource(source: RequestIpSource, trustProxyHeader: boolean): string {
   if (trustProxyHeader) {
-    const forwardedFor = req.headers['x-forwarded-for'];
+    const forwardedFor = source.headers['x-forwarded-for'];
     const firstForwarded = Array.isArray(forwardedFor)
       ? forwardedFor[0]
       : forwardedFor?.split(',')[0];
     if (firstForwarded?.trim()) return normalizeIp(firstForwarded);
 
-    const realIp = req.headers['x-real-ip'];
+    const realIp = source.headers['x-real-ip'];
     if (typeof realIp === 'string' && realIp.trim()) return normalizeIp(realIp);
   }
 
-  return normalizeIp(req.socket.remoteAddress ?? req.ip ?? '');
+  return normalizeIp(source.socketRemoteAddress ?? source.ip ?? '');
+}
+
+export function getRequestIp(req: Request, trustProxyHeader: boolean): string {
+  return getRequestIpFromSource({
+    headers: req.headers,
+    socketRemoteAddress: req.socket.remoteAddress,
+    ip: req.ip,
+  }, trustProxyHeader);
 }
 
 export function ipIsAllowedByConfig(ip: string, config: StaticIpAuthConfig): boolean {

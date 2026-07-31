@@ -1,35 +1,7 @@
 import type { DeliveryHistoryItem, DeliverySortField, SortDir } from '../types';
 import { STATUS_LABEL, STATUS_COLOR, GOODS_LABEL, VEHICLE_LABEL, UNIT_LABEL } from '../constants';
-
-function fmtDt(iso: string | null | undefined) {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleString('vi-VN', { dateStyle: 'short', timeStyle: 'short' });
-}
-
-interface SortHeaderProps {
-  field: DeliverySortField;
-  label: string;
-  sortField: DeliverySortField;
-  sortDir: SortDir;
-  onSort: (field: DeliverySortField) => void;
-}
-
-function SortHeader({ field, label, sortField, sortDir, onSort }: SortHeaderProps) {
-  const active = sortField === field;
-  return (
-    <th
-      className="px-3 py-3 cursor-pointer hover:bg-thiso-100 select-none whitespace-nowrap"
-      onClick={() => onSort(field)}
-    >
-      <span className={active ? 'text-sky-700 font-bold' : ''}>{label}</span>
-      {active && <span className="ml-1 text-[10px]">{sortDir === 'asc' ? '▲' : '▼'}</span>}
-    </th>
-  );
-}
-
-function CellHeader({ label }: { label: string }) {
-  return <th className="px-3 py-3 whitespace-nowrap">{label}</th>;
-}
+import { formatDateTime } from '../formatters';
+import { CellHeader, EmptyStateRow, Pagination, SortHeader } from './TableParts';
 
 interface DeliveryTableProps {
   items: DeliveryHistoryItem[];
@@ -61,13 +33,13 @@ export default function DeliveryTable({
     ticketNumber: { header: <SortHeader field="ticketNumber" label="Số phiếu" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs font-mono">{d.ticketNumber ?? '—'}</span> },
     assignedSlotCode: { header: <CellHeader label="Slot" />, render: (d) => <span className="text-xs font-mono text-thiso-500">{d.assignedSlotCode ?? '—'}</span> },
     callCount: { header: <SortHeader field="callCount" label="Số lần gọi" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{d.callCount}</span> },
-    registeredAt: { header: <SortHeader field="registeredAt" label="Giờ đăng ký" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{fmtDt(d.registeredAt)}</span> },
-    checkinTime: { header: <SortHeader field="checkinTime" label="Giờ check-in" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{fmtDt(d.checkinTime)}</span> },
-    calledTime: { header: <SortHeader field="calledTime" label="Giờ gọi" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{fmtDt(d.calledTime)}</span> },
-    receivingStartTime: { header: <SortHeader field="receivingStartTime" label="Giờ bắt đầu nhận" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{fmtDt(d.receivingStartTime)}</span> },
-    completedTime: { header: <SortHeader field="completedTime" label="Giờ hoàn tất" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{fmtDt(d.completedTime)}</span> },
+    registeredAt: { header: <SortHeader field="registeredAt" label="Giờ đăng ký" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.registeredAt)}</span> },
+    checkinTime: { header: <SortHeader field="checkinTime" label="Giờ check-in" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.checkinTime)}</span> },
+    calledTime: { header: <SortHeader field="calledTime" label="Giờ gọi" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.calledTime)}</span> },
+    receivingStartTime: { header: <SortHeader field="receivingStartTime" label="Giờ bắt đầu nhận" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.receivingStartTime)}</span> },
+    completedTime: { header: <SortHeader field="completedTime" label="Giờ hoàn tất" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.completedTime)}</span> },
     closeReason: { header: <CellHeader label="Lý do đóng" />, render: (d) => <span className="text-xs text-thiso-500 truncate max-w-[150px] block" title={d.closeReason ?? ''}>{d.closeReason ?? '—'}</span> },
-    archivedAt: { header: <SortHeader field="archivedAt" label="Thời gian lưu trữ" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{fmtDt(d.archivedAt)}</span> },
+    archivedAt: { header: <SortHeader field="archivedAt" label="Thời gian lưu trữ" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.archivedAt)}</span> },
   };
 
   return (
@@ -77,16 +49,16 @@ export default function DeliveryTable({
           <thead>
             <tr className="bg-thiso-50 text-xs text-thiso-400 uppercase border-b border-thiso-100 text-left">
               {visibleColumns.map((key) => (
-                <th key={key} className="px-3 py-3">{COL_MAP[key]?.header}</th>
+                <th key={key} className="px-3 py-3 hover:bg-thiso-100">{COL_MAP[key]?.header}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {isLoading && (
-              <tr><td colSpan={visibleColumns.length} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>
+              <EmptyStateRow colSpan={visibleColumns.length}>Đang tải...</EmptyStateRow>
             )}
             {!isLoading && items.length === 0 && (
-              <tr><td colSpan={visibleColumns.length} className="py-12 text-center text-thiso-400">Không có dữ liệu</td></tr>
+              <EmptyStateRow colSpan={visibleColumns.length}>Không có dữ liệu</EmptyStateRow>
             )}
             {items.map((d) => (
               <tr
@@ -103,17 +75,7 @@ export default function DeliveryTable({
           </tbody>
         </table>
       </div>
-      {pages > 1 && (
-        <div className="flex items-center justify-between px-4 py-3 border-t border-thiso-100 bg-thiso-50">
-          <span className="text-xs text-thiso-400">Tổng: {total.toLocaleString()} · Trang {page}/{pages}</span>
-          <div className="flex gap-2">
-            <button disabled={page <= 1} onClick={() => onPageChange(page - 1)}
-              className="px-3 py-1 text-xs border border-thiso-200 rounded-lg bg-white hover:bg-thiso-50 disabled:opacity-40">← Trước</button>
-            <button disabled={page >= pages} onClick={() => onPageChange(page + 1)}
-              className="px-3 py-1 text-xs border border-thiso-200 rounded-lg bg-white hover:bg-thiso-50 disabled:opacity-40">Tiếp →</button>
-          </div>
-        </div>
-      )}
+      <Pagination page={page} pages={pages} total={total} onPageChange={onPageChange} />
     </div>
   );
 }

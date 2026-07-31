@@ -28,6 +28,8 @@ File:
 
 - `backend/src/routes/awVendors.ts`
 - `backend/src/routes/deliveries.ts`
+- `backend/src/modules/deliveries/deliveryRepository.ts`
+- `backend/src/modules/deliveries/deliveryService.ts`
 - `backend/src/services/autoAssign.ts`
 
 API:

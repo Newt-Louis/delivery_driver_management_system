@@ -75,6 +75,13 @@ Các API create/update user nhận thêm:
 - `POST /api/users/location-staff`
 - `PATCH /api/users/location-staff/:id`
 
+Module backend:
+
+- `backend/src/routes/users.ts`: controller mỏng cho user và location-staff endpoints.
+- `backend/src/modules/users/userFormRequest.ts`: validate payload user, location staff và reset password bằng Zod.
+- `backend/src/modules/users/userRepository.ts`: query user, location, unit config và history usage.
+- `backend/src/modules/users/userService.ts`: rule single SUPERADMIN, location scope, unit assignment, create/update/delete/deactivate, audit, refresh Redis profile/permission cache và revoke session.
+
 Với role `CHECKIN`/`RECEIVING`, backend bắt buộc có ít nhất một unit permission. Nếu client cũ chỉ gửi `unit`, backend sẽ dùng `unit` để resolve một `UnitConfig` tương ứng nhằm giữ tương thích.
 
 Unit config API:

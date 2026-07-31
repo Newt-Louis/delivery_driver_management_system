@@ -21,7 +21,10 @@ Model:
 
 File:
 
-- `backend/src/routes/devices.ts`
+- `backend/src/routes/devices.ts`: controller mỏng cho endpoint thiết bị.
+- `backend/src/modules/devices/deviceFormRequest.ts`: validate payload thiết bị bằng Zod.
+- `backend/src/modules/devices/deviceRepository.ts`: query thiết bị với `DEVICE_SAFE_SELECT`, không select `deviceSecretHash`.
+- `backend/src/modules/devices/deviceService.ts`: rule tạo/sửa/deactivate thiết bị, hash secret bằng bcrypt và audit.
 
 API:
 
