@@ -34,6 +34,11 @@ export type VehicleAvailabilityOption = {
   capacity: number;
 };
 
+export type OrderCodeOption = {
+  code: string;
+  kind: 'PO' | 'TC';
+};
+
 export async function getUnitConfig(unit: ReceivingUnit): Promise<UnitConfig> {
   const res = await api.get(`/api/units/${unit}/config`);
   return res.data;
@@ -58,6 +63,13 @@ export async function getVehicleAvailability(
 ): Promise<{ vehicles: VehicleAvailabilityOption[]; reason?: string }> {
   const res = await api.get(`/api/units/${unit}/vehicle-availability`, { params });
   return res.data;
+}
+
+export async function getOrderCodes(search?: string): Promise<OrderCodeOption[]> {
+  const res = await api.get('/api/units/order-codes', {
+    params: search ? { search } : undefined,
+  });
+  return res.data.items ?? [];
 }
 
 export async function checkAutoWarehouseVendor(code: string, unit: ReceivingUnit) {

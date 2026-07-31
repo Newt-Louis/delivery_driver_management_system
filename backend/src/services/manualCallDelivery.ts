@@ -3,9 +3,11 @@ import {
   DeliveryHistoryEventType,
   DeliveryStatus,
   Prisma,
+  ReceivingUnit,
   Slot,
 } from '@prisma/client';
 import { prisma } from '../lib/prisma';
+import { helperFunctions } from '../helperFunction';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 import { recordDeliveryEvent } from '../modules/history/historyService';
 import type { HistoryActor } from '../modules/history/types';
@@ -42,13 +44,61 @@ function isManualCallSuccess(result: ManualCallResult): result is ManualCallSucc
 }
 
 function getSlotMismatchMessage(delivery: DeliveryRegistration, slot: Slot): string | null {
-  if (slot.assignedUnit !== delivery.receivingUnit) {
-    return `Slot ${slot.code} thuộc ${slot.assignedUnit}, không nhận xe của ${delivery.receivingUnit}.`;
-  }
   if (slot.vehicleType !== delivery.vehicleType) {
     return `Slot ${slot.code} nhận ${slot.vehicleType}, không nhận xe ${delivery.vehicleType}.`;
   }
   return null;
+}
+
+function currentTimeMinutes(now = new Date()) {
+  return now.getHours() * 60 + now.getMinutes();
+}
+
+async function unitHasOpenReceivingWindow(
+  tx: Prisma.TransactionClient,
+  unit: ReceivingUnit,
+  now = new Date(),
+): Promise<boolean> {
+  const nowMins = currentTimeMinutes(now);
+  const windows = await tx.deliveryTimeWindow.findMany({
+    where: { unit, enabled: true },
+    select: { startTime: true, endTime: true },
+  });
+
+  return windows.some((window) => {
+    const start = helperFunctions.timeToMinutes(window.startTime);
+    const end = helperFunctions.timeToMinutes(window.endTime);
+    return start <= nowMins && nowMins < end;
+  });
+}
+
+async function getDeliveryHomeLocationId(
+  tx: Prisma.TransactionClient,
+  delivery: DeliveryRegistration,
+): Promise<string | null> {
+  if (delivery.assignedSlotId) {
+    const slot = await tx.slot.findUnique({
+      where: { id: delivery.assignedSlotId },
+      select: { zone: { select: { unitConfig: { select: { businessLocationId: true } } } } },
+    });
+    if (slot?.zone.unitConfig.businessLocationId) return slot.zone.unitConfig.businessLocationId;
+  }
+
+  const unitConfig = await tx.unitConfig.findFirst({
+    where: { unit: delivery.receivingUnit },
+    orderBy: { createdAt: 'asc' },
+    select: { businessLocationId: true },
+  });
+  return unitConfig?.businessLocationId ?? null;
+}
+
+function crossUnitEventMetadata(delivery: DeliveryRegistration, slot: Slot): Prisma.InputJsonValue | undefined {
+  if (slot.assignedUnit === delivery.receivingUnit) return undefined;
+  return {
+    crossUnitSlot: true,
+    deliveryReceivingUnit: delivery.receivingUnit,
+    slotAssignedUnit: slot.assignedUnit,
+  };
 }
 
 async function refreshDelivery(tx: Prisma.TransactionClient, deliveryId: string): Promise<ManualCallDelivery | null> {
@@ -97,7 +147,10 @@ export async function manualCallDelivery(args: {
       return { outcome: 'slot_not_found', delivery, message: 'Slot not found' };
     }
 
-    const slot = await tx.slot.findUnique({ where: { id: args.slotId } });
+    const slot = await tx.slot.findUnique({
+      where: { id: args.slotId },
+      include: { zone: { select: { unitConfig: { select: { unit: true, businessLocationId: true } } } } },
+    });
     if (!slot) {
       return { outcome: 'slot_not_found', delivery, message: 'Slot not found' };
     }
@@ -121,6 +174,43 @@ export async function manualCallDelivery(args: {
       };
     }
 
+    const crossUnit = slot.assignedUnit !== delivery.receivingUnit;
+    const activeInTarget = await tx.deliveryRegistration.count({
+      where: {
+        assignedSlotId: slot.id,
+        id: { not: delivery.id },
+        status: { in: ACTIVE_SLOT_DELIVERY_STATUSES },
+      },
+    });
+
+    if (crossUnit) {
+      const deliveryLocationId = await getDeliveryHomeLocationId(tx, delivery);
+      if (deliveryLocationId && slot.zone.unitConfig.businessLocationId !== deliveryLocationId) {
+        return {
+          outcome: 'slot_mismatch',
+          delivery,
+          slot,
+          message: `Slot ${slot.code} không thuộc cùng khu vực vận hành.`,
+        };
+      }
+      if (activeInTarget > 0) {
+        return {
+          outcome: 'slot_full',
+          delivery,
+          slot,
+          message: `Slot ${slot.code} đang có xe, không thể mượn cho đơn vị khác.`,
+        };
+      }
+      if (await unitHasOpenReceivingWindow(tx, slot.assignedUnit)) {
+        return {
+          outcome: 'slot_unavailable',
+          delivery,
+          slot,
+          message: `Slot ${slot.code} đang trong khung giờ nhận hàng của ${slot.assignedUnit}.`,
+        };
+      }
+    }
+
     if (delivery.status === DeliveryStatus.CALLED && delivery.assignedSlotId === slot.id) {
       const recalledAt = new Date();
       const message = `Mời xe ${delivery.vehiclePlate} vào ${slot.name}`;
@@ -132,6 +222,7 @@ export async function manualCallDelivery(args: {
         occurredAt: recalledAt,
         message,
         slot,
+        metadata: crossUnitEventMetadata(delivery, slot),
       }, tx);
       await tx.slot.update({
         where: { id: slot.id },
@@ -153,13 +244,6 @@ export async function manualCallDelivery(args: {
       };
     }
 
-    const activeInTarget = await tx.deliveryRegistration.count({
-      where: {
-        assignedSlotId: slot.id,
-        id: { not: delivery.id },
-        status: { in: ACTIVE_SLOT_DELIVERY_STATUSES },
-      },
-    });
     if (activeInTarget >= slot.maxCapacity) {
       return {
         outcome: 'slot_full',
@@ -191,6 +275,7 @@ export async function manualCallDelivery(args: {
       occurredAt: calledTime,
       message,
       slot,
+      metadata: crossUnitEventMetadata(delivery, slot),
     }, tx);
 
     await tx.slot.update({

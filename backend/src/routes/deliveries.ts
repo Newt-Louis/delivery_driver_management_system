@@ -33,6 +33,12 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req, res) => {
   await respond(res, deliveryService.registerDelivery(body), 201);
 }));
 
+// POST /api/deliveries/public-cancel
+router.post('/public-cancel', publicWriteLimiter, asyncHandler(async (req, res) => {
+  const body = DeliveryFormRequest.parsePublicCancel(req.body);
+  await respond(res, deliveryService.publicCancel(body));
+}));
+
 // GET /api/deliveries
 router.get('/', authenticate, enforceScope, asyncHandler(async (req, res) => {
   const query = DeliveryFormRequest.parseListQuery(req.query as Record<string, unknown>);

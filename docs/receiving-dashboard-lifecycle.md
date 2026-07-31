@@ -73,13 +73,21 @@ API lifecycle:
   - Bắt buộc có lý do hủy.
   - Gọi `cancelDelivery()`.
   - Release slot nếu cần.
+- `POST /api/deliveries/public-cancel`
+  - Public route dành cho tài xế tự hủy tại `/cancelled`.
+  - Đối chiếu đúng 5 thông tin: biển số xe, số điện thoại, mã PO/Thi Công, mã đăng ký, ngày giờ giao.
+  - Sai bất kỳ thông tin nào trả message chung để tránh lộ dữ liệu.
+  - Khi đúng, hủy với lý do `Tài xế thao tác hủy`, ghi history/events, reconcile slot và xóa row operational.
 
 Service:
 
 - `manualCallDelivery()`
   - Lock delivery.
   - Lock slot.
-  - Validate slot active, đúng unit, đúng vehicle type, còn capacity.
+  - Validate slot active, đúng vehicle type, còn capacity.
+  - Cùng đơn vị: slot có thể nhận theo `maxCapacity`.
+  - Khác đơn vị: chỉ cho mượn khi slot trống hoàn toàn, cùng business location, và hiện tại không nằm trong khung giờ nhận hàng enabled của đơn vị sở hữu slot.
+  - Không cho gọi vào slot `MAINTENANCE`/`RESERVED`.
   - Idempotent nếu delivery đã được call vào đúng slot.
 - `completeDelivery()`
   - Lock delivery.

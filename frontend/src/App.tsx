@@ -11,6 +11,7 @@ import Track from './pages/Track';
 import ReceivingTimes from './pages/ReceivingTimes';
 import Reports from './pages/Reports';
 import Histories from './pages/Histories';
+import Cancelled from './pages/Cancelled';
 import Navbar from './components/Navbar';
 
 function homePathForRole(role?: string) {
@@ -31,7 +32,7 @@ export default function App() {
   const location = useLocation();
 
   // Pages that have their own full-screen layout — hide the global nav
-  const isPublicFullscreen = ['/waiting-screen', '/track'].some(
+  const isPublicFullscreen = ['/waiting-screen', '/track', '/cancelled'].some(
     (p) => location.pathname.startsWith(p),
   );
 
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="/taixe" element={<Navigate to="/register" replace />} />
         <Route path="/track" element={<Track />} />
         <Route path="/track/:code" element={<Track />} />
+        <Route path="/cancelled" element={<Cancelled />} />
         <Route
           path="/check-in"
           element={

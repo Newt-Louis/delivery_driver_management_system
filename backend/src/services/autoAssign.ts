@@ -15,12 +15,6 @@ type AutoAssignScope = {
   unitConfigId?: string;
 };
 
-type AutoAssignSlot = Slot & {
-  _count: {
-    deliveries: number;
-  };
-};
-
 type AssignResult = {
   delivery: DeliveryRegistration;
   slot: Slot;
@@ -298,53 +292,63 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): 
 // Motorbike slots support multi-vehicle capacity (maxCapacity field).
 // Returns number of vehicles assigned in this round.
 export async function triggerAutoAssign(unit: ReceivingUnit, scope: AutoAssignScope = {}): Promise<number> {
-  const slots = await prisma.slot.findMany({
-    where: {
-      assignedUnit: unit,
-      isActive: true,
-      autoAssign: true,
-      status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
-      zone: {
-        ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
-        ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+  let called = 0;
+  let candidateSeen = 0;
+
+  while (true) {
+    const slots = await prisma.slot.findMany({
+      where: {
+        assignedUnit: unit,
+        isActive: true,
+        autoAssign: true,
+        status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
+        zone: {
+          ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+          ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+        },
       },
-    },
-    include: {
-      _count: {
-        select: {
-          deliveries: {
-            where: { status: { in: ACTIVE_SLOT_DELIVERY_STATUSES } },
+      include: {
+        _count: {
+          select: {
+            deliveries: {
+              where: { status: { in: ACTIVE_SLOT_DELIVERY_STATUSES } },
+            },
           },
         },
       },
-    },
-    orderBy: { code: 'asc' },
-  });
+      orderBy: { code: 'asc' },
+    });
 
-  const candidateSlots = slots
-    .filter((slot) => slot._count.deliveries < slot.maxCapacity)
-    .sort((a, b) => b._count.deliveries - a._count.deliveries);
+    const candidateSlots = slots
+      .filter((slot) => slot._count.deliveries < slot.maxCapacity)
+      .sort((a, b) => {
+        const remainingA = a.maxCapacity - a._count.deliveries;
+        const remainingB = b.maxCapacity - b._count.deliveries;
+        return remainingB - remainingA || a.code.localeCompare(b.code);
+      });
 
-  if (candidateSlots.length === 0) {
-    console.log(`[AutoAssign] ${unit}: no slots with available capacity`);
-    return 0;
-  }
+    candidateSeen = Math.max(candidateSeen, candidateSlots.length);
+    if (candidateSlots.length === 0) {
+      if (called === 0) console.log(`[AutoAssign] ${unit}: no slots with available capacity`);
+      return called;
+    }
 
-  let called = 0;
-  for (const slot of candidateSlots as AutoAssignSlot[]) {
-    while (true) {
+    let assignedThisRound = false;
+    for (const slot of candidateSlots) {
       const result = await assignNextDeliveryToSlot(slot.id, unit);
-      if (!result) break;
+      if (!result) continue;
 
       called++;
       await emitAutoAssignResult(result, unit);
+      assignedThisRound = true;
+      break;
+    }
 
-      if (result.activeCount >= result.slot.maxCapacity) break;
+    if (!assignedThisRound) {
+      if (called === 0) {
+        console.log(`[AutoAssign] ${unit}: no match (${candidateSeen} slots with capacity, no waiting vehicles)`);
+      }
+      return called;
     }
   }
-
-  if (called === 0) {
-    console.log(`[AutoAssign] ${unit}: no match (${candidateSlots.length} slots with capacity, no waiting vehicles)`);
-  }
-  return called;
 }

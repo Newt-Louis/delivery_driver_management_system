@@ -25,7 +25,8 @@ Hàm chính:
 - `triggerAutoAssign(unit, scope)`
   - Tìm slot active, autoAssign, không `MAINTENANCE`/`RESERVED`.
   - Lọc theo scope nếu có `businessLocationId`/`unitConfigId`.
-  - Chọn slot còn capacity.
+  - Mỗi vòng query lại slot còn capacity theo active delivery count hiện tại và `Slot.maxCapacity`.
+  - Assign một xe thành công rồi query lại vòng tiếp theo, tránh dừng sớm khi snapshot slot/count bị cũ.
   - Lặp cho đến khi hết capacity hoặc không còn xe phù hợp.
 - `assignNextDeliveryToSlot(slotId, unit)`
   - Transaction.
@@ -51,6 +52,7 @@ Hàm chính:
 - Slot thường không nhận `AUTO_WAREHOUSE`.
 - `FRESH_FOOD` được ưu tiên trong slot thường nếu slot chấp nhận.
 - `maxCapacity` cho phép nhiều xe trong một slot, đặc biệt xe máy.
+- Tổng sức chứa của một unit/vehicle là tổng `Slot.maxCapacity` của các slot active phù hợp; ví dụ 5 slot xe tải, mỗi slot 2 chỗ, thì auto assign chỉ dừng khi đủ 10 active deliveries.
 - `MAINTENANCE` và `RESERVED` không được auto assign.
 
 ## Concurrency

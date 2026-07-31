@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { UNIT_FALLBACKS, useBranding } from '../../../context/BrandingContext';
 import { AUTO_TRACK_SECONDS, GOODS_LABEL } from '../constants';
@@ -177,6 +177,16 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
         >
           Đăng ký chuyến khác
         </button>
+
+        <p className="text-center text-[11px] text-thiso-400">
+          Lỡ nhập sai thông tin?{' '}
+          <Link
+            to={`/cancelled?code=${encodeURIComponent(info.code)}`}
+            className="text-red-600 underline font-semibold"
+          >
+            Hủy chuyến
+          </Link>
+        </p>
       </div>
     </div>
   );

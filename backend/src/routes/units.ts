@@ -26,6 +26,11 @@ router.get('/configs', authenticate, enforceScope, requireRole('SUPERADMIN', 'AD
   await respond(res, unitService.listConfigs(req.user, req.scope));
 }));
 
+router.get('/order-codes', asyncHandler(async (req, res) => {
+  const query = UnitFormRequest.parseOrderCodeQuery(req.query);
+  await respond(res, Promise.resolve(unitService.listOrderCodes(query)));
+}));
+
 router.get('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const query = UnitFormRequest.parseTimeWindowQuery(req.query);

@@ -6,6 +6,7 @@ import { domainError } from '../shared/domainError';
 import type {
   GoodsTypeQuery,
   IntegrationQuery,
+  OrderCodeQuery,
   SlotsQuery,
   TimeWindowPayload,
   TimeWindowQuery,
@@ -15,6 +16,7 @@ import type {
   UpdateUnitGoodsTypePayload,
   VehicleAvailabilityQuery,
 } from './unitFormRequest';
+import { listMockOrderCodes } from './orderCodeMock';
 import * as unitRepository from './unitRepository';
 
 interface ScopeInput {
@@ -85,6 +87,14 @@ function parseLocalDate(date: string) {
 export async function listConfigs(user: AuthUser | undefined, scope?: ScopeInput) {
   const businessLocationId = await resolveLocationId(user, scope);
   return unitRepository.listUnitConfigs(businessLocationId);
+}
+
+export function listOrderCodes(query: OrderCodeQuery) {
+  return {
+    items: listMockOrderCodes(query.kind, query.search),
+    configured: false,
+    source: 'mock',
+  };
 }
 
 export async function listTimeWindows(

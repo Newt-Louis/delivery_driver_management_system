@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import api from '../lib/api';
 import { playChimeWithCtx } from '../lib/chime';
@@ -242,6 +242,10 @@ function TrackLookup() {
           <p className="text-center text-[11px] text-thiso-400">
             Chưa đăng ký?{' '}
             <a href="/register" className="text-thiso-600 underline font-semibold">Đăng ký ngay</a>
+          </p>
+          <p className="text-center text-[11px] text-thiso-400">
+            Nhập sai thông tin? Muốn{' '}
+            <Link to="/cancelled" className="text-red-600 underline font-semibold">hủy chuyến</Link>
           </p>
         </form>
       </div>
@@ -825,6 +829,19 @@ function TrackContent({ code }: { code: string }) {
             )}
           </div>
         </div>
+
+        {!isTerminal && (
+          <div className="bg-white rounded-2xl border border-thiso-100 px-4 py-3 text-center text-xs text-thiso-500">
+            Nhập sai thông tin? Bạn có thể{' '}
+            <Link
+              to={`/cancelled?code=${encodeURIComponent(delivery.registrationCode)}`}
+              className="font-bold text-red-600 underline"
+            >
+              hủy chuyến
+            </Link>
+            {' '}và đăng ký lại.
+          </div>
+        )}
 
         {/* Queue position — WAITING only */}
         {delivery.status === 'WAITING' && delivery.queueInfo && (() => {

@@ -28,6 +28,8 @@ export default function Register() {
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
+    orderCodes,
+    orderCodesLoading,
     sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
@@ -110,6 +112,8 @@ export default function Register() {
             slots={slots}
             slotsMsg={slotsMsg}
             slotsLoading={slotsLoading}
+            orderCodes={orderCodes}
+            orderCodesLoading={orderCodesLoading}
             slotMinutes={slotMinutes}
             maxPerSlot={maxPerSlot}
             sundayFreshFoodBlocked={sundayFreshFoodBlocked}

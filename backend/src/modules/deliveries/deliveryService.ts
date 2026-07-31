@@ -18,7 +18,8 @@ import { archiveDelivery } from '../history/archiveService';
 import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/historyRepository';
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
-import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
+import { isKnownMockOrderCode } from '../units/orderCodeMock';
+import type { CheckInLookupPayload, PublicCancelPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
 
 class SlotFullError extends Error {
@@ -133,10 +134,21 @@ async function ensureRegistrationSlotCapacity(
 
 function duplicateRegistration(vehiclePlate: string, duplicate: unknown) {
   throw domainError.conflict(
-    `Bien so ${vehiclePlate} da co luot dang ky dang hoat dong (${(duplicate as { registrationCode?: string } | null)?.registrationCode ?? 'dang xu ly'}).`,
+    `Xe ${vehiclePlate} đã có lượt đăng ký trùng thông tin trong ngày giao đã chọn (${(duplicate as { registrationCode?: string } | null)?.registrationCode ?? 'đang xử lý'}).`,
     'Duplicate',
     { delivery: duplicate as Record<string, unknown> },
   );
+}
+
+const PUBLIC_CANCEL_REASON = 'Tài xế thao tác hủy';
+const PUBLIC_CANCEL_MISMATCH_MESSAGE = 'Có thông tin bạn nhập không đúng, vui lòng nhập lại';
+
+function parseRequestedTime(value: string | undefined): Date | null {
+  const requestedTime = value ? new Date(value) : null;
+  if (requestedTime && Number.isNaN(requestedTime.getTime())) {
+    throw domainError.badRequest('Thoi gian giao hang khong hop le');
+  }
+  return requestedTime;
 }
 
 export async function autoDispatch(unit: ReceivingUnit, user: AuthUser | undefined) {
@@ -155,13 +167,24 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     throw domainError.badRequest('Bien so xe bat buoc');
   }
 
-  const duplicate = await deliveryRepository.findActiveDeliveryByPlate(vehiclePlate);
-  if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
-
-  const requestedTime = body.requestedTime ? new Date(body.requestedTime) : null;
-  if (requestedTime && Number.isNaN(requestedTime.getTime())) {
-    throw domainError.badRequest('Thoi gian giao hang khong hop le');
+  const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
+  const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
+  if (!driverPhone || driverPhone.length < 9) {
+    throw domainError.badRequest('Số điện thoại không hợp lệ');
   }
+  if (!poNumber || !isKnownMockOrderCode(poNumber)) {
+    throw domainError.badRequest('Mã PO/Thi Công không hợp lệ');
+  }
+
+  const requestedTime = parseRequestedTime(body.requestedTime);
+  const duplicate = await deliveryRepository.findDuplicateRegistration({
+    vehiclePlate,
+    driverPhone,
+    poNumber,
+    requestedTime,
+    deliveryDate: body.deliveryDate,
+  });
+  if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
 
   let resolvedGoodsType = body.goodsType;
   let resolvedVendorCode: string | undefined;
@@ -207,13 +230,13 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           registrationCode,
           vendorName: body.vendorName,
           driverName: body.driverName,
-          driverPhone: body.driverPhone,
+          driverPhone,
           vehiclePlate,
           vehicleType: body.vehicleType,
           receivingUnit: body.receivingUnit,
           goodsType: resolvedGoodsType,
           unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
-          poNumber: body.poNumber,
+          poNumber,
           vendorCode: resolvedVendorCode,
           requestedTime,
           autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
@@ -239,11 +262,85 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
 
     if (deliveryRepository.isUniqueConstraintError(error)) {
-      const activeDuplicate = await deliveryRepository.findActiveDeliveryByPlate(vehiclePlate);
+      const activeDuplicate = await deliveryRepository.findDuplicateRegistration({
+        vehiclePlate,
+        driverPhone,
+        poNumber,
+        requestedTime,
+        deliveryDate: body.deliveryDate,
+      });
       if (activeDuplicate) return duplicateRegistration(vehiclePlate, activeDuplicate);
     }
     throw error;
   }
+}
+
+export async function publicCancel(body: PublicCancelPayload) {
+  const vehiclePlate = deliveryRepository.normalizeVehiclePlate(body.vehiclePlate);
+  const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
+  const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
+  const requestedTime = parseRequestedTime(body.requestedTime);
+
+  if (!requestedTime || !vehiclePlate || !driverPhone || !poNumber) {
+    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
+  }
+
+  const delivery = await deliveryRepository.findDeliveryForPublicCancel({
+    registrationCode: body.registrationCode,
+    vehiclePlate,
+    driverPhone,
+    poNumber,
+    requestedTime,
+  });
+  if (!delivery) {
+    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
+  }
+
+  const actor = systemActor('public-driver-cancel');
+  const result = await cancelDelivery(delivery.id, PUBLIC_CANCEL_REASON, actor);
+  if (!result.delivery || result.outcome === 'invalid_status') {
+    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
+  }
+
+  const scope = await getScopeForDelivery(result.delivery);
+  await recordAuditLog({
+    ...actor,
+    action: 'delivery.public_cancel',
+    targetType: 'DeliveryRegistration',
+    targetId: result.delivery.id,
+    businessLocationId: scope.businessLocationId,
+    unitConfigId: scope.unitConfigId,
+    after: {
+      status: result.delivery.status,
+      registrationCode: result.delivery.registrationCode,
+      vehiclePlate: result.delivery.vehiclePlate,
+      cancelReason: PUBLIC_CANCEL_REASON,
+    },
+    metadata: { source: 'deliveries.public-cancel' },
+  });
+
+  await archiveDelivery({
+    deliveryId: result.delivery.id,
+    finalStatus: DeliveryHistoryFinalStatus.CANCELLED,
+    archiveReason: 'CANCELLED',
+    ...actor,
+    closeReason: PUBLIC_CANCEL_REASON,
+    deleteOperationalRow: true,
+  });
+
+  const [queue, slots] = await Promise.all([
+    deliveryRepository.getFullQueue(scope),
+    deliveryRepository.getAllSlots(scope),
+  ]);
+  emitQueueUpdated(queue, scope);
+  emitSlotUpdated(slots, scope);
+  emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
+  emitTrackUpdatesForQueue(queue).catch(console.error);
+  if (result.releasedSlotId) {
+    triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
+  }
+
+  return { success: true, message: 'Hủy thành công' };
 }
 
 export function listDeliveries(args: Parameters<typeof deliveryRepository.listDeliveries>[0]) {
@@ -433,6 +530,8 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
       metadata: {
         slotId: slot.id,
         slotCode: slot.code,
+        slotAssignedUnit: slot.assignedUnit,
+        crossUnitSlot: slot.assignedUnit !== delivery.receivingUnit,
         source: 'deliveries.manual-call',
       },
     });

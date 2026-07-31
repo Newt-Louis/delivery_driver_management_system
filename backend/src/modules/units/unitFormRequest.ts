@@ -83,6 +83,11 @@ const integrationQuerySchema = z.object({
   vendorId: z.string().optional(),
 });
 
+const orderCodeQuerySchema = z.object({
+  kind: z.enum(['PO', 'TC']).optional(),
+  search: z.string().optional(),
+});
+
 export type TimeWindowPayload = z.infer<typeof timeWindowSchema>;
 export type UpdateTimeWindowPayload = z.infer<typeof updateTimeWindowSchema>;
 export type TimeWindowQuery = z.infer<typeof timeWindowQuerySchema>;
@@ -93,6 +98,7 @@ export type VehicleAvailabilityQuery = z.infer<typeof vehicleAvailabilityQuerySc
 export type SlotsQuery = z.infer<typeof slotsQuerySchema>;
 export type UnitConfigPayload = z.infer<typeof unitConfigSchema>;
 export type IntegrationQuery = z.infer<typeof integrationQuerySchema>;
+export type OrderCodeQuery = z.infer<typeof orderCodeQuerySchema>;
 
 export const UnitFormRequest = {
   parseUnit: (unit: unknown): ReceivingUnit => (
@@ -118,4 +124,5 @@ export const UnitFormRequest = {
   },
   parseUnitConfig: (body: unknown): UnitConfigPayload => unitConfigSchema.parse(body),
   parseIntegrationQuery: (query: unknown): IntegrationQuery => integrationQuerySchema.parse(query),
+  parseOrderCodeQuery: (query: unknown): OrderCodeQuery => orderCodeQuerySchema.parse(query),
 };

@@ -58,6 +58,12 @@ Vehicle/slot availability public:
 - `GET /api/units/:unit/vehicle-availability`
 - `GET /api/units/:unit/slots`
 
+Mock order code public:
+
+- `GET /api/units/order-codes`
+  - Tạm trả 20 mã `PO##########` và 20 mã `TC##########` trong lúc chưa có API thật từ hệ thống ngoài.
+  - Frontend `/register` dùng để gợi ý/đối chiếu Số PO hoặc Mã số thi công.
+
 Zones:
 
 - `GET /api/zones`

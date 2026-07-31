@@ -13,17 +13,49 @@ export const ACTIVE_DUPLICATE_STATUSES: DeliveryStatus[] = [
 ];
 
 export function normalizeVehiclePlate(value: string): string {
-  return value.trim().toUpperCase();
+  return value.trim().toUpperCase().replace(/\s+/g, '');
 }
 
-export function findActiveDeliveryByPlate(vehiclePlate: string) {
-  return prisma.deliveryRegistration.findFirst({
+export function normalizeDriverPhone(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+export function normalizeOrderCode(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+export async function findDuplicateRegistration(args: {
+  vehiclePlate: string;
+  driverPhone: string;
+  poNumber: string;
+  requestedTime?: Date | null;
+  deliveryDate?: string;
+}) {
+  const day = args.requestedTime ?? parseDeliveryDate(args.deliveryDate);
+  if (!day) return null;
+
+  const { start, end } = localDayRange(day);
+  const candidates = await prisma.deliveryRegistration.findMany({
     where: {
-      vehiclePlate,
+      vehiclePlate: args.vehiclePlate,
       status: { in: ACTIVE_DUPLICATE_STATUSES },
+      OR: [
+        { requestedTime: { gte: start, lt: end } },
+        {
+          requestedTime: null,
+          createdAt: { gte: start, lt: end },
+        },
+      ],
     },
     orderBy: { createdAt: 'desc' },
   });
+
+  const phone = normalizeDriverPhone(args.driverPhone);
+  const orderCode = normalizeOrderCode(args.poNumber);
+  return candidates.find((delivery) => (
+    normalizeDriverPhone(delivery.driverPhone) === phone
+    && normalizeOrderCode(delivery.poNumber ?? '') === orderCode
+  )) ?? null;
 }
 
 export function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
@@ -42,6 +74,14 @@ export function localDayRange(date: Date): { start: Date; end: Date } {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
   const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
   return { start, end };
+}
+
+export function parseDeliveryDate(value?: string): Date | null {
+  if (!value) return null;
+  const [year, month, day] = value.split('-').map(Number);
+  if (!year || !month || !day) return null;
+  const date = new Date(year, month - 1, day);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function advisoryLockId(value: string): number {
@@ -205,6 +245,35 @@ export function findDeliveryByLookup(args: { registrationCode?: string; vehicleP
     orderBy: { createdAt: 'desc' },
     include: { assignedSlot: true },
   });
+}
+
+export async function findDeliveryForPublicCancel(args: {
+  registrationCode: string;
+  vehiclePlate: string;
+  driverPhone: string;
+  poNumber: string;
+  requestedTime: Date;
+}) {
+  const start = new Date(args.requestedTime);
+  start.setSeconds(0, 0);
+  const end = new Date(start.getTime() + 60_000);
+
+  const candidates = await prisma.deliveryRegistration.findMany({
+    where: {
+      registrationCode: args.registrationCode.toUpperCase().trim(),
+      vehiclePlate: args.vehiclePlate,
+      status: { in: ACTIVE_DUPLICATE_STATUSES },
+      requestedTime: { gte: start, lt: end },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const phone = normalizeDriverPhone(args.driverPhone);
+  const orderCode = normalizeOrderCode(args.poNumber);
+  return candidates.find((delivery) => (
+    normalizeDriverPhone(delivery.driverPhone) === phone
+    && normalizeOrderCode(delivery.poNumber ?? '') === orderCode
+  )) ?? null;
 }
 
 export function findDeliveryWithSlot(id: string) {

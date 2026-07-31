@@ -1,4 +1,5 @@
 import type { UnitConfig, SlotInfo } from '../../../lib/types';
+import type { OrderCodeOption } from '../api';
 import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import OtherTimeModal from '../components/OtherTimeModal';
@@ -13,6 +14,8 @@ type ScheduleStepProps = {
   slots: SlotInfo[];
   slotsMsg: string;
   slotsLoading: boolean;
+  orderCodes: OrderCodeOption[];
+  orderCodesLoading: boolean;
   slotMinutes: number | undefined;
   maxPerSlot: number | undefined;
   sundayFreshFoodBlocked: boolean;
@@ -29,6 +32,8 @@ export default function ScheduleStep({
   slots,
   slotsMsg,
   slotsLoading,
+  orderCodes,
+  orderCodesLoading,
   slotMinutes,
   maxPerSlot,
   sundayFreshFoodBlocked,
@@ -212,13 +217,21 @@ export default function ScheduleStep({
         <input
           type="text"
           value={form.poNumber}
-          onChange={e => set('poNumber', e.target.value)}
-          placeholder="VD: PO-2024-001 hoặc TC-2024-088"
+          onChange={e => set('poNumber', e.target.value.toUpperCase().replace(/\s/g, ''))}
+          placeholder="VD: PO0123456789 hoặc TC0123456789"
+          list="register-order-codes"
           autoComplete="off"
           className={`input py-3 ${fieldErrors.poNumber ? 'border-red-400 ring-1 ring-red-400' : ''}`}
           style={{ fontSize: '16px' }}
         />
-        <FieldHint text="Bắt buộc — sẽ được đối chiếu với hệ thống của đơn vị nhận hàng" />
+        <datalist id="register-order-codes">
+          {orderCodes.map((item) => (
+            <option key={item.code} value={item.code}>
+              {item.kind === 'PO' ? 'PO' : 'Thi công'}
+            </option>
+          ))}
+        </datalist>
+        <FieldHint text={orderCodesLoading ? 'Đang tải danh sách mã đối chiếu...' : 'Bắt buộc — sẽ được đối chiếu với hệ thống của đơn vị nhận hàng'} />
         {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
       </FieldFrame>
     </div>
