@@ -3,7 +3,6 @@ import './helperFunction';
 import express from 'express';
 import { createServer } from 'http';
 import cors from 'cors';
-import { ReceivingUnit } from '@prisma/client';
 import { initSocket } from './socket';
 import { errorHandler } from './middleware/errorHandler';
 import { prisma } from './lib/prisma';
@@ -27,6 +26,7 @@ import awVendorRoutes from './routes/awVendors';
 import deviceRoutes from './routes/devices';
 import auditLogRoutes from './routes/auditLogs';
 import historiesRoutes from './routes/histories';
+import superadminRoutes from './routes/superadmin';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -50,6 +50,7 @@ app.use('/api/aw-vendors', awVendorRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/histories', historiesRoutes);
+app.use('/api/superadmin', superadminRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/health/scheduler', (_req, res) => res.json({ status: 'ok', scheduler: getSchedulerStatus() }));
@@ -90,11 +91,20 @@ async function start() {
 
   // On startup: drain the full WAITING backlog for all units.
   // Loop until no more assignments are made (handles multi-capacity motorbike slots).
-  for (const unit of Object.values(ReceivingUnit)) {
+  const startupUnits = await prisma.unitConfig.findMany({
+    where: { isActive: true, businessLocation: { isActive: true } },
+    select: { unit: true, id: true, businessLocationId: true },
+    orderBy: [{ businessLocationId: 'asc' }, { unit: 'asc' }],
+  });
+
+  for (const unitConfig of startupUnits) {
     (async () => {
       let assigned: number;
       do {
-        assigned = await triggerAutoAssign(unit);
+        assigned = await triggerAutoAssign(unitConfig.unit, {
+          unitConfigId: unitConfig.id,
+          businessLocationId: unitConfig.businessLocationId,
+        });
       } while (assigned > 0);
     })().catch(console.error);
   }

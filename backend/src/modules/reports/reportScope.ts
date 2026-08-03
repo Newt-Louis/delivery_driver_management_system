@@ -1,4 +1,5 @@
-import { ReceivingUnit } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+
 import { prisma } from '../../lib/prisma';
 import type { ReportScope } from './reportTypes';
 
@@ -9,7 +10,7 @@ type ReportScopeUser = {
 
 export async function resolveReportScope(
   user: ReportScopeUser | undefined,
-  requestedUnit?: ReceivingUnit,
+  requestedUnit?: ReceivingUnitCode,
 ): Promise<ReportScope> {
   if (user?.role !== 'SUPERADMIN' && user?.businessLocationId) {
     const unitConfigs = await prisma.unitConfig.findMany({

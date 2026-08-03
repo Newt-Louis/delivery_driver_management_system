@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import type { SocketScope } from '../socket';
 import { AuthSessionError, StoredAuthSession, verifyAccessToken } from '../services/authSession';
+import type { AuthPermissionUnit } from '../domain/permissions';
 
 export interface AuthUser {
   id: string;
@@ -9,6 +10,10 @@ export interface AuthUser {
   name: string;
   unit: string | null;
   businessLocationId: string | null;
+  operationUnits: AuthPermissionUnit[];
+  manageableUnits: AuthPermissionUnit[];
+  unitPermissions: AuthPermissionUnit[];
+  capabilities: string[];
 }
 
 declare global {

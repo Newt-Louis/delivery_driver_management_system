@@ -72,10 +72,13 @@ API:
 - `POST /api/auth/face-id/register/verify`
 - `POST /api/auth/face-id/authenticate/options`
 - `POST /api/auth/face-id/authenticate/verify`
+- `GET /api/superadmin/app-configs`
+- `PATCH /api/superadmin/app-configs/:key`
 
 ## Trạng Thái Hiện Tại
 
-- Schema và backend service đã sẵn sàng.
+- Schema, backend service và tab Superadmin đã sẵn sàng cho config runtime editable.
 - Config mặc định nên để `enabled: false` cho static IP và Face ID.
-- UI superadmin để bật/tắt app configs chưa làm; phần này dự kiến giai đoạn sau.
+- UI Superadmin mask value nếu `isSensitive = true` và không cho sửa nếu `isRuntimeEditable = false`.
+- Khi lưu từ Superadmin, backend invalidate Redis key `app-config:{key}` để request sau đọc giá trị mới.
 - Khi bật Face ID/WebAuthn thật, cần test trên HTTPS/domain đúng `rpId` và origin.

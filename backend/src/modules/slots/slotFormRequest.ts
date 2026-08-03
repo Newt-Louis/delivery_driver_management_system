@@ -1,4 +1,4 @@
-import { GoodsType, ReceivingUnit, SlotStatus, VehicleType } from '@prisma/client';
+import { GoodsType, SlotStatus, VehicleType } from '@prisma/client';
 import { z } from 'zod';
 
 const statusSchema = z.object({ status: z.nativeEnum(SlotStatus) });
@@ -7,7 +7,7 @@ const assignSchema = z.object({ deliveryId: z.string() });
 const createSlotSchema = z.object({
   code: z.string().min(1).max(20),
   name: z.string().min(1).max(50),
-  assignedUnit: z.nativeEnum(ReceivingUnit),
+  assignedUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
   vehicleType: z.nativeEnum(VehicleType).default(VehicleType.TRUCK),
   acceptedGoods: z.array(z.nativeEnum(GoodsType)).default([]),
   autoAssign: z.boolean().default(true),
@@ -19,7 +19,7 @@ const createSlotSchema = z.object({
 
 const updateSlotSchema = z.object({
   name: z.string().min(1).max(50).optional(),
-  assignedUnit: z.nativeEnum(ReceivingUnit).optional(),
+  assignedUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()).optional(),
   vehicleType: z.nativeEnum(VehicleType).optional(),
   acceptedGoods: z.array(z.nativeEnum(GoodsType)).optional(),
   autoAssign: z.boolean().optional(),

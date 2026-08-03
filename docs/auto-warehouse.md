@@ -10,6 +10,7 @@ Model:
 
 - `AutoWarehouseVendor`
   - `unit`
+  - `unitConfigId`
   - `vendorCode`
   - `vendorName`
   - `active`
@@ -39,10 +40,13 @@ API:
 - `POST /api/aw-vendors`
 - `PATCH /api/aw-vendors/:id`
 - `DELETE /api/aw-vendors/:id`
+- `GET/POST/PATCH/DELETE /api/superadmin/auto-warehouse-vendors`
 
 Rule:
 
 - `GET /api/aw-vendors/check?code=...&unit=...` là public check cho register form.
+- Vendor master data mới được gắn `unitConfigId`; cột `unit` là code snapshot/compat cho public contract theo `unit`.
+- Superadmin tạo vendor theo `unitConfigId`, backend tự copy `UnitConfig.unit` vào snapshot `unit`.
 - Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
 - Slot thường loại `AUTO_WAREHOUSE`.
 - Khi start receiving delivery có `autoWarehouse = true`, status chuyển `AUTO_WAREHOUSE_RECEIVING`.
@@ -63,7 +67,13 @@ Backoffice:
 
 - Tab `Kho tự động` quản lý vendor code active/inactive.
 
+Superadmin:
+
+- Tab `AW vendors` quản lý vendor theo location/unit toàn hệ thống.
+- Delete trong Superadmin chuyển vendor sang inactive để tránh mất lịch sử cấu hình.
+
 ## Quyền
 
-- Quản lý vendor: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
+- Quản lý vendor trong Backoffice: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, nhưng action ghi vẫn phải theo operation scope nếu resolve được unit.
+- Quản lý vendor toàn hệ thống trong Superadmin: chỉ `SUPERADMIN`.
 - Check vendor trong register: public.

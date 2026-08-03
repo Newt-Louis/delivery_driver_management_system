@@ -1,4 +1,5 @@
-import { GoodsType, ReceivingUnit, VehicleType } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { GoodsType, VehicleType } from '@prisma/client';
 import { z } from 'zod';
 
 export class UnitRequestError extends Error {
@@ -101,8 +102,8 @@ export type IntegrationQuery = z.infer<typeof integrationQuerySchema>;
 export type OrderCodeQuery = z.infer<typeof orderCodeQuerySchema>;
 
 export const UnitFormRequest = {
-  parseUnit: (unit: unknown): ReceivingUnit => (
-    z.nativeEnum(ReceivingUnit).parse(typeof unit === 'string' ? unit.toUpperCase() : unit)
+  parseUnit: (unit: unknown): ReceivingUnitCode => (
+    z.string().trim().min(1).transform((value) => value.toUpperCase()).parse(unit)
   ),
   parseTimeWindowQuery: (query: unknown): TimeWindowQuery => timeWindowQuerySchema.parse(query),
   parseCreateTimeWindow: (body: unknown): TimeWindowPayload => timeWindowSchema.parse(body),

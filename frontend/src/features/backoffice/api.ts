@@ -2,21 +2,27 @@ import api from '../../lib/api';
 import type { StaffUser } from './types';
 
 export interface StaffUserPayload {
-  name: string;
+  name?: string;
   email?: string | null;
   password?: string;
-  role: 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
+  role?: 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
   unit?: string | null;
   unitConfigIds?: string[];
   department?: string | null;
   isActive?: boolean;
 }
 
+export type StaffUserCreatePayload = StaffUserPayload & {
+  name: string;
+  password: string;
+  role: 'RECEIVING' | 'CHECKIN';
+};
+
 export async function fetchLocationStaffUsers() {
   return (await api.get<StaffUser[]>('/api/users/location-staff')).data;
 }
 
-export async function createLocationStaffUser(payload: StaffUserPayload & { password: string }) {
+export async function createLocationStaffUser(payload: StaffUserCreatePayload) {
   return (await api.post<StaffUser>('/api/users/location-staff', payload)).data;
 }
 

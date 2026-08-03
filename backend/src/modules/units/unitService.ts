@@ -1,6 +1,8 @@
-import { GoodsType, Prisma, ReceivingUnit, VehicleType } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { GoodsType, Prisma, VehicleType } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { helperFunctions } from '../../helperFunction';
+import { assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { domainError } from '../shared/domainError';
 import type {
@@ -45,7 +47,7 @@ async function resolveLocationId(user: AuthUser | undefined, scope?: ScopeInput)
   return user.businessLocationId;
 }
 
-async function assertUnitInLocation(unit: ReceivingUnit, businessLocationId: string) {
+async function assertUnitInLocation(unit: ReceivingUnitCode, businessLocationId: string) {
   const config = await unitRepository.findUnitConfig(unit, businessLocationId);
   if (!config) throw domainError.notFound('Config not found');
   return config;
@@ -98,13 +100,14 @@ export function listOrderCodes(query: OrderCodeQuery) {
 }
 
 export async function listTimeWindows(
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   query: TimeWindowQuery,
   user: AuthUser | undefined,
   scope?: ScopeInput,
 ) {
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(unit, businessLocationId);
+  const config = await assertUnitInLocation(unit, businessLocationId);
+  assertCanOperateUnit(user, config.id);
 
   let where: Prisma.DeliveryTimeWindowWhereInput;
   if (query.unitGoodsTypeId) {
@@ -119,15 +122,16 @@ export async function listTimeWindows(
 }
 
 export async function createTimeWindow(
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   body: TimeWindowPayload,
   user: AuthUser | undefined,
   scope?: ScopeInput,
 ) {
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(unit, businessLocationId);
+  const config = await assertUnitInLocation(unit, businessLocationId);
+  assertCanOperateUnit(user, config.id);
 
-  const win = await unitRepository.createTimeWindow(unit, body);
+  const win = await unitRepository.createTimeWindow(unit, body, config.id);
   await recordAuditLog({
     ...userActor(user),
     action: 'time_window.create',
@@ -155,7 +159,8 @@ export async function updateTimeWindow(
   if (!existing) throw domainError.notFound('Not found');
 
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(existing.unit, businessLocationId);
+  const config = await assertUnitInLocation(existing.unit, businessLocationId);
+  assertCanOperateUnit(user, existing.unitConfigId ?? config.id);
 
   const win = await unitRepository.updateTimeWindow(id, body);
   await recordAuditLog({
@@ -187,7 +192,8 @@ export async function deleteTimeWindow(id: string, user: AuthUser | undefined, s
   if (!existing) throw domainError.notFound('Not found');
 
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(existing.unit, businessLocationId);
+  const config = await assertUnitInLocation(existing.unit, businessLocationId);
+  assertCanOperateUnit(user, existing.unitConfigId ?? config.id);
 
   await unitRepository.deleteTimeWindow(id);
   await recordAuditLog({
@@ -206,7 +212,7 @@ export async function deleteTimeWindow(id: string, user: AuthUser | undefined, s
   });
 }
 
-export function listGoodsTypes(unit: ReceivingUnit, query: GoodsTypeQuery) {
+export function listGoodsTypes(unit: ReceivingUnitCode, query: GoodsTypeQuery) {
   return unitRepository.listGoodsTypes({
     unit,
     baseType: query.baseType,
@@ -215,15 +221,16 @@ export function listGoodsTypes(unit: ReceivingUnit, query: GoodsTypeQuery) {
 }
 
 export async function createGoodsType(
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   body: UnitGoodsTypePayload,
   user: AuthUser | undefined,
   scope?: ScopeInput,
 ) {
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(unit, businessLocationId);
+  const config = await assertUnitInLocation(unit, businessLocationId);
+  assertCanOperateUnit(user, config.id);
 
-  const item = await unitRepository.createGoodsType(unit, body);
+  const item = await unitRepository.createGoodsType(unit, body, config.id);
   await recordAuditLog({
     ...userActor(user),
     action: 'goods_type.create',
@@ -245,7 +252,8 @@ export async function updateGoodsType(
   if (!existing) throw domainError.notFound('Not found');
 
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(existing.unit, businessLocationId);
+  const config = await assertUnitInLocation(existing.unit, businessLocationId);
+  assertCanOperateUnit(user, existing.unitConfigId ?? config.id);
 
   const item = await unitRepository.updateGoodsType(id, body);
   await recordAuditLog({
@@ -275,7 +283,8 @@ export async function deleteGoodsType(id: string, user: AuthUser | undefined, sc
   if (!existing) throw domainError.notFound('Not found');
 
   const businessLocationId = await resolveLocationId(user, scope);
-  await assertUnitInLocation(existing.unit, businessLocationId);
+  const config = await assertUnitInLocation(existing.unit, businessLocationId);
+  assertCanOperateUnit(user, existing.unitConfigId ?? config.id);
 
   await unitRepository.deleteGoodsType(id);
   await recordAuditLog({
@@ -293,13 +302,13 @@ export async function deleteGoodsType(id: string, user: AuthUser | undefined, sc
   });
 }
 
-export async function getPublicConfig(unit: ReceivingUnit) {
+export async function getPublicConfig(unit: ReceivingUnitCode) {
   const config = await unitRepository.findDefaultUnitConfig(unit);
   if (!config) throw domainError.notFound('Config not found');
   return stripSecrets(config);
 }
 
-export async function getVehicleAvailability(unit: ReceivingUnit, query: VehicleAvailabilityQuery) {
+export async function getVehicleAvailability(unit: ReceivingUnitCode, query: VehicleAvailabilityQuery) {
   const config = await unitRepository.findDefaultUnitConfig(unit);
   if (!config) throw domainError.notFound('Config not found');
 
@@ -328,7 +337,7 @@ export async function getVehicleAvailability(unit: ReceivingUnit, query: Vehicle
   };
 }
 
-export async function getAvailableSlots(unit: ReceivingUnit, query: SlotsQuery) {
+export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQuery) {
   const config = await unitRepository.findDefaultUnitConfig(unit);
   if (!config) throw domainError.notFound('Config not found');
 
@@ -423,13 +432,16 @@ export async function getAvailableSlots(unit: ReceivingUnit, query: SlotsQuery) 
 }
 
 export async function updateConfig(
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   body: UnitConfigPayload,
   user: AuthUser | undefined,
   scope?: ScopeInput,
 ) {
   const businessLocationId = await resolveLocationId(user, scope);
   const existingConfig = await unitRepository.findUnitConfigForAudit(unit, businessLocationId);
+  if (existingConfig) {
+    assertCanOperateUnit(user, existingConfig.id);
+  }
 
   const config = await unitRepository.upsertUnitConfig({ unit, businessLocationId, body });
   await recordAuditLog({
@@ -444,7 +456,7 @@ export async function updateConfig(
   return stripSecrets(config);
 }
 
-export async function getVendors(unit: ReceivingUnit, query: IntegrationQuery) {
+export async function getVendors(unit: ReceivingUnitCode, query: IntegrationQuery) {
   const config = await unitRepository.findDefaultUnitConfig(unit);
   if (!config?.vendorApiUrl) {
     return { vendors: [], configured: false };
@@ -463,7 +475,7 @@ export async function getVendors(unit: ReceivingUnit, query: IntegrationQuery) {
   }
 }
 
-export async function getPurchaseOrders(unit: ReceivingUnit, query: IntegrationQuery) {
+export async function getPurchaseOrders(unit: ReceivingUnitCode, query: IntegrationQuery) {
   const config = await unitRepository.findDefaultUnitConfig(unit);
   if (!config?.poApiUrl) {
     return { pos: [], configured: false };

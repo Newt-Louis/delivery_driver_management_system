@@ -27,7 +27,7 @@ function activeDeliveryUnitClause(scope: ReportScope): Prisma.Sql {
   const units = effectiveUnits(scope);
   if (!units) return Prisma.empty;
   if (units.length === 0) return Prisma.sql`AND false`;
-  if (units.length === 1) return Prisma.sql`AND receiving_unit = ${units[0]}::"ReceivingUnit"`;
+  if (units.length === 1) return Prisma.sql`AND receiving_unit = ${units[0]}`;
   return Prisma.sql`AND receiving_unit::text IN (${Prisma.join(units)})`;
 }
 
@@ -40,7 +40,7 @@ function slotScopeClause(scope: ReportScope): Prisma.Sql {
   const units = effectiveUnits(scope);
   if (units) {
     if (units.length === 0) clauses.push(Prisma.sql`false`);
-    else if (units.length === 1) clauses.push(Prisma.sql`uc.unit = ${units[0]}::"ReceivingUnit"`);
+    else if (units.length === 1) clauses.push(Prisma.sql`uc.unit = ${units[0]}`);
     else clauses.push(Prisma.sql`uc.unit::text IN (${Prisma.join(units)})`);
   }
 

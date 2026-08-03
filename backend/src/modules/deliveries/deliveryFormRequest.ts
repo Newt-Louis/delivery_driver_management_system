@@ -1,7 +1,6 @@
-import { GoodsType, ReceivingUnit, VehicleType } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { GoodsType, VehicleType } from '@prisma/client';
 import { z } from 'zod';
-
-const validUnits = ['EMART', 'THISKYHALL', 'TENANT'] as const;
 
 const registerSchema = z.object({
   vendorName: z.string().min(1, 'Tên nhà cung cấp bắt buộc'),
@@ -9,7 +8,7 @@ const registerSchema = z.object({
   driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
   vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),
   vehicleType: z.nativeEnum(VehicleType).default(VehicleType.OTHER),
-  receivingUnit: z.nativeEnum(ReceivingUnit),
+  receivingUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
   goodsType: z.nativeEnum(GoodsType),
   unitGoodsTypeId: z.string().optional(),
   poNumber: z.string().min(1, 'Vui lòng nhập Số PO hoặc Mã số thi công'),
@@ -43,12 +42,12 @@ export type CheckInLookupPayload = z.infer<typeof checkInLookupSchema>;
 export type PublicCancelPayload = z.infer<typeof publicCancelSchema>;
 
 export const DeliveryFormRequest = {
-  parseAutoDispatchUnit: (unit: string): ReceivingUnit | null => (
-    (validUnits as readonly string[]).includes(unit) ? unit as ReceivingUnit : null
+  parseAutoDispatchUnit: (unit: string): ReceivingUnitCode | null => (
+    unit?.trim() ? unit.trim().toUpperCase() as ReceivingUnit : null
   ),
   parseRegister: (body: unknown): RegisterDeliveryPayload => registerSchema.parse(body),
   parseListQuery: (query: Record<string, unknown>) => ({
-    unit: typeof query.unit === 'string' ? query.unit as ReceivingUnit : undefined,
+    unit: typeof query.unit === 'string' ? query.unit.trim().toUpperCase() as ReceivingUnit : undefined,
     goodsType: typeof query.goodsType === 'string' ? query.goodsType as GoodsType : undefined,
     status: typeof query.status === 'string' ? query.status : undefined,
   }),

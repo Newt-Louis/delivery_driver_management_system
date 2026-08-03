@@ -2,6 +2,13 @@ import { createContext, useContext, useEffect, useState, useCallback, ReactNode 
 import type { User } from '../lib/types';
 import api from '../lib/api';
 import { clearAuthToken, getAuthToken, setAuthToken } from '../lib/authCookies';
+import {
+  canManageUserRole,
+  canOperateUnit,
+  filterOperableUnits,
+  getUnitAccessState,
+  type UnitAccessState,
+} from '../lib/permissions';
 
 interface AuthContextValue {
   user: User | null;
@@ -11,6 +18,10 @@ interface AuthContextValue {
   isLoading: boolean;
   isAuthenticated: boolean;
   hasRole: (...roles: string[]) => boolean;
+  canManageRole: (role: string) => boolean;
+  canOperateUnit: (unitConfigId: string | null | undefined) => boolean;
+  getUnitAccessState: (unitConfigId: string | null | undefined, deniedState?: UnitAccessState) => UnitAccessState;
+  filterOperableUnits: <T extends { id: string }>(units: T[]) => T[];
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -88,8 +99,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [user]
   );
 
+  const canManageRole = useCallback(
+    (role: string) => !!user && canManageUserRole(user.role, role),
+    [user],
+  );
+
+  const canOperateUnitForUser = useCallback(
+    (unitConfigId: string | null | undefined) => canOperateUnit(user, unitConfigId),
+    [user],
+  );
+
+  const getUnitAccessStateForUser = useCallback(
+    (unitConfigId: string | null | undefined, deniedState: UnitAccessState = 'readOnly') => (
+      getUnitAccessState(user, unitConfigId, deniedState)
+    ),
+    [user],
+  );
+
+  const filterOperableUnitsForUser = useCallback(
+    <T extends { id: string },>(units: T[]) => (user ? filterOperableUnits(user, units) : []),
+    [user],
+  );
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading, isAuthenticated: !!token && !!user, hasRole }}>
+    <AuthContext.Provider value={{
+      user,
+      token,
+      login,
+      logout,
+      isLoading,
+      isAuthenticated: !!token && !!user,
+      hasRole,
+      canManageRole,
+      canOperateUnit: canOperateUnitForUser,
+      getUnitAccessState: getUnitAccessStateForUser,
+      filterOperableUnits: filterOperableUnitsForUser,
+    }}>
       {children}
     </AuthContext.Provider>
   );
@@ -99,4 +144,8 @@ export function useAuth() {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
+}
+
+export function usePermission() {
+  return useAuth();
 }

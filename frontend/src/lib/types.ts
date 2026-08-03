@@ -1,6 +1,6 @@
 export type Role = 'SUPERADMIN' | 'ADMIN_LOC' | 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
 export type SlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'MAINTENANCE';
-export type ReceivingUnit = 'EMART' | 'THISKYHALL' | 'TENANT';
+export type ReceivingUnit = string;
 export type GoodsType = 'FRESH_FOOD' | 'AUTO_WAREHOUSE' | 'GENERAL_GOODS' | 'THI_CONG';
 export type VehicleType = 'TRUCK' | 'MOTORBIKE' | 'OTHER';
 export type DeliveryStatus =
@@ -20,9 +20,32 @@ export interface User {
   email: string;
   role: Role;
   unit: ReceivingUnit | null;
-  unitPermissions?: Array<Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'icon' | 'businessLocationId'>>;
+  operationUnits?: AuthPermissionUnit[];
+  manageableUnits?: AuthPermissionUnit[];
+  unitPermissions?: AuthPermissionUnit[];
+  capabilities?: string[];
   department?: string | null;
   businessLocationId: string | null;
+  isActive?: boolean;
+  deletedAt?: string | null;
+  createdAt?: string;
+}
+
+export interface AuthPermissionUnit {
+  id: string;
+  unit?: ReceivingUnit;
+  code: ReceivingUnit;
+  displayName: string;
+  shortName?: string;
+  icon: string | null;
+  businessLocationId: string;
+  isActive: boolean;
+}
+
+export interface AuthUserProfile extends User {
+  operationUnits: AuthPermissionUnit[];
+  manageableUnits: AuthPermissionUnit[];
+  capabilities: string[];
 }
 
 export interface Zone {
@@ -141,6 +164,7 @@ export interface UnitConfig {
   id: string;
   unit: ReceivingUnit;
   businessLocationId: string;
+  isActive?: boolean;
   freshFoodEnabled: boolean;
   generalGoodsEnabled: boolean;
   thiCongEnabled: boolean;

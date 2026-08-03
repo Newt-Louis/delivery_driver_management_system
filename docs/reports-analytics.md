@@ -75,4 +75,6 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 - Query report nằm trong `reportRepository.ts`; tính toán rate, utilization và recommendation nằm trong `reportService.ts`.
 - `routes/analytics.ts` là route mỏng; thống kê live average, analyze và accept recommendation nằm trong `backend/src/modules/analytics`.
 - Date range trong reports cần thống nhất timezone VN nếu báo cáo theo ngày vận hành.
-- `ReceivingTimeConfig` unique theo `[unit, vehicleType, goodsType]`.
+- `ReceivingTimeConfig` mới có `unitConfigId`; unique mới theo `[unitConfigId, vehicleType, goodsType]` để tránh lẫn cấu hình giữa nhiều `BusinessLocation`.
+- Cột `unit` vẫn là code snapshot/compat cho report/API cũ.
+- Superadmin có tab `Receiving time configs` và API `/api/superadmin/receiving-time-configs` để CRUD cấu hình theo `UnitConfig`.

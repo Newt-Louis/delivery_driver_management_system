@@ -2,7 +2,7 @@
 
 ## Mục Tiêu
 
-Hệ thống cần seed dữ liệu demo/dev và seed dữ liệu IT quản lý cho location/unit/app config.
+Hệ thống cần seed dữ liệu demo/dev và seed dữ liệu IT quản lý cho location/unit/app config. Seed không còn là con đường vận hành duy nhất để tạo master data; production có thể tạo và chỉnh `BusinessLocation`, `UnitConfig`, vendor, device, app config từ trang Superadmin.
 
 ## Script Chính
 
@@ -24,7 +24,7 @@ Backend package scripts:
 
 ## Demo Seed
 
-`seed.ts` phục vụ demo/dev, có thể xóa/tạo lại dữ liệu mẫu. Không nên xem là công cụ migration dữ liệu production.
+`seed.ts` phục vụ demo/dev, có thể xóa/tạo lại dữ liệu mẫu. Không nên xem là công cụ migration dữ liệu production hoặc workflow tạo master data thường ngày.
 
 Demo accounts trong `REPORT.md`/lịch sử dự án:
 
@@ -41,6 +41,8 @@ Demo accounts trong `REPORT.md`/lịch sử dự án:
 - `BusinessLocation`
 - admin location role `ADMIN_LOC`
 - `UnitConfig`
+
+Trong hệ thống hiện tại, `UnitConfig.unit` là code động trong từng `BusinessLocation`. Các code demo `EMART`, `THISKYHALL`, `TENANT` chỉ là dữ liệu khởi tạo mẫu, không phải giới hạn nghiệp vụ.
 
 Chế độ:
 
@@ -70,6 +72,8 @@ Dùng cho:
 - Static IP auth policy.
 - Face ID/WebAuthn policy.
 - Các cấu hình ứng dụng sau này.
+
+Trang Superadmin có tab App configs để chỉnh các config runtime editable và refresh Redis cache tương ứng. Dòng `isSensitive = true` được mask khi đọc qua UI/API Superadmin.
 
 ## Lệnh Prisma
 

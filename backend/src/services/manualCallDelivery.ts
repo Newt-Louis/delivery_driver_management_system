@@ -1,11 +1,5 @@
-import {
-  DeliveryRegistration,
-  DeliveryHistoryEventType,
-  DeliveryStatus,
-  Prisma,
-  ReceivingUnit,
-  Slot,
-} from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
+import { DeliveryRegistration, DeliveryHistoryEventType, DeliveryStatus, Prisma, Slot } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { helperFunctions } from '../helperFunction';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
@@ -56,7 +50,7 @@ function currentTimeMinutes(now = new Date()) {
 
 async function unitHasOpenReceivingWindow(
   tx: Prisma.TransactionClient,
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   now = new Date(),
 ): Promise<boolean> {
   const nowMins = currentTimeMinutes(now);

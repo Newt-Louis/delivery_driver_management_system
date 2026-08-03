@@ -9,7 +9,7 @@ import { GOODS_LABELS } from '../constants';
 const slotSchema = z.object({
   code: z.string().min(1, 'Bắt buộc').max(20),
   name: z.string().min(1, 'Bắt buộc').max(50),
-  assignedUnit: z.enum(['EMART', 'THISKYHALL', 'TENANT']),
+  assignedUnit: z.string().trim().min(1, 'Bắt buộc chọn đơn vị').transform((value) => value.toUpperCase()),
   vehicleType: z.enum(['TRUCK', 'MOTORBIKE', 'OTHER']).default('TRUCK'),
   status: z.enum(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'MAINTENANCE']).default('AVAILABLE'),
   zoneId: z.string().min(1, 'Bắt buộc chọn khu'),
@@ -23,12 +23,18 @@ type SlotForm = z.infer<typeof slotSchema>;
 export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zones: Zone[]; onClose: () => void; onSaved: () => void }) {
   const [serverError, setServerError] = useState('');
   const isEdit = !!slot;
+  const unitOptions = Array.from(new Map(
+    zones
+      .filter((zone) => zone.unitConfig?.unit)
+      .map((zone) => [zone.unitConfig!.unit, zone.unitConfig!]),
+  ).values());
+  const defaultUnit = slot?.assignedUnit ?? unitOptions[0]?.unit ?? '';
 
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SlotForm>({
     resolver: zodResolver(slotSchema),
     defaultValues: slot
       ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, autoWarehouseOnly: slot.autoWarehouseOnly ?? false, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[] }
-      : { vehicleType: 'TRUCK', assignedUnit: 'EMART', status: 'AVAILABLE', zoneId: '', autoAssign: true, autoWarehouseOnly: false, maxCapacity: 1, acceptedGoods: [] },
+      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, autoWarehouseOnly: false, maxCapacity: 1, acceptedGoods: [] },
   });
 
   const acceptedGoods = watch('acceptedGoods') ?? [];
@@ -80,9 +86,9 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
             <div>
               <label className="label">Đơn vị *</label>
               <select {...register('assignedUnit')} className="input">
-                <option value="EMART">Emart</option>
-                <option value="THISKYHALL">Thiskyhall</option>
-                <option value="TENANT">Mall (Khách thuê)</option>
+                {unitOptions.map((unit) => (
+                  <option key={unit.id} value={unit.unit}>{unit.displayName || unit.unit}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -187,4 +193,3 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
     </div>
   );
 }
-

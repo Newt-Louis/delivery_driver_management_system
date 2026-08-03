@@ -67,7 +67,12 @@ router.patch('/:id/reset-password', authenticate, requireRole('SUPERADMIN'), asy
   await respond(res, userService.resetUserPassword(req.params.id, password, req.user));
 }));
 
-// DELETE /api/users/:id  (deactivates; hard-delete only if never used)
+// PATCH /api/users/:id/regenerate
+router.patch('/:id/regenerate', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (req, res) => {
+  await respond(res, userService.regenerateUser(req.params.id, req.user));
+}));
+
+// DELETE /api/users/:id
 router.delete('/:id', authenticate, requireRole('SUPERADMIN'), asyncHandler(async (req, res) => {
   await respond(res, userService.deleteUser(req.params.id, req.user));
 }));

@@ -1,6 +1,6 @@
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
-import { ReceivingUnit } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole } from '../middleware/auth';
@@ -11,7 +11,7 @@ const router = Router();
 router.get('/', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const unit = req.query.unit as string | undefined;
   const vendors = await prisma.autoWarehouseVendor.findMany({
-    where: unit ? { unit: unit as ReceivingUnit } : undefined,
+    where: unit ? { unit: unit as ReceivingUnitCode } : undefined,
     orderBy: [{ unit: 'asc' }, { vendorCode: 'asc' }],
   });
   res.json(vendors);
@@ -27,7 +27,7 @@ router.get('/check', asyncHandler(async (req: Request, res: Response) => {
   const vendor = await prisma.autoWarehouseVendor.findFirst({
     where: {
       vendorCode: code.toUpperCase().trim(),
-      unit: unit as ReceivingUnit,
+      unit: unit as ReceivingUnitCode,
       active: true,
     },
   });
@@ -35,7 +35,7 @@ router.get('/check', asyncHandler(async (req: Request, res: Response) => {
 }));
 
 const createSchema = z.object({
-  unit: z.nativeEnum(ReceivingUnit),
+  unit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
   vendorCode: z.string().min(1).max(50),
   vendorName: z.string().min(1).max(200),
   active: z.boolean().default(true),

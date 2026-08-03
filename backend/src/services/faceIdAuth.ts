@@ -368,7 +368,7 @@ export async function verifyFaceAuthentication(args: {
     where: { credentialId: args.credentialId },
     include: { user: true },
   });
-  if (!credential || !credential.isActive || credential.userId !== challenge.userId || !credential.user.isActive) {
+  if (!credential || !credential.isActive || credential.userId !== challenge.userId || !credential.user.isActive || credential.user.deletedAt) {
     throw new Error('Credential not found or inactive');
   }
 

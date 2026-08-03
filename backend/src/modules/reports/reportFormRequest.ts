@@ -1,4 +1,4 @@
-import { ReceivingUnit } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
 import { helperFunctions } from '../../helperFunction';
 import type { ReportQuery, ReportRange } from './reportTypes';
 
@@ -10,12 +10,10 @@ export class ReportRequestError extends Error {
   }
 }
 
-function parseReceivingUnit(value: unknown): ReceivingUnit | undefined {
+function parseReceivingUnit(value: unknown): ReceivingUnitCode | undefined {
   const input = helperFunctions.stringValue(value);
   if (!input) return undefined;
-  const unit = helperFunctions.enumValue(input, Object.values(ReceivingUnit));
-  if (!unit) throw new ReportRequestError('unit không hợp lệ.');
-  return unit;
+  return input.trim().toUpperCase() as ReceivingUnitCode;
 }
 
 function parseDateRange(query: Record<string, unknown>): ReportRange {

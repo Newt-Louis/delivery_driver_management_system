@@ -2,15 +2,16 @@ import { z } from 'zod';
 
 export const USER_ROLES = ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
 export const LOCATION_STAFF_ROLES = ['ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
-export const UNIT_REQUIRED_ROLES = ['RECEIVING', 'CHECKIN'] as const;
-export const UNIT_VALUES = ['EMART', 'THISKYHALL', 'TENANT'] as const;
+export const LOCATION_STAFF_LIFECYCLE_ROLES = ['RECEIVING', 'CHECKIN'] as const;
+
+const unitSchema = z.string().trim().min(1).transform((value) => value.toUpperCase()).nullable().optional();
 
 const createSchema = z.object({
   name: z.string().min(1).max(80),
   email: z.string().email(),
   password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
   role: z.enum(USER_ROLES),
-  unit: z.enum(UNIT_VALUES).nullable().optional(),
+  unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
@@ -18,8 +19,9 @@ const createSchema = z.object({
 
 const updateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
+  email: z.string().email().optional(),
   role: z.enum(USER_ROLES).optional(),
-  unit: z.enum(UNIT_VALUES).nullable().optional(),
+  unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
@@ -34,8 +36,8 @@ const locationStaffCreateSchema = z.object({
   name: z.string().min(1).max(80),
   email: z.string().trim().email().nullable().optional(),
   password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
-  role: z.enum(LOCATION_STAFF_ROLES),
-  unit: z.enum(UNIT_VALUES).nullable().optional(),
+  role: z.enum(LOCATION_STAFF_LIFECYCLE_ROLES),
+  unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
 });
@@ -43,8 +45,8 @@ const locationStaffCreateSchema = z.object({
 const locationStaffUpdateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   email: z.string().trim().email().nullable().optional(),
-  role: z.enum(LOCATION_STAFF_ROLES).optional(),
-  unit: z.enum(UNIT_VALUES).nullable().optional(),
+  role: z.enum(LOCATION_STAFF_LIFECYCLE_ROLES).optional(),
+  unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   isActive: z.boolean().optional(),

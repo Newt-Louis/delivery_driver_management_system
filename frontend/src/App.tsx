@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import WaitingScreen from './pages/WaitingScreen';
 import DockManagement from './pages/DockManagement';
 import Backoffice from './pages/Backoffice';
+import Superadmin from './pages/Superadmin';
 import Track from './pages/Track';
 import ReceivingTimes from './pages/ReceivingTimes';
 import Reports from './pages/Reports';
@@ -70,6 +71,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
               <DockManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/superadmin"
+          element={
+            <ProtectedRoute roles={['SUPERADMIN']}>
+              <Superadmin />
             </ProtectedRoute>
           }
         />

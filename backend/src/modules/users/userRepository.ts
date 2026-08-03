@@ -6,11 +6,11 @@ export const USER_SAFE_SELECT = {
   id: true, name: true, email: true,
   role: true, unit: true, department: true,
   businessLocationId: true,
-  isActive: true, createdAt: true,
+  isActive: true, deletedAt: true, createdAt: true,
   unitPermissions: {
     select: {
       unitConfig: {
-        select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
+        select: { id: true, unit: true, displayName: true, shortName: true, icon: true, businessLocationId: true, isActive: true },
       },
     },
   },
@@ -21,6 +21,7 @@ export function listLocationStaff(businessLocationId: string) {
     where: {
       businessLocationId,
       role: { in: [...LOCATION_STAFF_ROLES] },
+      deletedAt: null,
     },
     select: USER_SAFE_SELECT,
     orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { unit: 'asc' }, { name: 'asc' }],
@@ -29,8 +30,9 @@ export function listLocationStaff(businessLocationId: string) {
 
 export function listUsers() {
   return prisma.user.findMany({
+    where: { role: { not: 'SUPERADMIN' } },
     select: USER_SAFE_SELECT,
-    orderBy: [{ isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }],
+    orderBy: [{ deletedAt: 'asc' }, { isActive: 'desc' }, { role: 'asc' }, { name: 'asc' }],
   });
 }
 
@@ -57,7 +59,7 @@ export function findUnitConfigByLocationAndUnit(businessLocationId: string, unit
     where: {
       businessLocationId_unit: {
         businessLocationId,
-        unit: unit as never,
+        unit,
       },
     },
     select: { id: true },
@@ -80,6 +82,7 @@ export function findScopedStaff(id: string, businessLocationId: string) {
       id,
       businessLocationId,
       role: { in: [...LOCATION_STAFF_ROLES] },
+      deletedAt: null,
     },
     select: USER_SAFE_SELECT,
   });
@@ -144,6 +147,18 @@ export function countHistoryByActor(id: string) {
   return prisma.deliveryHistoryEvent.count({ where: { actorId: id } });
 }
 
-export function deleteUser(id: string) {
-  return prisma.user.delete({ where: { id } });
+export function softDeleteUser(id: string, deletedAt = new Date()) {
+  return prisma.user.update({
+    where: { id },
+    data: { deletedAt, isActive: false },
+    select: USER_SAFE_SELECT,
+  });
+}
+
+export function regenerateUser(id: string) {
+  return prisma.user.update({
+    where: { id },
+    data: { deletedAt: null, isActive: true },
+    select: USER_SAFE_SELECT,
+  });
 }

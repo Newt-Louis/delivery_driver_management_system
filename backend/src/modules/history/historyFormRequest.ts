@@ -1,10 +1,5 @@
-import {
-  AuditActorType,
-  DeliveryHistoryFinalStatus,
-  GoodsType,
-  ReceivingUnit,
-  VehicleType,
-} from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { AuditActorType, DeliveryHistoryFinalStatus, GoodsType, VehicleType } from '@prisma/client';
 import { helperFunctions } from '../../helperFunction';
 
 export class HistoryRequestError extends Error {
@@ -82,7 +77,7 @@ function parseDeliveryHistoryQuery(query: Record<string, unknown>) {
     from: parseOptionalDate(query.from, 'from'),
     to: parseOptionalDate(query.to, 'to', true),
     finalStatus: parseEnum(query.finalStatus, Object.values(DeliveryHistoryFinalStatus), 'finalStatus'),
-    receivingUnit: parseEnum(query.receivingUnit, Object.values(ReceivingUnit), 'receivingUnit'),
+    receivingUnit: helperFunctions.stringValue(query.receivingUnit)?.trim().toUpperCase() as ReceivingUnitCode | undefined,
     goodsType: parseEnum(query.goodsType, Object.values(GoodsType), 'goodsType'),
     vehicleType: parseEnum(query.vehicleType, Object.values(VehicleType), 'vehicleType'),
     search: helperFunctions.stringValue(query.search),

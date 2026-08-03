@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma';
 import type { AuthUser } from '../../middleware/auth';
+import { assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { getScopeForDelivery, getScopeForSlot } from '../../services/realtimeScope';
@@ -19,6 +20,11 @@ function assertResourceAccess(user: AuthUser | undefined, businessLocationId: st
   }
 }
 
+function assertSlotOperationAccess(user: AuthUser | undefined, slot: { zone: { unitConfig: { businessLocationId: string }; unitConfigId: string } }) {
+  assertResourceAccess(user, slot.zone.unitConfig.businessLocationId);
+  assertCanOperateUnit(user, slot.zone.unitConfigId);
+}
+
 async function emitSlotList(scope?: SocketScope) {
   emitSlotUpdated(await slotRepository.listSlotsWithDeliveries(true, scope), scope);
 }
@@ -31,7 +37,7 @@ export async function updateSlotStatus(id: string, status: Parameters<typeof isM
   const current = await slotRepository.findSlotWithLocation(id);
   if (!current) throw domainError.notFound('Not found');
 
-  assertResourceAccess(user, current.zone.unitConfig.businessLocationId);
+  assertSlotOperationAccess(user, current);
 
   const slot = await prisma.$transaction(async (tx) => {
     if (isManualSlotStatus(status)) {
@@ -51,7 +57,7 @@ export async function reconcileSlot(id: string, force: boolean, user: AuthUser |
   const current = await slotRepository.findSlotWithLocation(id);
   if (!current) throw domainError.notFound('Not found');
 
-  assertResourceAccess(user, current.zone.unitConfig.businessLocationId);
+  assertSlotOperationAccess(user, current);
 
   const snapshot = await reconcileOneSlot(id, { preserveManualStatus: !force });
   if (!snapshot) throw domainError.notFound('Not found');
@@ -71,7 +77,7 @@ export async function assignDeliveryToSlot(id: string, deliveryId: string, user:
   const slotCheck = await slotRepository.findSlotWithLocation(id);
   if (!slotCheck) throw domainError.notFound('Slot not found');
 
-  assertResourceAccess(user, slotCheck.zone.unitConfig.businessLocationId);
+  assertSlotOperationAccess(user, slotCheck);
 
   const deliveryCheck = await slotRepository.findDeliveryForScope(deliveryId);
   if (deliveryCheck) {
@@ -110,6 +116,7 @@ export async function createSlot(body: CreateSlotPayload, user: AuthUser | undef
   if (!zone) throw domainError.badRequest('Khu nhận hàng không tồn tại.');
 
   assertResourceAccess(user, zone.unitConfig.businessLocationId);
+  assertCanOperateUnit(user, zone.unitConfigId);
 
   const exists = await slotRepository.findSlotByCode(body.code);
   if (exists) {
@@ -140,7 +147,7 @@ export async function updateSlot(id: string, body: UpdateSlotPayload, user: Auth
   const current = await slotRepository.findSlotWithLocation(id);
   if (!current) throw domainError.notFound('Not found');
 
-  assertResourceAccess(user, current.zone.unitConfig.businessLocationId);
+  assertSlotOperationAccess(user, current);
 
   const nextZoneId = body.zoneId ?? current.zoneId;
   const nextAssignedUnit = body.assignedUnit ?? current.assignedUnit;
@@ -183,7 +190,7 @@ export async function deleteSlot(id: string, user: AuthUser | undefined) {
   const slot = await slotRepository.findSlotForDelete(id);
   if (!slot) throw domainError.notFound('Not found');
 
-  assertResourceAccess(user, slot.zone.unitConfig.businessLocationId);
+  assertSlotOperationAccess(user, slot);
 
   const historyEvents = await slotRepository.countSlotHistoryEvents(slot.id);
   let resultBody: unknown;

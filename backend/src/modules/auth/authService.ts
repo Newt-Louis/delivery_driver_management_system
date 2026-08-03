@@ -5,6 +5,7 @@ import {
   createAuthSession,
   getActiveUserSessions,
   renewAccessToken,
+  refreshAuthUserCache,
   revokeSession,
   revokeUserSessions,
   sanitizeSession,
@@ -24,7 +25,6 @@ import {
   verifyFaceRegistration,
   type WebAuthnRequestContext,
 } from '../../services/faceIdAuth';
-import { getUserUnitPermissions, roleRequiresUnitPermission } from '../../services/unitPermission';
 import { domainError } from '../shared/domainError';
 import type {
   FaceAuthVerifyRequest,
@@ -35,12 +35,6 @@ import type {
 import { countActiveFaceCredentials, findUserByEmail } from './authRepository';
 
 export type AuthRequestContext = AuthRequestInfo & RequestIpSource & WebAuthnRequestContext;
-
-async function unitPermissionsFor(user: Pick<SafeAuthUser, 'id' | 'role'>) {
-  return roleRequiresUnitPermission(user.role)
-    ? await getUserUnitPermissions(user.id)
-    : undefined;
-}
 
 async function checkStaticIpLoginPolicy(context: AuthRequestContext, user: { role: string }) {
   const staticIpConfig = await getStaticIpAuthConfig();
@@ -59,7 +53,7 @@ async function checkStaticIpLoginPolicy(context: AuthRequestContext, user: { rol
 
 export async function login(body: LoginRequest, context: AuthRequestContext) {
   const user = await findUserByEmail(body.email);
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.deletedAt) {
     throw domainError.unauthorized('Invalid credentials', { error: 'Invalid credentials' });
   }
 
@@ -121,9 +115,10 @@ export async function login(body: LoginRequest, context: AuthRequestContext) {
     deviceName: body.deviceName ?? null,
   });
 
+  const safeUser = await refreshAuthUserCache(user.id) ?? userPayload(user);
   return {
-    ...authResponse(userPayload(user), issued),
-    unitPermissions: await unitPermissionsFor(user),
+    ...authResponse(safeUser, issued),
+    unitPermissions: safeUser.operationUnits,
     authPolicy: {
       staticIpEnabled: staticIpPolicy.enabled,
       faceIdEnabled: faceIdConfig.enabled,
@@ -134,7 +129,7 @@ export async function login(body: LoginRequest, context: AuthRequestContext) {
 export async function currentUser(user: SafeAuthUser, session?: StoredAuthSession | null) {
   return {
     user,
-    unitPermissions: await unitPermissionsFor(user),
+    unitPermissions: user.operationUnits,
     session: session ? sanitizeSession(session) : null,
   };
 }
@@ -193,7 +188,7 @@ export async function faceAuthenticationOptions(
   }
 
   const user = await findUserByEmail(body.email);
-  if (!user || !user.isActive || !roleIsConfigured(user.role, faceIdConfig.roles)) {
+  if (!user || !user.isActive || user.deletedAt || !roleIsConfigured(user.role, faceIdConfig.roles)) {
     throw domainError.notFound('Tài khoản chưa hỗ trợ Face ID.', { error: 'FaceIdUnavailable' });
   }
 
@@ -235,8 +230,9 @@ export async function verifyFaceAuthenticationForLogin(
     deviceName: 'Face ID/WebAuthn',
   });
 
+  const safeUser = await refreshAuthUserCache(user.id) ?? userPayload(user);
   return {
-    ...authResponse(userPayload(user), issued),
-    unitPermissions: await unitPermissionsFor(user),
+    ...authResponse(safeUser, issued),
+    unitPermissions: safeUser.operationUnits,
   };
 }

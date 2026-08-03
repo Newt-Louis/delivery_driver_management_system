@@ -1,11 +1,12 @@
-import { Prisma, PrismaClient, ReceivingUnit } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { getVNDateKey, getVNDateRangeUtc } from '../lib/dateVN';
 
 type RegistrationSequenceTransaction = Prisma.TransactionClient & {
   registrationSequence: PrismaClient['registrationSequence'];
 };
 
-const UNIT_PREFIX: Record<ReceivingUnit, string> = {
+const UNIT_PREFIX: Record<ReceivingUnitCode, string> = {
   [ReceivingUnit.EMART]:      'E',
   [ReceivingUnit.THISKYHALL]: 'T',
   [ReceivingUnit.TENANT]:     'M',
@@ -16,14 +17,14 @@ function dateCompact(dateKey: string): string {
   return `${year.slice(2)}${month}${day}`;
 }
 
-function codePrefix(unit: ReceivingUnit, dateKey: string): string {
+function codePrefix(unit: ReceivingUnitCode, dateKey: string): string {
   return `${UNIT_PREFIX[unit]}${dateCompact(dateKey)}`;
 }
 
 async function getExistingMaxRegistrationNumber(
   tx: Prisma.TransactionClient,
   registrationDate: string,
-  receivingUnit: ReceivingUnit,
+  receivingUnit: ReceivingUnitCode,
 ): Promise<number> {
   const { start, end } = getVNDateRangeUtc(registrationDate);
   const prefix = codePrefix(receivingUnit, registrationDate);
@@ -45,7 +46,7 @@ async function getExistingMaxRegistrationNumber(
 
 export async function reserveRegistrationCode(
   tx: Prisma.TransactionClient,
-  receivingUnit: ReceivingUnit,
+  receivingUnit: ReceivingUnitCode,
   createdAt: Date = new Date(),
 ): Promise<string> {
   const registrationDate = getVNDateKey(createdAt);

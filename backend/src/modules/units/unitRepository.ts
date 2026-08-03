@@ -1,4 +1,5 @@
-import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, SlotStatus, VehicleType } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { DeliveryStatus, GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import type {
   TimeWindowPayload,
@@ -49,18 +50,18 @@ export function listUnitConfigs(businessLocationId: string) {
   });
 }
 
-export function findUnitConfig(unit: ReceivingUnit, businessLocationId: string) {
+export function findUnitConfig(unit: ReceivingUnitCode, businessLocationId: string) {
   return prisma.unitConfig.findUnique({
     where: { businessLocationId_unit: { businessLocationId, unit } },
   });
 }
 
-export async function findDefaultUnitConfig(unit: ReceivingUnit) {
+export async function findDefaultUnitConfig(unit: ReceivingUnitCode) {
   const location = await getDefaultBusinessLocation();
   return findUnitConfig(unit, location.id);
 }
 
-export function findUnitConfigForAudit(unit: ReceivingUnit, businessLocationId: string) {
+export function findUnitConfigForAudit(unit: ReceivingUnitCode, businessLocationId: string) {
   return prisma.unitConfig.findUnique({
     where: { businessLocationId_unit: { businessLocationId, unit } },
     select: UNIT_CONFIG_AUDIT_SELECT,
@@ -74,10 +75,11 @@ export function listTimeWindows(where: Prisma.DeliveryTimeWindowWhereInput) {
   });
 }
 
-export function createTimeWindow(unit: ReceivingUnit, body: TimeWindowPayload) {
+export function createTimeWindow(unit: ReceivingUnitCode, body: TimeWindowPayload, unitConfigId: string) {
   return prisma.deliveryTimeWindow.create({
     data: {
       unit,
+      unitConfigId,
       goodsType: body.goodsType,
       unitGoodsTypeId: body.unitGoodsTypeId ?? null,
       label: body.label ?? null,
@@ -94,6 +96,7 @@ export function findTimeWindow(id: string) {
     where: { id },
     select: {
       unit: true,
+      unitConfigId: true,
       goodsType: true,
       label: true,
       startTime: true,
@@ -114,7 +117,7 @@ export function deleteTimeWindow(id: string) {
 }
 
 export function listGoodsTypes(args: {
-  unit: ReceivingUnit;
+  unit: ReceivingUnitCode;
   baseType?: GoodsType;
   enabledOnly: boolean;
 }) {
@@ -128,10 +131,11 @@ export function listGoodsTypes(args: {
   });
 }
 
-export function createGoodsType(unit: ReceivingUnit, body: UnitGoodsTypePayload) {
+export function createGoodsType(unit: ReceivingUnitCode, body: UnitGoodsTypePayload, unitConfigId: string) {
   return prisma.unitGoodsType.create({
     data: {
       unit,
+      unitConfigId,
       name: body.name,
       emoji: body.emoji,
       baseType: body.baseType,
@@ -146,6 +150,7 @@ export function findGoodsType(id: string) {
     where: { id },
     select: {
       unit: true,
+      unitConfigId: true,
       name: true,
       emoji: true,
       baseType: true,
@@ -167,7 +172,7 @@ export function deleteGoodsType(id: string) {
 
 export function listMatchingOperationalSlots(args: {
   unitConfigId: string;
-  unit: ReceivingUnit;
+  unit: ReceivingUnitCode;
   vehicleType?: VehicleType;
 }) {
   return prisma.slot.findMany({
@@ -189,7 +194,7 @@ export function listMatchingOperationalSlots(args: {
 }
 
 export function listActiveBookingsForDay(args: {
-  unit: ReceivingUnit;
+  unit: ReceivingUnitCode;
   vehicleType: VehicleType;
   dayStart: Date;
   dayEnd: Date;
@@ -214,7 +219,7 @@ export function listActiveBookingsForDay(args: {
 }
 
 export function upsertUnitConfig(args: {
-  unit: ReceivingUnit;
+  unit: ReceivingUnitCode;
   businessLocationId: string;
   body: UnitConfigPayload;
 }) {

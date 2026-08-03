@@ -1,7 +1,5 @@
-import {
-  PrismaClient, Role, ReceivingUnit, GoodsType,
-  DeliveryStatus, VehicleType, DeviceType,
-} from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../src/domain/unitCodes';
+import { PrismaClient, Role, GoodsType, DeliveryStatus, VehicleType, DeviceType } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -12,7 +10,7 @@ const UNIT_TICKET_PREFIX: Record<string, string> = {
 };
 const VT_TICKET_PREFIX: Record<string, string> = { TRUCK: 'T', MOTORBIKE: 'M' };
 
-function tc(unit: ReceivingUnit, vt: VehicleType, n: number): string {
+function tc(unit: ReceivingUnitCode, vt: VehicleType, n: number): string {
   return `${UNIT_TICKET_PREFIX[unit]}-${VT_TICKET_PREFIX[vt]}${String(n).padStart(3, '0')}`;
 }
 
@@ -259,7 +257,7 @@ async function main() {
 
   // Block generator
   function makeBlock(
-    unit: ReceivingUnit,
+    unit: ReceivingUnitCode,
     vt: VehicleType,
     region: string,
     letter: string,

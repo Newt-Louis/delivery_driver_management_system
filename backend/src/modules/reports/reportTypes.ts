@@ -1,7 +1,5 @@
-import {
-  DeliveryStatus,
-  ReceivingUnit,
-} from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { DeliveryStatus } from '@prisma/client';
 
 export type ReportRange = {
   gte: Date;
@@ -10,13 +8,13 @@ export type ReportRange = {
 
 export type ReportScope = {
   businessLocationId?: string;
-  allowedUnits?: ReceivingUnit[];
-  unitFilter?: ReceivingUnit;
+  allowedUnits?: ReceivingUnitCode[];
+  unitFilter?: ReceivingUnitCode;
 };
 
 export type ReportQuery = {
   range: ReportRange;
-  unit?: ReceivingUnit;
+  unit?: ReceivingUnitCode;
 };
 
 export type OverviewResult = {

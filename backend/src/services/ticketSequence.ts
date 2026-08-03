@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient, ReceivingUnit, VehicleType } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
+import { Prisma, PrismaClient, VehicleType } from '@prisma/client';
 import { getVNDateKey, getVNDateRangeUtc } from '../lib/dateVN';
 
 type TicketSequenceTransaction = Prisma.TransactionClient & {
@@ -8,7 +9,7 @@ type TicketSequenceTransaction = Prisma.TransactionClient & {
 async function getExistingMaxTicketNumber(
   tx: Prisma.TransactionClient,
   ticketDate: string,
-  receivingUnit: ReceivingUnit,
+  receivingUnit: ReceivingUnitCode,
   vehicleType: VehicleType,
 ): Promise<number> {
   const { start, end } = getVNDateRangeUtc(ticketDate);
@@ -28,7 +29,7 @@ async function getExistingMaxTicketNumber(
 
 export async function reserveTicketNumber(
   tx: Prisma.TransactionClient,
-  receivingUnit: ReceivingUnit,
+  receivingUnit: ReceivingUnitCode,
   vehicleType: VehicleType,
   checkinTime: Date,
 ): Promise<number> {

@@ -2,6 +2,12 @@ import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import type { Prisma } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
+import {
+  assertCanAssignBusinessLocation,
+  assertCanAssignUnits,
+  assertCanAssignUserScope,
+  assertCanManageUserRole,
+} from '../../domain/permissionAssertions';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { invalidateAuthUserCache, refreshAuthUserCache, revokeUserSessions } from '../../services/authSession';
 import {
@@ -18,19 +24,21 @@ import type {
   LocationStaffUpdatePayload,
   UpdateUserPayload,
 } from './userFormRequest';
-import { UNIT_REQUIRED_ROLES, UNIT_VALUES } from './userFormRequest';
 import * as userRepository from './userRepository';
 
-type LegacyUnit = typeof UNIT_VALUES[number];
-
-type SerializedUser<T extends { unitPermissions?: { unitConfig: unknown }[] }> = Omit<T, 'unitPermissions'> & {
+type SerializedUser<T extends { unitPermissions?: { unitConfig: Record<string, unknown> }[] }> = Omit<T, 'unitPermissions'> & {
   unitPermissions: unknown[];
 };
 
-function serializeUser<T extends { unitPermissions?: { unitConfig: unknown }[] }>(user: T): SerializedUser<T> {
+function serializeUser<T extends { unitPermissions?: { unitConfig: Record<string, unknown> }[] }>(user: T): SerializedUser<T> {
   return {
     ...user,
-    unitPermissions: user.unitPermissions?.map((permission) => permission.unitConfig) ?? [],
+    unitPermissions: user.unitPermissions?.map((permission) => ({
+      ...permission.unitConfig,
+      code: permission.unitConfig.code ?? permission.unitConfig.unit,
+      shortName: permission.unitConfig.shortName ?? permission.unitConfig.displayName,
+      isActive: permission.unitConfig.isActive ?? true,
+    })) ?? [],
   };
 }
 
@@ -50,6 +58,7 @@ function auditUserSnapshot(user: {
   unitPermissions?: unknown[];
   department?: string | null;
   isActive?: boolean;
+  deletedAt?: Date | null;
 }) {
   return auditJson({
     name: user.name,
@@ -59,6 +68,7 @@ function auditUserSnapshot(user: {
     ...(user.unitPermissions !== undefined ? { unitPermissions: user.unitPermissions } : {}),
     ...(user.department !== undefined ? { department: user.department } : {}),
     ...(user.isActive !== undefined ? { isActive: user.isActive } : {}),
+    ...(user.deletedAt !== undefined ? { deletedAt: user.deletedAt } : {}),
   });
 }
 
@@ -84,8 +94,8 @@ async function assertUnitScope(role: string, unit: string | null | undefined, bu
 
   const normalizedUnit = unit ?? null;
 
-  if ((UNIT_REQUIRED_ROLES as readonly string[]).includes(role) && !normalizedUnit) {
-    throw domainError.badRequest('Tài khoản RECEIVING và CHECKIN bắt buộc phải chọn đơn vị.');
+  if (roleRequiresUnitPermission(role) && !normalizedUnit) {
+    throw domainError.badRequest('Tài khoản vận hành bắt buộc phải chọn ít nhất một đơn vị.');
   }
 
   if (!normalizedUnit) return null;
@@ -111,12 +121,12 @@ async function resolveUnitAssignment(args: {
 }) {
   if (!args.businessLocationId) {
     const unit = await assertUnitScope(args.role, args.unit, args.businessLocationId);
-    return { unit: unit as LegacyUnit | null, unitConfigIds: [] as string[], unitPermissions: [] };
+    return { unit, unitConfigIds: [] as string[], unitPermissions: [] };
   }
 
   if (!roleRequiresUnitPermission(args.role)) {
     const unit = await assertUnitScope(args.role, args.unit, args.businessLocationId);
-    return { unit: unit as LegacyUnit | null, unitConfigIds: [] as string[], unitPermissions: [] };
+    return { unit, unitConfigIds: [] as string[], unitPermissions: [] };
   }
 
   const requestedIds = args.unitConfigIds !== undefined
@@ -136,7 +146,7 @@ async function resolveUnitAssignment(args: {
   }
 
   if (unitPermissions.length === 0) {
-    throw domainError.badRequest('Tài khoản RECEIVING và CHECKIN bắt buộc phải chọn ít nhất một đơn vị.');
+    throw domainError.badRequest('Tài khoản vận hành bắt buộc phải chọn ít nhất một đơn vị.');
   }
 
   const requestedLegacyUnit = args.unit ?? null;
@@ -145,7 +155,7 @@ async function resolveUnitAssignment(args: {
     : unitPermissions[0].unit;
 
   return {
-    unit: legacyUnit as LegacyUnit,
+    unit: legacyUnit,
     unitConfigIds: unitPermissions.map((permission) => permission.id),
     unitPermissions,
   };
@@ -174,6 +184,24 @@ function normalizeOptionalEmail(email: string | null | undefined, role: string) 
   return email?.trim() || makeInternalEmail(role);
 }
 
+function assertCanAssignScopeForRole(user: AuthUser | undefined, role: string) {
+  if (roleRequiresUnitPermission(role)) {
+    assertCanAssignUserScope(user, role);
+  }
+}
+
+function isUnitScopeOnlyUpdate(body: LocationStaffUpdatePayload) {
+  return (
+    body.unit !== undefined
+    || body.unitConfigIds !== undefined
+  )
+    && body.name === undefined
+    && body.email === undefined
+    && body.role === undefined
+    && body.department === undefined
+    && body.isActive === undefined;
+}
+
 async function loadSerializedUser(id: string) {
   const user = await userRepository.findUser(id);
   return user ? serializeUser(user) : null;
@@ -188,6 +216,7 @@ export async function listLocationStaff(user: AuthUser | undefined) {
 
 export async function createLocationStaff(body: LocationStaffCreatePayload, user: AuthUser | undefined) {
   const businessLocationId = requireLocationAdminScope(user);
+  assertCanManageUserRole(user, body.role);
 
   const email = normalizeOptionalEmail(body.email, body.role);
   const exists = await userRepository.findUserByEmail(email);
@@ -199,6 +228,8 @@ export async function createLocationStaff(body: LocationStaffCreatePayload, user
     unitConfigIds: body.unitConfigIds,
     businessLocationId,
   });
+  assertCanAssignScopeForRole(user, body.role);
+  assertCanAssignUnits(user, assignment.unitConfigIds);
 
   const passwordHash = await bcrypt.hash(body.password, 10);
   const created = await userRepository.createUser({
@@ -237,6 +268,12 @@ export async function updateLocationStaff(id: string, body: LocationStaffUpdateP
   }
 
   const nextRole = body.role ?? existing.role;
+  const scopeOnlyUpdate = existing.role === 'ADMIN_OPE' && isUnitScopeOnlyUpdate(body);
+  if (scopeOnlyUpdate) {
+    assertCanAssignScopeForRole(user, existing.role);
+  } else {
+    assertCanManageUserRole(user, nextRole);
+  }
   const nextUnit = body.unit !== undefined ? body.unit : existing.unit;
   const assignment = await resolveUnitAssignment({
     role: nextRole,
@@ -245,6 +282,8 @@ export async function updateLocationStaff(id: string, body: LocationStaffUpdateP
     existingUnitConfigIds: permissionIdsFromUser(existing),
     businessLocationId,
   });
+  assertCanAssignScopeForRole(user, nextRole);
+  assertCanAssignUnits(user, assignment.unitConfigIds);
   const email = body.email !== undefined ? normalizeOptionalEmail(body.email, nextRole) : undefined;
   const updated = await userRepository.updateUser(id, {
     ...body,
@@ -276,6 +315,7 @@ export async function resetLocationStaffPassword(id: string, password: string, u
 
   const existing = await userRepository.findScopedStaff(id, businessLocationId);
   if (!existing) throw domainError.notFound('Không tìm thấy nhân viên trong khu vực này');
+  assertCanManageUserRole(user, existing.role);
 
   const passwordHash = await bcrypt.hash(password, 10);
   await userRepository.updatePassword(id, passwordHash);
@@ -296,26 +336,9 @@ export async function deleteLocationStaff(id: string, user: AuthUser | undefined
 
   const existing = await userRepository.findScopedStaff(id, businessLocationId);
   if (!existing) throw domainError.notFound('Không tìm thấy nhân viên trong khu vực này');
+  assertCanManageUserRole(user, existing.role);
 
-  const hasLogs = await userRepository.countHistoryByActor(id);
-  if (hasLogs > 0) {
-    const updated = await userRepository.updateUser(id, { isActive: false });
-    await invalidateAuthUserCache(id);
-    await invalidateUserUnitPermissionCache(id);
-    await revokeUserSessions(id);
-    await recordAuditLog({
-      ...userActor(user),
-      action: 'user.deactivate',
-      targetType: 'User',
-      targetId: id,
-      businessLocationId,
-      before: { name: existing.name, email: existing.email, role: existing.role, isActive: existing.isActive },
-      after: { name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive },
-    });
-    return { deactivated: true, user: serializeUser(updated) };
-  }
-
-  await userRepository.deleteUser(id);
+  const updated = await userRepository.softDeleteUser(id);
   await invalidateAuthUserCache(id);
   await invalidateUserUnitPermissionCache(id);
   await revokeUserSessions(id);
@@ -325,9 +348,10 @@ export async function deleteLocationStaff(id: string, user: AuthUser | undefined
     targetType: 'User',
     targetId: id,
     businessLocationId,
-    before: { name: existing.name, email: existing.email, role: existing.role },
+    before: auditUserSnapshot(serializeUser(existing)),
+    after: auditUserSnapshot(serializeUser(updated)),
   });
-  return { deleted: true };
+  return { deleted: true, user: serializeUser(updated) };
 }
 
 export async function listUsers() {
@@ -336,17 +360,21 @@ export async function listUsers() {
 }
 
 export async function createUser(body: CreateUserPayload, user: AuthUser | undefined) {
+  assertCanManageUserRole(user, body.role);
   const exists = await userRepository.findUserByEmail(body.email);
   if (exists) throw domainError.conflict('Email đã được sử dụng', 'EmailConflict');
 
   if (body.role === 'SUPERADMIN') await assertSingleSuperadmin();
   const businessLocationId = await assertBusinessLocationScope(body.role, body.businessLocationId ?? null);
+  assertCanAssignBusinessLocation(user, businessLocationId);
   const assignment = await resolveUnitAssignment({
     role: body.role,
     unit: body.unit ?? null,
     unitConfigIds: body.unitConfigIds,
     businessLocationId,
   });
+  assertCanAssignScopeForRole(user, body.role);
+  assertCanAssignUnits(user, assignment.unitConfigIds);
 
   const passwordHash = await bcrypt.hash(body.password, 10);
   const created = await userRepository.createUser({
@@ -383,13 +411,25 @@ export async function updateUser(id: string, body: UpdateUserPayload, requester:
   if (body.role && body.role !== existing.role && id === requesterId) {
     throw domainError.badRequest('Không thể thay đổi quyền của tài khoản đang đăng nhập');
   }
+  if (body.email !== undefined && body.email !== existing.email) {
+    const exists = await userRepository.findUserByEmail(body.email);
+    if (exists && exists.id !== id) throw domainError.conflict('Email đã được sử dụng', 'EmailConflict');
+  }
 
   const nextRole = body.role ?? existing.role;
   const nextBusinessLocationId = body.businessLocationId !== undefined
     ? body.businessLocationId
     : existing.businessLocationId;
-  if (nextRole === 'SUPERADMIN') await assertSingleSuperadmin(id);
+  if (nextRole === 'SUPERADMIN') {
+    if (id !== requester?.id) {
+      throw domainError.badRequest('Không thể tạo hoặc thăng cấp thêm tài khoản SUPERADMIN.');
+    }
+    await assertSingleSuperadmin(id);
+  } else {
+    assertCanManageUserRole(requester, nextRole);
+  }
   const businessLocationId = await assertBusinessLocationScope(nextRole, nextBusinessLocationId ?? null);
+  assertCanAssignBusinessLocation(requester, businessLocationId);
   const nextUnit = body.unit !== undefined ? body.unit : existing.unit;
   const assignment = await resolveUnitAssignment({
     role: nextRole,
@@ -398,6 +438,8 @@ export async function updateUser(id: string, body: UpdateUserPayload, requester:
     existingUnitConfigIds: permissionIdsFromUser(existing),
     businessLocationId,
   });
+  assertCanAssignScopeForRole(requester, nextRole);
+  assertCanAssignUnits(requester, assignment.unitConfigIds);
 
   const updated = await userRepository.updateUser(id, {
     ...body,
@@ -424,6 +466,10 @@ export async function updateUser(id: string, body: UpdateUserPayload, requester:
 }
 
 export async function resetUserPassword(id: string, password: string, user: AuthUser | undefined) {
+  const existing = await userRepository.findUser(id);
+  if (!existing) throw domainError.notFound('Không tìm thấy tài khoản');
+  assertCanManageUserRole(user, existing.role);
+
   const passwordHash = await bcrypt.hash(password, 10);
   await userRepository.updatePassword(id, passwordHash);
   await refreshAuthUserCache(id);
@@ -447,25 +493,10 @@ export async function deleteUser(id: string, user: AuthUser | undefined) {
   if (target.role === 'SUPERADMIN') {
     throw domainError.badRequest('Không thể xóa tài khoản SUPERADMIN duy nhất');
   }
-
-  const hasLogs = await userRepository.countHistoryByActor(id);
-  if (hasLogs > 0) {
-    const updated = await userRepository.updateUser(id, { isActive: false });
-    await invalidateAuthUserCache(id);
-    await invalidateUserUnitPermissionCache(id);
-    await revokeUserSessions(id);
-    await recordAuditLog({
-      ...userActor(user),
-      action: 'user.deactivate',
-      targetType: 'User',
-      targetId: id,
-      after: { name: updated.name, email: updated.email, role: updated.role, isActive: updated.isActive },
-    });
-    return { deactivated: true, user: serializeUser(updated) };
-  }
+  assertCanManageUserRole(user, target.role);
 
   const deletedUser = await userRepository.findUser(id);
-  await userRepository.deleteUser(id);
+  const updated = await userRepository.softDeleteUser(id);
   await invalidateAuthUserCache(id);
   await invalidateUserUnitPermissionCache(id);
   await revokeUserSessions(id);
@@ -475,6 +506,26 @@ export async function deleteUser(id: string, user: AuthUser | undefined) {
     targetType: 'User',
     targetId: id,
     before: deletedUser ? auditUserSnapshot(serializeUser(deletedUser)) : undefined,
+    after: auditUserSnapshot(serializeUser(updated)),
   });
-  return { deleted: true };
+  return { deleted: true, user: serializeUser(updated) };
+}
+
+export async function regenerateUser(id: string, user: AuthUser | undefined) {
+  const existing = await userRepository.findUser(id);
+  if (!existing) throw domainError.notFound('Không tìm thấy tài khoản');
+  assertCanManageUserRole(user, existing.role);
+  if (!existing.deletedAt) return serializeUser(existing);
+
+  const regenerated = await userRepository.regenerateUser(id);
+  await refreshAuthUserCache(id);
+  await recordAuditLog({
+    ...userActor(user),
+    action: 'user.regenerate',
+    targetType: 'User',
+    targetId: id,
+    before: auditUserSnapshot(serializeUser(existing)),
+    after: auditUserSnapshot(serializeUser(regenerated)),
+  });
+  return serializeUser(regenerated);
 }

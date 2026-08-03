@@ -16,7 +16,9 @@ Backend là API độc lập, không chỉ phục vụ trình duyệt. Web, mobi
 - `backend/src/services/authSession.ts`: tạo session Redis, ký JWT, cache user profile, renew, revoke, phát hiện session đang hoạt động.
 - `backend/src/services/redis.ts`: kết nối Redis qua `REDIS_URL`.
 - `backend/src/services/appConfig.ts`: đọc cấu hình auth trong `app_configs` qua Redis cache.
-- `backend/src/services/unitPermission.ts`: cache unit permission của `CHECKIN`/`RECEIVING` trong Redis.
+- `backend/src/services/unitPermission.ts`: cache unit permission của các role có operation scope trong Redis.
+- `backend/src/domain/permissions.ts`: source of truth cho role helpers, hierarchy và unit operation helpers.
+- `backend/src/domain/permissionAssertions.ts`: assertions dùng trong service/route sau khi resource đã resolve ra `unitConfigId`.
 - `frontend/src/lib/authCookies.ts`: cookie `dqm_token` và device id cho web.
 - `frontend/src/lib/api.ts`: gắn Bearer token và renew tự động.
 - `frontend/src/context/AuthContext.tsx`: bootstrap user qua `/api/auth/me`, không lưu user vào storage.
@@ -36,10 +38,10 @@ Redis keys:
 - `auth:session:{sessionId}`: thông tin session, device, IP, user agent, expiry, last seen.
 - `auth:user:{userId}:sessions`: danh sách session đang hoạt động của user.
 - `auth:user:{userId}:profile`: user profile an toàn cho auth middleware, không chứa password/PIN/secret.
-- `auth:user:{userId}:unit-permissions`: danh sách `UnitConfig` mà user `CHECKIN`/`RECEIVING` được thao tác.
+- `auth:user:{userId}:unit-permissions`: danh sách `UnitConfig` mà user vận hành được thao tác.
 - `app-config:{key}`: cache JSON của từng dòng `app_configs`.
 
-Session Redis hiện không đặt TTL ở Redis. Nếu key session bị xóa do logout/revoke/Socket.IO cleanup nhưng JWT vẫn còn hợp lệ và user DB còn active, `resolveActiveSessionAndUser()` tự tạo lại session Redis từ JWT payload rồi cho request tiếp tục. API protected chỉ trả `401` khi JWT không hợp lệ/hết hạn, user không còn active, hoặc session bị revoke theo cách không thể phục hồi từ JWT hợp lệ.
+Session Redis hiện không đặt TTL ở Redis. Nếu key session bị xóa do logout/revoke/Socket.IO cleanup nhưng JWT vẫn còn hợp lệ và user DB còn active, `resolveActiveSessionAndUser()` tự tạo lại session Redis từ JWT payload rồi cho request tiếp tục. API protected chỉ trả `401` khi JWT không hợp lệ/hết hạn, user không còn active, user đã có `users.deleted_at`, hoặc session bị revoke theo cách không thể phục hồi từ JWT hợp lệ.
 
 Redis không tự đồng bộ với PostgreSQL. Mọi thao tác ghi database phải chủ động refresh hoặc xóa key Redis tương ứng. Route quản trị user hiện refresh profile/unit permission sau create/update/reset password, và xóa cache + revoke session khi deactivate/delete. App config nên dùng helper `upsertAppConfigValue()` hoặc gọi `refreshAppConfigCache(key)` sau khi SUPERADMIN lưu thay đổi.
 
@@ -81,7 +83,20 @@ Success:
     "email": "...",
     "role": "RECEIVING",
     "unit": "EMART",
-    "businessLocationId": "..."
+    "businessLocationId": "...",
+    "operationUnits": [
+      {
+        "id": "unit_config_id",
+        "code": "EMART",
+        "displayName": "Emart",
+        "shortName": "Emart",
+        "icon": "🏬",
+        "businessLocationId": "...",
+        "isActive": true
+      }
+    ],
+    "manageableUnits": [],
+    "capabilities": []
   },
   "expiresAt": "2026-07-07T12:00:00.000Z",
   "expiresInSeconds": 28800,
@@ -147,9 +162,21 @@ Static IP và Face ID/WebAuthn vẫn tồn tại trong backend nhưng không ph�
 
 Các config auth được cache trong Redis theo key `app-config:{key}` và hiện không đặt TTL. Khi SUPERADMIN cập nhật một dòng `app_configs`, backend phải dùng `upsertAppConfigValue()` hoặc refresh đúng key đó để request sau đọc config mới ngay.
 
+## Auth Permission Profile
+
+Auth profile hiện có ba lớp dữ liệu quyền:
+
+- `role`: role quyết định nhóm màn hình và nhóm chức năng lớn.
+- `operationUnits`: các `UnitConfig` mà user được thao tác trong công việc của chính user đó.
+- `manageableUnits`: các `UnitConfig` mà user được phép gán cho user cấp dưới khi quản trị tài khoản.
+
+`unitPermissions` vẫn được trả như alias để tương thích code cũ, nhưng code mới nên dùng `operationUnits`.
+
+`ADMIN_LOC` có một case đặc biệt: `operationUnits` có thể chỉ là một phần unit trong location, nhưng `manageableUnits` là toàn bộ unit active trong `BusinessLocation` để ADMIN_LOC có thể phân quyền cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN` ở bất kỳ unit nào trong location đó.
+
 ## Unit Permission Cache
 
-Quyền nhiều unit của `CHECKIN` và `RECEIVING` nằm trong bảng `user_unit_permissions`, nhưng thao tác vận hành đọc qua Redis:
+Quyền nhiều unit của `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING` và `CHECKIN` nằm trong bảng `user_unit_permissions`, nhưng thao tác vận hành đọc qua Redis:
 
 1. Route delivery gọi helper trong `unitPermission.ts`.
 2. Helper đọc `auth:user:{userId}:unit-permissions`.
@@ -172,11 +199,11 @@ Các thao tác đã đi qua helper này gồm check-in lookup, check-in by id, m
 
 Role hiện có:
 
-- `SUPERADMIN`: toàn quyền hệ thống, không bắt buộc gắn `BusinessLocation`.
-- `ADMIN_LOC`: admin của một `BusinessLocation`.
-- `ADMIN_OPE`: vận hành/điều phối trong khu vực.
-- `RECEIVING`: nhận hàng, bắt đầu và hoàn tất giao hàng.
-- `CHECKIN`: check-in lượt đăng ký của tài xế.
+- `SUPERADMIN`: tài khoản duy nhất, toàn quyền hệ thống, không bắt buộc gắn `BusinessLocation`, có route master data riêng `/superadmin`; CUD `ADMIN_LOC`/`ADMIN_OPE` và gán unit scope cho hai role này.
+- `ADMIN_LOC`: admin của một `BusinessLocation`, CUD `RECEIVING`/`CHECKIN`, được thấy `ADMIN_OPE` và chỉ được chỉnh unit scope của `ADMIN_OPE`.
+- `ADMIN_OPE`: vận hành/điều phối trong khu vực theo unit được gán; không quản trị user và không sở hữu master data system-wide.
+- `RECEIVING`: nhận hàng, bắt đầu và hoàn tất giao hàng theo unit được gán.
+- `CHECKIN`: check-in lượt đăng ký của tài xế theo unit được gán.
 
 Frontend protected routes:
 
@@ -184,6 +211,7 @@ Frontend protected routes:
 - `/dashboard`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
 - `/docks`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
 - `/backoffice`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
+- `/superadmin`: chỉ `SUPERADMIN`.
 - `/receiving-times`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
 - `/reports`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
 - `/histories`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
@@ -193,6 +221,19 @@ Frontend protected routes:
 - `SUPERADMIN`: có thể truyền query `businessLocationId`; nếu không truyền thì có thể xem toàn hệ thống tùy API.
 - Non-`SUPERADMIN`: backend ép scope theo `req.user.businessLocationId`, không tin query `businessLocationId`.
 - `enforceResourceScope` dùng để kiểm tra resource thuộc đúng `businessLocationId` của user.
+
+## Scope Theo UnitConfig
+
+Mọi role vận hành dưới `SUPERADMIN` đều có operation scope:
+
+- `ADMIN_LOC`
+- `ADMIN_OPE`
+- `RECEIVING`
+- `CHECKIN`
+
+Khi route/service đã resolve resource ra `unitConfigId`, backend gọi `assertCanOperateUnit(user, unitConfigId)` hoặc helper tương đương. Với action delivery cũ chỉ có `receivingUnit`, service phải resolve scope qua slot/unit config trước khi quyết định.
+
+Không dùng shortcut `ADMIN_LOC` hoặc `ADMIN_OPE` là toàn quyền trên mọi unit nữa. Hai role này vẫn có quyền theo màn hình khác nhau, nhưng phạm vi thao tác trong màn hình đó bị giới hạn bởi `operationUnits`.
 
 ## Socket.IO
 

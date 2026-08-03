@@ -13,9 +13,11 @@ import { STAFF_ROLE_META } from '../constants';
 import type { StaffUser } from '../types';
 
 type StaffRoleValue = 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
+type ManagedStaffRoleValue = 'RECEIVING' | 'CHECKIN';
 
 const STAFF_ROLES: StaffRoleValue[] = ['ADMIN_OPE', 'RECEIVING', 'CHECKIN'];
-const UNIT_REQUIRED_ROLES: StaffRoleValue[] = ['RECEIVING', 'CHECKIN'];
+const MANAGED_STAFF_ROLES: ManagedStaffRoleValue[] = ['RECEIVING', 'CHECKIN'];
+const UNIT_REQUIRED_ROLES: StaffRoleValue[] = ['ADMIN_OPE', 'RECEIVING', 'CHECKIN'];
 
 function initials(name: string) {
   return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
@@ -49,6 +51,7 @@ function StaffUserModal({
   onSaved: () => void;
 }) {
   const isEdit = !!user;
+  const isScopeOnlyEdit = user?.role === 'ADMIN_OPE';
   const initialUnitConfigIds = user?.unitPermissions?.map((unit) => unit.id)
     ?? (user?.unit ? unitConfigs.filter((cfg) => cfg.unit === user.unit).map((cfg) => cfg.id) : []);
   const [form, setForm] = useState({
@@ -64,7 +67,7 @@ function StaffUserModal({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const unitRequired = UNIT_REQUIRED_ROLES.includes(form.role);
-  const canEditMultiUnit = isEdit && unitRequired;
+  const canEditMultiUnit = unitRequired;
 
   function selectedUnitConfigs(ids = form.unitConfigIds) {
     return unitConfigs.filter((cfg) => ids.includes(cfg.id));
@@ -98,30 +101,42 @@ function StaffUserModal({
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.name.trim()) { setError('Vui lòng nhập họ tên.'); return; }
+    if (!isScopeOnlyEdit && !form.name.trim()) { setError('Vui lòng nhập họ tên.'); return; }
     if (!isEdit && form.password.length < 6) { setError('Mật khẩu tối thiểu 6 ký tự.'); return; }
-    if (unitRequired && !isEdit && !form.primaryUnitConfigId) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn một đơn vị.'); return; }
-    if (unitRequired && isEdit && form.unitConfigIds.length === 0) { setError('Vai trò Nhận hàng và Check-in bắt buộc phải chọn ít nhất một đơn vị.'); return; }
+    if (unitRequired && !isEdit && !form.primaryUnitConfigId) { setError('Vai trò vận hành bắt buộc phải chọn một đơn vị.'); return; }
+    if (unitRequired && (isEdit || isScopeOnlyEdit) && form.unitConfigIds.length === 0) { setError('Vai trò vận hành bắt buộc phải chọn ít nhất một đơn vị.'); return; }
 
     setSaving(true);
     setError('');
     try {
-      const selectedIds = unitRequired
-        ? (isEdit ? form.unitConfigIds : [form.primaryUnitConfigId])
-        : [];
+      const selectedIds = unitRequired ? form.unitConfigIds : [];
       const selectedUnits = selectedUnitConfigs(selectedIds);
-      const payload = {
-        name: form.name.trim(),
-        email: form.email.trim() || null,
-        role: form.role,
-        unit: selectedUnits[0]?.unit ?? null,
-        unitConfigIds: selectedIds,
-        department: form.department.trim() || null,
-        isActive: form.isActive,
-      };
-      if (isEdit) {
+      if (isScopeOnlyEdit) {
+        await updateLocationStaffUser(user!.id, {
+          unit: selectedUnits[0]?.unit ?? null,
+          unitConfigIds: selectedIds,
+        });
+      } else if (isEdit) {
+        const payload = {
+          name: form.name.trim(),
+          email: form.email.trim() || null,
+          role: form.role as ManagedStaffRoleValue,
+          unit: selectedUnits[0]?.unit ?? null,
+          unitConfigIds: selectedIds,
+          department: form.department.trim() || null,
+          isActive: form.isActive,
+        };
         await updateLocationStaffUser(user!.id, payload);
       } else {
+        const payload = {
+          name: form.name.trim(),
+          email: form.email.trim() || null,
+          role: form.role as ManagedStaffRoleValue,
+          unit: selectedUnits[0]?.unit ?? null,
+          unitConfigIds: selectedIds,
+          department: form.department.trim() || null,
+          isActive: form.isActive,
+        };
         await createLocationStaffUser({ ...payload, password: form.password });
       }
       onSaved();
@@ -138,47 +153,57 @@ function StaffUserModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
         <div className="px-6 py-4 border-b border-thiso-100 flex items-center justify-between">
-          <h3 className="font-bold text-thiso-800">{isEdit ? 'Chỉnh sửa nhân viên' : 'Thêm nhân viên'}</h3>
+          <h3 className="font-bold text-thiso-800">{isScopeOnlyEdit ? 'Chỉnh phạm vi ADMIN_OPE' : isEdit ? 'Chỉnh sửa nhân viên' : 'Thêm nhân viên'}</h3>
           <button onClick={onClose} className="text-thiso-400 hover:text-thiso-600 text-xl leading-none">×</button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Họ và tên *</label>
-            <input className="input w-full" value={form.name} onChange={(e) => set('name', e.target.value)} required placeholder="Nguyễn Văn A" />
-          </div>
+          {!isScopeOnlyEdit && (
+            <>
+              <div>
+                <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Họ và tên *</label>
+                <input className="input w-full" value={form.name} onChange={(e) => set('name', e.target.value)} required placeholder="Nguyễn Văn A" />
+              </div>
 
-          <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Email</label>
-            <input className="input w-full" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="co-the-bo-trong@thaco.vn" />
-            <p className="text-[11px] text-thiso-400 mt-1">Để trống thì hệ thống sinh email nội bộ để giữ tính unique.</p>
-          </div>
+              <div>
+                <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Email</label>
+                <input className="input w-full" type="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="co-the-bo-trong@thaco.vn" />
+                <p className="text-[11px] text-thiso-400 mt-1">Để trống thì hệ thống sinh email nội bộ để giữ tính unique.</p>
+              </div>
 
-          {!isEdit && (
-            <div>
-              <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Mật khẩu * (tối thiểu 6 ký tự)</label>
-              <input className="input w-full font-mono" type="password" value={form.password} onChange={(e) => set('password', e.target.value)} required minLength={6} placeholder="••••••" />
+              {!isEdit && (
+                <div>
+                  <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Mật khẩu * (tối thiểu 6 ký tự)</label>
+                  <input className="input w-full font-mono" type="password" value={form.password} onChange={(e) => set('password', e.target.value)} required minLength={6} placeholder="••••••" />
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-2">Vai trò *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {MANAGED_STAFF_ROLES.map((role) => {
+                    const meta = STAFF_ROLE_META[role];
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        onClick={() => set('role', role)}
+                        className={`p-3 rounded-xl border-2 text-center transition-colors ${form.role === role ? `${meta.color} border-current` : 'border-thiso-200 text-thiso-500'}`}
+                      >
+                        <div className="text-xl mb-1">{meta.icon}</div>
+                        <div className="text-xs font-semibold leading-tight">{meta.label}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+          {isScopeOnlyEdit && (
+            <div className="rounded-xl border border-thiso-100 bg-thiso-50 px-4 py-3">
+              <div className="text-sm font-bold text-thiso-800">{user?.name}</div>
+              <div className="text-xs text-thiso-500 mt-1">ADMIN_LOC chỉ được chỉnh phạm vi đơn vị thao tác của ADMIN_OPE.</div>
             </div>
           )}
-
-          <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-2">Vai trò *</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {STAFF_ROLES.map((role) => {
-                const meta = STAFF_ROLE_META[role];
-                return (
-                  <button
-                    key={role}
-                    type="button"
-                    onClick={() => set('role', role)}
-                    className={`p-3 rounded-xl border-2 text-center transition-colors ${form.role === role ? `${meta.color} border-current` : 'border-thiso-200 text-thiso-500'}`}
-                  >
-                    <div className="text-xl mb-1">{meta.icon}</div>
-                    <div className="text-xs font-semibold leading-tight">{meta.label}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
 
           <div>
             <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-2">
@@ -186,22 +211,8 @@ function StaffUserModal({
             </label>
             {!unitRequired ? (
               <div className="rounded-xl border border-thiso-100 bg-thiso-50 px-3 py-2 text-sm text-thiso-500">
-                Role này thao tác theo khu vực nên không cần chỉ định unit.
+                Role này không cần chỉ định unit operation scope.
               </div>
-            ) : !isEdit ? (
-              <select
-                className="input w-full"
-                value={form.primaryUnitConfigId}
-                onChange={(e) => setForm((current) => ({
-                  ...current,
-                  primaryUnitConfigId: e.target.value,
-                  unitConfigIds: e.target.value ? [e.target.value] : [],
-                }))}
-              >
-                {unitConfigs.map((cfg) => (
-                  <option key={cfg.id} value={cfg.id}>{unitIcon(cfg)} {unitLabel(cfg)}</option>
-                ))}
-              </select>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {unitConfigs.map((cfg) => {
@@ -221,18 +232,18 @@ function StaffUserModal({
               </div>
             )}
             {canEditMultiUnit
-              ? <p className="text-[11px] text-thiso-400 mt-1">Có thể chọn thêm nhiều đơn vị cho tài khoản hiện trường.</p>
-              : unitRequired
-                ? <p className="text-[11px] text-thiso-400 mt-1">Tài khoản mới chỉ chọn một đơn vị chính; có thể mở rộng thêm khi chỉnh sửa.</p>
-                : <p className="text-[11px] text-thiso-400 mt-1">ADMIN_OPE thao tác theo khu vực nên không cần chọn đơn vị.</p>}
+              ? <p className="text-[11px] text-thiso-400 mt-1">Có thể chọn một hoặc nhiều đơn vị trong BusinessLocation của ADMIN_LOC.</p>
+              : <p className="text-[11px] text-thiso-400 mt-1">Role này không cần chọn đơn vị.</p>}
           </div>
 
-          <div>
-            <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Bộ phận / Ca làm việc</label>
-            <input className="input w-full" value={form.department} onChange={(e) => set('department', e.target.value)} placeholder="vd: Ca sáng, cổng B, kho tươi..." maxLength={100} />
-          </div>
+          {!isScopeOnlyEdit && (
+            <div>
+              <label className="block text-xs font-bold text-thiso-500 uppercase tracking-wide mb-1">Bộ phận / Ca làm việc</label>
+              <input className="input w-full" value={form.department} onChange={(e) => set('department', e.target.value)} placeholder="vd: Ca sáng, cổng B, kho tươi..." maxLength={100} />
+            </div>
+          )}
 
-          {isEdit && (
+          {isEdit && !isScopeOnlyEdit && (
             <label className="flex items-center gap-3 cursor-pointer select-none">
               <div
                 onClick={() => set('isActive', !form.isActive)}
@@ -456,6 +467,8 @@ export default function StaffUsersTab() {
               {!isLoading && filtered.length === 0 && <tr><td colSpan={7} className="py-12 text-center text-thiso-400">Không có nhân viên nào</td></tr>}
               {filtered.map((user) => {
                 const meta = STAFF_ROLE_META[user.role];
+                const canManageLifecycle = user.role === 'RECEIVING' || user.role === 'CHECKIN';
+                const isAdminOpeScopeOnly = user.role === 'ADMIN_OPE';
                 return (
                   <tr key={user.id} className={`border-b border-thiso-50 last:border-0 transition-colors ${!user.isActive ? 'opacity-50 bg-thiso-50/50' : 'hover:bg-thiso-50/60'}`}>
                     <td className="px-4 py-3">
@@ -492,9 +505,17 @@ export default function StaffUsersTab() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5 justify-end flex-wrap">
-                        <button className="text-xs px-2.5 py-1.5 rounded-lg border border-thiso-200 text-thiso-600 hover:bg-thiso-50 transition-colors" onClick={() => { setSelected(user); setModal('edit'); }}>✏ Sửa</button>
-                        <button className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors" onClick={() => { setSelected(user); setModal('reset'); }}>🔑 Mật khẩu</button>
-                        <button className="text-xs px-2.5 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors" onClick={() => setDeleteId(user.id)}>{user.isActive ? 'Vô hiệu' : 'Xóa'}</button>
+                        {(canManageLifecycle || isAdminOpeScopeOnly) && (
+                          <button className="text-xs px-2.5 py-1.5 rounded-lg border border-thiso-200 text-thiso-600 hover:bg-thiso-50 transition-colors" onClick={() => { setSelected(user); setModal('edit'); }}>
+                            {isAdminOpeScopeOnly ? 'Đơn vị' : '✏ Sửa'}
+                          </button>
+                        )}
+                        {canManageLifecycle && (
+                          <>
+                            <button className="text-xs px-2.5 py-1.5 rounded-lg border border-amber-200 text-amber-600 hover:bg-amber-50 transition-colors" onClick={() => { setSelected(user); setModal('reset'); }}>🔑 Mật khẩu</button>
+                            <button className="text-xs px-2.5 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors" onClick={() => setDeleteId(user.id)}>{user.isActive ? 'Vô hiệu' : 'Xóa'}</button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </tr>

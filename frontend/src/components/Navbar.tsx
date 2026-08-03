@@ -42,6 +42,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     heading: 'Quản trị',
     items: [
+      { to: '/superadmin', label: 'Superadmin', icon: '◆', roles: ['SUPERADMIN'] },
       { to: '/backoffice', label: 'Backoffice', icon: '⚙', roles: ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'] },
     ],
   },

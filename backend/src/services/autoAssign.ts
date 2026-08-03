@@ -1,4 +1,5 @@
-import { DeliveryHistoryEventType, DeliveryRegistration, DeliveryStatus, GoodsType, Prisma, ReceivingUnit, Slot, SlotStatus } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
+import { DeliveryHistoryEventType, DeliveryRegistration, DeliveryStatus, GoodsType, Prisma, Slot, SlotStatus } from '@prisma/client';
 import { formatTicketCode } from '../routes/track';
 import { prisma } from '../lib/prisma';
 import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../socket';
@@ -139,7 +140,7 @@ async function findNextWaitingDeliveryForSlot(
   const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT "id"
     FROM "delivery_registrations"
-    WHERE "receiving_unit" = ${slot.assignedUnit}::"ReceivingUnit"
+    WHERE "receiving_unit" = ${slot.assignedUnit}
       AND "vehicle_type" = ${slot.vehicleType}::"VehicleType"
       AND "status" = ${DeliveryStatus.WAITING}::"DeliveryStatus"
       ${goodsFilter}
@@ -158,7 +159,7 @@ async function findNextWaitingDeliveryForSlot(
   });
 }
 
-async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Promise<AssignResult | null> {
+async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnitCode): Promise<AssignResult | null> {
   return prisma.$transaction(async (tx) => {
     const lockedSlot = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT "id" FROM "slots" WHERE "id" = ${slotId} FOR UPDATE
@@ -227,7 +228,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnit): Pr
   });
 }
 
-async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): Promise<void> {
+async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCode): Promise<void> {
   const callCount = await countCallHistoryEvents(result.delivery.id);
   const scope = await getScopeForSlot(result.slot.id);
 
@@ -291,7 +292,7 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnit): 
 // FRESH_FOOD is always considered first within the slot's accepted goods.
 // Motorbike slots support multi-vehicle capacity (maxCapacity field).
 // Returns number of vehicles assigned in this round.
-export async function triggerAutoAssign(unit: ReceivingUnit, scope: AutoAssignScope = {}): Promise<number> {
+export async function triggerAutoAssign(unit: ReceivingUnitCode, scope: AutoAssignScope = {}): Promise<number> {
   let called = 0;
   let candidateSeen = 0;
 

@@ -9,7 +9,7 @@ Cây vận hành chuẩn:
 Ý nghĩa:
 
 - `BusinessLocation`: khu vực/cơ sở vật lý.
-- `UnitConfig`: đơn vị nhận hàng trong khu vực, ví dụ `EMART`, `THISKYHALL`, `TENANT`.
+- `UnitConfig`: đơn vị nhận hàng trong khu vực. `unit` là code động do Superadmin tạo, không còn bị giới hạn bởi enum `EMART`/`THISKYHALL`/`TENANT` trong nghiệp vụ mới.
 - `Zone`: khu/khu vực vận hành thuộc một unit.
 - `Slot`: vị trí nhận hàng/dock, có loại xe, sức chứa và trạng thái.
 
@@ -20,7 +20,7 @@ Models:
 - `BusinessLocation`
   - `code`, `locationName`, `address`, `avatarUrl`, `logoUrl`, `isActive`.
 - `UnitConfig`
-  - `businessLocationId`, `unit`.
+  - `businessLocationId`, `unit`, `isActive`.
   - Cấu hình loại hàng: `freshFoodEnabled`, `generalGoodsEnabled`, `thiCongEnabled`.
   - Rule Chủ nhật: `sundayFreshFoodOnly`.
   - Cấu hình khung giờ: `truckSlotMinutes`, `motorbikeSlotMinutes`.
@@ -30,6 +30,8 @@ Models:
   - Unique theo `[unitConfigId, code]`.
 - `Slot`
   - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `autoAssign`, `autoWarehouseOnly`, `maxCapacity`, `status`, `isActive`.
+
+Các bảng nghiệp vụ vẫn giữ cột text snapshot như `receivingUnit`, `assignedUnit`, `unit` để đọc lịch sử/report dễ hơn, nhưng source of truth quan hệ mới là `unitConfigId` khi model có field này.
 
 ## Backend APIs
 
@@ -83,6 +85,15 @@ Slots:
 - `POST /api/slots/:id/reconcile`
 - `POST /api/slots/reconcile`
 
+Superadmin master data:
+
+- `GET/POST/PATCH/DELETE /api/superadmin/business-locations`
+- `GET/POST/PATCH/DELETE /api/superadmin/unit-configs`
+- `GET /api/superadmin/zones`
+- `GET /api/superadmin/slots`
+- `GET /api/superadmin/goods-types`
+- `GET /api/superadmin/time-windows`
+
 Module backend:
 
 - `backend/src/routes/zones.ts`: controller mỏng cho endpoint zone.
@@ -127,6 +138,9 @@ Register:
 ## Quy Tắc Hiện Tại
 
 - Slot availability trong register tính theo tổng `Slot.maxCapacity` của các slot active, đúng vehicle type, không phải theo cột legacy `truckMaxPerSlot`/`motorbikeMaxPerSlot`.
+- `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
+- `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.
+- Non-`SUPERADMIN` phải đi qua `BusinessLocation` scope và `operationUnits` khi action resolve được `unitConfigId`.
 - Capacity không tách theo `goodsType`; goods type dùng cho eligibility, khung giờ và ưu tiên dispatch.
 - `MAINTENANCE` và `RESERVED` là trạng thái manual.
 - `AVAILABLE` và `OCCUPIED` nên được reconcile từ active deliveries.

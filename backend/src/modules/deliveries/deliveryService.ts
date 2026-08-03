@@ -1,4 +1,5 @@
-import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, Prisma, ReceivingUnit } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, Prisma } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { formatVNDate, isScheduledForToday } from '../../lib/dateVN';
 import { getUnitConfigForDefaultLocation } from '../../lib/businessLocation';
@@ -9,6 +10,7 @@ import { checkInDelivery } from '../../services/checkInDelivery';
 import { cancelDelivery, completeDelivery } from '../../services/deliveryLifecycle';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../../services/manualCallDelivery';
 import { getScopeForDelivery } from '../../services/realtimeScope';
+import { roleHasUnitOperationScope } from '../../domain/permissions';
 import { reserveRegistrationCode } from '../../services/registrationSequence';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
 import { getUserUnitPermissions } from '../../services/unitPermission';
@@ -40,10 +42,9 @@ function assertResourceAccess(user: AuthUser | undefined, businessLocationId: st
   }
 }
 
-async function assertUnitPermission(user: AuthUser | undefined, receivingUnit: ReceivingUnit, operation: 'checkin' | 'receiving') {
+async function assertUnitPermission(user: AuthUser | undefined, receivingUnit: ReceivingUnitCode, operation: 'checkin' | 'receiving') {
   if (!user) throw domainError.unauthorized();
-  if (operation === 'checkin' && user.role !== 'CHECKIN') return;
-  if (operation === 'receiving' && user.role !== 'RECEIVING') return;
+  if (!roleHasUnitOperationScope(user.role)) return;
 
   if (!user.businessLocationId) {
     throw domainError.forbidden('Tài khoản chưa được gán khu vực hoạt động.');
@@ -62,7 +63,7 @@ async function assertUnitPermission(user: AuthUser | undefined, receivingUnit: R
 
 async function ensureDeliveryAccess(
   user: AuthUser | undefined,
-  delivery: { receivingUnit: ReceivingUnit; assignedSlotId?: string | null },
+  delivery: { receivingUnit: ReceivingUnitCode; assignedSlotId?: string | null },
   operation: 'checkin' | 'receiving',
 ) {
   const scope = await getScopeForDelivery(delivery);
@@ -84,7 +85,7 @@ async function ensureRegistrationSlotCapacity(
   tx: Prisma.TransactionClient,
   args: {
     requestedTime: Date;
-    receivingUnit: ReceivingUnit;
+    receivingUnit: ReceivingUnitCode;
     vehicleType: RegisterDeliveryPayload['vehicleType'];
     maxPerSlot: number | null;
   },
@@ -151,7 +152,7 @@ function parseRequestedTime(value: string | undefined): Date | null {
   return requestedTime;
 }
 
-export async function autoDispatch(unit: ReceivingUnit, user: AuthUser | undefined) {
+export async function autoDispatch(unit: ReceivingUnitCode, user: AuthUser | undefined) {
   await assertUnitPermission(user, unit, 'receiving');
 
   const called = await triggerAutoAssign(unit);

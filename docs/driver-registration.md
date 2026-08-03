@@ -36,7 +36,7 @@ Wizard:
 Logic trong `useRegisterForm.ts`:
 
 - Lấy cấu hình unit: `GET /api/units/:unit/config`.
-- Lấy loại hàng tùy biến: `GET /api/units/:unit/goods-types`.
+- Lấy loại hàng tùy biến: `GET /api/units/:unit/goods-types`. Dữ liệu nằm trong `unit_goods_types`, scope mới theo `unitConfigId` để không lẫn giữa các `BusinessLocation`.
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability`.
 - Lấy slot availability: `GET /api/units/:unit/slots`.
 - Check vendor kho tự động: `GET /api/aw-vendors/check`.
@@ -101,6 +101,8 @@ Service:
   - deliveryDate/timeSlot
   - active statuses: `REGISTERED`, `WAITING`, `CALLED`, `RECEIVING`, `AUTO_WAREHOUSE_RECEIVING`
 - Capacity không tách theo `goodsType`.
+- `UnitGoodsType` và `DeliveryTimeWindow` có `unitConfigId` là scope chính; cột `unit` là code snapshot/compat cho API theo `:unit`.
+- Nếu unit có custom goods type enabled, frontend hiển thị danh mục custom đó; nếu không có time window riêng cho custom type thì backend/frontend fallback về time window base goods type của cùng unit.
 
 ## Output Thành Công
 

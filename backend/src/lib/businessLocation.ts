@@ -1,4 +1,5 @@
-import { ReceivingUnit } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
+
 import { prisma } from './prisma';
 
 export async function getDefaultBusinessLocation() {
@@ -20,7 +21,7 @@ export async function getDefaultBusinessLocation() {
   return location;
 }
 
-export async function getUnitConfigForDefaultLocation(unit: ReceivingUnit) {
+export async function getUnitConfigForDefaultLocation(unit: ReceivingUnitCode) {
   const location = await getDefaultBusinessLocation();
   return prisma.unitConfig.findUnique({
     where: {

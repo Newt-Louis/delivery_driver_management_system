@@ -6,6 +6,9 @@ import { prisma } from '../lib/prisma';
 import { getAuthSessionConfig, AuthSessionConfig } from './appConfig';
 import { getRequestIp } from './staticIpAuth';
 import { getRedis } from './redis';
+import type { AuthPermissionUnit } from '../domain/permissions';
+import { roleHasUnitOperationScope } from '../domain/permissions';
+import { getUserUnitPermissionsFromDb } from './unitPermission';
 
 export type SafeAuthUser = {
   id: string;
@@ -14,6 +17,10 @@ export type SafeAuthUser = {
   name: string;
   unit: string | null;
   businessLocationId: string | null;
+  operationUnits: AuthPermissionUnit[];
+  manageableUnits: AuthPermissionUnit[];
+  unitPermissions: AuthPermissionUnit[];
+  capabilities: string[];
 };
 
 export type FullAuthSession = SafeAuthUser & {
@@ -101,6 +108,41 @@ export function userPayload(user: Pick<User, 'id' | 'name' | 'email' | 'role' | 
     role: user.role,
     unit: user.unit,
     businessLocationId: user.businessLocationId,
+    operationUnits: [],
+    manageableUnits: [],
+    unitPermissions: [],
+    capabilities: [],
+  };
+}
+
+async function buildSafeAuthUser(user: Pick<User, 'id' | 'name' | 'email' | 'role' | 'unit' | 'businessLocationId'>): Promise<SafeAuthUser> {
+  const base = userPayload(user);
+  const operationUnits = roleHasUnitOperationScope(user.role)
+    ? await getUserUnitPermissionsFromDb(user.id)
+    : [];
+  const manageableUnits = user.role === 'ADMIN_LOC' && user.businessLocationId
+    ? await prisma.unitConfig.findMany({
+        where: { businessLocationId: user.businessLocationId, isActive: true },
+        select: { id: true, unit: true, displayName: true, shortName: true, icon: true, businessLocationId: true, isActive: true },
+        orderBy: { unit: 'asc' },
+      }).then((rows) => rows.map((unit) => ({
+        id: unit.id,
+        unit: unit.unit,
+        code: unit.unit,
+        displayName: unit.displayName,
+        shortName: unit.shortName,
+        icon: unit.icon,
+        businessLocationId: unit.businessLocationId,
+        isActive: unit.isActive,
+      })))
+    : operationUnits;
+
+  return {
+    ...base,
+    operationUnits,
+    manageableUnits,
+    unitPermissions: operationUnits,
+    capabilities: [],
   };
 }
 
@@ -133,7 +175,20 @@ function parseCachedAuthUser(raw: string | null): SafeAuthUser | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    return parsed?.id && parsed?.email && parsed?.role ? { id: parsed.id, email: parsed.email, role: parsed.role, name: parsed.name, unit: parsed.unit ?? null, businessLocationId: parsed.businessLocationId ?? null } : null;
+    if (!parsed?.id || !parsed?.email || !parsed?.role) return null;
+    const operationUnits = parsed.operationUnits ?? parsed.unitPermissions ?? [];
+    return {
+      id: parsed.id,
+      email: parsed.email,
+      role: parsed.role,
+      name: parsed.name,
+      unit: parsed.unit ?? null,
+      businessLocationId: parsed.businessLocationId ?? null,
+      operationUnits,
+      manageableUnits: parsed.manageableUnits ?? operationUnits,
+      unitPermissions: operationUnits,
+      capabilities: parsed.capabilities ?? [],
+    };
   } catch {
     return null;
   }
@@ -186,15 +241,16 @@ export async function refreshAuthUserCache(userId: string): Promise<SafeAuthUser
       unit: true,
       businessLocationId: true,
       isActive: true,
+      deletedAt: true,
     },
   });
 
-  if (!user || !user.isActive) {
+  if (!user || !user.isActive || user.deletedAt) {
     await invalidateAuthUserCache(userId);
     return null;
   }
 
-  const safeUser = userPayload(user);
+  const safeUser = await buildSafeAuthUser(user);
   await writeAuthUserCache(safeUser);
   return safeUser;
 }
@@ -271,7 +327,7 @@ export async function createAuthSession(args: {
   };
   await writeSession(session);
 
-  const safeUser = userPayload(args.user);
+  const safeUser = await buildSafeAuthUser(args.user);
   await writeAuthUserCache(safeUser, session);
   const token = signToken(safeUser, session.id, config);
   return {

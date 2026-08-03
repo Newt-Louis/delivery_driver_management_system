@@ -6,7 +6,8 @@ Mỗi file tập trung vào một miền nghiệp vụ riêng:
 
 - [auth-role-scope.md](auth-role-scope.md): đăng nhập, JWT, role và scope theo `BusinessLocation`.
 - [redis-cache-debug.md](redis-cache-debug.md): Redis cache/session keys và cách xem Redis khi development.
-- [multi-unit-permissions.md](multi-unit-permissions.md): phân quyền nhiều `UnitConfig` cho `CHECKIN` và `RECEIVING`.
+- [multi-unit-permissions.md](multi-unit-permissions.md): phân quyền nhiều `UnitConfig` cho các role vận hành.
+- [permission-toolkit.md](permission-toolkit.md): helper role/scope dùng chung cho backend và frontend.
 - [app-config-advanced-auth.md](app-config-advanced-auth.md): cấu hình ứng dụng, IP nội bộ và Face ID/WebAuthn.
 - [business-location-unit-zone-slot.md](business-location-unit-zone-slot.md): cây dữ liệu `BusinessLocation -> UnitConfig -> Zone -> Slot`.
 - [driver-registration.md](driver-registration.md): luồng tài xế đăng ký giao hàng tại `/register`.

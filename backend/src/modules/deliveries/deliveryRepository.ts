@@ -1,4 +1,5 @@
-import { DeliveryStatus, GoodsType, Prisma, ReceivingUnit, SlotStatus, VehicleType } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { DeliveryStatus, GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getUnitConfigForDefaultLocation } from '../../lib/businessLocation';
 import type { SocketScope } from '../../socket';
@@ -31,8 +32,7 @@ export async function findDuplicateRegistration(args: {
   requestedTime?: Date | null;
   deliveryDate?: string;
 }) {
-  const day = args.requestedTime ?? parseDeliveryDate(args.deliveryDate);
-  if (!day) return null;
+  const day = args.requestedTime ?? parseDeliveryDate(args.deliveryDate) ?? new Date();
 
   const { start, end } = localDayRange(day);
   const candidates = await prisma.deliveryRegistration.findMany({
@@ -59,7 +59,7 @@ export async function findDuplicateRegistration(args: {
 }
 
 export function isUniqueConstraintError(error: unknown): error is Prisma.PrismaClientKnownRequestError {
-  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+  return Boolean(error && typeof error === 'object' && (error as { code?: string }).code === 'P2002');
 }
 
 export function localDateKey(date: Date): string {
@@ -93,7 +93,7 @@ export function advisoryLockId(value: string): number {
   return hash | 0;
 }
 
-export async function getRegistrationSlotCapacity(unit: ReceivingUnit, vehicleType: VehicleType): Promise<number | null> {
+export async function getRegistrationSlotCapacity(unit: ReceivingUnitCode, vehicleType: VehicleType): Promise<number | null> {
   const config = await getUnitConfigForDefaultLocation(unit);
   if (!config) return null;
 
@@ -111,7 +111,7 @@ export async function getRegistrationSlotCapacity(unit: ReceivingUnit, vehicleTy
   return slots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
 }
 
-export async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnit[]> {
+export async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnitCode[]> {
   if (!scope?.businessLocationId && !scope?.unitConfigId) return [];
 
   const unitConfigs = await prisma.unitConfig.findMany({
@@ -204,7 +204,7 @@ export function getAllSlots(scope?: SocketScope) {
 }
 
 export async function listDeliveries(args: {
-  unit?: ReceivingUnit;
+  unit?: ReceivingUnitCode;
   goodsType?: GoodsType;
   status?: string;
   scope?: SocketScope;
@@ -231,7 +231,7 @@ export async function listDeliveries(args: {
   return attachCallCounts(deliveries);
 }
 
-export function findAutoWarehouseVendor(vendorCode: string, unit: ReceivingUnit) {
+export function findAutoWarehouseVendor(vendorCode: string, unit: ReceivingUnitCode) {
   return prisma.autoWarehouseVendor.findFirst({
     where: { vendorCode, unit, active: true },
   });

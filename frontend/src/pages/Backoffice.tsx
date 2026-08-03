@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { allowedBackofficeTabs, BACKOFFICE_TABS } from '../features/backoffice/constants';
 import type { BackofficeTab } from '../features/backoffice/types';
@@ -51,6 +52,11 @@ export default function Backoffice() {
           <h1 className="page-title">Backoffice — Cấu hình Hệ thống</h1>
           <p className="text-sm text-thiso-400 mt-1">Quản lý slot và cấu hình đơn vị nhận hàng theo quyền tài khoản</p>
         </div>
+        {user?.role === 'SUPERADMIN' && (
+          <Link to="/superadmin" className="btn btn-secondary">
+            Superadmin
+          </Link>
+        )}
       </div>
 
       <div className="flex gap-1 mb-6 border-b border-thiso-200">

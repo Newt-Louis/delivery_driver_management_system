@@ -1,17 +1,11 @@
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import {
-  DeliveryHistoryEventType,
-  DeliveryStatus,
-  GoodsType,
-  Prisma,
-  ReceivingUnit,
-  SlotStatus,
-  VehicleType,
-} from '@prisma/client';
+  DeliveryHistoryEventType, DeliveryStatus, GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { checkInDelivery } from '../services/checkInDelivery';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../services/manualCallDelivery';
@@ -47,7 +41,7 @@ type TestScope = {
 
 type TicketSequenceSnapshot = {
   ticketDate: string;
-  receivingUnit: ReceivingUnit;
+  receivingUnit: ReceivingUnitCode;
   vehicleType: VehicleType;
   nextNumber: number | null;
 };
@@ -120,7 +114,7 @@ async function cleanupPrefix(prefix: string): Promise<void> {
 
 async function withScope<T>(
   label: string,
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   fn: (scope: TestScope) => Promise<T>,
 ): Promise<T> {
   const prefix = nextPrefix(label);
@@ -163,7 +157,7 @@ async function createSlot(
   scope: TestScope,
   options: {
     suffix: string;
-    unit?: ReceivingUnit;
+    unit?: ReceivingUnitCode;
     vehicleType?: VehicleType;
     maxCapacity?: number;
     acceptedGoods?: GoodsType[];
@@ -192,7 +186,7 @@ async function createDelivery(
   index: number,
   options: {
     status?: DeliveryStatus;
-    unit?: ReceivingUnit;
+    unit?: ReceivingUnitCode;
     vehicleType?: VehicleType;
     goodsType?: GoodsType;
     assignedSlotId?: string | null;
@@ -234,7 +228,7 @@ async function createAdminUser(scope: TestScope) {
 }
 
 async function captureTicketSequence(
-  receivingUnit: ReceivingUnit,
+  receivingUnit: ReceivingUnitCode,
   vehicleType: VehicleType,
 ): Promise<TicketSequenceSnapshot> {
   const ticketDate = getVNDateKey(new Date());
@@ -319,7 +313,7 @@ async function withRegisterServer<T>(fn: (baseUrl: string) => Promise<T>): Promi
 async function skipAutoAssignIfForeignWaiting(
   t: { skip: (message?: string) => void },
   prefix: string,
-  unit: ReceivingUnit,
+  unit: ReceivingUnitCode,
   vehicleType: VehicleType,
 ): Promise<boolean> {
   const foreignWaiting = await prisma.deliveryRegistration.count({
@@ -352,6 +346,7 @@ test('50 concurrent identical registrations create one active delivery', async (
       vehicleType: 'TRUCK',
       receivingUnit: 'EMART',
       goodsType: 'GENERAL_GOODS',
+      poNumber: 'PO0473829156',
       note: prefix,
     };
 
@@ -447,6 +442,7 @@ test('50 concurrent registrations for one time slot respect real slot capacity',
             vehicleType: 'TRUCK',
             receivingUnit: 'EMART',
             goodsType: 'GENERAL_GOODS',
+            poNumber: 'PO5839102746',
             requestedTime,
             note: prefix,
           }),

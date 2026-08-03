@@ -1,4 +1,5 @@
-import { ReceivingUnit, SlotStatus } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
+import { SlotStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import type { SocketScope } from '../../socket';
 import type { CreateSlotPayload, UpdateSlotPayload } from './slotFormRequest';
@@ -89,7 +90,7 @@ export function updateSlotData(id: string, data: Omit<UpdateSlotPayload, 'status
   return prisma.slot.update({ where: { id }, data });
 }
 
-export async function validateZoneForUnit(zoneId: string, assignedUnit: ReceivingUnit) {
+export async function validateZoneForUnit(zoneId: string, assignedUnit: ReceivingUnitCode) {
   const zone = await findZoneForUnit(zoneId);
   if (!zone) return 'Khu nhận hàng không tồn tại.';
   if (zone.unitConfig.unit !== assignedUnit) return 'Khu nhận hàng không thuộc đúng đơn vị của slot.';

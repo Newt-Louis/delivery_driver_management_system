@@ -1,5 +1,6 @@
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { Router, Request, Response } from 'express';
-import { DeliveryStatus, SchedulerJobTrigger, SlotStatus, GoodsType, ReceivingUnit, VehicleType } from '@prisma/client';
+import { DeliveryStatus, SchedulerJobTrigger, SlotStatus, GoodsType, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope } from '../middleware/auth';

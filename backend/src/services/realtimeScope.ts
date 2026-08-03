@@ -1,10 +1,11 @@
-import { ReceivingUnit } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
+
 import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 import { prisma } from '../lib/prisma';
 import type { SocketScope } from '../socket';
 
 type DeliveryScopeInput = {
-  receivingUnit: ReceivingUnit;
+  receivingUnit: ReceivingUnitCode;
   assignedSlotId?: string | null;
 };
 

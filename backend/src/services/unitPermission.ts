@@ -1,14 +1,22 @@
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { Request, Response } from 'express';
-import { ReceivingUnit } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getRedis } from './redis';
+import { AuthPermissionUnit, roleHasUnitOperationScope } from '../domain/permissions';
 
-type PermissionUnit = {
+export type PermissionUnit = AuthPermissionUnit & {
+  unit: string;
+};
+
+type CachedPermissionUnit = {
   id: string;
-  unit: ReceivingUnit;
+  unit: string;
+  code: string;
   displayName: string;
+  shortName: string;
   icon: string | null;
   businessLocationId: string;
+  isActive: boolean;
 };
 
 function unitPermissionKey(userId: string): string {
@@ -16,17 +24,27 @@ function unitPermissionKey(userId: string): string {
 }
 
 export function roleRequiresUnitPermission(role: string | null | undefined): boolean {
-  return role === 'CHECKIN' || role === 'RECEIVING';
+  return roleHasUnitOperationScope(role);
 }
 
 function parseCachedPermissions(raw: string | null): PermissionUnit[] | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as PermissionUnit[];
-    return Array.isArray(parsed) ? parsed : null;
+    const parsed = JSON.parse(raw) as CachedPermissionUnit[];
+    return Array.isArray(parsed) ? parsed.map(normalizePermissionUnit) : null;
   } catch {
     return null;
   }
+}
+
+function normalizePermissionUnit(unit: CachedPermissionUnit): PermissionUnit {
+  return {
+    ...unit,
+    unit: unit.unit ?? unit.code,
+    code: unit.code ?? unit.unit,
+    shortName: unit.shortName ?? unit.displayName,
+    isActive: unit.isActive ?? true,
+  };
 }
 
 async function queryUserUnitPermissions(userId: string): Promise<PermissionUnit[]> {
@@ -38,15 +56,20 @@ async function queryUserUnitPermissions(userId: string): Promise<PermissionUnit[
           id: true,
           unit: true,
           displayName: true,
+          shortName: true,
           icon: true,
           businessLocationId: true,
+          isActive: true,
         },
       },
     },
     orderBy: { unitConfig: { unit: 'asc' } },
   });
 
-  return rows.map((row) => row.unitConfig);
+  return rows.map((row) => normalizePermissionUnit({
+    ...row.unitConfig,
+    code: row.unitConfig.unit,
+  }));
 }
 
 async function writeUserUnitPermissionCache(userId: string, units: PermissionUnit[]): Promise<void> {
@@ -79,16 +102,21 @@ export async function getUserUnitPermissionsFromDb(userId: string): Promise<Perm
     select: {
       unitConfig: {
         select: {
-          id: true,
-          unit: true,
-          displayName: true,
-          icon: true,
-          businessLocationId: true,
+            id: true,
+            unit: true,
+            displayName: true,
+            shortName: true,
+            icon: true,
+            businessLocationId: true,
+            isActive: true,
+          },
         },
       },
-    },
     orderBy: { unitConfig: { unit: 'asc' } },
-  }).then((rows) => rows.map((row) => row.unitConfig));
+  }).then((rows) => rows.map((row) => normalizePermissionUnit({
+    ...row.unitConfig,
+    code: row.unitConfig.unit,
+  })));
 }
 
 export async function replaceUserUnitPermissions(userId: string, unitConfigIds: string[]): Promise<void> {
@@ -111,7 +139,7 @@ export async function assertUnitConfigsInLocation(unitConfigIds: string[], busin
 
   const unitConfigs = await prisma.unitConfig.findMany({
     where: { id: { in: uniqueIds }, businessLocationId },
-    select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
+    select: { id: true, unit: true, displayName: true, shortName: true, icon: true, businessLocationId: true, isActive: true },
     orderBy: { unit: 'asc' },
   });
 
@@ -119,7 +147,7 @@ export async function assertUnitConfigsInLocation(unitConfigIds: string[], busin
     throw Object.assign(new Error('Danh sách đơn vị phân quyền không thuộc khu vực của tài khoản.'), { statusCode: 400 });
   }
 
-  return unitConfigs;
+  return unitConfigs.map((unitConfig) => normalizePermissionUnit({ ...unitConfig, code: unitConfig.unit }));
 }
 
 export async function resolveLegacyUnitConfigId(args: {
@@ -131,18 +159,18 @@ export async function resolveLegacyUnitConfigId(args: {
     where: {
       businessLocationId_unit: {
         businessLocationId: args.businessLocationId,
-        unit: args.unit as ReceivingUnit,
+        unit: args.unit as ReceivingUnitCode,
       },
     },
-    select: { id: true, unit: true, displayName: true, icon: true, businessLocationId: true },
+    select: { id: true, unit: true, displayName: true, shortName: true, icon: true, businessLocationId: true, isActive: true },
   });
-  return unitConfig;
+  return unitConfig ? normalizePermissionUnit({ ...unitConfig, code: unitConfig.unit }) : null;
 }
 
 export async function enforceDeliveryUnitPermission(
   req: Request,
   res: Response,
-  delivery: { receivingUnit: ReceivingUnit },
+  delivery: { receivingUnit: ReceivingUnitCode },
   operation: 'checkin' | 'receiving',
 ): Promise<boolean> {
   return enforceUserUnitPermissionForUnit(req, res, delivery.receivingUnit, operation);
@@ -151,7 +179,7 @@ export async function enforceDeliveryUnitPermission(
 export async function enforceUserUnitPermissionForUnit(
   req: Request,
   res: Response,
-  receivingUnit: ReceivingUnit,
+  receivingUnit: ReceivingUnitCode,
   operation: 'checkin' | 'receiving',
 ): Promise<boolean> {
   const user = req.user;
@@ -160,8 +188,7 @@ export async function enforceUserUnitPermissionForUnit(
     return false;
   }
 
-  if (operation === 'checkin' && user.role !== 'CHECKIN') return true;
-  if (operation === 'receiving' && user.role !== 'RECEIVING') return true;
+  if (!roleHasUnitOperationScope(user.role)) return true;
 
   if (!user.businessLocationId) {
     res.status(403).json({ error: 'Tài khoản chưa được gán khu vực hoạt động.' });

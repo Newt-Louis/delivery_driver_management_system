@@ -23,6 +23,8 @@ enum SlotStatus {
   MAINTENANCE
 }
 
+// Legacy compatibility only. New runtime unit data is stored in UnitConfig.unit
+// as a database-owned string and scoped by UnitConfig.id.
 enum ReceivingUnit {
   EMART
   THISKYHALL
@@ -110,17 +112,19 @@ model User {
   email              String               @unique
   passwordHash       String               @map("password_hash")
   role               Role                 @default(CHECKIN)
-  unit               ReceivingUnit? // optional unit assignment
+  unit               String? // legacy unit code snapshot; source of truth is user_unit_permissions
   department         String? // free-text department / shift label
   businessLocationId String?              @map("business_location_id")
   businessLocation   BusinessLocation?    @relation(fields: [businessLocationId], references: [id])
   isActive           Boolean              @default(true) @map("is_active")
+  deletedAt          DateTime?            @map("deleted_at")
   createdAt          DateTime             @default(now()) @map("created_at")
   faceCredentials    FaceCredential[]
   authChallenges     AuthChallenge[]
   unitPermissions    UserUnitPermission[]
 
   @@index([businessLocationId, role, isActive])
+  @@index([deletedAt])
   @@map("users")
 }
 
@@ -205,7 +209,7 @@ model Slot {
   id                String                 @id @default(cuid())
   code              String                 @unique // T1, T2, M1, M2 …
   name              String
-  assignedUnit      ReceivingUnit          @map("assigned_unit")
+  assignedUnit      String                 @map("assigned_unit")
   vehicleType       VehicleType            @default(TRUCK) @map("vehicle_type")
   acceptedGoods     GoodsType[]            @default([]) @map("accepted_goods") // empty = accepts all goods
   autoAssign        Boolean                @default(true) @map("auto_assign")
@@ -232,7 +236,9 @@ model DeliveryRegistration {
   driverName         String                 @map("driver_name")
   driverPhone        String                 @map("driver_phone")
   vehiclePlate       String                 @map("vehicle_plate")
-  receivingUnit      ReceivingUnit          @map("receiving_unit")
+  receivingUnit      String                 @map("receiving_unit")
+  unitConfigId       String?                @map("unit_config_id")
+  unitConfig         UnitConfig?            @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
   goodsType          GoodsType              @map("goods_type")
   poNumber           String?                @map("po_number")
   vendorCode         String?                @map("vendor_code")
@@ -255,6 +261,7 @@ model DeliveryRegistration {
   updatedAt          DateTime               @updatedAt @map("updated_at")
   historyEvents      DeliveryHistoryEvent[]
 
+  @@index([unitConfigId, status, vehicleType, checkinTime])
   @@index([status, receivingUnit, vehicleType, checkinTime])
   @@index([assignedSlotId, status])
   @@index([vehiclePlate, createdAt])
@@ -264,28 +271,36 @@ model DeliveryRegistration {
 }
 
 model TicketSequence {
-  id            String        @id @default(cuid())
-  ticketDate    String        @map("ticket_date")
-  receivingUnit ReceivingUnit @map("receiving_unit")
-  vehicleType   VehicleType   @map("vehicle_type")
-  nextNumber    Int           @default(1) @map("next_number")
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  id            String      @id @default(cuid())
+  ticketDate    String      @map("ticket_date")
+  receivingUnit String      @map("receiving_unit")
+  unitConfigId  String?     @map("unit_config_id")
+  unitConfig    UnitConfig? @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
+  vehicleType   VehicleType @map("vehicle_type")
+  nextNumber    Int         @default(1) @map("next_number")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
 
   @@unique([ticketDate, receivingUnit, vehicleType])
+  @@unique([ticketDate, unitConfigId, vehicleType])
+  @@index([unitConfigId, vehicleType, ticketDate])
   @@index([receivingUnit, vehicleType, ticketDate])
   @@map("ticket_sequences")
 }
 
 model RegistrationSequence {
-  id               String        @id @default(cuid())
-  registrationDate String        @map("registration_date")
-  receivingUnit    ReceivingUnit @map("receiving_unit")
-  nextNumber       Int           @default(1) @map("next_number")
-  createdAt        DateTime      @default(now()) @map("created_at")
-  updatedAt        DateTime      @updatedAt @map("updated_at")
+  id               String      @id @default(cuid())
+  registrationDate String      @map("registration_date")
+  receivingUnit    String      @map("receiving_unit")
+  unitConfigId     String?     @map("unit_config_id")
+  unitConfig       UnitConfig? @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
+  nextNumber       Int         @default(1) @map("next_number")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
 
   @@unique([registrationDate, receivingUnit])
+  @@unique([registrationDate, unitConfigId])
+  @@index([unitConfigId, registrationDate])
   @@index([receivingUnit, registrationDate])
   @@map("registration_sequences")
 }
@@ -320,7 +335,7 @@ model DeliveryHistory {
   registrationCode         String                     @unique @map("registration_code")
   businessLocationId       String?                    @map("business_location_id")
   unitConfigId             String?                    @map("unit_config_id")
-  receivingUnit            ReceivingUnit              @map("receiving_unit")
+  receivingUnit            String                     @map("receiving_unit")
   vendorName               String                     @map("vendor_name")
   vendorCode               String?                    @map("vendor_code")
   poNumber                 String?                    @map("po_number")
@@ -424,12 +439,20 @@ model SchedulerJobHistory {
 }
 
 model UnitConfig {
-  id                 String               @id @default(cuid())
-  unit               ReceivingUnit
-  businessLocationId String               @map("business_location_id")
-  businessLocation   BusinessLocation     @relation(fields: [businessLocationId], references: [id])
-  zones              Zone[]
-  userPermissions    UserUnitPermission[]
+  id                    String                 @id @default(cuid())
+  unit                  String
+  businessLocationId    String                 @map("business_location_id")
+  businessLocation      BusinessLocation       @relation(fields: [businessLocationId], references: [id])
+  zones                 Zone[]
+  userPermissions       UserUnitPermission[]
+  deliveryRegistrations DeliveryRegistration[]
+  ticketSequences       TicketSequence[]
+  registrationSequences RegistrationSequence[]
+  autoWarehouseVendors  AutoWarehouseVendor[]
+  receivingTimeConfigs  ReceivingTimeConfig[]
+  unitGoodsTypes        UnitGoodsType[]
+  deliveryTimeWindows   DeliveryTimeWindow[]
+  isActive              Boolean                @default(true) @map("is_active")
 
   // FRESH FOOD
   freshFoodEnabled Boolean @default(true) @map("fresh_food_enabled")
@@ -506,16 +529,20 @@ model BusinessLocation {
 }
 
 model AutoWarehouseVendor {
-  id         String        @id @default(cuid())
-  unit       ReceivingUnit
-  vendorCode String        @map("vendor_code")
-  vendorName String        @map("vendor_name")
-  active     Boolean       @default(true)
-  note       String?
-  createdAt  DateTime      @default(now()) @map("created_at")
-  updatedAt  DateTime      @updatedAt @map("updated_at")
+  id           String      @id @default(cuid())
+  unit         String
+  unitConfigId String?     @map("unit_config_id")
+  unitConfig   UnitConfig? @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
+  vendorCode   String      @map("vendor_code")
+  vendorName   String      @map("vendor_name")
+  active       Boolean     @default(true)
+  note         String?
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
 
   @@unique([unit, vendorCode])
+  @@unique([unitConfigId, vendorCode])
+  @@index([unitConfigId, active])
   @@map("auto_warehouse_vendors")
 }
 
@@ -532,40 +559,50 @@ model PushSubscription {
 }
 
 model ReceivingTimeConfig {
-  id                 String        @id @default(cuid())
-  unit               ReceivingUnit
-  vehicleType        VehicleType   @map("vehicle_type")
-  goodsType          GoodsType     @map("goods_type")
-  configuredMinutes  Float         @default(30) @map("configured_minutes")
-  recommendedMinutes Float?        @map("recommended_minutes")
-  sampleCount        Int           @default(0) @map("sample_count")
-  lastAnalyzedAt     DateTime?     @map("last_analyzed_at")
-  updatedAt          DateTime      @updatedAt @map("updated_at")
+  id                 String      @id @default(cuid())
+  unit               String
+  unitConfigId       String?     @map("unit_config_id")
+  unitConfig         UnitConfig? @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
+  vehicleType        VehicleType @map("vehicle_type")
+  goodsType          GoodsType   @map("goods_type")
+  configuredMinutes  Float       @default(30) @map("configured_minutes")
+  recommendedMinutes Float?      @map("recommended_minutes")
+  sampleCount        Int         @default(0) @map("sample_count")
+  lastAnalyzedAt     DateTime?   @map("last_analyzed_at")
+  updatedAt          DateTime    @updatedAt @map("updated_at")
 
   @@unique([unit, vehicleType, goodsType])
+  @@unique([unitConfigId, vehicleType, goodsType])
+  @@index([unitConfigId])
   @@map("receiving_time_configs")
 }
 
 model UnitGoodsType {
-  id          String                 @id @default(cuid())
-  unit        ReceivingUnit
-  name        String
-  emoji       String                 @default("📦")
-  baseType    GoodsType              @map("base_type")
-  enabled     Boolean                @default(true)
-  sortOrder   Int                    @default(0) @map("sort_order")
-  createdAt   DateTime               @default(now()) @map("created_at")
-  updatedAt   DateTime               @updatedAt @map("updated_at")
-  deliveries  DeliveryRegistration[]
-  timeWindows DeliveryTimeWindow[]
+  id           String                 @id @default(cuid())
+  unit         String
+  unitConfigId String?                @map("unit_config_id")
+  unitConfig   UnitConfig?            @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
+  name         String
+  emoji        String                 @default("📦")
+  baseType     GoodsType              @map("base_type")
+  enabled      Boolean                @default(true)
+  sortOrder    Int                    @default(0) @map("sort_order")
+  createdAt    DateTime               @default(now()) @map("created_at")
+  updatedAt    DateTime               @updatedAt @map("updated_at")
+  deliveries   DeliveryRegistration[]
+  timeWindows  DeliveryTimeWindow[]
 
+  @@unique([unitConfigId, baseType, name])
   @@index([unit, baseType])
+  @@index([unitConfigId, baseType])
   @@map("unit_goods_types")
 }
 
 model DeliveryTimeWindow {
   id              String         @id @default(cuid())
-  unit            ReceivingUnit
+  unit            String
+  unitConfigId    String?        @map("unit_config_id")
+  unitConfig      UnitConfig?    @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
   goodsType       GoodsType      @map("goods_type")
   // When set: window belongs to this custom goods type.
   // When null: window is the base-type fallback (used when no custom types are configured).
@@ -580,6 +617,7 @@ model DeliveryTimeWindow {
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
   @@index([unit, goodsType])
+  @@index([unitConfigId, goodsType])
   @@index([unitGoodsTypeId])
   @@map("delivery_time_windows")
 }

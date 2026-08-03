@@ -1,4 +1,5 @@
-import { PrismaClient, ReceivingUnit, Role } from '@prisma/client';
+import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../src/domain/unitCodes';
+import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import fs from 'node:fs';
 import path from 'node:path';
