@@ -10,6 +10,7 @@ let io: SocketServer;
 export type SocketScope = {
   businessLocationId?: string;
   unitConfigId?: string;
+  unitConfigIds?: string[];
 };
 
 type JoinRealtimeScopePayload = SocketScope & {

@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
-import { useBranding, UNIT_FALLBACKS } from '../../../context/BrandingContext';
-
-type ReceivingUnitKey = 'EMART' | 'THISKYHALL' | 'TENANT';
+import { useBranding } from '../../../context/BrandingContext';
+import type { UnitConfig } from '../../../lib/types';
 
 function LogoUpload({ value, onChange, label, maxSizeKB = 500 }: {
   value: string | null;
@@ -50,29 +50,123 @@ function LogoUpload({ value, onChange, label, maxSizeKB = 500 }: {
   );
 }
 
+function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [form, setForm] = useState({
+    displayName: unit.displayName || unit.unit,
+    shortName: unit.shortName || unit.displayName || unit.unit,
+    description: unit.description || '',
+    icon: unit.icon || '',
+    logoUrl: unit.logoUrl ?? null as string | null,
+    primaryColor: unit.primaryColor || '#1C1C1C',
+  });
+
+  function setField(field: keyof typeof form, value: string | null) {
+    setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function saveUnit() {
+    setSaving(true);
+    try {
+      await api.patch(`/api/units/${unit.unit}/config`, form);
+      onSaved();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="border rounded-2xl p-5 space-y-4 bg-white border-thiso-100">
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 rounded-xl border border-thiso-100 flex items-center justify-center overflow-hidden" style={{ background: `${form.primaryColor}12` }}>
+          {form.logoUrl
+            ? <img src={form.logoUrl} alt="" className="w-full h-full object-contain p-1" />
+            : <span className="text-2xl">{form.icon || '🏬'}</span>}
+        </div>
+        <div>
+          <h4 className="font-bold text-thiso-800">{form.displayName || unit.unit}</h4>
+          <p className="text-xs text-thiso-400 font-mono">{unit.unit}</p>
+        </div>
+      </div>
+
+      <LogoUpload label="Logo đơn vị" value={form.logoUrl} onChange={v => setField('logoUrl', v)} />
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Tên hiển thị đầy đủ</label>
+          <input className="input bg-white" value={form.displayName} onChange={e => setField('displayName', e.target.value)} placeholder={unit.unit} />
+        </div>
+        <div>
+          <label className="label">Tên rút gọn</label>
+          <input className="input bg-white" value={form.shortName} onChange={e => setField('shortName', e.target.value)} placeholder={unit.unit} />
+          <p className="text-[11px] text-thiso-400 mt-1">Dùng trên màn hình TV hàng chờ</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <label className="label">Icon</label>
+          <input
+            className="input bg-white"
+            value={form.icon}
+            onChange={e => setField('icon', e.target.value)}
+            placeholder="🏬"
+            maxLength={40}
+          />
+          <p className="text-[11px] text-thiso-400 mt-1">Emoji hoặc class icon, có thể để trống</p>
+        </div>
+        <div className="col-span-2">
+          <label className="label">Mô tả / địa chỉ cổng</label>
+          <input className="input bg-white" value={form.description} onChange={e => setField('description', e.target.value)} placeholder="Ví dụ: Siêu thị - Cửa B3" />
+          <p className="text-[11px] text-thiso-400 mt-1">Ví dụ: Siêu thị — Cửa B3, tầng hầm</p>
+        </div>
+        <div>
+          <label className="label">Màu thương hiệu</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={form.primaryColor}
+              onChange={e => setField('primaryColor', e.target.value)}
+              className="w-10 h-10 rounded-lg border border-thiso-200 cursor-pointer bg-white p-0.5"
+            />
+            <input
+              className="input bg-white font-mono text-sm flex-1"
+              value={form.primaryColor}
+              onChange={e => setField('primaryColor', e.target.value)}
+              placeholder="#1C1C1C"
+              pattern="^#[0-9a-fA-F]{6}$"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-end gap-3 pt-1">
+        {saved && <span className="text-xs text-sky-600 font-semibold">✓ Đã lưu</span>}
+        <button className="btn-primary text-sm px-5" onClick={saveUnit} disabled={saving}>
+          {saving ? 'Đang lưu...' : `Lưu ${form.displayName || unit.unit}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function BrandTab() {
-  const { mall, units, refresh } = useBranding();
+  const { mall, refresh } = useBranding();
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState<string | null>(null);
   const [saved,  setSaved]  = useState<string | null>(null);
+  const { data: unitConfigs = [], isLoading: unitsLoading } = useQuery<UnitConfig[]>({
+    queryKey: ['unit-configs'],
+    queryFn: async () => (await api.get('/api/units/configs')).data,
+  });
 
   // Mall state
   const [mallName,    setMallName]    = useState(mall.mallName);
   const [mallTagline, setMallTagline] = useState(mall.tagline ?? '');
   const [mallLogo,    setMallLogo]    = useState<string | null>(mall.logoUrl);
-
-  // Unit states
-  const [unitData, setUnitData] = useState<Record<ReceivingUnitKey, {
-    displayName: string; shortName: string; description: string;
-    icon: string; logoUrl: string | null; primaryColor: string;
-  }>>({
-    EMART:      { displayName: units.EMART?.displayName      ?? '', shortName: units.EMART?.shortName      ?? '', description: units.EMART?.description      ?? '', icon: units.EMART?.icon      ?? '', logoUrl: units.EMART?.logoUrl      ?? null, primaryColor: units.EMART?.primaryColor      ?? '#FF9500' },
-    THISKYHALL: { displayName: units.THISKYHALL?.displayName ?? '', shortName: units.THISKYHALL?.shortName ?? '', description: units.THISKYHALL?.description ?? '', icon: units.THISKYHALL?.icon ?? '', logoUrl: units.THISKYHALL?.logoUrl ?? null, primaryColor: units.THISKYHALL?.primaryColor ?? '#27A55E' },
-    TENANT:     { displayName: units.TENANT?.displayName     ?? '', shortName: units.TENANT?.shortName     ?? '', description: units.TENANT?.description     ?? '', icon: units.TENANT?.icon     ?? '', logoUrl: units.TENANT?.logoUrl     ?? null, primaryColor: units.TENANT?.primaryColor     ?? '#1C1C1C' },
-  });
-
-  function setUnit(unit: ReceivingUnitKey, field: string, value: string | null) {
-    setUnitData(d => ({ ...d, [unit]: { ...d[unit], [field]: value } }));
-  }
 
   async function saveMall() {
     setSaving('mall');
@@ -83,18 +177,10 @@ export default function BrandTab() {
     } finally { setSaving(null); }
   }
 
-  async function saveUnit(unit: ReceivingUnitKey) {
-    setSaving(unit);
-    try {
-      await api.patch(`/api/units/${unit}/config`, unitData[unit]);
-      refresh();
-      setSaved(unit); setTimeout(() => setSaved(null), 2000);
-    } finally { setSaving(null); }
+  function refreshUnits() {
+    refresh();
+    queryClient.invalidateQueries({ queryKey: ['unit-configs'] });
   }
-
-  const UNIT_STYLE_BG: Record<ReceivingUnitKey, string> = {
-    EMART: 'bg-emart-50 border-emart-200', THISKYHALL: 'bg-sky-50 border-sky-200', TENANT: 'bg-thiso-50 border-thiso-200',
-  };
 
   return (
     <div className="space-y-8">
@@ -138,83 +224,15 @@ export default function BrandTab() {
       {/* ── Per-unit branding ── */}
       <div className="space-y-5">
         <h3 className="font-bold text-thiso-700">Thương hiệu từng đơn vị</h3>
-        {(['EMART', 'THISKYHALL', 'TENANT'] as ReceivingUnitKey[]).map((unit) => {
-          const d  = unitData[unit];
-          const fb = UNIT_FALLBACKS[unit];
-          return (
-            <div key={unit} className={`border rounded-2xl p-5 space-y-4 ${UNIT_STYLE_BG[unit]}`}>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white border border-thiso-100 flex items-center justify-center overflow-hidden">
-                  {d.logoUrl
-                    ? <img src={d.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-                    : <span className="text-2xl">{d.icon || fb.icon}</span>}
-                </div>
-                <div>
-                  <h4 className="font-bold text-thiso-800">{d.displayName || fb.displayName}</h4>
-                  <p className="text-xs text-thiso-400 font-mono">{unit}</p>
-                </div>
-              </div>
-
-              <LogoUpload label="Logo đơn vị" value={d.logoUrl} onChange={v => setUnit(unit, 'logoUrl', v)} />
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Tên hiển thị đầy đủ</label>
-                  <input className="input bg-white" value={d.displayName} onChange={e => setUnit(unit, 'displayName', e.target.value)} placeholder={fb.displayName} />
-                </div>
-                <div>
-                  <label className="label">Tên rút gọn</label>
-                  <input className="input bg-white" value={d.shortName} onChange={e => setUnit(unit, 'shortName', e.target.value)} placeholder={fb.shortName} />
-                  <p className="text-[11px] text-thiso-400 mt-1">Dùng trên màn hình TV hàng chờ</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="label">Icon</label>
-                  <input
-                    className="input bg-white"
-                    value={d.icon}
-                    onChange={e => setUnit(unit, 'icon', e.target.value)}
-                    placeholder={fb.icon ?? ''}
-                    maxLength={40}
-                  />
-                  <p className="text-[11px] text-thiso-400 mt-1">Emoji hoặc class icon, có thể để trống</p>
-                </div>
-                <div className="col-span-2">
-                  <label className="label">Mô tả / địa chỉ cổng</label>
-                  <input className="input bg-white" value={d.description} onChange={e => setUnit(unit, 'description', e.target.value)} placeholder={fb.description} />
-                  <p className="text-[11px] text-thiso-400 mt-1">Ví dụ: Siêu thị — Cửa B3, tầng hầm</p>
-                </div>
-                <div>
-                  <label className="label">Màu thương hiệu</label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="color"
-                      value={d.primaryColor}
-                      onChange={e => setUnit(unit, 'primaryColor', e.target.value)}
-                      className="w-10 h-10 rounded-lg border border-thiso-200 cursor-pointer bg-white p-0.5"
-                    />
-                    <input
-                      className="input bg-white font-mono text-sm flex-1"
-                      value={d.primaryColor}
-                      onChange={e => setUnit(unit, 'primaryColor', e.target.value)}
-                      placeholder="#FF9500"
-                      pattern="^#[0-9a-fA-F]{6}$"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-1">
-                {saved === unit && <span className="text-xs text-sky-600 font-semibold">✓ Đã lưu</span>}
-                <button className="btn-primary text-sm px-5" onClick={() => saveUnit(unit)} disabled={saving === unit}>
-                  {saving === unit ? 'Đang lưu...' : `Lưu ${d.displayName || unit}`}
-                </button>
-              </div>
-            </div>
-          );
-        })}
+        {unitsLoading && <p className="text-sm text-thiso-400">Đang tải đơn vị...</p>}
+        {!unitsLoading && unitConfigs.length === 0 && (
+          <div className="border border-thiso-100 bg-white rounded-2xl p-5 text-sm text-thiso-400">
+            Khu vực hiện tại chưa có đơn vị nào.
+          </div>
+        )}
+        {unitConfigs.map((unit) => (
+          <UnitBrandCard key={unit.id} unit={unit} onSaved={refreshUnits} />
+        ))}
       </div>
     </div>
   );

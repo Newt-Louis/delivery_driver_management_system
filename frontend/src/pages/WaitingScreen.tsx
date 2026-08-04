@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRealtimeScope, useSocket } from '../context/SocketContext';
 import api from '../lib/api';
 import type { DeliveryRegistration } from '../lib/types';
@@ -19,21 +19,43 @@ function formatTicketCode(unit: string, vehicleType: string, n: number): string 
 
 // ─── Brand ────────────────────────────────────────────────────────────────────
 interface BrandConfig {
-  mall: { mallName: string; logoUrl: string | null; tagline: string };
+  mall: { id?: string; mallName: string; logoUrl: string | null; tagline: string };
   units: Record<string, {
+    id?: string;
+    unit?: string;
     displayName: string; shortName: string;
     icon?: string | null; logoUrl: string | null; primaryColor: string;
   }>;
 }
 
-const UNIT_KEYS = ['EMART', 'THISKYHALL', 'TENANT'] as const;
-type UnitKey = typeof UNIT_KEYS[number];
+type UnitKey = string;
 
-const UNIT_DEF: Record<UnitKey, { displayName: string; shortName: string; icon: string; primaryColor: string }> = {
+const UNIT_DEF: Record<string, { displayName: string; shortName: string; icon: string; primaryColor: string }> = {
   EMART:      { displayName: 'EMART',            shortName: 'EMART',   icon: '🏬', primaryColor: '#FF9500' },
   THISKYHALL: { displayName: 'THISKYHALL',        shortName: 'SKYHALL', icon: '🏢', primaryColor: '#27A55E' },
   TENANT:     { displayName: 'MALL (KHÁCH THUÊ)', shortName: 'MALL',    icon: '🏪', primaryColor: '#1C1C1C' },
 };
+
+function fallbackUnitDef(unit: string | null | undefined) {
+  const code = unit || 'TENANT';
+  return UNIT_DEF[code] ?? { displayName: code, shortName: code, icon: '📦', primaryColor: '#1C1C1C' };
+}
+
+function getUnitBrand(brand: BrandConfig | null, unit: string | null | undefined) {
+  const def = fallbackUnitDef(unit);
+  const cfg = unit ? brand?.units[unit] : null;
+  return {
+    ...def,
+    ...cfg,
+    icon: cfg?.icon || def.icon,
+    logoUrl: cfg?.logoUrl ?? null,
+    primaryColor: cfg?.primaryColor || def.primaryColor,
+  };
+}
+
+function getDeliveryUnitKey(delivery: DeliveryRegistration) {
+  return delivery.assignedSlot?.zone?.unitConfig?.unit ?? delivery.receivingUnit;
+}
 
 function UnitLogo({ logoUrl, icon, px = 28 }: { logoUrl: string | null | undefined; icon: string; px?: number }) {
   if (logoUrl) {
@@ -64,18 +86,17 @@ interface CalledAlert {
 function DarkCalledOverlay({ evt, brand, onDismiss }: {
   evt: CalledAlert; brand: BrandConfig | null; onDismiss: () => void;
 }) {
-  const unitKey = evt.receivingUnit as UnitKey | undefined;
-  const def = unitKey ? UNIT_DEF[unitKey] : UNIT_DEF.TENANT;
-  const cfg = unitKey ? brand?.units[unitKey] : null;
-  const primaryColor = cfg?.primaryColor ?? def.primaryColor;
-  const displayName  = cfg?.displayName  ?? def.displayName;
+  const unitKey = evt.receivingUnit;
+  const cfg = getUnitBrand(brand, unitKey);
+  const primaryColor = cfg.primaryColor;
+  const displayName  = cfg.displayName;
   const callCount    = evt.callCount ?? 1;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
       <div className="w-full max-w-2xl mx-4 rounded-3xl overflow-hidden shadow-2xl">
         <div className="px-6 py-3 flex items-center gap-3" style={{ background: primaryColor }}>
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={30} />
+          <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={30} />
           <span className="text-white font-black text-lg tracking-widest">{displayName}</span>
           {callCount > 1 && (
             <span className="ml-auto bg-white/20 text-white text-xs font-bold px-2.5 py-1 rounded-full">
@@ -298,11 +319,10 @@ function DarkUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fals
   unitKey: UnitKey; deliveries: DeliveryRegistration[]; highlightId: string | null;
   brand: BrandConfig | null; compact?: boolean;
 }) {
-  const def = UNIT_DEF[unitKey];
-  const cfg = brand?.units[unitKey];
-  const displayName  = cfg?.displayName  || def.displayName;
-  const shortName    = cfg?.shortName    || def.shortName;
-  const primaryColor = cfg?.primaryColor || def.primaryColor;
+  const cfg = getUnitBrand(brand, unitKey);
+  const displayName  = cfg.displayName;
+  const shortName    = cfg.shortName;
+  const primaryColor = cfg.primaryColor;
   const called    = deliveries.filter(d => d.status === 'CALLED');
   const waiting   = deliveries.filter(d => d.status === 'WAITING');
   const receiving = deliveries.filter(d => ['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status));
@@ -311,7 +331,7 @@ function DarkUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fals
     <div className="flex flex-col h-full min-h-0">
       <div className="rounded-t-2xl px-4 py-3 flex items-center justify-between shrink-0" style={{ background: primaryColor }}>
         <div className="flex items-center gap-2.5">
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={compact ? 22 : 28} />
+          <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={compact ? 22 : 28} />
           <div className="font-black tracking-widest text-white leading-none"
                style={{ fontSize: compact ? '0.85rem' : 'clamp(0.85rem, 1.5vw, 1.1rem)' }}>
             {compact ? shortName : displayName}
@@ -376,6 +396,17 @@ function GoodsLegend() {
   );
 }
 
+function NoUnitsState({ dark = false }: { dark?: boolean }) {
+  return (
+    <div className={`h-full min-h-[220px] flex items-center justify-center text-center rounded-2xl border ${dark ? 'border-thiso-700 text-thiso-400 bg-thiso-800/40' : 'border-gray-200 text-gray-400 bg-white'}`}>
+      <div>
+        <div className="text-3xl mb-2">✓</div>
+        <div className="text-sm font-semibold">Khu vực kinh doanh đang chưa có đơn vị vận hành.</div>
+      </div>
+    </div>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // BRIGHT THEME COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -383,10 +414,9 @@ function GoodsLegend() {
 function BrightCalledOverlay({ evt, brand, onDismiss }: {
   evt: CalledAlert; brand: BrandConfig | null; onDismiss: () => void;
 }) {
-  const unitKey = evt.receivingUnit as UnitKey | undefined;
-  const def = unitKey ? UNIT_DEF[unitKey] : UNIT_DEF.TENANT;
-  const cfg = unitKey ? brand?.units[unitKey] : null;
-  const primaryColor = cfg?.primaryColor ?? def.primaryColor;
+  const unitKey = evt.receivingUnit;
+  const cfg = getUnitBrand(brand, unitKey);
+  const primaryColor = cfg.primaryColor;
   const callCount = evt.callCount ?? 1;
 
   return (
@@ -401,7 +431,7 @@ function BrightCalledOverlay({ evt, brand, onDismiss }: {
       <div className="relative z-10 text-center px-8 w-full max-w-5xl mx-auto">
         {/* Unit + instruction */}
         <div className="flex items-center justify-center gap-3 mb-8">
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={38} />
+          <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={38} />
           <div className="text-left">
             <p className="text-white/70 font-black text-base uppercase tracking-[0.25em]">
               📣 Mời xe di chuyển vào vị trí nhận hàng
@@ -538,11 +568,9 @@ function BrightUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fa
   unitKey: UnitKey; deliveries: DeliveryRegistration[]; highlightId: string | null;
   brand: BrandConfig | null; compact?: boolean;
 }) {
-  const def = UNIT_DEF[unitKey];
-  const cfg = brand?.units[unitKey];
-  const displayName  = cfg?.displayName  || def.displayName;
-  const shortName    = cfg?.shortName    || def.shortName;
-  const primaryColor = cfg?.primaryColor || def.primaryColor;
+  const cfg = getUnitBrand(brand, unitKey);
+  const displayName  = cfg.displayName;
+  const primaryColor = cfg.primaryColor;
 
   const trucks     = deliveries.filter(d => d.vehicleType !== 'MOTORBIKE');
   const motorbikes = deliveries.filter(d => d.vehicleType === 'MOTORBIKE');
@@ -564,7 +592,7 @@ function BrightUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fa
            style={{ background: primaryColor, paddingTop: compact ? '0.9rem' : '0.85rem', paddingBottom: compact ? '0.9rem' : '0.85rem' }}>
         {/* Centered logo + name */}
         <div className="absolute inset-0 flex items-center justify-center gap-3 pointer-events-none">
-          <UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={compact ? 32 : 38} />
+          <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={compact ? 32 : 38} />
           <span className="leading-none"
                 style={{
                   fontFamily: "'Inter', sans-serif",
@@ -689,7 +717,7 @@ export default function WaitingScreen() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [brand, setBrand]           = useState<BrandConfig | null>(null);
   const [isMobile, setIsMobile]     = useState(typeof window !== 'undefined' && window.innerWidth < 768);
-  const [activeTab, setActiveTab]   = useState<UnitKey>('EMART');
+  const [activeTab, setActiveTab]   = useState<UnitKey>('');
   const [view, setView]             = useState<'dark' | 'bright'>(() =>
     (localStorage.getItem('ws_view') as 'dark' | 'bright') ?? 'bright',
   );
@@ -698,7 +726,9 @@ export default function WaitingScreen() {
   useEffect(() => { localStorage.setItem('ws_view', view); }, [view]);
   const toggleView = () => setView(v => v === 'dark' ? 'bright' : 'dark');
 
-  useEffect(() => { api.get<BrandConfig>('/api/brand').then(r => setBrand(r.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    api.get<BrandConfig>('/api/brand', { params: realtimeScope }).then(r => setBrand(r.data)).catch(() => {});
+  }, [realtimeScope]);
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handler);
@@ -710,6 +740,7 @@ export default function WaitingScreen() {
   }, []);
 
   const fetchQueue = useCallback(async () => {
+    if (!realtimeScope.businessLocationId && !realtimeScope.unitConfigId) return;
     try { setDeliveries((await api.get('/api/deliveries/queue', { params: realtimeScope })).data); } catch { /* silent */ }
   }, [realtimeScope]);
 
@@ -747,6 +778,19 @@ export default function WaitingScreen() {
   const totalReceiving = deliveries.filter(d => ['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status)).length;
   const driverUrl = `${window.location.origin}/register`;
   const dismissAlert = () => { setCalledEvt(null); setHighlightId(null); };
+  const unitKeys = useMemo(() => {
+    const fromBrand = Object.keys(brand?.units ?? {});
+    if (fromBrand.length > 0) return fromBrand;
+    return [...new Set(deliveries.map(getDeliveryUnitKey).filter(Boolean))];
+  }, [brand, deliveries]);
+  const desktopGridStyle = {
+    gridTemplateColumns: `repeat(${Math.min(Math.max(unitKeys.length, 1), 3)}, minmax(0, 1fr))`,
+  };
+
+  useEffect(() => {
+    if (unitKeys.length === 0) return;
+    if (!activeTab || !unitKeys.includes(activeTab)) setActiveTab(unitKeys[0]);
+  }, [activeTab, unitKeys]);
 
   const FullscreenBtn = () => (
     <button onClick={toggleFullscreen}
@@ -812,14 +856,13 @@ export default function WaitingScreen() {
 
         {/* Tab bar */}
         <div className={`border-b flex shrink-0 ${brightMobile ? 'bg-white border-gray-200' : 'bg-thiso-800 border-thiso-700'}`}>
-          {UNIT_KEYS.map(u => {
-            const def = UNIT_DEF[u];
-            const cfg = brand?.units[u];
-            const color = cfg?.primaryColor || def.primaryColor;
+          {unitKeys.map(u => {
+            const cfg = getUnitBrand(brand, u);
+            const color = cfg.primaryColor;
             const cnt = deliveries.filter(d =>
-              d.receivingUnit === u && ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status),
+              getDeliveryUnitKey(d) === u && ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status),
             ).length;
-            const calledCnt = deliveries.filter(d => d.receivingUnit === u && d.status === 'CALLED').length;
+            const calledCnt = deliveries.filter(d => getDeliveryUnitKey(d) === u && d.status === 'CALLED').length;
             const isActive = activeTab === u;
             return (
               <button key={u} onClick={() => setActiveTab(u)}
@@ -827,8 +870,8 @@ export default function WaitingScreen() {
                         ${isActive ? (brightMobile ? 'text-gray-800' : 'text-white') : brightMobile ? 'text-gray-400' : 'text-thiso-500'}`}>
                 {isActive && <div className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t" style={{ background: color }} />}
                 {calledCnt > 0 && <span className="absolute top-1.5 right-2 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />}
-                <span className="mr-1 inline-flex items-center"><UnitLogo logoUrl={cfg?.logoUrl} icon={cfg?.icon || def.icon} px={16} /></span>
-                {cfg?.shortName || def.shortName}
+                <span className="mr-1 inline-flex items-center"><UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={16} /></span>
+                {cfg.shortName}
                 {cnt > 0 && <span className="ml-1 opacity-60 text-[10px]">({cnt})</span>}
               </button>
             );
@@ -837,11 +880,13 @@ export default function WaitingScreen() {
 
         {/* Tab content */}
         <div className="flex-1 min-h-0 overflow-hidden p-3" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}>
-          {brightMobile ? (
+          {unitKeys.length === 0 ? (
+            <NoUnitsState dark={!brightMobile} />
+          ) : brightMobile ? (
             <BrightUnitPanel
               key={activeTab}
               unitKey={activeTab}
-              deliveries={deliveries.filter(d => d.receivingUnit === activeTab)}
+              deliveries={deliveries.filter(d => getDeliveryUnitKey(d) === activeTab)}
               highlightId={highlightId}
               brand={brand}
               compact
@@ -850,7 +895,7 @@ export default function WaitingScreen() {
             <DarkUnitPanel
               key={activeTab}
               unitKey={activeTab}
-              deliveries={deliveries.filter(d => d.receivingUnit === activeTab)}
+              deliveries={deliveries.filter(d => getDeliveryUnitKey(d) === activeTab)}
               highlightId={highlightId}
               brand={brand}
               compact
@@ -922,12 +967,12 @@ export default function WaitingScreen() {
         </div>
 
         {/* 3 columns */}
-        <div className="flex-1 grid grid-cols-3 gap-3 p-3 min-h-0">
-          {UNIT_KEYS.map(u => (
+        <div className="flex-1 grid gap-3 p-3 min-h-0 overflow-y-auto" style={desktopGridStyle}>
+          {unitKeys.length === 0 ? <NoUnitsState /> : unitKeys.map(u => (
             <BrightUnitPanel
               key={u}
               unitKey={u}
-              deliveries={deliveries.filter(d => d.receivingUnit === u)}
+              deliveries={deliveries.filter(d => getDeliveryUnitKey(d) === u)}
               highlightId={highlightId}
               brand={brand}
             />
@@ -989,16 +1034,15 @@ export default function WaitingScreen() {
             </div>
           </div>
           <div className="hidden xl:flex items-center gap-3">
-            {UNIT_KEYS.map(u => {
-              const def = UNIT_DEF[u];
-              const cfg = brand?.units[u];
-              const color = cfg?.primaryColor || def.primaryColor;
-              const cnt = deliveries.filter(d => d.receivingUnit === u && ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status)).length;
-              const calledCnt = deliveries.filter(d => d.receivingUnit === u && d.status === 'CALLED').length;
+            {unitKeys.map(u => {
+              const cfg = getUnitBrand(brand, u);
+              const color = cfg.primaryColor;
+              const cnt = deliveries.filter(d => getDeliveryUnitKey(d) === u && ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status)).length;
+              const calledCnt = deliveries.filter(d => getDeliveryUnitKey(d) === u && d.status === 'CALLED').length;
               return (
                 <div key={u} className="flex items-center gap-1.5">
                   <span className={`w-2 h-2 rounded-full inline-block ${calledCnt > 0 ? 'animate-pulse' : ''}`} style={{ background: color }} />
-                  <span className="text-thiso-400 text-xs font-semibold">{cfg?.shortName || def.shortName}</span>
+                  <span className="text-thiso-400 text-xs font-semibold">{cfg.shortName}</span>
                   {cnt > 0 && <span className="text-thiso-600 text-xs tabular-nums">({cnt})</span>}
                 </div>
               );
@@ -1023,12 +1067,12 @@ export default function WaitingScreen() {
       </div>
 
       {/* 3 unit columns */}
-      <div className="flex-1 grid grid-cols-3 gap-3 p-3 min-h-0">
-        {UNIT_KEYS.map(u => (
+      <div className="flex-1 grid gap-3 p-3 min-h-0 overflow-y-auto" style={desktopGridStyle}>
+        {unitKeys.length === 0 ? <NoUnitsState dark /> : unitKeys.map(u => (
           <DarkUnitPanel
             key={u}
             unitKey={u}
-            deliveries={deliveries.filter(d => d.receivingUnit === u)}
+            deliveries={deliveries.filter(d => getDeliveryUnitKey(d) === u)}
             highlightId={highlightId}
             brand={brand}
           />

@@ -9,7 +9,10 @@ export type ReportRange = {
 export type ReportScope = {
   businessLocationId?: string;
   allowedUnits?: ReceivingUnitCode[];
+  allowedUnitConfigIds?: string[];
+  unitConfigIds?: string[];
   unitFilter?: ReceivingUnitCode;
+  unitMeta?: Record<string, { id: string; unit: string; displayName: string; shortName: string; icon: string | null; logoUrl: string | null; primaryColor: string }>;
 };
 
 export type ReportQuery = {

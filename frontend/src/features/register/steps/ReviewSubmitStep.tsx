@@ -1,9 +1,11 @@
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
+import type { UnitConfig } from '../../../lib/types';
 import { GOODS_LABEL, VEHICLE_INFO } from '../constants';
 import type { FormState, SetFormField, Unit, VehicleType } from '../types';
 
 type ReviewSubmitStepProps = {
   form: FormState;
+  unitConfig: UnitConfig | null;
   brandUnits: Record<Unit, UnitBranding>;
   awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
   awVendorName: string;
@@ -14,6 +16,7 @@ type ReviewSubmitStepProps = {
 
 export default function ReviewSubmitStep({
   form,
+  unitConfig,
   brandUnits,
   awStatus,
   awVendorName,
@@ -24,6 +27,8 @@ export default function ReviewSubmitStep({
   const receivingUnit = form.receivingUnit as Unit;
   const unitBrand = brandUnits[receivingUnit] ?? UNIT_FALLBACKS[receivingUnit];
   const unitFallback = UNIT_FALLBACKS[receivingUnit];
+  const unitDisplayName = unitConfig?.displayName || unitBrand?.displayName || form.receivingUnit;
+  const unitIcon = unitConfig?.icon || unitBrand?.icon || unitFallback?.icon || '';
 
   return (
     <div className="space-y-4">
@@ -33,7 +38,7 @@ export default function ReviewSubmitStep({
         </div>
         <div className="divide-y divide-thiso-100">
           {[
-            { icon: '🏢', label: 'Đơn vị nhận', value: `${unitBrand?.icon || unitFallback?.icon || ''} ${unitBrand?.displayName ?? form.receivingUnit}` },
+            { icon: '🏢', label: 'Đơn vị nhận', value: `${unitIcon} ${unitDisplayName}` },
             { icon: '📦', label: 'Loại hàng', value: GOODS_LABEL[form.goodsType] ?? form.goodsType },
             { icon: '🚗', label: 'Biển số xe', value: form.vehiclePlate, mono: true },
             { icon: VEHICLE_INFO[form.vehicleType as VehicleType]?.icon ?? '🚗', label: 'Loại xe', value: VEHICLE_INFO[form.vehicleType as VehicleType]?.label ?? form.vehicleType },

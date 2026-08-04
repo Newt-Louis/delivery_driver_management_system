@@ -13,19 +13,45 @@ function formatTicketCode(unit: string, vt: string, n: number): string {
   return `${UNIT_TICKET_PREFIX[unit] ?? unit}-${VT_TICKET_PREFIX[vt] ?? 'X'}${String(n).padStart(3, '0')}`;
 }
 
-const UNIT_COLOR: Record<string, string> = {
-  EMART: '#FF9500', THISKYHALL: '#27A55E', TENANT: '#4F46E5',
-};
-
-const UNIT_BADGE: Record<string, { label: string; color: string }> = {
-  EMART:      { label: 'Emart',      color: 'bg-emart-100 text-emart-700' },
-  THISKYHALL: { label: 'Thiskyhall', color: 'bg-sky-100 text-sky-700' },
-  TENANT:     { label: 'Mall (Khách thuê)', color: 'bg-thiso-100 text-thiso-600' },
+const LEGACY_UNIT_META: Record<string, { label: string; shortName: string; color: string; icon: string }> = {
+  EMART:      { label: 'Emart', shortName: 'Emart', color: '#FF9500', icon: '🏬' },
+  THISKYHALL: { label: 'Thiskyhall', shortName: 'Thiskyhall', color: '#27A55E', icon: '🏢' },
+  TENANT:     { label: 'Mall (Khách thuê)', shortName: 'Mall', color: '#4F46E5', icon: '🏪' },
 };
 
 const VEHICLE_LABEL: Record<string, string> = {
   TRUCK: '🚛 Xe Tải', MOTORBIKE: '🛵 Xe Máy', OTHER: '🚗 Khác',
 };
+
+function getUnitMeta(delivery: DeliveryRegistration) {
+  const cfg = delivery.unitConfig;
+  const fallback = LEGACY_UNIT_META[delivery.receivingUnit] ?? {
+    label: delivery.receivingUnit,
+    shortName: delivery.receivingUnit,
+    color: '#4F46E5',
+    icon: '🏬',
+  };
+  return {
+    label: cfg?.displayName || fallback.label,
+    shortName: cfg?.shortName || cfg?.displayName || fallback.shortName,
+    color: cfg?.primaryColor || fallback.color,
+    icon: cfg?.icon || fallback.icon,
+    logoUrl: cfg?.logoUrl ?? null,
+  };
+}
+
+function UnitBadge({ delivery, strong = false }: { delivery: DeliveryRegistration; strong?: boolean }) {
+  const unit = getUnitMeta(delivery);
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full ${strong ? 'text-xs font-bold' : 'text-xs font-semibold'}`}
+      style={{ color: unit.color, background: `${unit.color}18` }}
+    >
+      {unit.logoUrl ? <img src={unit.logoUrl} alt="" className="w-4 h-4 object-contain rounded" /> : <span>{unit.icon}</span>}
+      {unit.shortName}
+    </span>
+  );
+}
 
 export default function CheckIn() {
   const [input, setInput] = useState('');
@@ -117,7 +143,7 @@ export default function CheckIn() {
             {result.ticketNumber != null && (
               <div
                 className="px-4 py-5 text-center"
-                style={{ background: UNIT_COLOR[result.receivingUnit] ?? '#4F46E5' }}
+                style={{ background: getUnitMeta(result).color }}
               >
                 <div className="text-white/80 text-xs font-bold uppercase tracking-widest mb-1">Số thẻ của tài xế</div>
                 <div className="text-white font-black tracking-widest" style={{ fontSize: 'clamp(2rem, 6vw, 3.2rem)', lineHeight: 1.1 }}>
@@ -134,9 +160,7 @@ export default function CheckIn() {
               <InfoRow label="Điện thoại" value={result.driverPhone} />
               <InfoRow label="Nhà cung cấp" value={result.vendorName} />
               <InfoRow label="Đơn vị nhận" value={
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${UNIT_BADGE[result.receivingUnit]?.color}`}>
-                  {UNIT_BADGE[result.receivingUnit]?.label}
-                </span>
+                <UnitBadge delivery={result} strong />
               } />
               <InfoRow label="Loại hàng" value={<GoodsBadge type={result.goodsType} />} />
               <div className="col-span-2">
@@ -160,7 +184,7 @@ export default function CheckIn() {
                   waitingList.map((d) => [
                     d.ticketNumber != null ? formatTicketCode(d.receivingUnit, d.vehicleType, d.ticketNumber) : '',
                     d.registrationCode, d.vehiclePlate, d.driverName, d.vendorName,
-                    ({ EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall' } as Record<string,string>)[d.receivingUnit] ?? d.receivingUnit,
+                    getUnitMeta(d).label,
                     ({ FRESH_FOOD: 'Tươi sống', GENERAL_GOODS: 'Hàng thường', AUTO_WAREHOUSE: 'Kho tự động', THI_CONG: 'Thi công' } as Record<string,string>)[d.goodsType] ?? d.goodsType,
                     VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType,
                     d.checkinTime ? Math.round((Date.now() - new Date(d.checkinTime).getTime()) / 60000) : '',
@@ -191,7 +215,7 @@ export default function CheckIn() {
                       {d.ticketNumber != null ? (
                         <span
                           className="font-mono font-black text-white text-xs px-2 py-1 rounded-lg"
-                          style={{ background: UNIT_COLOR[d.receivingUnit] ?? '#4F46E5' }}
+                          style={{ background: getUnitMeta(d).color }}
                         >
                           {formatTicketCode(d.receivingUnit, d.vehicleType, d.ticketNumber)}
                         </span>
@@ -203,9 +227,7 @@ export default function CheckIn() {
                     </td>
                     <td className="py-2.5 pr-3 font-mono text-xs text-thiso-500">{d.registrationCode}</td>
                     <td className="py-2.5 pr-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${UNIT_BADGE[d.receivingUnit]?.color ?? 'bg-thiso-100 text-thiso-600'}`}>
-                        {UNIT_BADGE[d.receivingUnit]?.label}
-                      </span>
+                      <UnitBadge delivery={d} />
                     </td>
                     <td className="py-2.5 pr-3"><GoodsBadge type={d.goodsType} /></td>
                     <td className="py-2.5 text-thiso-500 text-xs whitespace-nowrap">{d.checkinTime ? `${Math.round((Date.now() - new Date(d.checkinTime).getTime()) / 60000)} phút` : '—'}</td>

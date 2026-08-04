@@ -27,6 +27,7 @@ Chức năng:
 - Check-in lượt hợp lệ.
 - Xem danh sách xe đang chờ.
 - Export CSV danh sách waiting.
+- Label/màu đơn vị trên kết quả check-in và danh sách waiting ưu tiên `delivery.unitConfig`; fallback legacy theo `receivingUnit` chỉ dùng cho dữ liệu cũ thiếu `unitConfigId`.
 
 Route:
 
@@ -66,6 +67,22 @@ Service:
   - Ghi event `CHECKED_IN` trong `delivery_history_events`.
 - `reserveTicketNumber()`
   - Cấp ticket atomic theo ngày VN + receiving unit + vehicle type.
+  - Ticket code vẫn format từ snapshot `receivingUnit + vehicleType + ticketNumber` để tương thích số thẻ đã cấp.
+
+## Scope Unit Động
+
+Delivery mới từ `/register` có `unitConfigId`. Với các delivery này, check-in dùng `unitConfigId` làm khóa scope chính:
+
+- `getScopeForDelivery()` ưu tiên `assignedSlot`, sau đó tới `delivery.unitConfigId`, cuối cùng mới fallback legacy theo default location + `receivingUnit`.
+- `ensureDeliveryAccess()` kiểm `businessLocationId` từ scope đã resolve.
+- `assertUnitPermission()` so quyền thao tác bằng `UserUnitPermission.unitConfigId` khi delivery có `unitConfigId`.
+- `GET /api/deliveries?status=WAITING` lọc danh sách theo các `unitConfigId` trong scope hiện tại; nếu scope không resolve ra unit nào thì trả danh sách rỗng.
+- Response check-in và waiting list include `unitConfig` rút gọn gồm `id`, `unit`, `businessLocationId`, `displayName`, `shortName`, `icon`, `logoUrl`, `primaryColor` để frontend không phải hardcode label/brand unit.
+
+Fallback legacy:
+
+- Nếu delivery cũ chưa có `unitConfigId`, backend vẫn có thể fallback theo `receivingUnit` trong `BusinessLocation` mặc định để tránh làm chết dữ liệu cũ.
+- Đây không phải hướng runtime chính cho dữ liệu mới.
 
 ## Quyền Hiện Tại
 
@@ -73,6 +90,6 @@ Service:
 
 - `CHECKIN` không được call/start/complete/cancel delivery trong `/api/deliveries`.
 - `RECEIVING` không được vào `/check-in` trên frontend.
-- `CHECKIN` chỉ được check-in delivery thuộc unit đã được gán trong `user_unit_permissions`.
-- Multi-unit allowlist cho `CHECKIN` và `RECEIVING` được quản lý trong Backoffice tab Nhân Viên.
+- `CHECKIN` chỉ được check-in delivery thuộc unit config đã được gán trong `user_unit_permissions`.
+- Multi-unit allowlist cho `CHECKIN`, `RECEIVING`, `ADMIN_LOC`, `ADMIN_OPE` được quản lý bằng `UserUnitPermission` theo `unitConfigId`.
 - Audit check-in hiện ghi actor từ user đang đăng nhập qua `userActor(req.user)`.

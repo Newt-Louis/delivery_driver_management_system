@@ -6,24 +6,56 @@ import type { ReportScope } from './reportTypes';
 type ReportScopeUser = {
   role: string;
   businessLocationId: string | null;
+  operationUnits?: Array<{
+    id: string;
+    unit?: string;
+    code?: string;
+    displayName: string;
+    shortName: string;
+    icon: string | null;
+    logoUrl?: string | null;
+    primaryColor?: string;
+  }>;
 };
 
 export async function resolveReportScope(
   user: ReportScopeUser | undefined,
   requestedUnit?: ReceivingUnitCode,
 ): Promise<ReportScope> {
-  if (user?.role !== 'SUPERADMIN' && user?.businessLocationId) {
-    const unitConfigs = await prisma.unitConfig.findMany({
-      where: { businessLocationId: user.businessLocationId },
-      select: { unit: true },
-    });
-    const allowedUnits = [...new Set(unitConfigs.map((config) => config.unit))];
+  if (user?.businessLocationId) {
+    const operationUnits = user.operationUnits?.length
+      ? user.operationUnits
+      : await prisma.unitConfig.findMany({
+        where: { businessLocationId: user.businessLocationId, isActive: true },
+        select: { id: true, unit: true, displayName: true, shortName: true, icon: true, logoUrl: true, primaryColor: true },
+      });
+
+    const normalizedUnits = operationUnits.map((config) => ({
+      ...config,
+      unit: (config.unit ?? ('code' in config ? config.code : undefined)) as ReceivingUnitCode,
+    }));
+    const allowedUnits = [...new Set(normalizedUnits.map((config) => config.unit))];
     const unitFilter = requestedUnit && allowedUnits.includes(requestedUnit) ? requestedUnit : undefined;
+    const unitConfigIds = normalizedUnits
+      .filter((config) => !unitFilter || config.unit === unitFilter)
+      .map((config) => config.id);
+    const unitMeta = Object.fromEntries(normalizedUnits.map((config) => [config.unit, {
+      id: config.id,
+      unit: config.unit,
+      displayName: config.displayName,
+      shortName: config.shortName,
+      icon: config.icon,
+      logoUrl: config.logoUrl ?? null,
+      primaryColor: config.primaryColor ?? '#1C1C1C',
+    }]));
 
     return {
       businessLocationId: user.businessLocationId,
       allowedUnits,
+      allowedUnitConfigIds: operationUnits.map((config) => config.id),
+      unitConfigIds,
       unitFilter,
+      unitMeta,
     };
   }
 

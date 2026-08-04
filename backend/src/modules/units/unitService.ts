@@ -2,6 +2,7 @@ import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../do
 import { GoodsType, Prisma, VehicleType } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { helperFunctions } from '../../helperFunction';
+import { roleHasUnitOperationScope } from '../../domain/permissions';
 import { assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { domainError } from '../shared/domainError';
@@ -9,6 +10,8 @@ import type {
   GoodsTypeQuery,
   IntegrationQuery,
   OrderCodeQuery,
+  PublicLocationQuery,
+  PublicUnitScopeQuery,
   SlotsQuery,
   TimeWindowPayload,
   TimeWindowQuery,
@@ -39,7 +42,7 @@ interface UnitConfigAuditSnapshot {
 
 async function resolveLocationId(user: AuthUser | undefined, scope?: ScopeInput): Promise<string> {
   if (user?.role === 'SUPERADMIN') {
-    return scope?.businessLocationId ?? (await unitRepository.getDefaultBusinessLocation()).id;
+    return scope?.businessLocationId ?? user.businessLocationId ?? (await unitRepository.getDefaultBusinessLocation()).id;
   }
   if (!user?.businessLocationId) {
     throw domainError.forbidden('Tài khoản chưa được gán khu vực hoạt động.');
@@ -74,6 +77,22 @@ function auditUnitConfigSnapshot(config: UnitConfigAuditSnapshot): Record<string
   };
 }
 
+async function resolvePublicUnitConfig(unit: ReceivingUnitCode, scope?: PublicUnitScopeQuery) {
+  if (scope?.unitConfigId || scope?.businessLocationId) {
+    const config = await unitRepository.findPublicUnitConfig({
+      unit,
+      unitConfigId: scope.unitConfigId,
+      businessLocationId: scope.businessLocationId,
+    });
+    if (!config) throw domainError.notFound('Config not found');
+    return config;
+  }
+
+  const config = await unitRepository.findDefaultUnitConfig(unit);
+  if (!config) throw domainError.notFound('Config not found');
+  return config;
+}
+
 function parseLocalDate(date: string) {
   const [year, month, day] = date.split('-').map(Number);
   return {
@@ -88,7 +107,26 @@ function parseLocalDate(date: string) {
 
 export async function listConfigs(user: AuthUser | undefined, scope?: ScopeInput) {
   const businessLocationId = await resolveLocationId(user, scope);
-  return unitRepository.listUnitConfigs(businessLocationId);
+  const configs = await unitRepository.listUnitConfigs(businessLocationId);
+  if (!user || user.role === 'SUPERADMIN' || !roleHasUnitOperationScope(user.role)) return configs;
+
+  const allowed = new Set(
+    user.operationUnits
+      .filter((unit) => unit.isActive && unit.businessLocationId === businessLocationId)
+      .map((unit) => unit.id),
+  );
+  return configs.filter((config) => allowed.has(config.id));
+}
+
+export function listPublicBusinessLocations() {
+  return unitRepository.listPublicBusinessLocations();
+}
+
+export async function listPublicConfigs(query: PublicLocationQuery) {
+  const location = await unitRepository.findActiveBusinessLocation(query.businessLocationId);
+  if (!location) throw domainError.notFound('BusinessLocation not found');
+  const configs = await unitRepository.listUnitConfigs(query.businessLocationId);
+  return configs.filter((config) => config.isActive).map(stripSecrets);
 }
 
 export function listOrderCodes(query: OrderCodeQuery) {
@@ -212,9 +250,11 @@ export async function deleteTimeWindow(id: string, user: AuthUser | undefined, s
   });
 }
 
-export function listGoodsTypes(unit: ReceivingUnitCode, query: GoodsTypeQuery) {
+export async function listGoodsTypes(unit: ReceivingUnitCode, query: GoodsTypeQuery, scope?: PublicUnitScopeQuery) {
+  const config = await resolvePublicUnitConfig(unit, scope);
   return unitRepository.listGoodsTypes({
     unit,
+    unitConfigId: config.id,
     baseType: query.baseType,
     enabledOnly: query.all !== '1',
   });
@@ -302,15 +342,13 @@ export async function deleteGoodsType(id: string, user: AuthUser | undefined, sc
   });
 }
 
-export async function getPublicConfig(unit: ReceivingUnitCode) {
-  const config = await unitRepository.findDefaultUnitConfig(unit);
-  if (!config) throw domainError.notFound('Config not found');
+export async function getPublicConfig(unit: ReceivingUnitCode, scope?: PublicUnitScopeQuery) {
+  const config = await resolvePublicUnitConfig(unit, scope);
   return stripSecrets(config);
 }
 
-export async function getVehicleAvailability(unit: ReceivingUnitCode, query: VehicleAvailabilityQuery) {
-  const config = await unitRepository.findDefaultUnitConfig(unit);
-  if (!config) throw domainError.notFound('Config not found');
+export async function getVehicleAvailability(unit: ReceivingUnitCode, query: VehicleAvailabilityQuery, scope?: PublicUnitScopeQuery) {
+  const config = await resolvePublicUnitConfig(unit, scope);
 
   if (!helperFunctions.unitAcceptsGoods(config, query.goodsType)) {
     return { vehicles: [], reason: 'Đơn vị này không nhận loại hàng đã chọn' };
@@ -337,9 +375,8 @@ export async function getVehicleAvailability(unit: ReceivingUnitCode, query: Veh
   };
 }
 
-export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQuery) {
-  const config = await unitRepository.findDefaultUnitConfig(unit);
-  if (!config) throw domainError.notFound('Config not found');
+export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQuery, scope?: PublicUnitScopeQuery) {
+  const config = await resolvePublicUnitConfig(unit, scope);
 
   const { year, month, day, parsedDate, dayStart, dayEnd } = parseLocalDate(query.date);
   const dayOfWeek = parsedDate.getDay();
@@ -368,6 +405,7 @@ export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQue
   let timeWindows = query.unitGoodsTypeId
     ? await unitRepository.listTimeWindows({ unitGoodsTypeId: query.unitGoodsTypeId, enabled: true })
     : await unitRepository.listTimeWindows({
+        unitConfigId: config.id,
         unit,
         goodsType: query.goodsType,
         unitGoodsTypeId: null,
@@ -376,6 +414,7 @@ export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQue
 
   if (timeWindows.length === 0 && query.unitGoodsTypeId) {
     timeWindows = await unitRepository.listTimeWindows({
+      unitConfigId: config.id,
       unit,
       goodsType: query.goodsType,
       unitGoodsTypeId: null,
@@ -389,6 +428,7 @@ export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQue
 
   const bookings = await unitRepository.listActiveBookingsForDay({
     unit,
+    unitConfigId: config.id,
     vehicleType: query.vehicleType,
     dayStart,
     dayEnd,

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { SlotInfo, UnitConfig, UnitGoodsType } from '../../../lib/types';
+import type { BusinessLocation, SlotInfo, UnitConfig, UnitGoodsType } from '../../../lib/types';
 import {
   checkAutoWarehouseVendor,
+  getPublicBusinessLocations,
+  getPublicUnitConfigs,
   getSlotAvailability,
   getOrderCodes,
   getUnitConfig,
@@ -17,7 +19,7 @@ import type { FormState, RegisterFieldErrors, SuccessInfo, Unit } from '../types
 import { isSundayDate, todayDate } from '../utils/date';
 
 const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
-  1: ['receivingUnit', 'goodsType', 'vehicleType'],
+  1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
   2: ['timeSlot', 'vendorName', 'poNumber'],
   3: ['vehiclePlate', 'driverName', 'driverPhone'],
   4: [],
@@ -37,6 +39,8 @@ export function useRegisterForm() {
     const saved = localStorage.getItem(LS_KEY);
     const prev = saved ? (JSON.parse(saved) as Partial<FormState>) : {};
     return {
+      businessLocationId: '',
+      unitConfigId: '',
       receivingUnit: '',
       goodsType: '',
       unitGoodsTypeId: '',
@@ -54,6 +58,12 @@ export function useRegisterForm() {
   });
 
   const [rememberInfo, setRememberInfo] = useState(true);
+  const [publicLocations, setPublicLocations] = useState<BusinessLocation[]>([]);
+  const [publicLocationsLoading, setPublicLocationsLoading] = useState(false);
+  const [publicLocationsMsg, setPublicLocationsMsg] = useState('');
+  const [publicUnits, setPublicUnits] = useState<UnitConfig[]>([]);
+  const [publicUnitsLoading, setPublicUnitsLoading] = useState(false);
+  const [publicUnitsMsg, setPublicUnitsMsg] = useState('');
   const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
   const [customGoodsTypes, setCustomGoodsTypes] = useState<UnitGoodsType[]>([]);
   const [slots, setSlots] = useState<SlotInfo[]>([]);
@@ -78,6 +88,9 @@ export function useRegisterForm() {
   );
 
   const validOrderCodes = new Set(orderCodes.map((item) => item.code));
+  const selectedUnitScope = form.businessLocationId && form.unitConfigId
+    ? { businessLocationId: form.businessLocationId, unitConfigId: form.unitConfigId }
+    : undefined;
 
   function normalizeOrderCode(value: string) {
     return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -90,16 +103,78 @@ export function useRegisterForm() {
   }, []);
 
   useEffect(() => {
-    if (!form.receivingUnit) {
+    setPublicLocationsLoading(true);
+    setPublicLocationsMsg('');
+    getPublicBusinessLocations()
+      .then((locations) => {
+        setPublicLocations(locations);
+        if (locations.length === 1) {
+          setForm((current) => current.businessLocationId
+            ? current
+            : { ...current, businessLocationId: locations[0].id });
+        }
+      })
+      .catch(() => {
+        setPublicLocations([]);
+        setPublicLocationsMsg('Không thể tải danh sách khu vực giao hàng. Vui lòng thử lại.');
+      })
+      .finally(() => setPublicLocationsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (!form.businessLocationId) {
+      setPublicUnits([]);
+      setPublicUnitsMsg('');
+      setForm((current) => ({
+        ...current,
+        unitConfigId: '',
+        receivingUnit: '',
+        goodsType: '',
+        unitGoodsTypeId: '',
+        vehicleType: '',
+        timeSlot: '',
+      }));
+      return;
+    }
+
+    setPublicUnitsLoading(true);
+    setPublicUnitsMsg('');
+    getPublicUnitConfigs(form.businessLocationId)
+      .then((units) => {
+        setPublicUnits(units);
+        setForm((current) => {
+          if (current.businessLocationId !== form.businessLocationId) return current;
+          if (units.some((unit) => unit.id === current.unitConfigId)) return current;
+          return {
+            ...current,
+            unitConfigId: '',
+            receivingUnit: '',
+            goodsType: '',
+            unitGoodsTypeId: '',
+            vehicleType: '',
+            timeSlot: '',
+          };
+        });
+        if (units.length === 0) setPublicUnitsMsg('Khu vực này chưa có đơn vị nhận hàng đang hoạt động.');
+      })
+      .catch(() => {
+        setPublicUnits([]);
+        setPublicUnitsMsg('Không thể tải danh sách đơn vị. Vui lòng thử lại.');
+      })
+      .finally(() => setPublicUnitsLoading(false));
+  }, [form.businessLocationId]);
+
+  useEffect(() => {
+    if (!form.receivingUnit || !selectedUnitScope) {
       setUnitConfig(null);
       setCustomGoodsTypes([]);
       setVehicleAvailability([]);
       setVehicleAvailabilityMsg('');
       return;
     }
-    getUnitConfig(form.receivingUnit).then(setUnitConfig).catch(() => {});
-    getUnitGoodsTypes(form.receivingUnit).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
-  }, [form.receivingUnit]);
+    getUnitConfig(form.receivingUnit, selectedUnitScope).then(setUnitConfig).catch(() => {});
+    getUnitGoodsTypes(form.receivingUnit, selectedUnitScope).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
+  }, [form.receivingUnit, form.businessLocationId, form.unitConfigId]);
 
   useEffect(() => {
     setOrderCodesLoading(true);
@@ -110,7 +185,7 @@ export function useRegisterForm() {
   }, []);
 
   useEffect(() => {
-    if (!form.receivingUnit || !form.goodsType) {
+    if (!form.receivingUnit || !form.goodsType || !selectedUnitScope) {
       setVehicleAvailability([]);
       setVehicleAvailabilityMsg('');
       return;
@@ -124,7 +199,7 @@ export function useRegisterForm() {
       ...(form.unitGoodsTypeId ? { unitGoodsTypeId: form.unitGoodsTypeId } : {}),
     };
 
-    getVehicleAvailability(form.receivingUnit, params)
+    getVehicleAvailability(form.receivingUnit, params, selectedUnitScope)
       .then(data => {
         const vehicles = data.vehicles ?? [];
         setVehicleAvailability(vehicles);
@@ -135,10 +210,10 @@ export function useRegisterForm() {
       })
       .catch(() => setVehicleAvailabilityMsg('Không thể tải loại phương tiện khả dụng. Vui lòng thử lại.'))
       .finally(() => setVehicleAvailabilityLoading(false));
-  }, [form.receivingUnit, form.goodsType, form.unitGoodsTypeId]);
+  }, [form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.unitGoodsTypeId]);
 
   useEffect(() => {
-    if (step !== 2 || !form.receivingUnit || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
+    if (step !== 2 || !form.receivingUnit || !selectedUnitScope || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
     setSlotsLoading(true);
     setSlotsMsg('');
     setSlots([]);
@@ -149,15 +224,15 @@ export function useRegisterForm() {
       vehicleType: form.vehicleType,
     };
     if (form.unitGoodsTypeId) slotParams.unitGoodsTypeId = form.unitGoodsTypeId;
-    getSlotAvailability(form.receivingUnit, slotParams)
+    getSlotAvailability(form.receivingUnit, slotParams, selectedUnitScope)
       .then(data => { setSlots(data.slots ?? []); if (data.reason) setSlotsMsg(data.reason); })
       .catch(() => setSlotsMsg('Không thể tải danh sách giờ. Vui lòng thử lại.'))
       .finally(() => setSlotsLoading(false));
-  }, [step, form.receivingUnit, form.goodsType, form.vehicleType, form.deliveryDate, form.unitGoodsTypeId]);
+  }, [step, form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.vehicleType, form.deliveryDate, form.unitGoodsTypeId]);
 
   useEffect(() => {
     if (awDebounceRef.current) clearTimeout(awDebounceRef.current);
-    if (!form.vendorCode?.trim() || !form.receivingUnit) {
+    if (!form.vendorCode?.trim() || !form.receivingUnit || !selectedUnitScope) {
       setAwStatus('idle');
       setAwVendorName('');
       return;
@@ -168,10 +243,11 @@ export function useRegisterForm() {
     }
     const vendorCode = form.vendorCode;
     const receivingUnit = form.receivingUnit;
+    const scope = selectedUnitScope;
     setAwStatus('loading');
     awDebounceRef.current = setTimeout(async () => {
       try {
-        const res = await checkAutoWarehouseVendor(vendorCode, receivingUnit);
+        const res = await checkAutoWarehouseVendor(vendorCode, receivingUnit, scope);
         if (res.isAutoWarehouse) {
           setAwStatus('match');
           setAwVendorName(res.vendor?.vendorName ?? '');
@@ -183,7 +259,7 @@ export function useRegisterForm() {
         setAwStatus('idle');
       }
     }, 600);
-  }, [form.vendorCode, form.receivingUnit]);
+  }, [form.vendorCode, form.receivingUnit, form.businessLocationId, form.unitConfigId]);
 
   useEffect(() => {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -209,7 +285,8 @@ export function useRegisterForm() {
   function validateStep(): boolean {
     const errs: RegisterFieldErrors = {};
     if (step === 1) {
-      if (!form.receivingUnit) errs.receivingUnit = 'Vui lòng chọn đơn vị nhận hàng';
+      if (!form.businessLocationId) errs.businessLocationId = 'Vui lòng chọn khu vực giao hàng';
+      else if (!form.receivingUnit || !form.unitConfigId) errs.receivingUnit = 'Vui lòng chọn đơn vị nhận hàng';
       else if (!form.goodsType) errs.goodsType = 'Vui lòng chọn loại hàng';
       else if (!form.vehicleType) errs.vehicleType = 'Vui lòng chọn loại phương tiện';
     }
@@ -278,6 +355,8 @@ export function useRegisterForm() {
       const poNumber = normalizeOrderCode(form.poNumber);
       const selectedCustomType = customGoodsTypes.find(ct => ct.id === form.unitGoodsTypeId);
       const res = await registerDelivery({
+        businessLocationId: form.businessLocationId,
+        unitConfigId: form.unitConfigId,
         vendorName: form.vendorName,
         driverName: form.driverName,
         driverPhone: form.driverPhone,
@@ -298,6 +377,9 @@ export function useRegisterForm() {
         vendorName: form.vendorName,
         driverName: form.driverName,
         receivingUnit: form.receivingUnit as Unit,
+        unitDisplayName: unitConfig?.displayName || unitConfig?.shortName || form.receivingUnit,
+        unitIcon: unitConfig?.icon || '',
+        unitLogoUrl: unitConfig?.logoUrl ?? null,
         goodsType: form.goodsType,
         goodsTypeName: selectedCustomType ? `${selectedCustomType.emoji} ${selectedCustomType.name}` : '',
         vehicleType: form.vehicleType,
@@ -324,6 +406,8 @@ export function useRegisterForm() {
     setAwVendorName('');
     setForm(f => ({
       ...f,
+      businessLocationId: '',
+      unitConfigId: '',
       receivingUnit: '',
       goodsType: '',
       unitGoodsTypeId: '',
@@ -346,6 +430,12 @@ export function useRegisterForm() {
     submitError,
     success,
     form,
+    publicLocations,
+    publicLocationsLoading,
+    publicLocationsMsg,
+    publicUnits,
+    publicUnitsLoading,
+    publicUnitsMsg,
     rememberInfo,
     setRememberInfo,
     unitConfig,

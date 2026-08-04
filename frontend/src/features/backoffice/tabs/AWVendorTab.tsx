@@ -1,19 +1,26 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
-import type { AutoWarehouseVendor } from '../../../lib/types';
+import type { AutoWarehouseVendor, UnitConfig } from '../../../lib/types';
+
+function unitLabel(unit?: Pick<UnitConfig, 'unit' | 'displayName' | 'shortName' | 'icon'> | null) {
+  if (!unit) return 'Không rõ đơn vị';
+  const label = unit.displayName || unit.shortName || unit.unit;
+  return `${unit.icon ? `${unit.icon} ` : ''}${label}`;
+}
 
 function AWVendorModal({
-  vendor, defaultUnit, onClose, onSaved,
+  vendor, defaultUnitConfigId, units, onClose, onSaved,
 }: {
   vendor: AutoWarehouseVendor | null;
-  defaultUnit: string;
+  defaultUnitConfigId: string;
+  units: UnitConfig[];
   onClose: () => void;
   onSaved: () => void;
 }) {
   const isEdit = !!vendor;
   const [form, setFormState] = useState({
-    unit: vendor?.unit ?? (defaultUnit as AutoWarehouseVendor['unit']),
+    unitConfigId: vendor?.unitConfigId ?? defaultUnitConfigId,
     vendorCode: vendor?.vendorCode ?? '',
     vendorName: vendor?.vendorName ?? '',
     active: vendor?.active ?? true,
@@ -36,7 +43,8 @@ function AWVendorModal({
         });
       } else {
         await api.post('/api/aw-vendors', {
-          unit: form.unit, vendorCode: form.vendorCode,
+          unitConfigId: form.unitConfigId,
+          vendorCode: form.vendorCode,
           vendorName: form.vendorName, active: form.active, note: form.note || undefined,
         });
       }
@@ -57,10 +65,10 @@ function AWVendorModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="label">Đơn vị *</label>
-            <select className="input" value={form.unit} onChange={e => set('unit', e.target.value)} disabled={isEdit}>
-              <option value="EMART">Emart</option>
-              <option value="THISKYHALL">Thiskyhall</option>
-              <option value="TENANT">Mall (Khách thuê)</option>
+            <select className="input" value={form.unitConfigId} onChange={e => set('unitConfigId', e.target.value)} disabled={isEdit} required>
+              {units.map((unit) => (
+                <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName || unit.shortName || unit.unit}</option>
+              ))}
             </select>
           </div>
           <div>
@@ -107,15 +115,20 @@ function AWVendorModal({
 
 export default function AWVendorTab() {
   const qc = useQueryClient();
-  const [unitFilter, setUnitFilter] = useState('EMART');
+  const [unitFilter, setUnitFilter] = useState('');
   const [modal, setModal]           = useState(false);
   const [editItem, setEditItem]     = useState<AutoWarehouseVendor | null>(null);
   const [deleteId, setDeleteId]     = useState<string | null>(null);
   const [msg, setMsg]               = useState('');
 
+  const { data: unitConfigs = [] } = useQuery<UnitConfig[]>({
+    queryKey: ['unit-configs'],
+    queryFn: async () => (await api.get('/api/units/configs')).data,
+  });
+
   const { data: vendors = [], isLoading } = useQuery<AutoWarehouseVendor[]>({
     queryKey: ['aw-vendors', unitFilter],
-    queryFn: async () => (await api.get('/api/aw-vendors', { params: { unit: unitFilter } })).data,
+    queryFn: async () => (await api.get('/api/aw-vendors', { params: unitFilter ? { unitConfigId: unitFilter } : undefined })).data,
   });
 
   function refresh() {
@@ -151,11 +164,18 @@ export default function AWVendorTab() {
         </p>
         <div className="flex items-center gap-3">
           <select className="input w-auto text-sm" value={unitFilter} onChange={e => setUnitFilter(e.target.value)}>
-            <option value="EMART">Emart</option>
-            <option value="THISKYHALL">Thiskyhall</option>
-            <option value="TENANT">Mall (Khách thuê)</option>
+            <option value="">Tất cả đơn vị</option>
+            {unitConfigs.map((unit) => (
+              <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName || unit.shortName || unit.unit}</option>
+            ))}
           </select>
-          <button className="btn-primary px-4 py-2" onClick={() => { setEditItem(null); setModal(true); }}>+ Thêm NCC</button>
+          <button
+            className="btn-primary px-4 py-2"
+            onClick={() => { setEditItem(null); setModal(true); }}
+            disabled={unitConfigs.length === 0}
+          >
+            + Thêm NCC
+          </button>
         </div>
       </div>
 
@@ -171,6 +191,7 @@ export default function AWVendorTab() {
           <thead>
             <tr className="border-b border-thiso-100 bg-thiso-50 text-left text-thiso-400 text-xs uppercase">
               <th className="px-4 py-3">Mã NCC</th>
+              <th className="px-4 py-3">Đơn vị</th>
               <th className="px-4 py-3">Tên nhà cung cấp</th>
               <th className="px-4 py-3">Kích hoạt</th>
               <th className="px-4 py-3">Ghi chú</th>
@@ -178,13 +199,14 @@ export default function AWVendorTab() {
             </tr>
           </thead>
           <tbody>
-            {isLoading && <tr><td colSpan={5} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>}
+            {isLoading && <tr><td colSpan={6} className="py-12 text-center text-thiso-400">Đang tải...</td></tr>}
             {!isLoading && vendors.length === 0 && (
-              <tr><td colSpan={5} className="py-12 text-center text-thiso-400">Chưa có NCC nào cho đơn vị này</td></tr>
+              <tr><td colSpan={6} className="py-12 text-center text-thiso-400">Chưa có NCC nào cho đơn vị này</td></tr>
             )}
             {vendors.map(v => (
               <tr key={v.id} className={`border-b border-thiso-50 last:border-0 hover:bg-thiso-50 ${!v.active ? 'opacity-50' : ''}`}>
                 <td className="px-4 py-3 font-mono font-bold text-thiso-800">{v.vendorCode}</td>
+                <td className="px-4 py-3 text-xs text-thiso-500">{unitLabel(v.unitConfig ?? unitConfigs.find((unit) => unit.unit === v.unit))}</td>
                 <td className="px-4 py-3 text-thiso-700">{v.vendorName}</td>
                 <td className="px-4 py-3">
                   <button
@@ -216,7 +238,8 @@ export default function AWVendorTab() {
       {modal && (
         <AWVendorModal
           vendor={editItem}
-          defaultUnit={unitFilter}
+          defaultUnitConfigId={unitFilter || unitConfigs[0]?.id || ''}
+          units={unitConfigs}
           onClose={() => setModal(false)}
           onSaved={() => { setModal(false); refresh(); showMsg('Đã lưu thành công.'); }}
         />
@@ -237,4 +260,3 @@ export default function AWVendorTab() {
     </div>
   );
 }
-

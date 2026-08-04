@@ -3,6 +3,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
 import type { Zone, UnitConfig } from '../../../lib/types';
 
+function unitConfigLabel(unit?: { unit?: string; displayName?: string; shortName?: string } | null) {
+  return unit?.displayName || unit?.shortName || unit?.unit || 'Không rõ đơn vị';
+}
+
 export default function ZonesTab() {
   const queryClient = useQueryClient();
   const { data: zones = [], isLoading } = useQuery<Zone[]>({
@@ -53,12 +57,6 @@ export default function ZonesTab() {
     }
   }
 
-  const UNIT_BADGE: Record<string, string> = {
-    EMART: 'bg-emart-100 text-emart-700',
-    THISKYHALL: 'bg-sky-100 text-sky-700',
-    TENANT: 'bg-thiso-100 text-thiso-600',
-  };
-  const UNIT_LABEL: Record<string, string> = { EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)' };
   const ZONE_COLORS = ['from-sky-700 to-sky-500', 'from-emart-600 to-emart-400', 'from-thiso-700 to-thiso-500', 'from-sky-500 to-sky-400', 'from-thiso-500 to-thiso-400'];
 
   return (
@@ -87,7 +85,7 @@ export default function ZonesTab() {
               <select className="input" value={form.unitConfigId} onChange={(e) => setForm((f) => ({ ...f, unitConfigId: e.target.value }))}>
                 <option value="">— Chọn đơn vị —</option>
                 {unitConfigs.map((cfg) => (
-                  <option key={cfg.id} value={cfg.id}>{UNIT_LABEL[cfg.unit] ?? cfg.unit}</option>
+                  <option key={cfg.id} value={cfg.id}>{cfg.unit} - {unitConfigLabel(cfg)}</option>
                 ))}
               </select>
             </div>
@@ -107,7 +105,6 @@ export default function ZonesTab() {
           const slotList = z.slots ?? [];
           const trucks = slotList.filter((s) => s.vehicleType === 'TRUCK');
           const motorbikes = slotList.filter((s) => s.vehicleType === 'MOTORBIKE');
-          const unitSet = z.unitConfig?.unit ? [z.unitConfig.unit] : [...new Set(slotList.map((s) => s.assignedUnit))];
           const gradient = ZONE_COLORS[idx % ZONE_COLORS.length];
 
           return (
@@ -125,16 +122,15 @@ export default function ZonesTab() {
 
               <div className="p-4">
                 {/* Unit badges */}
-                {unitSet.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {unitSet.map((u) => (
-                      <span key={u} className={`text-xs px-2 py-0.5 rounded-full font-semibold ${UNIT_BADGE[u] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {UNIT_LABEL[u] ?? u}
-                      </span>
-                    ))}
-                    {unitSet.length === 0 && <span className="text-xs text-gray-400 italic">Chưa có slot</span>}
-                  </div>
-                )}
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {z.unitConfig ? (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-thiso-100 text-thiso-600">
+                      {unitConfigLabel(z.unitConfig)}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">Chưa xác định đơn vị</span>
+                  )}
+                </div>
 
                 {/* Slot summary */}
                 <div className="flex gap-4 text-sm text-thiso-600 mb-3">
@@ -178,4 +174,3 @@ export default function ZonesTab() {
     </div>
   );
 }
-

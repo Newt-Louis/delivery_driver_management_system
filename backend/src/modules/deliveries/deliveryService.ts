@@ -2,7 +2,6 @@ import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../do
 import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, Prisma } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { formatVNDate, isScheduledForToday } from '../../lib/dateVN';
-import { getUnitConfigForDefaultLocation } from '../../lib/businessLocation';
 import { emitDeliveryCalled, emitDeliveryCompleted, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, systemActor, userActor } from '../../services/auditLog';
 import { triggerAutoAssign } from '../../services/autoAssign';
@@ -31,6 +30,17 @@ class SlotFullError extends Error {
   }
 }
 
+const DELIVERY_UNIT_CONFIG_SELECT = {
+  id: true,
+  unit: true,
+  businessLocationId: true,
+  displayName: true,
+  shortName: true,
+  icon: true,
+  logoUrl: true,
+  primaryColor: true,
+} as const;
+
 function assertResourceAccess(user: AuthUser | undefined, businessLocationId: string | null | undefined) {
   if (!user) throw domainError.unauthorized();
   if (user.role === 'SUPERADMIN') return;
@@ -42,7 +52,11 @@ function assertResourceAccess(user: AuthUser | undefined, businessLocationId: st
   }
 }
 
-async function assertUnitPermission(user: AuthUser | undefined, receivingUnit: ReceivingUnitCode, operation: 'checkin' | 'receiving') {
+async function assertUnitPermission(
+  user: AuthUser | undefined,
+  delivery: { receivingUnit: ReceivingUnitCode; unitConfigId?: string | null },
+  operation: 'checkin' | 'receiving',
+) {
   if (!user) throw domainError.unauthorized();
   if (!roleHasUnitOperationScope(user.role)) return;
 
@@ -53,22 +67,28 @@ async function assertUnitPermission(user: AuthUser | undefined, receivingUnit: R
   const allowedUnits = await getUserUnitPermissions(user.id);
   const allowed = allowedUnits.some((unit) => (
     unit.businessLocationId === user.businessLocationId
-    && unit.unit === receivingUnit
+    && (
+      (delivery.unitConfigId ? unit.id === delivery.unitConfigId : false)
+      || (!delivery.unitConfigId && unit.unit === delivery.receivingUnit)
+    )
   ));
 
   if (!allowed) {
-    throw domainError.forbidden('Bạn không có quyền thao tác trên đơn vị này.', { receivingUnit });
+    throw domainError.forbidden('Bạn không có quyền thao tác trên đơn vị này.', {
+      receivingUnit: delivery.receivingUnit,
+      unitConfigId: delivery.unitConfigId,
+    });
   }
 }
 
 async function ensureDeliveryAccess(
   user: AuthUser | undefined,
-  delivery: { receivingUnit: ReceivingUnitCode; assignedSlotId?: string | null },
+  delivery: { receivingUnit: ReceivingUnitCode; unitConfigId?: string | null; assignedSlotId?: string | null },
   operation: 'checkin' | 'receiving',
 ) {
   const scope = await getScopeForDelivery(delivery);
   assertResourceAccess(user, scope.businessLocationId);
-  await assertUnitPermission(user, delivery.receivingUnit, operation);
+  await assertUnitPermission(user, delivery, operation);
   return scope;
 }
 
@@ -86,6 +106,7 @@ async function ensureRegistrationSlotCapacity(
   args: {
     requestedTime: Date;
     receivingUnit: ReceivingUnitCode;
+    unitConfigId: string;
     vehicleType: RegisterDeliveryPayload['vehicleType'];
     maxPerSlot: number | null;
   },
@@ -96,6 +117,7 @@ async function ensureRegistrationSlotCapacity(
   const timeKey = deliveryRepository.localTimeKey(args.requestedTime);
   const lockKey = [
     'registration-slot',
+    args.unitConfigId,
     args.receivingUnit,
     args.vehicleType,
     dateKey,
@@ -108,6 +130,7 @@ async function ensureRegistrationSlotCapacity(
   const bookings = await tx.deliveryRegistration.findMany({
     where: {
       receivingUnit: args.receivingUnit,
+      unitConfigId: args.unitConfigId,
       vehicleType: args.vehicleType,
       status: {
         in: [
@@ -153,7 +176,7 @@ function parseRequestedTime(value: string | undefined): Date | null {
 }
 
 export async function autoDispatch(unit: ReceivingUnitCode, user: AuthUser | undefined) {
-  await assertUnitPermission(user, unit, 'receiving');
+  await assertUnitPermission(user, { receivingUnit: unit }, 'receiving');
 
   const called = await triggerAutoAssign(unit);
   return {
@@ -178,10 +201,20 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   }
 
   const requestedTime = parseRequestedTime(body.requestedTime);
+  const unitConfig = await deliveryRepository.resolveRegistrationUnitConfig({
+    receivingUnit: body.receivingUnit,
+    unitConfigId: body.unitConfigId,
+    businessLocationId: body.businessLocationId,
+  });
+  if (!unitConfig) {
+    throw domainError.badRequest('Đơn vị nhận hàng không thuộc khu vực đã chọn hoặc đã bị tắt.');
+  }
+
   const duplicate = await deliveryRepository.findDuplicateRegistration({
     vehiclePlate,
     driverPhone,
     poNumber,
+    unitConfigId: unitConfig.id,
     requestedTime,
     deliveryDate: body.deliveryDate,
   });
@@ -191,7 +224,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   let resolvedVendorCode: string | undefined;
   if (body.vendorCode?.trim()) {
     const normalized = body.vendorCode.toUpperCase().trim();
-    const awv = await deliveryRepository.findAutoWarehouseVendor(normalized, body.receivingUnit);
+    const awv = await deliveryRepository.findAutoWarehouseVendor(normalized, body.receivingUnit, unitConfig.id);
     if (awv) {
       resolvedGoodsType = GoodsType.AUTO_WAREHOUSE;
       resolvedVendorCode = normalized;
@@ -200,9 +233,8 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
   }
 
-  const config = await getUnitConfigForDefaultLocation(body.receivingUnit);
   if (
-    config?.sundayFreshFoodOnly
+    unitConfig.sundayFreshFoodOnly
     && isSundayDeliveryDate(requestedTime, body.deliveryDate)
     && resolvedGoodsType !== GoodsType.FRESH_FOOD
   ) {
@@ -210,7 +242,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   }
 
   const maxPerSlot = requestedTime
-    ? await deliveryRepository.getRegistrationSlotCapacity(body.receivingUnit, body.vehicleType)
+    ? await deliveryRepository.getRegistrationSlotCapacity(unitConfig.id, body.receivingUnit, body.vehicleType)
     : null;
 
   try {
@@ -219,6 +251,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         await ensureRegistrationSlotCapacity(tx, {
           requestedTime,
           receivingUnit: body.receivingUnit,
+          unitConfigId: unitConfig.id,
           vehicleType: body.vehicleType,
           maxPerSlot,
         });
@@ -235,6 +268,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           vehiclePlate,
           vehicleType: body.vehicleType,
           receivingUnit: body.receivingUnit,
+          unitConfigId: unitConfig.id,
           goodsType: resolvedGoodsType,
           unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
           poNumber,
@@ -267,6 +301,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         vehiclePlate,
         driverPhone,
         poNumber,
+        unitConfigId: unitConfig.id,
         requestedTime,
         deliveryDate: body.deliveryDate,
       });
@@ -378,7 +413,7 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
 
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
-    resultArgs: { include: { assignedSlot: true } },
+    resultArgs: { include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } },
     actor: userActor(user),
   });
 
@@ -449,7 +484,7 @@ export async function checkInById(id: string, user: AuthUser | undefined) {
 
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
-    resultArgs: { include: { assignedSlot: true } },
+    resultArgs: { include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } },
     actor: userActor(user),
   });
 

@@ -1,10 +1,45 @@
 import { DeliveryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { getIO, trackRoomName } from '../socket';
-import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
 
 const TRACK_INCLUDE = {
-  assignedSlot: { include: { zone: { select: { id: true, code: true, name: true } } } },
+  unitConfig: {
+    select: {
+      id: true,
+      unit: true,
+      businessLocationId: true,
+      displayName: true,
+      shortName: true,
+      icon: true,
+      logoUrl: true,
+      primaryColor: true,
+      truckSlotMinutes: true,
+      motorbikeSlotMinutes: true,
+    },
+  },
+  assignedSlot: {
+    include: {
+      zone: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          unitConfig: {
+            select: {
+              id: true,
+              unit: true,
+              businessLocationId: true,
+              displayName: true,
+              shortName: true,
+              icon: true,
+              logoUrl: true,
+              primaryColor: true,
+            },
+          },
+        },
+      },
+    },
+  },
 } as const;
 
 export async function getTrackDelivery(registrationCode: string) {
@@ -17,10 +52,16 @@ export async function getTrackDelivery(registrationCode: string) {
 
   let queueInfo = null;
   if (delivery.status === DeliveryStatus.WAITING && delivery.checkinTime) {
+    const queueUnitWhere = delivery.unitConfigId
+      ? { unitConfigId: delivery.unitConfigId }
+      : { receivingUnit: delivery.receivingUnit };
+    const slotUnitWhere = delivery.unitConfigId
+      ? { zone: { unitConfigId: delivery.unitConfigId } }
+      : { assignedUnit: delivery.receivingUnit };
     const [ahead, totalWaiting, timeConfig, unitCfg, slots] = await Promise.all([
       prisma.deliveryRegistration.count({
         where: {
-          receivingUnit: delivery.receivingUnit,
+          ...queueUnitWhere,
           vehicleType: delivery.vehicleType,
           status: DeliveryStatus.WAITING,
           checkinTime: { lt: delivery.checkinTime },
@@ -28,24 +69,24 @@ export async function getTrackDelivery(registrationCode: string) {
       }),
       prisma.deliveryRegistration.count({
         where: {
-          receivingUnit: delivery.receivingUnit,
+          ...queueUnitWhere,
           vehicleType: delivery.vehicleType,
           status: DeliveryStatus.WAITING,
         },
       }),
-      prisma.receivingTimeConfig.findUnique({
+      prisma.receivingTimeConfig.findFirst({
         where: {
-          unit_vehicleType_goodsType: {
-            unit: delivery.receivingUnit,
-            vehicleType: delivery.vehicleType,
-            goodsType: delivery.goodsType,
-          },
+          ...(delivery.unitConfigId ? { unitConfigId: delivery.unitConfigId } : { unit: delivery.receivingUnit }),
+          vehicleType: delivery.vehicleType,
+          goodsType: delivery.goodsType,
         },
       }),
-      getUnitConfigForDefaultLocation(delivery.receivingUnit),
+      delivery.unitConfigId
+        ? Promise.resolve(delivery.unitConfig)
+        : prisma.unitConfig.findFirst({ where: { unit: delivery.receivingUnit, isActive: true }, orderBy: { createdAt: 'asc' } }),
       prisma.slot.findMany({
         where: {
-          assignedUnit: delivery.receivingUnit,
+          ...slotUnitWhere,
           vehicleType: delivery.vehicleType,
           isActive: true,
           autoAssign: true,

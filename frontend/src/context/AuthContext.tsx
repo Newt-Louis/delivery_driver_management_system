@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
-import type { User } from '../lib/types';
+import type { BusinessLocation, User } from '../lib/types';
 import api from '../lib/api';
 import { clearAuthToken, getAuthToken, setAuthToken } from '../lib/authCookies';
 import {
@@ -15,6 +15,9 @@ interface AuthContextValue {
   token: string | null;
   login: (token: string, user: User, maxAgeSeconds?: number) => void;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
+  listOperationalLocations: () => Promise<BusinessLocation[]>;
+  selectOperationalLocation: (businessLocationId: string) => Promise<User>;
   isLoading: boolean;
   isAuthenticated: boolean;
   hasRole: (...roles: string[]) => boolean;
@@ -82,6 +85,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(newUser);
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    const res = await api.get('/api/auth/me');
+    const nextUser = res.data.user as User;
+    setUser(nextUser);
+    setToken(getAuthToken());
+    return nextUser;
+  }, []);
+
+  const listOperationalLocations = useCallback(async () => {
+    const res = await api.get<BusinessLocation[]>('/api/auth/operational-context/locations');
+    return res.data;
+  }, []);
+
+  const selectOperationalLocation = useCallback(async (businessLocationId: string) => {
+    const res = await api.post('/api/auth/operational-context', { businessLocationId });
+    const nextUser = res.data.user as User;
+    setUser(nextUser);
+    setToken(getAuthToken());
+    return nextUser;
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await api.post('/api/auth/logout');
@@ -127,6 +151,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       token,
       login,
       logout,
+      refreshUser,
+      listOperationalLocations,
+      selectOperationalLocation,
       isLoading,
       isAuthenticated: !!token && !!user,
       hasRole,

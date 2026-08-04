@@ -19,7 +19,7 @@ function getTicketCode(d: DeliveryRegistration): string | null {
 }
 
 // ─── Unit identity ─────────────────────────────────────────────────────────────
-type UnitKey = 'EMART' | 'THISKYHALL' | 'TENANT';
+type UnitKey = string;
 type TabKey  = 'ALL' | UnitKey;
 
 interface UnitMeta {
@@ -27,7 +27,7 @@ interface UnitMeta {
   color: string; lightBg: string; border: string;
   headerBg: string; badge: string; tabActive: string; rowBorder: string;
 }
-const UNIT_META: Record<UnitKey, UnitMeta> = {
+const UNIT_META: Record<string, UnitMeta> = {
   EMART: {
     label: 'Emart', icon: '🏬', prefix: 'E',
     color: '#FF9500', lightBg: 'bg-emart-50', border: 'border-emart-300',
@@ -53,6 +53,30 @@ const UNIT_META: Record<UnitKey, UnitMeta> = {
     rowBorder: 'border-l-thiso-400',
   },
 };
+function getUnitMeta(unit: string, unitConfig?: UnitDispatch['unitConfig']): UnitMeta {
+  const legacy = UNIT_META[unit];
+  if (legacy) {
+    return {
+      ...legacy,
+      label: unitConfig?.displayName || legacy.label,
+      icon: unitConfig?.icon || legacy.icon,
+      prefix: unitConfig?.shortName || legacy.prefix,
+    };
+  }
+  const label = unitConfig?.displayName || unitConfig?.shortName || unit;
+  return {
+    label,
+    icon: unitConfig?.icon || '◆',
+    prefix: unitConfig?.shortName || unit,
+    color: unitConfig?.primaryColor || '#1C1C1C',
+    lightBg: 'bg-thiso-50',
+    border: 'border-thiso-200',
+    headerBg: 'from-thiso-800 to-thiso-600',
+    badge: 'bg-thiso-100 text-thiso-700',
+    tabActive: 'border-thiso-400 text-thiso-800 bg-thiso-50',
+    rowBorder: 'border-l-thiso-500',
+  };
+}
 const VEHICLE_LABEL: Record<string, string> = { TRUCK: '🚛 Tải', MOTORBIKE: '🛵 Xe máy', OTHER: '🚗 Khác' };
 const STATUS_ORDER: Record<string, number> = { WAITING: 0, CALLED: 1, RECEIVING: 2, AUTO_WAREHOUSE_RECEIVING: 3 };
 
@@ -237,7 +261,7 @@ interface CallModalProps {
 function CallModal({ delivery, slots, preselectedSlotId, onClose, onCall, loading }: CallModalProps) {
   const [selectedSlot, setSelectedSlot] = useState(preselectedSlotId ?? '');
   const unit = delivery.receivingUnit as UnitKey;
-  const meta = UNIT_META[unit];
+  const meta = getUnitMeta(unit);
   const ticket = getTicketCode(delivery);
 
   const available = slots.filter((s) => s.status === 'AVAILABLE');
@@ -333,7 +357,7 @@ function CallModal({ delivery, slots, preselectedSlotId, onClose, onCall, loadin
 
 // ─── Unit Header ───────────────────────────────────────────────────────────────
 function UnitHeader({ unit, ud, onDispatch }: { unit: UnitKey; ud: UnitDispatch; onDispatch: () => void }) {
-  const meta = UNIT_META[unit];
+  const meta = getUnitMeta(unit, ud.unitConfig);
   const s = ud.insights.stats;
   return (
     <div className={`bg-gradient-to-r ${meta.headerBg} rounded-2xl p-5 mb-4 text-white shadow-lg`}>
@@ -487,7 +511,7 @@ function DeliveryDetailModal({ id, onClose, onCall, onAction, slots }: {
   });
 
   const unit  = d ? (d.receivingUnit as UnitKey) : null;
-  const meta  = unit ? UNIT_META[unit] : null;
+  const meta  = unit ? getUnitMeta(unit) : null;
   const ticket = d ? getTicketCode(d) : null;
 
   // Timeline events
@@ -762,7 +786,7 @@ function QueueTable({
               <tbody>
                 {filtered.map((d) => {
                   const dUnit  = d.receivingUnit as UnitKey;
-                  const dMeta  = UNIT_META[dUnit];
+                  const dMeta  = getUnitMeta(dUnit);
                   const prefix = dMeta?.prefix ?? '?';
                   unitCounters[prefix] = (unitCounters[prefix] ?? 0) + 1;
                   const ticket  = getTicketCode(d);
@@ -943,7 +967,7 @@ function QueueTable({
 function UpcomingSection({ deliveries, unit }: { deliveries: DeliveryRegistration[]; unit?: UnitKey }) {
   const [open, setOpen] = useState(true);
   if (deliveries.length === 0) return null;
-  const meta = unit ? UNIT_META[unit] : null;
+  const meta = unit ? getUnitMeta(unit) : null;
 
   return (
     <div className="mt-5">
@@ -974,7 +998,7 @@ function UpcomingSection({ deliveries, unit }: { deliveries: DeliveryRegistratio
             <tbody>
               {deliveries.map((d) => {
                 const dUnit = d.receivingUnit as UnitKey;
-                const dMeta = UNIT_META[dUnit];
+                const dMeta = getUnitMeta(dUnit);
                 const slot = d.requestedTime
                   ? new Date(d.requestedTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
                   : '—';
@@ -1019,7 +1043,7 @@ function AllTabView({
   actionLoading: string | null;
   onDispatch: () => void;
 }) {
-  const UNITS: UnitKey[] = ['EMART', 'THISKYHALL', 'TENANT'];
+  const UNITS: UnitKey[] = Object.keys(dispatch);
   const allActive = UNITS.flatMap((u) => (dispatch[u] as UnitDispatch | undefined)?.active ?? [])
     .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
       || new Date(a.checkinTime ?? a.createdAt).getTime() - new Date(b.checkinTime ?? b.createdAt).getTime());
@@ -1029,10 +1053,10 @@ function AllTabView({
   return (
     <>
       {/* Unit overview strip */}
-      <div className="grid grid-cols-3 gap-4 mb-5">
+      <div className="grid gap-4 mb-5 md:grid-cols-3">
         {UNITS.map((u) => {
           const ud = dispatch[u] as UnitDispatch | undefined;
-          const meta = UNIT_META[u];
+          const meta = getUnitMeta(u, ud?.unitConfig);
           const s = ud?.insights.stats;
           return (
             <div key={u} className={`bg-gradient-to-br ${meta.headerBg} rounded-2xl p-4 text-white shadow-md`}>
@@ -1172,15 +1196,19 @@ export default function Dashboard() {
     ? (Object.values(dispatch) as UnitDispatch[]).flatMap((ud) => ud.slots ?? [])
     : [];
 
-  const TABS: { key: TabKey; label: string; icon: string }[] = [
-    { key: 'ALL',        label: 'Tất cả',          icon: '📊' },
-    { key: 'EMART',      label: 'Emart',            icon: '🏬' },
-    { key: 'THISKYHALL', label: 'Thiskyhall',       icon: '🏢' },
-    { key: 'TENANT',     label: 'Mall (Khách thuê)',icon: '🏪' },
+  const unitTabs = dispatch
+    ? Object.entries(dispatch).map(([key, value]) => {
+        const meta = getUnitMeta(key, value.unitConfig);
+        return { key, label: meta.label, icon: meta.icon, unitConfig: value.unitConfig };
+      })
+    : [];
+  const TABS: { key: TabKey; label: string; icon: string; unitConfig?: UnitDispatch['unitConfig'] }[] = [
+    { key: 'ALL', label: 'Tất cả', icon: '📊' },
+    ...unitTabs,
   ];
 
   const totalWaiting = dispatch
-    ? (['EMART', 'THISKYHALL', 'TENANT'] as UnitKey[]).reduce(
+    ? Object.keys(dispatch).reduce(
         (s, u) => s + ((dispatch[u] as UnitDispatch | undefined)?.insights.stats.waiting ?? 0), 0,
       )
     : 0;
@@ -1281,7 +1309,7 @@ export default function Dashboard() {
           const waiting = tab.key === 'ALL'
             ? totalWaiting
             : (dispatch?.[tab.key] as UnitDispatch | undefined)?.insights.stats.waiting ?? 0;
-          const meta = tab.key !== 'ALL' ? UNIT_META[tab.key as UnitKey] : null;
+          const meta = tab.key !== 'ALL' ? getUnitMeta(tab.key, tab.unitConfig) : null;
           const isActive = activeTab === tab.key;
           return (
             <button
@@ -1333,7 +1361,7 @@ export default function Dashboard() {
               <h3 className="text-sm font-black text-thiso-500 uppercase tracking-wider flex items-center gap-2">
                 Đang điều phối
                 {ud.active.length > 0 && (
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${UNIT_META[unit].badge}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${getUnitMeta(unit, ud.unitConfig).badge}`}>
                     {ud.active.length}
                   </span>
                 )}

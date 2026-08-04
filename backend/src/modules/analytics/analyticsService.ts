@@ -1,8 +1,23 @@
 import { helperFunctions } from '../../helperFunction';
+import type { AuthUser } from '../../middleware/auth';
+import { roleHasUnitOperationScope } from '../../domain/permissions';
+import { prisma } from '../../lib/prisma';
 import * as analyticsRepository from './analyticsRepository';
 
-function statKey(stat: { unit: string; vehicleType: string; goodsType: string }) {
-  return `${stat.unit}|${stat.vehicleType}|${stat.goodsType}`;
+async function resolveAnalyticsUnitConfigIds(user: AuthUser | undefined): Promise<string[] | undefined> {
+  if (!user?.businessLocationId) return undefined;
+  if (user.operationUnits?.length) return user.operationUnits.map((unit) => unit.id);
+  if (roleHasUnitOperationScope(user.role)) return [];
+
+  const units = await prisma.unitConfig.findMany({
+    where: { businessLocationId: user.businessLocationId, isActive: true },
+    select: { id: true },
+  });
+  return units.map((unit) => unit.id);
+}
+
+function statKey(stat: { unitConfigId?: string | null; unit: string; vehicleType: string; goodsType: string }) {
+  return `${stat.unitConfigId ?? stat.unit}|${stat.vehicleType}|${stat.goodsType}`;
 }
 
 function confidence(sampleCount: number): 'high' | 'medium' | 'low' {
@@ -11,11 +26,12 @@ function confidence(sampleCount: number): 'high' | 'medium' | 'low' {
   return 'low';
 }
 
-export async function getReceivingTimesOverview() {
+export async function getReceivingTimesOverview(user?: AuthUser) {
+  const unitConfigIds = await resolveAnalyticsUnitConfigIds(user);
   const [configs, liveStats, totalCompleted] = await Promise.all([
-    analyticsRepository.listReceivingTimeConfigs(),
-    analyticsRepository.listLiveReceivingTimeStats(),
-    analyticsRepository.countCompletedReceivingSamples(),
+    analyticsRepository.listReceivingTimeConfigs(unitConfigIds),
+    analyticsRepository.listLiveReceivingTimeStats(unitConfigIds),
+    analyticsRepository.countCompletedReceivingSamples(unitConfigIds),
   ]);
 
   const liveMap = new Map(liveStats.map((stat) => [statKey(stat), stat]));
@@ -41,8 +57,9 @@ export async function getReceivingTimesOverview() {
   return { configs: enrichedConfigs, totalCompleted };
 }
 
-export async function analyzeReceivingTimes() {
-  const liveStats = await analyticsRepository.listLiveReceivingTimeStats();
+export async function analyzeReceivingTimes(user?: AuthUser) {
+  const unitConfigIds = await resolveAnalyticsUnitConfigIds(user);
+  const liveStats = await analyticsRepository.listLiveReceivingTimeStats(unitConfigIds);
 
   let updated = 0;
   for (const stat of liveStats) {
@@ -61,8 +78,9 @@ export async function analyzeReceivingTimes() {
   };
 }
 
-export async function acceptReceivingTimeRecommendation(id: string) {
-  const config = await analyticsRepository.getReceivingTimeConfig(id);
+export async function acceptReceivingTimeRecommendation(id: string, user?: AuthUser) {
+  const unitConfigIds = await resolveAnalyticsUnitConfigIds(user);
+  const config = await analyticsRepository.getReceivingTimeConfig(id, unitConfigIds);
   if (!config) return { status: 'not_found' as const, config: null };
   if (config.recommendedMinutes === null) return { status: 'no_recommendation' as const, config: null };
 
@@ -70,8 +88,9 @@ export async function acceptReceivingTimeRecommendation(id: string) {
   return { status: 'ok' as const, config: updated };
 }
 
-export async function acceptAllReceivingTimeRecommendations() {
-  const pending = await analyticsRepository.listPendingReceivingTimeConfigs();
+export async function acceptAllReceivingTimeRecommendations(user?: AuthUser) {
+  const unitConfigIds = await resolveAnalyticsUnitConfigIds(user);
+  const pending = await analyticsRepository.listPendingReceivingTimeConfigs(unitConfigIds);
   let accepted = 0;
 
   for (const config of pending) {

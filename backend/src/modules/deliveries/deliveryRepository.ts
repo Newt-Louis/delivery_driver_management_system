@@ -1,9 +1,19 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
 import { DeliveryStatus, GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
-import { getUnitConfigForDefaultLocation } from '../../lib/businessLocation';
 import type { SocketScope } from '../../socket';
 import { getCallHistoryCounts } from '../history/historyRepository';
+
+const DELIVERY_UNIT_CONFIG_SELECT = {
+  id: true,
+  unit: true,
+  businessLocationId: true,
+  displayName: true,
+  shortName: true,
+  icon: true,
+  logoUrl: true,
+  primaryColor: true,
+} as const;
 
 export const ACTIVE_DUPLICATE_STATUSES: DeliveryStatus[] = [
   DeliveryStatus.REGISTERED,
@@ -29,6 +39,7 @@ export async function findDuplicateRegistration(args: {
   vehiclePlate: string;
   driverPhone: string;
   poNumber: string;
+  unitConfigId?: string | null;
   requestedTime?: Date | null;
   deliveryDate?: string;
 }) {
@@ -38,6 +49,7 @@ export async function findDuplicateRegistration(args: {
   const candidates = await prisma.deliveryRegistration.findMany({
     where: {
       vehiclePlate: args.vehiclePlate,
+      ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
       status: { in: ACTIVE_DUPLICATE_STATUSES },
       OR: [
         { requestedTime: { gte: start, lt: end } },
@@ -93,17 +105,14 @@ export function advisoryLockId(value: string): number {
   return hash | 0;
 }
 
-export async function getRegistrationSlotCapacity(unit: ReceivingUnitCode, vehicleType: VehicleType): Promise<number | null> {
-  const config = await getUnitConfigForDefaultLocation(unit);
-  if (!config) return null;
-
+export async function getRegistrationSlotCapacity(unitConfigId: string, unit: ReceivingUnitCode, vehicleType: VehicleType): Promise<number | null> {
   const slots = await prisma.slot.findMany({
     where: {
       assignedUnit: unit,
       vehicleType,
       isActive: true,
       status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
-      zone: { unitConfigId: config.id },
+      zone: { unitConfigId },
     },
     select: { maxCapacity: true },
   });
@@ -125,6 +134,21 @@ export async function resolveScopedUnits(scope?: SocketScope): Promise<Receiving
   return [...new Set(unitConfigs.map((cfg) => cfg.unit))];
 }
 
+async function resolveScopedUnitConfigIds(scope?: SocketScope): Promise<string[]> {
+  if (!scope?.businessLocationId && !scope?.unitConfigId && !scope?.unitConfigIds?.length) return [];
+
+  const unitConfigs = await prisma.unitConfig.findMany({
+    where: {
+      ...(scope.unitConfigIds?.length ? { id: { in: scope.unitConfigIds } } : {}),
+      ...(scope.unitConfigId && !scope.unitConfigIds?.length ? { id: scope.unitConfigId } : {}),
+      ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
+    },
+    select: { id: true },
+  });
+
+  return unitConfigs.map((cfg) => cfg.id);
+}
+
 async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
   const activeStatus = {
     in: [
@@ -144,22 +168,25 @@ async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryR
       ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
       ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
     },
-    select: { id: true, unit: true },
+    select: { id: true },
   });
-  const units = [...new Set(unitConfigs.map((cfg) => cfg.unit))];
+  const unitConfigIds = unitConfigs.map((cfg) => cfg.id);
+
+  if (unitConfigIds.length === 0) {
+    return { id: '__empty_scope__', status: activeStatus };
+  }
 
   return {
     status: activeStatus,
     OR: [
+      { unitConfigId: { in: unitConfigIds } },
       {
         assignedSlot: {
           zone: {
-            ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
-            ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+            unitConfigId: { in: unitConfigIds },
           },
         },
       },
-      ...(units.length > 0 ? [{ assignedSlotId: null, receivingUnit: { in: units } }] : []),
     ],
   };
 }
@@ -210,13 +237,21 @@ export async function listDeliveries(args: {
   scope?: SocketScope;
 }) {
   const scopedUnits = await resolveScopedUnits(args.scope);
+  const scopedUnitConfigIds = await resolveScopedUnitConfigIds(args.scope);
   const where: Prisma.DeliveryRegistrationWhereInput = {};
+  const hasExplicitScope = Boolean(args.scope?.businessLocationId || args.scope?.unitConfigId || args.scope?.unitConfigIds?.length);
+  if (hasExplicitScope && scopedUnitConfigIds.length === 0) {
+    return [];
+  }
+  if (scopedUnitConfigIds.length > 0) {
+    where.unitConfigId = { in: scopedUnitConfigIds };
+  }
   if (args.unit) {
     if (scopedUnits.length > 0 && !scopedUnits.includes(args.unit)) {
       return [];
     }
     where.receivingUnit = args.unit;
-  } else if (scopedUnits.length > 0) {
+  } else if (scopedUnits.length > 0 && scopedUnitConfigIds.length === 0) {
     where.receivingUnit = { in: scopedUnits };
   }
   if (args.goodsType) where.goodsType = args.goodsType;
@@ -224,16 +259,54 @@ export async function listDeliveries(args: {
 
   const deliveries = await prisma.deliveryRegistration.findMany({
     where,
-    include: { assignedSlot: true, unitGoodsType: { select: { id: true, name: true, emoji: true, baseType: true } } },
+    include: {
+      assignedSlot: true,
+      unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT },
+      unitGoodsType: { select: { id: true, name: true, emoji: true, baseType: true } },
+    },
     orderBy: [{ checkinTime: 'asc' }, { createdAt: 'desc' }],
   });
 
   return attachCallCounts(deliveries);
 }
 
-export function findAutoWarehouseVendor(vendorCode: string, unit: ReceivingUnitCode) {
+export function findAutoWarehouseVendor(vendorCode: string, unit: ReceivingUnitCode, unitConfigId?: string | null) {
   return prisma.autoWarehouseVendor.findFirst({
-    where: { vendorCode, unit, active: true },
+    where: {
+      vendorCode,
+      unit,
+      ...(unitConfigId ? { unitConfigId } : {}),
+      active: true,
+    },
+  });
+}
+
+export async function resolveRegistrationUnitConfig(args: {
+  receivingUnit: ReceivingUnitCode;
+  unitConfigId?: string | null;
+  businessLocationId?: string | null;
+}) {
+  if (args.unitConfigId || args.businessLocationId) {
+    return prisma.unitConfig.findFirst({
+      where: {
+        unit: args.receivingUnit,
+        isActive: true,
+        businessLocation: { isActive: true },
+        ...(args.unitConfigId ? { id: args.unitConfigId } : {}),
+        ...(args.businessLocationId ? { businessLocationId: args.businessLocationId } : {}),
+      },
+    });
+  }
+
+  const location = await prisma.businessLocation.findFirst({
+    where: { isActive: true },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true },
+  });
+  if (!location) return null;
+
+  return prisma.unitConfig.findUnique({
+    where: { businessLocationId_unit: { businessLocationId: location.id, unit: args.receivingUnit } },
   });
 }
 
@@ -243,7 +316,7 @@ export function findDeliveryByLookup(args: { registrationCode?: string; vehicleP
       ? { registrationCode: args.registrationCode }
       : { vehiclePlate: args.vehiclePlate!.toUpperCase() },
     orderBy: { createdAt: 'desc' },
-    include: { assignedSlot: true },
+    include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } },
   });
 }
 
@@ -279,7 +352,7 @@ export async function findDeliveryForPublicCancel(args: {
 export function findDeliveryWithSlot(id: string) {
   return prisma.deliveryRegistration.findUnique({
     where: { id },
-    include: { assignedSlot: true },
+    include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } },
   });
 }
 
@@ -290,7 +363,7 @@ export function findDelivery(id: string) {
 export function findDeliveryForLifecycleScope(id: string) {
   return prisma.deliveryRegistration.findUnique({
     where: { id },
-    select: { id: true, receivingUnit: true, assignedSlotId: true },
+    select: { id: true, receivingUnit: true, unitConfigId: true, assignedSlotId: true },
   });
 }
 

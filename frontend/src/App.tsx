@@ -14,6 +14,7 @@ import Reports from './pages/Reports';
 import Histories from './pages/Histories';
 import Cancelled from './pages/Cancelled';
 import Navbar from './components/Navbar';
+import SuperadminOperationalContextGate from './components/SuperadminOperationalContextGate';
 
 function homePathForRole(role?: string) {
   if (role === 'CHECKIN') return '/check-in';
@@ -85,7 +86,7 @@ export default function App() {
         <Route
           path="/backoffice"
           element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
+            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC']}>
               <Backoffice />
             </ProtectedRoute>
           }
@@ -118,6 +119,7 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </div>
+      {isAuthenticated && !isPublicFullscreen && <SuperadminOperationalContextGate />}
     </div>
   );
 }

@@ -70,7 +70,7 @@ export function requireRole(...roles: string[]) {
 
 /**
  * Enforce businessLocationId scope for non-SUPERADMIN roles.
- * - SUPERADMIN: optional scope from query params (or undefined = full system access)
+ * - SUPERADMIN: scope from query params or the selected operational location stored in session
  * - Non-SUPERADMIN: forced scope from user.businessLocationId (query params ignored for businessLocationId)
  *
  * Sets req.scope = { businessLocationId?, unitConfigId? }
@@ -84,8 +84,15 @@ export function enforceScope(req: Request, res: Response, next: NextFunction): v
   const queryUnitConfigId = typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined;
 
   if (req.user.role === 'SUPERADMIN') {
+    const businessLocationId = typeof req.query.businessLocationId === 'string'
+      ? req.query.businessLocationId
+      : req.user.businessLocationId ?? undefined;
+    if (!businessLocationId) {
+      res.status(403).json({ error: 'SUPERADMIN chưa chọn khu vực vận hành.' });
+      return;
+    }
     req.scope = {
-      businessLocationId: typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined,
+      businessLocationId,
       unitConfigId: queryUnitConfigId,
     };
   } else {
@@ -133,7 +140,7 @@ export function enforceResourceScope(
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   }
-  if (req.user.role === 'SUPERADMIN') return true;
+  if (req.user.role === 'SUPERADMIN' && !req.user.businessLocationId) return true;
   if (!resourceBusinessLocationId) {
     res.status(403).json({ error: 'Không thể xác định khu vực của tài nguyên này.' });
     return false;

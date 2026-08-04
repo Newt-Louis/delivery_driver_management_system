@@ -33,6 +33,8 @@ Models:
 
 Các bảng nghiệp vụ vẫn giữ cột text snapshot như `receivingUnit`, `assignedUnit`, `unit` để đọc lịch sử/report dễ hơn, nhưng source of truth quan hệ mới là `unitConfigId` khi model có field này.
 
+Ví dụ `AutoWarehouseVendor` vẫn có cột `unit` để public register và dữ liệu cũ đọc được mã unit, nhưng route quản trị và unique nghiệp vụ dùng `unitConfigId + vendorCode`. Không dùng unique hoặc filter theo `unit + vendorCode` cho dữ liệu runtime mới, vì hai `BusinessLocation` khác nhau có thể có cùng mã unit.
+
 ## Backend APIs
 
 Unit config:

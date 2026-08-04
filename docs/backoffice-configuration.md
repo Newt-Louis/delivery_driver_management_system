@@ -32,13 +32,23 @@ Files:
 
 Tab và quyền:
 
-- `Người dùng`: chỉ `SUPERADMIN`.
-- `Cấu hình Đơn vị`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
-- `Kho tự động`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
-- `Nhân viên`: chủ yếu `ADMIN_LOC` theo location-staff API.
-- Zone/slot/brand nhạy cảm: `SUPERADMIN`, `ADMIN_LOC` theo backend guard.
-- `ADMIN_OPE` chỉ nên thấy tab operation được phép.
+- `Người dùng`: chỉ `SUPERADMIN` trong `/superadmin`; quản trị staff cấp dưới của `ADMIN_LOC` nằm ở tab nhân viên.
+- `Cấu hình Đơn vị`: `SUPERADMIN`, `ADMIN_LOC`; thao tác config theo unit scope.
+- `Kho tự động`: `SUPERADMIN`, `ADMIN_LOC`; vendor phải gắn với `unitConfigId`/location-aware.
+- `Nhân viên`: `ADMIN_LOC` quản trị `RECEIVING` và `CHECKIN`, đồng thời được thấy/sửa unit scope của `ADMIN_OPE` trong location.
+- Zone/slot/goods types/time windows/receiving time config/unit brand: `SUPERADMIN`, `ADMIN_LOC` theo backend guard và unit operation scope.
+- `ADMIN_OPE` không truy cập Backoffice để chỉnh cấu hình. Role này thuộc nhóm vận hành dashboard/docks/reports trong phạm vi unit được cấp.
 - Link `Superadmin` trong Navbar và CTA trong Backoffice chỉ visible với `SUPERADMIN`.
+
+Các tab cấu hình theo đơn vị không tự dựng danh sách unit ở frontend. Danh sách unit hợp lệ luôn lấy từ `GET /api/units/configs`, đã được backend lọc theo `BusinessLocation` hiện tại và `UserUnitPermission` của tài khoản đăng nhập. Các tab đang theo quy ước này:
+
+- `BrandTab`: render card thương hiệu cho từng `UnitConfig`; lưu bằng `PATCH /api/units/:unit/config` để giữ contract cũ nhưng dữ liệu resolve trong scope hiện tại.
+- `UnitsTab`: render cấu hình hàng hóa, khung giờ, slot duration/capacity và API tích hợp theo từng `UnitConfig`.
+- `ZonesTab`: tạo/sửa zone bằng `unitConfigId`; nhãn đơn vị lấy từ `UnitConfig.displayName/shortName/unit`.
+- `SlotsTab`: filter hiển thị slot bằng `slot.zone.unitConfig.id`, không bằng text `assignedUnit`.
+- `AWVendorTab`: filter/tạo vendor bằng `unitConfigId`; backend tự lưu snapshot `unit` để tương thích public register.
+
+Các constant unit legacy như `EMART`, `THISKYHALL`, `TENANT` chỉ còn vai trò fallback hoặc tương thích dữ liệu cũ, không phải source of truth cho UI cấu hình mới.
 
 ## Backend APIs
 
@@ -98,6 +108,10 @@ Backend refactor hiện tại:
 - `/api/devices` dùng `backend/src/modules/devices/*`.
 - Các route tương ứng giữ vai trò controller mỏng: guard, parse request và trả response.
 
+`/api/aw-vendors` hiện đi qua `authenticate + enforceScope` và chỉ cho `SUPERADMIN`/`ADMIN_LOC` quản trị. List/create/update/delete đều resolve `UnitConfig` trong scope hiện tại rồi kiểm tra unit operation permission. Public check `/api/aw-vendors/check` vẫn mở cho register, nhưng khi client truyền `businessLocationId` hoặc `unitConfigId` thì vendor được match bằng `unitConfigId` để tránh lẫn dữ liệu giữa nhiều location có cùng mã unit.
+
+Schema `AutoWarehouseVendor` giữ cột `unit` như snapshot tương thích, nhưng unique nghiệp vụ mới là `unitConfigId + vendorCode`. Vì vậy cùng một mã NCC có thể tồn tại ở hai `BusinessLocation` khác nhau nếu chúng thuộc hai `UnitConfig` khác nhau.
+
 ## Lưu Ý Kiến Trúc
 
 - Component chỉ dùng riêng cho Backoffice nên để trong `features/backoffice`.
@@ -112,13 +126,13 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 
 - Locations: tạo/sửa/deactivate `BusinessLocation`.
 - Unit configs: tạo/sửa/deactivate unit động trong từng location; response không trả `vendorApiKey`/`poApiKey`.
-- Zones và Slots: đọc theo filter location/unit; CRUD vận hành vẫn đi qua route zone/slot hiện có.
+- Zones và Slots: dữ liệu vận hành cụ thể thuộc Backoffice/ADMIN_LOC. `/superadmin` có thể đọc/audit system-wide khi cần, nhưng không phải bề mặt chính để ADMIN_LOC cấu hình zone/slot hằng ngày.
 - Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC` và `ADMIN_OPE` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.
-- Goods types và Time windows: đọc dữ liệu theo `UnitConfig`.
+- Goods types và Time windows: dữ liệu vận hành theo `UnitConfig`; bề mặt cấu hình chính thuộc ADMIN_LOC trong Backoffice.
 - AW vendors: CRUD vendor kho tự động theo `unitConfigId`.
 - Devices: CRUD device registry theo `BusinessLocation`, không trả `deviceSecretHash`.
 - App configs: chỉnh JSON runtime config khi `isRuntimeEditable = true`; sensitive value bị mask.
-- Receiving time configs: CRUD cấu hình thời gian nhận hàng theo `unitConfigId + vehicleType + goodsType`.
+- Receiving time configs: dữ liệu cấu hình theo `unitConfigId + vehicleType + goodsType`; bề mặt cấu hình chính thuộc ADMIN_LOC, còn Superadmin dùng để quan sát/can thiệp system-wide khi cần.
 
 Trong tab Users:
 

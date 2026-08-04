@@ -133,7 +133,7 @@ export async function getAiSlotRecommendationsReport(query: ReportQuery, scope: 
       : group.vehicleType === 'MOTORBIKE'
         ? 'xe máy'
         : 'xe khác';
-    const unitLabel = ({ EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall' } as Record<string, string>)[group.unit] ?? group.unit;
+    const unitLabel = scope.unitMeta?.[group.unit]?.displayName ?? group.unit;
 
     if (util >= 85 || backlog >= 5) {
       recommendations.push({

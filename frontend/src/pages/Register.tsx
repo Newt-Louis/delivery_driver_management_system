@@ -20,6 +20,12 @@ export default function Register() {
     form,
     rememberInfo,
     setRememberInfo,
+    publicLocations,
+    publicLocationsLoading,
+    publicLocationsMsg,
+    publicUnits,
+    publicUnitsLoading,
+    publicUnitsMsg,
     unitConfig,
     customGoodsTypes,
     slots,
@@ -93,6 +99,12 @@ export default function Register() {
             highlightedField={highlightedField}
             guideOpen={guideOpen}
             onDismissGuide={() => setGuideOpen(false)}
+            publicLocations={publicLocations}
+            publicLocationsLoading={publicLocationsLoading}
+            publicLocationsMsg={publicLocationsMsg}
+            publicUnits={publicUnits}
+            publicUnitsLoading={publicUnitsLoading}
+            publicUnitsMsg={publicUnitsMsg}
             unitConfig={unitConfig}
             customGoodsTypes={customGoodsTypes}
             vehicleAvailability={vehicleAvailability}
@@ -139,6 +151,7 @@ export default function Register() {
         {step === 4 && (
           <ReviewSubmitStep
             form={form}
+            unitConfig={unitConfig}
             brandUnits={brandUnits}
             awStatus={awStatus}
             awVendorName={awVendorName}

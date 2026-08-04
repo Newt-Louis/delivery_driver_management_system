@@ -2,6 +2,7 @@ export type AppRole = 'SUPERADMIN' | 'ADMIN_LOC' | 'ADMIN_OPE' | 'RECEIVING' | '
 
 export type AuthPermissionUnit = {
   id: string;
+  unit?: string;
   code: string;
   displayName: string;
   shortName: string;

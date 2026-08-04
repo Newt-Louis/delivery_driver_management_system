@@ -541,7 +541,6 @@ model AutoWarehouseVendor {
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
-  @@unique([unit, vendorCode])
   @@unique([unitConfigId, vendorCode])
   @@index([unitConfigId, active])
   @@map("auto_warehouse_vendors")

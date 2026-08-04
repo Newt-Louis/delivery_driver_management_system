@@ -35,10 +35,15 @@ const faceAuthVerifySchema = z.object({
   }),
 });
 
+const operationalContextSchema = z.object({
+  businessLocationId: z.string().min(1),
+});
+
 export type LoginRequest = z.infer<typeof loginSchema>;
 export type FaceOptionsRequest = z.infer<typeof faceOptionsSchema>;
 export type FaceRegisterVerifyRequest = z.infer<typeof faceRegisterVerifySchema>;
 export type FaceAuthVerifyRequest = z.infer<typeof faceAuthVerifySchema>;
+export type OperationalContextRequest = z.infer<typeof operationalContextSchema>;
 
 function parseBearerToken(header: unknown): string | null {
   if (typeof header !== 'string' || !header.startsWith('Bearer ')) return null;
@@ -50,5 +55,6 @@ export const AuthFormRequest = {
   parseFaceOptions: (body: unknown): FaceOptionsRequest => faceOptionsSchema.parse(body),
   parseFaceRegisterVerify: (body: unknown): FaceRegisterVerifyRequest => faceRegisterVerifySchema.parse(body),
   parseFaceAuthVerify: (body: unknown): FaceAuthVerifyRequest => faceAuthVerifySchema.parse(body),
+  parseOperationalContext: (body: unknown): OperationalContextRequest => operationalContextSchema.parse(body),
   parseBearerToken,
 };

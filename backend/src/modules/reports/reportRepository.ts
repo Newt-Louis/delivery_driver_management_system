@@ -17,13 +17,29 @@ function effectiveUnits(scope: ReportScope) {
   return undefined;
 }
 
+function effectiveUnitConfigIds(scope: ReportScope) {
+  if (scope.unitConfigIds) return scope.unitConfigIds;
+  if (scope.businessLocationId) return scope.allowedUnitConfigIds ?? [];
+  return undefined;
+}
+
 function activeDeliveryUnitWhere(scope: ReportScope): Prisma.DeliveryRegistrationWhereInput {
+  const unitConfigIds = effectiveUnitConfigIds(scope);
+  if (unitConfigIds) return { unitConfigId: { in: unitConfigIds } };
+
   const units = effectiveUnits(scope);
   if (!units) return {};
   return { receivingUnit: { in: units } };
 }
 
 function activeDeliveryUnitClause(scope: ReportScope): Prisma.Sql {
+  const unitConfigIds = effectiveUnitConfigIds(scope);
+  if (unitConfigIds) {
+    if (unitConfigIds.length === 0) return Prisma.sql`AND false`;
+    if (unitConfigIds.length === 1) return Prisma.sql`AND unit_config_id = ${unitConfigIds[0]}`;
+    return Prisma.sql`AND unit_config_id IN (${Prisma.join(unitConfigIds)})`;
+  }
+
   const units = effectiveUnits(scope);
   if (!units) return Prisma.empty;
   if (units.length === 0) return Prisma.sql`AND false`;
@@ -37,8 +53,15 @@ function slotScopeClause(scope: ReportScope): Prisma.Sql {
     clauses.push(Prisma.sql`uc.business_location_id = ${scope.businessLocationId}`);
   }
 
+  const unitConfigIds = effectiveUnitConfigIds(scope);
+  if (unitConfigIds) {
+    if (unitConfigIds.length === 0) clauses.push(Prisma.sql`false`);
+    else if (unitConfigIds.length === 1) clauses.push(Prisma.sql`uc.id = ${unitConfigIds[0]}`);
+    else clauses.push(Prisma.sql`uc.id IN (${Prisma.join(unitConfigIds)})`);
+  }
+
   const units = effectiveUnits(scope);
-  if (units) {
+  if (units && !unitConfigIds) {
     if (units.length === 0) clauses.push(Prisma.sql`false`);
     else if (units.length === 1) clauses.push(Prisma.sql`uc.unit = ${units[0]}`);
     else clauses.push(Prisma.sql`uc.unit::text IN (${Prisma.join(units)})`);

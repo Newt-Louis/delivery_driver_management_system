@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { downloadCsv } from '../lib/export';
+import type { UnitConfig } from '../lib/types';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,7 +41,7 @@ const GOODS_LABEL: Record<string, string> = {
   GENERAL_GOODS: 'Hàng thông thường', THI_CONG: 'Thi công',
 };
 const VEHICLE_LABEL: Record<string, string> = { TRUCK: '🚛 Xe tải', MOTORBIKE: '🛵 Xe máy', OTHER: '🚗 Khác' };
-const UNIT_LABEL: Record<string, string> = { EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)' };
+const LEGACY_UNIT_LABEL: Record<string, string> = { EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)' };
 const STATUS_LABEL: Record<string, string> = {
   REGISTERED: 'Đã đăng ký', WAITING: 'Đang chờ', CALLED: 'Đã gọi',
   RECEIVING: 'Đang nhận', AUTO_WAREHOUSE_RECEIVING: 'Kho tự động',
@@ -56,6 +57,9 @@ function fmt(n: number | null | undefined, suffix = '') {
 }
 function defaultFrom() { return new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10) }
 function defaultTo() { return new Date().toISOString().slice(0, 10) }
+function unitLabel(unitLabels: Record<string, string>, unit: string) {
+  return unitLabels[unit] ?? LEGACY_UNIT_LABEL[unit] ?? unit;
+}
 
 // ─── Mini components ──────────────────────────────────────────────────────────
 
@@ -94,8 +98,9 @@ function UtilBar({ pct }: { pct: number }) {
   );
 }
 
-function DateFilter({ from, to, unit, onFrom, onTo, onUnit }: {
+function DateFilter({ from, to, unit, units, onFrom, onTo, onUnit }: {
   from: string; to: string; unit: string;
+  units: UnitConfig[];
   onFrom: (v: string) => void; onTo: (v: string) => void; onUnit: (v: string) => void;
 }) {
   return (
@@ -113,9 +118,9 @@ function DateFilter({ from, to, unit, onFrom, onTo, onUnit }: {
       <select value={unit} onChange={(e) => onUnit(e.target.value)}
         className="bg-white border border-thiso-200 rounded-xl px-3 py-1.5 text-sm text-thiso-700 outline-none">
         <option value="">Tất cả đơn vị</option>
-        <option value="EMART">Emart</option>
-        <option value="THISKYHALL">Thiskyhall</option>
-        <option value="TENANT">Mall (Khách thuê)</option>
+        {units.map((item) => (
+          <option key={item.id} value={item.unit}>{item.shortName || item.displayName || item.unit}</option>
+        ))}
       </select>
       {[7, 30, 90].map((d) => (
         <button key={d} onClick={() => {
@@ -271,7 +276,7 @@ function OverviewTab({ from, to, unit }: { from: string; to: string; unit: strin
 
 // ─── Breakdown Tab ────────────────────────────────────────────────────────────
 
-function BreakdownTab({ from, to, unit }: { from: string; to: string; unit: string }) {
+function BreakdownTab({ from, to, unit, unitLabels }: { from: string; to: string; unit: string; unitLabels: Record<string, string> }) {
   const { data, isLoading } = useQuery<Breakdown>({
     queryKey: ['reports-breakdown', from, to, unit],
     queryFn: async () => (await api.get('/api/reports/breakdown', { params: { from, to, unit: unit || undefined } })).data,
@@ -289,7 +294,7 @@ function BreakdownTab({ from, to, unit }: { from: string; to: string; unit: stri
     downloadCsv('phan-tich-giao-hang', ['Nhóm', 'Loại', 'Số lượt'], [
       ...data!.byGoods.map((r)   => ['Loại hàng',   GOODS_LABEL[r.key]   ?? r.key, r.count]),
       ...data!.byVehicle.map((r) => ['Loại xe',      VEHICLE_LABEL[r.key] ?? r.key, r.count]),
-      ...data!.byUnit.map((r)    => ['Đơn vị',       UNIT_LABEL[r.key]    ?? r.key, r.count]),
+      ...data!.byUnit.map((r)    => ['Đơn vị',       unitLabel(unitLabels, r.key), r.count]),
     ]);
   }
 
@@ -313,7 +318,7 @@ function BreakdownTab({ from, to, unit }: { from: string; to: string; unit: stri
       <div className="bg-white rounded-2xl border border-thiso-100 p-5 shadow-sm">
         <h3 className="font-bold text-thiso-700 mb-4">Theo đơn vị nhận hàng</h3>
         {data.byUnit.map((r, i) => (
-          <BarRow key={r.key} label={UNIT_LABEL[r.key] ?? r.key} value={r.count} max={maxUnit} color={colors[i % colors.length]} />
+          <BarRow key={r.key} label={unitLabel(unitLabels, r.key)} value={r.count} max={maxUnit} color={colors[i % colors.length]} />
         ))}
       </div>
     </div>
@@ -323,7 +328,7 @@ function BreakdownTab({ from, to, unit }: { from: string; to: string; unit: stri
 
 // ─── Slot Performance Tab ─────────────────────────────────────────────────────
 
-function SlotTab({ from, to, unit }: { from: string; to: string; unit: string }) {
+function SlotTab({ from, to, unit, unitLabels }: { from: string; to: string; unit: string; unitLabels: Record<string, string> }) {
   const { data = [], isLoading } = useQuery<SlotPerf[]>({
     queryKey: ['reports-slots', from, to, unit],
     queryFn: async () => (await api.get('/api/reports/slot-performance', { params: { from, to, unit: unit || undefined } })).data,
@@ -344,7 +349,7 @@ function SlotTab({ from, to, unit }: { from: string; to: string; unit: string })
   function exportSlots() {
     downloadCsv('hieu-suat-slot',
       ['Slot', 'Tên slot', 'Đơn vị', 'Loại xe', 'Tổng lượt', 'Hoàn tất', 'Tỷ lệ HT (%)', 'TB nhận (phút)', 'Min (phút)', 'Max (phút)', 'Utilization (%)'],
-      data.map((s) => [s.slotCode, s.slotName, UNIT_LABEL[s.assignedUnit] ?? s.assignedUnit,
+      data.map((s) => [s.slotCode, s.slotName, unitLabel(unitLabels, s.assignedUnit),
         VEHICLE_LABEL[s.vehicleType] ?? s.vehicleType, s.totalDeliveries, s.completedDeliveries,
         s.completionRate, s.avgReceivingMinutes ?? '', s.minReceivingMinutes ?? '', s.maxReceivingMinutes ?? '',
         s.utilizationPct]),
@@ -361,7 +366,7 @@ function SlotTab({ from, to, unit }: { from: string; to: string; unit: string })
 
       {[...grouped.entries()].map(([unitKey, slots]) => (
         <div key={unitKey}>
-          <h3 className="font-bold text-thiso-700 mb-3">{UNIT_LABEL[unitKey] ?? unitKey}</h3>
+          <h3 className="font-bold text-thiso-700 mb-3">{unitLabel(unitLabels, unitKey)}</h3>
           <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -420,7 +425,7 @@ const PRIORITY_META: Record<string, { label: string; color: string }> = {
   LOW:    { label: 'Thấp',        color: 'bg-thiso-100 text-thiso-500' },
 };
 
-function AiTab({ from, to, unit }: { from: string; to: string; unit: string }) {
+function AiTab({ from, to, unit, unitLabels }: { from: string; to: string; unit: string; unitLabels: Record<string, string> }) {
   const { data, isLoading } = useQuery<AiReport>({
     queryKey: ['reports-ai', from, to, unit],
     queryFn: async () => (await api.get('/api/reports/ai-slot-recommendations', { params: { from, to, unit: unit || undefined } })).data,
@@ -445,7 +450,7 @@ function AiTab({ from, to, unit }: { from: string; to: string; unit: string }) {
     downloadCsv('ai-de-xuat-slot',
       ['Đơn vị', 'Loại xe', 'Số slot', 'Utilization (%)', 'Đề xuất', 'Ưu tiên', 'Tồn đọng', 'Lý do', 'Hành động'],
       data!.recommendations.map((r) => [
-        UNIT_LABEL[r.unit] ?? r.unit, VEHICLE_LABEL[r.vehicleType] ?? r.vehicleType,
+        unitLabel(unitLabels, r.unit), VEHICLE_LABEL[r.vehicleType] ?? r.vehicleType,
         r.currentSlots, r.avgUtilization, SUGGEST_LABEL[r.suggestion] ?? r.suggestion,
         PRIORITY_LABEL[r.priority] ?? r.priority, r.backlogNow, r.reason, r.action,
       ]),
@@ -495,7 +500,7 @@ function AiTab({ from, to, unit }: { from: string; to: string; unit: string }) {
                   <div className="flex flex-wrap items-start gap-3 mb-3">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${sm.bg} ${sm.text}`}>{sm.icon} {sm.label}</span>
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${pm.color}`}>{pm.label}</span>
-                    <span className="text-sm font-bold text-thiso-800">{UNIT_LABEL[r.unit] ?? r.unit} · {VEHICLE_LABEL[r.vehicleType] ?? r.vehicleType}</span>
+                    <span className="text-sm font-bold text-thiso-800">{unitLabel(unitLabels, r.unit)} · {VEHICLE_LABEL[r.vehicleType] ?? r.vehicleType}</span>
                     <span className="text-xs text-thiso-400 ml-auto">{r.currentSlots} slot hiện tại · {r.avgUtilization}% utilization</span>
                   </div>
                   <div className="text-sm text-thiso-700 mb-2">
@@ -525,7 +530,7 @@ function AiTab({ from, to, unit }: { from: string; to: string; unit: string }) {
             {data.recommendations.filter((r) => r.suggestion === 'OPTIMAL').map((r, i) => (
               <div key={i} className="bg-white border border-thiso-100 rounded-2xl p-4 shadow-sm">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-thiso-700 text-sm">{UNIT_LABEL[r.unit] ?? r.unit}</span>
+                  <span className="font-bold text-thiso-700 text-sm">{unitLabel(unitLabels, r.unit)}</span>
                   <span className="text-xs bg-green-100 text-green-700 font-bold px-2 py-0.5 rounded-full">{r.avgUtilization}%</span>
                 </div>
                 <div className="text-xs text-thiso-500">{VEHICLE_LABEL[r.vehicleType] ?? r.vehicleType} · {r.currentSlots} slot</div>
@@ -577,6 +582,14 @@ export default function Reports() {
   const [from, setFrom] = useState(defaultFrom);
   const [to, setTo] = useState(defaultTo);
   const [unit, setUnit] = useState('');
+  const { data: units = [] } = useQuery<UnitConfig[]>({
+    queryKey: ['reports-unit-configs'],
+    queryFn: async () => (await api.get('/api/units/configs')).data,
+  });
+  const unitLabels = useMemo(
+    () => Object.fromEntries(units.map((item) => [item.unit, item.shortName || item.displayName || item.unit])),
+    [units],
+  );
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'overview',   label: '📊 Tổng quan' },
@@ -595,7 +608,7 @@ export default function Reports() {
         </div>
 
         {/* Date / Unit filters — shared across tabs */}
-        <DateFilter from={from} to={to} unit={unit} onFrom={setFrom} onTo={setTo} onUnit={setUnit} />
+        <DateFilter from={from} to={to} unit={unit} units={units} onFrom={setFrom} onTo={setTo} onUnit={setUnit} />
 
         {/* Tab bar */}
         <div className="flex gap-1 mb-6 bg-white border border-thiso-100 rounded-2xl p-1.5 w-fit shadow-sm flex-wrap">
@@ -616,9 +629,9 @@ export default function Reports() {
 
         {/* Tab content */}
         {tab === 'overview'  && <OverviewTab  from={from} to={to} unit={unit} />}
-        {tab === 'breakdown' && <BreakdownTab from={from} to={to} unit={unit} />}
-        {tab === 'slots'     && <SlotTab      from={from} to={to} unit={unit} />}
-        {tab === 'ai'        && <AiTab        from={from} to={to} unit={unit} />}
+        {tab === 'breakdown' && <BreakdownTab from={from} to={to} unit={unit} unitLabels={unitLabels} />}
+        {tab === 'slots'     && <SlotTab      from={from} to={to} unit={unit} unitLabels={unitLabels} />}
+        {tab === 'ai'        && <AiTab        from={from} to={to} unit={unit} unitLabels={unitLabels} />}
       </div>
     </div>
   );

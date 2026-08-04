@@ -1,13 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { downloadCsv } from '../lib/export';
 import type { ReceivingTimeConfig } from '../lib/types';
+import { useAuth } from '../context/AuthContext';
 
-const UNIT_META: Record<string, { label: string; icon: string; color: string; bg: string }> = {
-  EMART:      { label: 'Emart',            icon: '🏬', color: 'text-emart-700',  bg: 'bg-emart-50'  },
-  THISKYHALL: { label: 'Thiskyhall',        icon: '🏢', color: 'text-sky-700',    bg: 'bg-sky-50'    },
-  TENANT:     { label: 'Mall (Khách thuê)', icon: '🏪', color: 'text-thiso-700',  bg: 'bg-thiso-50'  },
+const LEGACY_UNIT_META: Record<string, { label: string; icon: string; color: string }> = {
+  EMART:      { label: 'Emart',            icon: '🏬', color: '#FF9500' },
+  THISKYHALL: { label: 'Thiskyhall',        icon: '🏢', color: '#27A55E' },
+  TENANT:     { label: 'Mall (Khách thuê)', icon: '🏪', color: '#1C1C1C' },
 };
 const VT_LABEL: Record<string, string>    = { TRUCK: '🚛 Xe Tải', MOTORBIKE: '🛵 Xe Máy', OTHER: '🚗 Khác' };
 const GOODS_LABEL: Record<string, string> = {
@@ -27,7 +28,20 @@ interface AnalyticsData {
   totalCompleted: number;
 }
 
+function getUnitMeta(config: ReceivingTimeConfig) {
+  const unitConfig = config.unitConfig;
+  const fallback = LEGACY_UNIT_META[config.unit] ?? { label: config.unit, icon: '🏬', color: '#1C1C1C' };
+  return {
+    label: unitConfig?.displayName || fallback.label,
+    shortName: unitConfig?.shortName || unitConfig?.displayName || fallback.label,
+    icon: unitConfig?.icon || fallback.icon,
+    logoUrl: unitConfig?.logoUrl ?? null,
+    color: unitConfig?.primaryColor || fallback.color,
+  };
+}
+
 export default function ReceivingTimes() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [analyzing, setAnalyzing]     = useState(false);
   const [acceptingAll, setAcceptingAll] = useState(false);
@@ -87,7 +101,13 @@ export default function ReceivingTimes() {
 
   const configs = data?.configs ?? [];
   const pendingCount = configs.filter((c) => c.shouldUpdate).length;
-  const unitGroups = ['EMART', 'THISKYHALL', 'TENANT'] as const;
+  const canManageConfig = user?.role === 'SUPERADMIN' || user?.role === 'ADMIN_LOC';
+  const unitGroups = useMemo(() => {
+    return [...new Set(configs.map((config) => config.unitConfigId ?? config.unit))].map((key) => {
+      const items = configs.filter((config) => (config.unitConfigId ?? config.unit) === key);
+      return { key, items, meta: getUnitMeta(items[0]) };
+    });
+  }, [configs]);
 
   return (
     <div className="max-w-screen-xl mx-auto py-6 px-4">
@@ -102,15 +122,17 @@ export default function ReceivingTimes() {
         </div>
         <div className="flex flex-col items-end gap-2">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={runAnalysis}
-              disabled={analyzing}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
-            >
-              <span className={analyzing ? 'animate-spin' : ''}>🔬</span>
-              {analyzing ? 'Đang phân tích...' : 'Phân tích lịch sử'}
-            </button>
-            {pendingCount > 0 && (
+            {canManageConfig && (
+              <button
+                onClick={runAnalysis}
+                disabled={analyzing}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-sm font-bold transition-colors disabled:opacity-50"
+              >
+                <span className={analyzing ? 'animate-spin' : ''}>🔬</span>
+                {analyzing ? 'Đang phân tích...' : 'Phân tích lịch sử'}
+              </button>
+            )}
+            {canManageConfig && pendingCount > 0 && (
               <button
                 onClick={acceptAll}
                 disabled={acceptingAll}
@@ -123,7 +145,7 @@ export default function ReceivingTimes() {
               onClick={() => downloadCsv('thoi-gian-nhan-hang',
                 ['Đơn vị', 'Loại xe', 'Loại hàng', 'Cấu hình (phút)', 'AI khuyến nghị (phút)', 'TB thực tế (phút)', 'Số mẫu', 'Độ tin cậy', 'Chênh lệch (phút)'],
                 configs.map((c) => [
-                  ({ EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall' } as Record<string,string>)[c.unit] ?? c.unit,
+                  getUnitMeta(c).label,
                   VT_LABEL[c.vehicleType] ?? c.vehicleType, GOODS_LABEL[c.goodsType] ?? c.goodsType,
                   c.configuredMinutes, c.recommendedMinutes ?? '', c.liveAvgMinutes ?? '',
                   c.liveSampleCount ?? c.sampleCount, c.confidence ?? '',
@@ -175,16 +197,16 @@ export default function ReceivingTimes() {
         </div>
       ) : (
         <div className="space-y-6">
-          {unitGroups.map((unit) => {
-            const unitCfgs = configs.filter((c) => c.unit === unit);
-            const meta = UNIT_META[unit];
-            if (unitCfgs.length === 0) return null;
+          {unitGroups.map(({ key, items: unitCfgs, meta }) => {
             const unitPending = unitCfgs.filter((c) => c.shouldUpdate).length;
             return (
-              <div key={unit} className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
-                <div className={`px-5 py-4 flex items-center gap-3 border-b border-thiso-100 ${meta.bg}`}>
-                  <span className="text-xl">{meta.icon}</span>
-                  <span className={`font-black text-base ${meta.color}`}>{meta.label}</span>
+              <div key={key} className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
+                <div
+                  className="px-5 py-4 flex items-center gap-3 border-b border-thiso-100"
+                  style={{ background: `${meta.color}12` }}
+                >
+                  {meta.logoUrl ? <img src={meta.logoUrl} alt="" className="w-7 h-7 object-contain rounded" /> : <span className="text-xl">{meta.icon}</span>}
+                  <span className="font-black text-base" style={{ color: meta.color }}>{meta.label}</span>
                   {unitPending > 0 && (
                     <span className="ml-auto text-xs font-bold bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full">
                       {unitPending} chờ chấp nhận
@@ -262,7 +284,7 @@ export default function ReceivingTimes() {
                             </td>
                             {/* Action */}
                             <td className="px-4 py-3">
-                              {canAccept ? (
+                              {canManageConfig && canAccept ? (
                                 <button
                                   onClick={() => acceptOne(cfg.id)}
                                   disabled={isAccepting}
@@ -273,6 +295,8 @@ export default function ReceivingTimes() {
                                 </button>
                               ) : cfg.recommendedMinutes !== null && !cfg.shouldUpdate ? (
                                 <span className="text-xs text-green-600 font-medium">✓ Đã tối ưu</span>
+                              ) : !canManageConfig && canAccept ? (
+                                <span className="text-xs text-amber-600 font-medium">Chờ ADMIN_LOC áp dụng</span>
                               ) : (
                                 <span className="text-xs text-thiso-300">Chạy phân tích trước</span>
                               )}

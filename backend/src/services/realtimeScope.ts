@@ -6,6 +6,7 @@ import type { SocketScope } from '../socket';
 
 type DeliveryScopeInput = {
   receivingUnit: ReceivingUnitCode;
+  unitConfigId?: string | null;
   assignedSlotId?: string | null;
 };
 
@@ -33,6 +34,19 @@ export async function getScopeForSlot(slotId?: string | null): Promise<SocketSco
 export async function getScopeForDelivery(delivery: DeliveryScopeInput): Promise<SocketScope> {
   const slotScope = await getScopeForSlot(delivery.assignedSlotId);
   if (slotScope.businessLocationId || slotScope.unitConfigId) return slotScope;
+
+  if (delivery.unitConfigId) {
+    const unitConfig = await prisma.unitConfig.findUnique({
+      where: { id: delivery.unitConfigId },
+      select: { id: true, businessLocationId: true },
+    });
+    if (unitConfig) {
+      return {
+        unitConfigId: unitConfig.id,
+        businessLocationId: unitConfig.businessLocationId,
+      };
+    }
+  }
 
   const unitConfig = await getUnitConfigForDefaultLocation(delivery.receivingUnit);
   return {

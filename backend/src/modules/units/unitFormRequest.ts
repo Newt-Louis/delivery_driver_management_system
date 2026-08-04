@@ -89,6 +89,15 @@ const orderCodeQuerySchema = z.object({
   search: z.string().optional(),
 });
 
+const publicLocationQuerySchema = z.object({
+  businessLocationId: z.string().min(1),
+});
+
+const publicUnitScopeQuerySchema = z.object({
+  businessLocationId: z.string().min(1).optional(),
+  unitConfigId: z.string().min(1).optional(),
+});
+
 export type TimeWindowPayload = z.infer<typeof timeWindowSchema>;
 export type UpdateTimeWindowPayload = z.infer<typeof updateTimeWindowSchema>;
 export type TimeWindowQuery = z.infer<typeof timeWindowQuerySchema>;
@@ -100,6 +109,8 @@ export type SlotsQuery = z.infer<typeof slotsQuerySchema>;
 export type UnitConfigPayload = z.infer<typeof unitConfigSchema>;
 export type IntegrationQuery = z.infer<typeof integrationQuerySchema>;
 export type OrderCodeQuery = z.infer<typeof orderCodeQuerySchema>;
+export type PublicLocationQuery = z.infer<typeof publicLocationQuerySchema>;
+export type PublicUnitScopeQuery = z.infer<typeof publicUnitScopeQuerySchema>;
 
 export const UnitFormRequest = {
   parseUnit: (unit: unknown): ReceivingUnitCode => (
@@ -126,4 +137,6 @@ export const UnitFormRequest = {
   parseUnitConfig: (body: unknown): UnitConfigPayload => unitConfigSchema.parse(body),
   parseIntegrationQuery: (query: unknown): IntegrationQuery => integrationQuerySchema.parse(query),
   parseOrderCodeQuery: (query: unknown): OrderCodeQuery => orderCodeQuerySchema.parse(query),
+  parsePublicLocationQuery: (query: unknown): PublicLocationQuery => publicLocationQuerySchema.parse(query),
+  parsePublicUnitScopeQuery: (query: unknown): PublicUnitScopeQuery => publicUnitScopeQuerySchema.parse(query),
 };

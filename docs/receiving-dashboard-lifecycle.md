@@ -22,6 +22,13 @@ File:
 - `frontend/src/components/StatusBadge.tsx`
 - `frontend/src/components/GoodsBadge.tsx`
 
+Ghi chú kiến trúc frontend:
+
+- Dashboard hiện vẫn là page lớn legacy, nhưng tab unit đã đi theo payload động từ backend.
+- Tab `Tất cả` aggregate từ các unit backend trả về.
+- Unit cũ như `EMART`, `THISKYHALL`, `TENANT` chỉ còn là fallback hiển thị cho dữ liệu demo/legacy. Unit mới phải lấy nhãn/icon/branding từ `UnitConfig`.
+- Phase refactor tiếp theo cần tách Dashboard thành `features/dashboard/api.ts`, `types.ts`, `hooks` và `components` để giảm monolith.
+
 API:
 
 - `GET /api/dashboard/summary`
@@ -53,6 +60,16 @@ Files:
 - `backend/src/services/deliveryLifecycle.ts`
 - `backend/src/services/slotState.ts`
 - `backend/src/services/autoAssign.ts`
+
+`GET /api/dashboard/summary` và `GET /api/dashboard/dispatch` resolve danh sách `UnitConfig` theo scope của request:
+
+- `businessLocationId` lấy từ `enforceScope`.
+- Với role có unit operation scope, danh sách unit được lọc theo `req.user.operationUnits`.
+- Với `SUPERADMIN` ngoài `/superadmin`, danh sách unit lấy từ selected operational context trong Redis session.
+- Response dispatch là record theo unit code để giữ compatibility với frontend cũ, nhưng mỗi unit payload có thêm `unitConfig` để UI mới render tab/card động.
+- Delivery chưa assigned slot được scope bằng `delivery_registrations.unit_config_id`. Legacy row thiếu `unitConfigId` không phải nguồn scope an toàn khi nhiều location có thể trùng unit code, nên cần được migrate/map trước khi kỳ vọng xuất hiện trong dashboard dynamic.
+
+Backend không build dashboard bằng mảng enum unit cố định. Nếu user không có unit scope hợp lệ, summary count trả 0 và dispatch không có unit nào.
 
 API lifecycle:
 
@@ -104,6 +121,8 @@ Service:
 - `CHECKIN` không được gọi call/start/complete/cancel.
 - `RECEIVING` được thực hiện receiving lifecycle.
 - `ADMIN_OPE` được điều phối và xử lý sự cố.
+- `ADMIN_OPE` không chỉnh cấu hình Backoffice; dashboard/docks là bề mặt làm việc chính của role này.
+- Mọi action delivery/slot phải enforce `unitConfigId` hoặc resolve được unit từ delivery/slot trước khi cho thao tác.
 
 ## Lưu Ý
 

@@ -45,6 +45,8 @@ Session Redis hiện không đặt TTL ở Redis. Nếu key session bị xóa do
 
 Redis không tự đồng bộ với PostgreSQL. Mọi thao tác ghi database phải chủ động refresh hoặc xóa key Redis tương ứng. Route quản trị user hiện refresh profile/unit permission sau create/update/reset password, và xóa cache + revoke session khi deactivate/delete. App config nên dùng helper `upsertAppConfigValue()` hoặc gọi `refreshAppConfigCache(key)` sau khi SUPERADMIN lưu thay đổi.
 
+Session của `SUPERADMIN` có thêm `selectedBusinessLocationId`. Đây là operational context của riêng phiên đăng nhập hiện tại, không ghi vào cột `users.business_location_id`. Khi `SUPERADMIN` chọn khu vực làm việc, backend overlay `req.user.businessLocationId`, `operationUnits`, `manageableUnits` và `unitPermissions` từ `UnitConfig` active của khu vực đó. Vì vậy các route vận hành có thể tiếp tục lấy scope từ auth profile hiện tại, còn `/superadmin` vẫn là bề mặt system-wide riêng.
+
 ## Cookie Web
 
 Trình duyệt web lưu JWT trong cookie:
@@ -132,6 +134,26 @@ Client có hai lựa chọn:
 
 Protected. Trả user hiện tại và session hiện tại. Dùng để web khôi phục auth state sau reload.
 
+Với `SUPERADMIN`, nếu phiên hiện tại đã chọn operational context, `user.businessLocationId` là selected location trong Redis session và `session.selectedBusinessLocationId` cũng được trả về để client có thể hiển thị/debug.
+
+### `GET /api/auth/operational-context/locations`
+
+Protected, chỉ `SUPERADMIN`. Trả danh sách `BusinessLocation` active để modal chọn khu vực vận hành hiển thị. Response có kèm `unitConfigs` active rút gọn để UI biết location đang có bao nhiêu unit.
+
+### `POST /api/auth/operational-context`
+
+Protected, chỉ `SUPERADMIN`.
+
+Body:
+
+```json
+{
+  "businessLocationId": "business_location_id"
+}
+```
+
+Backend validate location active, ghi `selectedBusinessLocationId` vào Redis session hiện tại, rồi trả payload giống `/api/auth/me`. Frontend sau đó refresh user state và invalidate query vận hành đang phụ thuộc scope.
+
 ### `POST /api/auth/renew`
 
 Gửi Bearer token hiện tại. Backend verify signature với `ignoreExpiration`, kiểm tra Redis session còn trong cửa sổ renew, lấy user profile từ Redis/DB fallback rồi cấp JWT mới.
@@ -172,7 +194,9 @@ Auth profile hiện có ba lớp dữ liệu quyền:
 
 `unitPermissions` vẫn được trả như alias để tương thích code cũ, nhưng code mới nên dùng `operationUnits`.
 
-`ADMIN_LOC` có một case đặc biệt: `operationUnits` có thể chỉ là một phần unit trong location, nhưng `manageableUnits` là toàn bộ unit active trong `BusinessLocation` để ADMIN_LOC có thể phân quyền cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN` ở bất kỳ unit nào trong location đó.
+`ADMIN_LOC` có một case đặc biệt: `operationUnits` là các unit mà ADMIN_LOC tự thao tác cấu hình/vận hành được; `manageableUnits` là toàn bộ unit active trong `BusinessLocation` để ADMIN_LOC có thể phân quyền cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN` ở bất kỳ unit nào trong location đó.
+
+`SUPERADMIN` trong `/superadmin` không cần operational context. Ngoài `/superadmin`, frontend bắt `SUPERADMIN` chọn `BusinessLocation`; sau khi chọn, auth profile của phiên hiện tại có toàn bộ unit active của location đó trong `operationUnits` và `manageableUnits`.
 
 ## Unit Permission Cache
 
@@ -210,7 +234,7 @@ Frontend protected routes:
 - `/check-in`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `CHECKIN`.
 - `/dashboard`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
 - `/docks`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
-- `/backoffice`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
+- `/backoffice`: `SUPERADMIN`, `ADMIN_LOC`.
 - `/superadmin`: chỉ `SUPERADMIN`.
 - `/receiving-times`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
 - `/reports`: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
@@ -218,9 +242,9 @@ Frontend protected routes:
 
 ## Scope Theo BusinessLocation
 
-- `SUPERADMIN`: có thể truyền query `businessLocationId`; nếu không truyền thì có thể xem toàn hệ thống tùy API.
+- `SUPERADMIN`: ngoài `/superadmin`, scope lấy từ query `businessLocationId` nếu route cho phép hoặc từ selected operational context trong Redis session. Nếu chưa chọn context, các route có `enforceScope` trả `403`.
 - Non-`SUPERADMIN`: backend ép scope theo `req.user.businessLocationId`, không tin query `businessLocationId`.
-- `enforceResourceScope` dùng để kiểm tra resource thuộc đúng `businessLocationId` của user.
+- `enforceResourceScope` dùng để kiểm tra resource thuộc đúng `businessLocationId` của user. Với `SUPERADMIN` đã chọn operational context, resource cũng phải thuộc context đó trên các route vận hành. Khi `SUPERADMIN` không có context, helper vẫn cho phép để các route system-wide riêng như `/superadmin` không bị khóa nhầm nếu chúng tự dùng helper này.
 
 ## Scope Theo UnitConfig
 
@@ -233,7 +257,9 @@ Mọi role vận hành dưới `SUPERADMIN` đều có operation scope:
 
 Khi route/service đã resolve resource ra `unitConfigId`, backend gọi `assertCanOperateUnit(user, unitConfigId)` hoặc helper tương đương. Với action delivery cũ chỉ có `receivingUnit`, service phải resolve scope qua slot/unit config trước khi quyết định.
 
-Không dùng shortcut `ADMIN_LOC` hoặc `ADMIN_OPE` là toàn quyền trên mọi unit nữa. Hai role này vẫn có quyền theo màn hình khác nhau, nhưng phạm vi thao tác trong màn hình đó bị giới hạn bởi `operationUnits`.
+Không dùng shortcut `ADMIN_LOC` hoặc `ADMIN_OPE` là toàn quyền trên mọi unit nữa. Hai role này vẫn có quyền theo màn hình khác nhau, nhưng phạm vi dữ liệu và thao tác trong màn hình đó bị giới hạn bởi `operationUnits`.
+
+Các API list phục vụ màn hình vận hành nên lọc dữ liệu theo unit scope ở backend. Frontend không được coi disabled/read-only là lớp bảo mật chính; UI chỉ render dữ liệu mà backend đã trả về trong scope hợp lệ.
 
 ## Socket.IO
 

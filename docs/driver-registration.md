@@ -28,19 +28,21 @@ Files:
 
 Wizard:
 
-1. Chọn đơn vị, loại hàng, loại xe.
+1. Chọn `BusinessLocation`, đơn vị nhận hàng, loại hàng, loại xe.
 2. Chọn ngày và khung giờ.
 3. Nhập thông tin tài xế/xe/nhà cung cấp.
 4. Review và hoàn tất đăng ký.
 
 Logic trong `useRegisterForm.ts`:
 
-- Lấy cấu hình unit: `GET /api/units/:unit/config`.
-- Lấy loại hàng tùy biến: `GET /api/units/:unit/goods-types`. Dữ liệu nằm trong `unit_goods_types`, scope mới theo `unitConfigId` để không lẫn giữa các `BusinessLocation`.
-- Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability`.
-- Lấy slot availability: `GET /api/units/:unit/slots`.
-- Check vendor kho tự động: `GET /api/aw-vendors/check`.
-- Submit: `POST /api/deliveries/register`.
+- Lấy danh sách khu vực public: `GET /api/units/public/business-locations`.
+- Sau khi chọn khu vực, lấy unit active: `GET /api/units/public/configs?businessLocationId=...`.
+- Lấy cấu hình unit: `GET /api/units/:unit/config?businessLocationId=...&unitConfigId=...`.
+- Lấy loại hàng tùy biến: `GET /api/units/:unit/goods-types?businessLocationId=...&unitConfigId=...`. Dữ liệu nằm trong `unit_goods_types`, scope chính theo `unitConfigId` để không lẫn giữa các `BusinessLocation`.
+- Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
+- Lấy slot availability: `GET /api/units/:unit/slots?businessLocationId=...&unitConfigId=...`.
+- Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
+- Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId` và unit code snapshot.
 - Scroll tới field lỗi đầu tiên khi validate fail.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
 
@@ -49,6 +51,8 @@ Logic trong `useRegisterForm.ts`:
 API chính:
 
 - `POST /api/deliveries/register`
+- `GET /api/units/public/business-locations`
+- `GET /api/units/public/configs`
 - `GET /api/units/:unit/config`
 - `GET /api/units/:unit/goods-types`
 - `GET /api/units/:unit/vehicle-availability`
@@ -61,7 +65,7 @@ Module backend:
 
 - `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint đăng ký và lifecycle delivery.
 - `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, public cancel, check-in lookup, call/cancel và query list.
-- `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, slot capacity, duplicate theo ngày giao và auto-warehouse vendor.
+- `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, resolve `UnitConfig`, slot capacity, duplicate theo ngày giao và auto-warehouse vendor.
 - `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao, public cancel, capacity lock, Sunday fresh-food-only, history event và response.
 - `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
@@ -90,18 +94,21 @@ Service:
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
 - Số PO/Mã thi công được normalize uppercase và bỏ ký tự phân cách.
 - Trong lúc chưa có API thật, `GET /api/units/order-codes` trả mock 20 mã `PO##########` và 20 mã `TC##########`; backend register vẫn validate lại mã này.
-- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin: `vehiclePlate + driverPhone + poNumber`.
+- `BusinessLocation` public là bước đầu của `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
+- Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
+- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`.
 - Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/PO/TC.
 - Tài xế có thể tự hủy chuyến tại `/cancelled`; endpoint public đối chiếu đúng 5 trường `vehiclePlate`, `driverPhone`, `poNumber`, `registrationCode`, `requestedTime`, sau đó archive lịch sử với lý do `Tài xế thao tác hủy` và xóa row operational.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Backend validate lại capacity slot khi submit để tránh frontend bị stale.
 - Capacity slot tính theo:
-  - unit
+  - `unitConfigId`
+  - unit code snapshot
   - vehicleType
   - deliveryDate/timeSlot
   - active statuses: `REGISTERED`, `WAITING`, `CALLED`, `RECEIVING`, `AUTO_WAREHOUSE_RECEIVING`
 - Capacity không tách theo `goodsType`.
-- `UnitGoodsType` và `DeliveryTimeWindow` có `unitConfigId` là scope chính; cột `unit` là code snapshot/compat cho API theo `:unit`.
+- `UnitGoodsType`, `DeliveryTimeWindow` và `AutoWarehouseVendor` có `unitConfigId` là scope chính; cột `unit` là code snapshot/compat cho API theo `:unit`.
 - Nếu unit có custom goods type enabled, frontend hiển thị danh mục custom đó; nếu không có time window riêng cho custom type thì backend/frontend fallback về time window base goods type của cùng unit.
 
 ## Output Thành Công

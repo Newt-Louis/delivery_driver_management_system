@@ -1,5 +1,6 @@
 import { prisma } from '../../lib/prisma';
 import type { AuthUser } from '../../middleware/auth';
+import { roleHasUnitOperationScope } from '../../domain/permissions';
 import { assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, userActor } from '../../services/auditLog';
@@ -29,8 +30,27 @@ async function emitSlotList(scope?: SocketScope) {
   emitSlotUpdated(await slotRepository.listSlotsWithDeliveries(true, scope), scope);
 }
 
-export function listSlots(activeOnly: boolean, scope?: SocketScope) {
-  return slotRepository.listSlotsWithDeliveries(activeOnly, scope);
+export function listSlots(activeOnly: boolean, scope?: SocketScope, user?: AuthUser) {
+  let allowedUnitIds = user && user.role !== 'SUPERADMIN' && roleHasUnitOperationScope(user.role)
+    ? user.operationUnits
+        .filter((unit) => unit.isActive && (!scope?.businessLocationId || unit.businessLocationId === scope.businessLocationId))
+        .map((unit) => unit.id)
+    : null;
+
+  if (scope?.unitConfigId && allowedUnitIds) {
+    if (!allowedUnitIds.includes(scope.unitConfigId)) return Promise.resolve([]);
+    allowedUnitIds = [scope.unitConfigId];
+  }
+
+  if (allowedUnitIds && allowedUnitIds.length === 0) {
+    return Promise.resolve([]);
+  }
+
+  return slotRepository.listSlotsWithDeliveries(activeOnly, {
+    ...scope,
+    unitConfigId: scope?.unitConfigId ?? (allowedUnitIds && allowedUnitIds.length === 1 ? allowedUnitIds[0] : undefined),
+    unitConfigIds: allowedUnitIds ?? undefined,
+  });
 }
 
 export async function updateSlotStatus(id: string, status: Parameters<typeof isManualSlotStatus>[0], user: AuthUser | undefined) {

@@ -12,7 +12,18 @@ interface TrackSlot {
   id: string;
   code: string;
   name: string;
-  zone: { id: string; code: string; name: string } | null;
+  zone: { id: string; code: string; name: string; unitConfig?: TrackUnitConfig | null } | null;
+}
+
+interface TrackUnitConfig {
+  id: string;
+  unit: string;
+  businessLocationId?: string;
+  displayName: string;
+  shortName: string;
+  icon?: string | null;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
 }
 
 interface QueueInfo {
@@ -34,6 +45,8 @@ interface TrackDelivery {
   driverPhone: string;
   vehiclePlate: string;
   receivingUnit: string;
+  unitConfigId?: string | null;
+  unitConfig?: TrackUnitConfig | null;
   goodsType: string;
   vehicleType: string;
   poNumber: string | null;
@@ -87,6 +100,18 @@ const UNIT_LABEL: Record<string, string> = {
   THISKYHALL: 'Thiskyhall',
   TENANT:     'Mall (Khách thuê)',
 };
+
+function getTrackUnit(delivery: TrackDelivery) {
+  const cfg = delivery.unitConfig ?? delivery.assignedSlot?.zone?.unitConfig ?? null;
+  return {
+    code: cfg?.unit ?? delivery.receivingUnit,
+    label: cfg?.displayName || UNIT_LABEL[delivery.receivingUnit] || delivery.receivingUnit,
+    shortName: cfg?.shortName || cfg?.displayName || UNIT_LABEL[delivery.receivingUnit] || delivery.receivingUnit,
+    icon: cfg?.icon || '🏬',
+    logoUrl: cfg?.logoUrl ?? null,
+    primaryColor: cfg?.primaryColor || '#1C1C1C',
+  };
+}
 
 function fmt(iso: string | null): string {
   if (!iso) return '';
@@ -633,6 +658,7 @@ function TrackContent({ code }: { code: string }) {
   const si = STATUS_INFO[delivery.status] ?? STATUS_INFO.REGISTERED;
   const isTerminal = delivery.status === 'COMPLETED' || delivery.status === 'CANCELLED';
   const isUrgentQueue = delivery.status === 'WAITING' && (delivery.queueInfo?.position ?? 99) <= 5;
+  const unitMeta = getTrackUnit(delivery);
 
   const timeline = [
     {
@@ -729,8 +755,16 @@ function TrackContent({ code }: { code: string }) {
             {delivery.registrationCode}
           </p>
         </div>
-        <span className="text-xs font-semibold bg-thiso-100 text-thiso-600 px-2.5 py-1 rounded-full">
-          {UNIT_LABEL[delivery.receivingUnit] ?? delivery.receivingUnit}
+        <span
+          className="inline-flex items-center gap-1.5 text-xs font-semibold bg-thiso-100 text-thiso-600 px-2.5 py-1 rounded-full"
+          style={{ color: unitMeta.primaryColor }}
+        >
+          {unitMeta.logoUrl ? (
+            <img src={unitMeta.logoUrl} alt="" className="w-4 h-4 object-contain rounded" />
+          ) : (
+            <span>{unitMeta.icon}</span>
+          )}
+          {unitMeta.shortName}
         </span>
       </div>
 
@@ -1001,6 +1035,7 @@ function TrackContent({ code }: { code: string }) {
               { label: 'Biển số xe', value: delivery.vehiclePlate, mono: true },
               { label: 'Tài xế', value: delivery.driverName },
               { label: 'Nhà cung cấp', value: delivery.vendorName },
+              { label: 'Đơn vị nhận', value: unitMeta.label },
               { label: 'Loại hàng', value: GOODS_LABEL[delivery.goodsType] ?? delivery.goodsType },
               ...(delivery.poNumber ? [{ label: 'Số PO / Mã thi công', value: delivery.poNumber, mono: true }] : []),
               ...(delivery.requestedTime ? [{ label: 'Giờ đăng ký', value: fmt(delivery.requestedTime) }] : []),

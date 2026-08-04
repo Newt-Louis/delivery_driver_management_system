@@ -43,6 +43,35 @@ export async function getDefaultBusinessLocation() {
   return (await findDefaultBusinessLocation()) ?? await createDefaultBusinessLocation();
 }
 
+export function listPublicBusinessLocations() {
+  return prisma.businessLocation.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      code: true,
+      locationName: true,
+      address: true,
+      avatarUrl: true,
+      logoUrl: true,
+      tagline: true,
+      isActive: true,
+      unitConfigs: {
+        where: { isActive: true },
+        select: { id: true, unit: true, displayName: true, shortName: true, icon: true, isActive: true },
+        orderBy: { unit: 'asc' },
+      },
+    },
+    orderBy: [{ locationName: 'asc' }, { code: 'asc' }],
+  });
+}
+
+export function findActiveBusinessLocation(id: string) {
+  return prisma.businessLocation.findFirst({
+    where: { id, isActive: true },
+    select: { id: true },
+  });
+}
+
 export function listUnitConfigs(businessLocationId: string) {
   return prisma.unitConfig.findMany({
     where: { businessLocationId },
@@ -53,6 +82,22 @@ export function listUnitConfigs(businessLocationId: string) {
 export function findUnitConfig(unit: ReceivingUnitCode, businessLocationId: string) {
   return prisma.unitConfig.findUnique({
     where: { businessLocationId_unit: { businessLocationId, unit } },
+  });
+}
+
+export function findPublicUnitConfig(args: {
+  unit: ReceivingUnitCode;
+  unitConfigId?: string | null;
+  businessLocationId?: string | null;
+}) {
+  return prisma.unitConfig.findFirst({
+    where: {
+      unit: args.unit,
+      isActive: true,
+      businessLocation: { isActive: true },
+      ...(args.unitConfigId ? { id: args.unitConfigId } : {}),
+      ...(args.businessLocationId ? { businessLocationId: args.businessLocationId } : {}),
+    },
   });
 }
 
@@ -118,12 +163,14 @@ export function deleteTimeWindow(id: string) {
 
 export function listGoodsTypes(args: {
   unit: ReceivingUnitCode;
+  unitConfigId?: string;
   baseType?: GoodsType;
   enabledOnly: boolean;
 }) {
   return prisma.unitGoodsType.findMany({
     where: {
       unit: args.unit,
+      ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
       ...(args.baseType ? { baseType: args.baseType } : {}),
       ...(args.enabledOnly ? { enabled: true } : {}),
     },
@@ -195,6 +242,7 @@ export function listMatchingOperationalSlots(args: {
 
 export function listActiveBookingsForDay(args: {
   unit: ReceivingUnitCode;
+  unitConfigId?: string;
   vehicleType: VehicleType;
   dayStart: Date;
   dayEnd: Date;
@@ -202,6 +250,7 @@ export function listActiveBookingsForDay(args: {
   return prisma.deliveryRegistration.findMany({
     where: {
       receivingUnit: args.unit,
+      ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
       vehicleType: args.vehicleType,
       requestedTime: { gte: args.dayStart, lte: args.dayEnd },
       status: {

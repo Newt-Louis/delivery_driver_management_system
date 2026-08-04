@@ -1,60 +1,94 @@
-import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { Router, Request, Response } from 'express';
 import { DeliveryStatus, SchedulerJobTrigger, SlotStatus, GoodsType, VehicleType } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope } from '../middleware/auth';
-import type { SocketScope } from '../socket';
 import { getCallHistoryCounts } from '../modules/history/historyRepository';
 import { closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
+import { roleHasUnitOperationScope } from '../domain/permissions';
 
 const router = Router();
 
-async function scopedDeliveryWhere(
-  scope: SocketScope,
+type DashboardUnitConfig = {
+  id: string;
+  unit: string;
+  displayName: string;
+  shortName: string;
+  icon: string | null;
+  logoUrl: string | null;
+  primaryColor: string;
+  businessLocationId: string;
+};
+
+async function resolveDashboardUnits(req: Request): Promise<DashboardUnitConfig[]> {
+  const scope = req.scope!;
+  const businessLocationId = scope.businessLocationId;
+  if (!businessLocationId) return [];
+
+  const allowedUnitIds = req.user && req.user.role !== 'SUPERADMIN' && roleHasUnitOperationScope(req.user.role)
+    ? req.user.operationUnits
+        .filter((unit) => unit.isActive && unit.businessLocationId === businessLocationId)
+        .map((unit) => unit.id)
+    : null;
+
+  if (allowedUnitIds && allowedUnitIds.length === 0) return [];
+
+  return prisma.unitConfig.findMany({
+    where: {
+      businessLocationId,
+      isActive: true,
+      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+      ...(allowedUnitIds ? { id: { in: allowedUnitIds } } : {}),
+    },
+    select: {
+      id: true,
+      unit: true,
+      displayName: true,
+      shortName: true,
+      icon: true,
+      logoUrl: true,
+      primaryColor: true,
+      businessLocationId: true,
+    },
+    orderBy: { unit: 'asc' },
+  });
+}
+
+function scopedDeliveryWhere(
+  units: DashboardUnitConfig[],
   base: Record<string, unknown>,
 ) {
-  if (!scope.businessLocationId && !scope.unitConfigId) return base;
-
-  const unitConfigs = await prisma.unitConfig.findMany({
-    where: {
-      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
-      ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
-    },
-    select: { unit: true },
-  });
-  const units = [...new Set(unitConfigs.map((cfg) => cfg.unit))];
+  if (units.length === 0) return { AND: [base, { id: '__no_unit_scope__' }] };
 
   const scopeWhere = {
     OR: [
+      { unitConfigId: { in: units.map((unit) => unit.id) } },
       {
         assignedSlot: {
           zone: {
-            ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
-            ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+            unitConfigId: { in: units.map((unit) => unit.id) },
           },
         },
       },
-      ...(units.length > 0 ? [{ assignedSlotId: null, receivingUnit: { in: units } }] : []),
     ],
   };
 
   return { AND: [base, scopeWhere] };
 }
 
-function scopedSlotWhere(scope: SocketScope, base: Record<string, unknown>) {
+function scopedSlotWhere(units: DashboardUnitConfig[], base: Record<string, unknown>) {
+  if (units.length === 0) return { ...base, id: '__no_unit_scope__' };
   return {
     ...base,
     zone: {
-      ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
-      ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+      unitConfigId: { in: units.map((unit) => unit.id) },
     },
   };
 }
 
 // GET /api/dashboard/summary
 router.get('/summary', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
-  const scope = req.scope!;
+  const units = await resolveDashboardUnits(req);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -65,24 +99,24 @@ router.get('/summary', authenticate, enforceScope, asyncHandler(async (req: Requ
     noShowRisk, urgentFreshFood,
     registeredToday, expiredToday,
   ] = await Promise.all([
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.WAITING }) }),
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.WAITING, goodsType: GoodsType.FRESH_FOOD }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.WAITING }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.WAITING, goodsType: GoodsType.FRESH_FOOD }) }),
     prisma.deliveryRegistration.count({
-      where: await scopedDeliveryWhere(scope, { status: { in: [DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING, DeliveryStatus.CALLED] } }),
+      where: scopedDeliveryWhere(units, { status: { in: [DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING, DeliveryStatus.CALLED] } }),
     }),
-    prisma.slot.count({ where: scopedSlotWhere(scope, { status: SlotStatus.OCCUPIED }) }),
-    prisma.slot.count({ where: scopedSlotWhere(scope, { status: SlotStatus.AVAILABLE }) }),
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { createdAt: { gte: today } }) }),
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.COMPLETED, completedTime: { gte: today } }) }),
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.CANCELLED, updatedAt: { gte: today } }) }),
+    prisma.slot.count({ where: scopedSlotWhere(units, { status: SlotStatus.OCCUPIED }) }),
+    prisma.slot.count({ where: scopedSlotWhere(units, { status: SlotStatus.AVAILABLE }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { createdAt: { gte: today } }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.COMPLETED, completedTime: { gte: today } }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.CANCELLED, updatedAt: { gte: today } }) }),
     prisma.deliveryRegistration.count({
-      where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.CALLED, calledTime: { lte: new Date(Date.now() - 15 * 60 * 1000) } }),
+      where: scopedDeliveryWhere(units, { status: DeliveryStatus.CALLED, calledTime: { lte: new Date(Date.now() - 15 * 60 * 1000) } }),
     }),
     prisma.deliveryRegistration.count({
-      where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.WAITING, goodsType: GoodsType.FRESH_FOOD, checkinTime: { lte: new Date(Date.now() - 25 * 60 * 1000) } }),
+      where: scopedDeliveryWhere(units, { status: DeliveryStatus.WAITING, goodsType: GoodsType.FRESH_FOOD, checkinTime: { lte: new Date(Date.now() - 25 * 60 * 1000) } }),
     }),
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { status: DeliveryStatus.REGISTERED, createdAt: { gte: today } }) }),
-    prisma.deliveryRegistration.count({ where: await scopedDeliveryWhere(scope, { status: 'EXPIRED' as DeliveryStatus, updatedAt: { gte: today } }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.REGISTERED, createdAt: { gte: today } }) }),
+    prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: 'EXPIRED' as DeliveryStatus, updatedAt: { gte: today } }) }),
   ]);
 
   res.json({
@@ -97,7 +131,7 @@ router.get('/summary', authenticate, enforceScope, asyncHandler(async (req: Requ
 
 // GET /api/dashboard/dispatch
 router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
-  const scope = req.scope!;
+  const units = await resolveDashboardUnits(req);
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
   const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
@@ -105,14 +139,14 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
 
   const [allActive, allUpcoming, allSlots] = await Promise.all([
     prisma.deliveryRegistration.findMany({
-      where: await scopedDeliveryWhere(scope, {
+      where: scopedDeliveryWhere(units, {
         status: { in: [DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
       }),
       include: { assignedSlot: { include: { zone: { include: { unitConfig: true } } } } },
       orderBy: [{ checkinTime: 'asc' }],
     }),
     prisma.deliveryRegistration.findMany({
-      where: await scopedDeliveryWhere(scope, {
+      where: scopedDeliveryWhere(units, {
         status: DeliveryStatus.REGISTERED,
         OR: [
           { requestedTime: { gte: todayStart, lte: todayEnd } },
@@ -122,7 +156,7 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
       orderBy: [{ requestedTime: 'asc' }, { createdAt: 'asc' }],
     }),
     prisma.slot.findMany({
-      where: scopedSlotWhere(scope, { isActive: true }),
+      where: scopedSlotWhere(units, { isActive: true }),
       orderBy: { code: 'asc' },
     }),
   ]);
@@ -135,9 +169,12 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
 
   const result: Record<string, unknown> = {};
 
-  for (const unit of [ReceivingUnit.EMART, ReceivingUnit.THISKYHALL, ReceivingUnit.TENANT]) {
-    const active   = activeWithCallCounts.filter((d) => d.receivingUnit === unit);
-    const upcoming = allUpcoming.filter((d) => d.receivingUnit === unit);
+  for (const unitConfig of units) {
+    const unit = unitConfig.unit;
+    const active   = activeWithCallCounts.filter((d) => (
+      d.unitConfigId === unitConfig.id || d.assignedSlot?.zone.unitConfig.id === unitConfig.id
+    ));
+    const upcoming = allUpcoming.filter((d) => d.unitConfigId === unitConfig.id);
     const slots    = allSlots.filter((s) => s.assignedUnit === unit);
 
     const availableSlots = slots.filter((s) => s.status === 'AVAILABLE');
@@ -245,6 +282,7 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
     }
 
     result[unit] = {
+      unitConfig,
       active,
       upcoming,
       slots,

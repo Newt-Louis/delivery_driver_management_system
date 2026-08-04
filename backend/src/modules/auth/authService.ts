@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { prisma } from '../../lib/prisma';
 import type { AuthRequestInfo, SafeAuthUser, StoredAuthSession } from '../../services/authSession';
 import {
   authResponse,
@@ -9,6 +10,7 @@ import {
   revokeSession,
   revokeUserSessions,
   sanitizeSession,
+  setSuperadminOperationalBusinessLocation,
   userPayload,
 } from '../../services/authSession';
 import {
@@ -31,6 +33,7 @@ import type {
   FaceOptionsRequest,
   FaceRegisterVerifyRequest,
   LoginRequest,
+  OperationalContextRequest,
 } from './authFormRequest';
 import { countActiveFaceCredentials, findUserByEmail } from './authRepository';
 
@@ -132,6 +135,43 @@ export async function currentUser(user: SafeAuthUser, session?: StoredAuthSessio
     unitPermissions: user.operationUnits,
     session: session ? sanitizeSession(session) : null,
   };
+}
+
+export async function listOperationalBusinessLocations(user: SafeAuthUser) {
+  if (user.role !== 'SUPERADMIN') {
+    throw domainError.forbidden('Chỉ SUPERADMIN được chọn khu vực vận hành.');
+  }
+
+  return prisma.businessLocation.findMany({
+    where: { isActive: true },
+    select: {
+      id: true,
+      code: true,
+      locationName: true,
+      address: true,
+      avatarUrl: true,
+      logoUrl: true,
+      tagline: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      unitConfigs: {
+        where: { isActive: true },
+        select: { id: true, unit: true, displayName: true, shortName: true, icon: true, isActive: true },
+        orderBy: { unit: 'asc' },
+      },
+    },
+    orderBy: [{ locationName: 'asc' }, { code: 'asc' }],
+  });
+}
+
+export async function selectOperationalContext(
+  user: SafeAuthUser,
+  session: StoredAuthSession | null | undefined,
+  body: OperationalContextRequest,
+) {
+  const selected = await setSuperadminOperationalBusinessLocation(user, session, body.businessLocationId);
+  return currentUser(selected.user, selected.session);
 }
 
 export async function renew(token: string) {

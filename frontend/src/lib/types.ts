@@ -49,6 +49,20 @@ export interface AuthUserProfile extends User {
   capabilities: string[];
 }
 
+export interface BusinessLocation {
+  id: string;
+  code: string;
+  locationName: string;
+  address: string;
+  avatarUrl: string | null;
+  logoUrl: string | null;
+  tagline: string | null;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  unitConfigs?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'isActive'>[];
+}
+
 export interface Zone {
   id: string;
   code: string;
@@ -74,7 +88,12 @@ export interface Slot {
   currentDeliveryId: string | null;
   lastUsedAt: string | null;
   zoneId: string;
-  zone: { id: string; code: string; name: string; unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'businessLocationId'> } | null;
+  zone: {
+    id: string;
+    code: string;
+    name: string;
+    unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'>;
+  } | null;
   deliveries?: DeliveryRegistration[];
 }
 
@@ -99,6 +118,8 @@ export interface DeliveryRegistration {
   driverPhone: string;
   vehiclePlate: string;
   receivingUnit: ReceivingUnit;
+  unitConfigId?: string | null;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'> | null;
   goodsType: GoodsType;
   poNumber: string | null;
   vendorCode: string | null;
@@ -135,6 +156,8 @@ export interface UnitBranding {
 export interface ReceivingTimeConfig {
   id: string;
   unit: ReceivingUnit;
+  unitConfigId?: string | null;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'> | null;
   vehicleType: VehicleType;
   goodsType: GoodsType;
   configuredMinutes: number;
@@ -264,6 +287,7 @@ export interface UnitInsight {
 }
 
 export interface UnitDispatch {
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'>;
   active: DeliveryRegistration[];
   upcoming: DeliveryRegistration[];
   slots: Slot[];
@@ -275,6 +299,8 @@ export type DispatchData = Record<string, UnitDispatch>;
 export interface AutoWarehouseVendor {
   id: string;
   unit: ReceivingUnit;
+  unitConfigId?: string | null;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'> | null;
   vendorCode: string;
   vendorName: string;
   active: boolean;

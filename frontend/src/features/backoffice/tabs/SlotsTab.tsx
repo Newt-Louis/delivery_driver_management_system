@@ -1,9 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
-import type { GoodsType, Slot, Zone } from '../../../lib/types';
-import { GOODS_LABELS, STATUS_COLOR, STATUS_LABEL, UNIT_LABELS, VEHICLE_LABEL } from '../constants';
+import type { GoodsType, Slot, UnitConfig, Zone } from '../../../lib/types';
+import { GOODS_LABELS, STATUS_COLOR, STATUS_LABEL, VEHICLE_LABEL } from '../constants';
 import SlotModal from '../components/SlotModal';
+
+function slotUnitLabel(slot: Slot) {
+  const unit = slot.zone?.unitConfig;
+  return unit?.displayName || unit?.shortName || unit?.unit || slot.assignedUnit;
+}
 
 export default function SlotsTab() {
   const queryClient = useQueryClient();
@@ -22,6 +27,10 @@ export default function SlotsTab() {
   const { data: zones = [] } = useQuery<Zone[]>({
     queryKey: ['zones'],
     queryFn: async () => (await api.get('/api/zones')).data,
+  });
+  const { data: unitConfigs = [] } = useQuery<UnitConfig[]>({
+    queryKey: ['unit-configs'],
+    queryFn: async () => (await api.get('/api/units/configs')).data,
   });
 
   function refresh() {
@@ -47,7 +56,7 @@ export default function SlotsTab() {
 
   const filtered = slots.filter((s) => {
     if (!showInactive && !s.isActive) return false;
-    if (unitFilter && s.assignedUnit !== unitFilter) return false;
+    if (unitFilter && s.zone?.unitConfig?.id !== unitFilter) return false;
     if (typeFilter && s.vehicleType !== typeFilter) return false;
     return true;
   });
@@ -111,9 +120,9 @@ export default function SlotsTab() {
         <label>Đơn vị:</label>
         <select className="input w-auto text-sm" value={unitFilter} onChange={(e) => setUnitFilter(e.target.value)}>
           <option value="">Tất cả đơn vị</option>
-          <option value="EMART">Emart</option>
-          <option value="THISKYHALL">Thiskyhall</option>
-          <option value="TENANT">Tenant</option>
+          {unitConfigs.map((unit) => (
+            <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName || unit.shortName || unit.unit}</option>
+          ))}
         </select>
         <label>Loại xe:</label>
         <select className="input w-auto text-sm" value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
@@ -158,7 +167,7 @@ export default function SlotsTab() {
                     ? <span className="text-xs font-bold text-thiso-600 bg-thiso-100 px-2 py-0.5 rounded font-mono">{slot.zone.code}</span>
                     : <span className="text-xs text-thiso-300 italic">—</span>}
                 </td>
-                <td className="px-4 py-3 text-thiso-500 text-xs">{UNIT_LABELS[slot.assignedUnit]}</td>
+                <td className="px-4 py-3 text-thiso-500 text-xs">{slotUnitLabel(slot)}</td>
                 <td className="px-4 py-3"><span className="text-sm text-thiso-600">{VEHICLE_LABEL[slot.vehicleType] ?? slot.vehicleType}</span></td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-1">

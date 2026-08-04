@@ -1,5 +1,5 @@
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
-import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
+import type { BusinessLocation, UnitConfig, UnitGoodsType } from '../../../lib/types';
 import type { VehicleAvailabilityOption } from '../api';
 import FieldFrame from '../components/FieldFrame';
 import ProcessGuide from '../components/ProcessGuide';
@@ -13,6 +13,12 @@ type UnitGoodsVehicleStepProps = {
   highlightedField: keyof FormState | null;
   guideOpen: boolean;
   onDismissGuide: () => void;
+  publicLocations: BusinessLocation[];
+  publicLocationsLoading: boolean;
+  publicLocationsMsg: string;
+  publicUnits: UnitConfig[];
+  publicUnitsLoading: boolean;
+  publicUnitsMsg: string;
   unitConfig: UnitConfig | null;
   customGoodsTypes: UnitGoodsType[];
   vehicleAvailability: VehicleAvailabilityOption[];
@@ -28,6 +34,12 @@ export default function UnitGoodsVehicleStep({
   highlightedField,
   guideOpen,
   onDismissGuide,
+  publicLocations,
+  publicLocationsLoading,
+  publicLocationsMsg,
+  publicUnits,
+  publicUnitsLoading,
+  publicUnitsMsg,
   unitConfig,
   customGoodsTypes,
   vehicleAvailability,
@@ -36,6 +48,28 @@ export default function UnitGoodsVehicleStep({
   brandUnits,
   set,
 }: UnitGoodsVehicleStepProps) {
+  const selectedLocation = publicLocations.find((location) => location.id === form.businessLocationId);
+
+  function unitBrand(unitConfig: UnitConfig) {
+    const legacyBrand = brandUnits[unitConfig.unit] ?? UNIT_FALLBACKS[unitConfig.unit];
+    return {
+      displayName: unitConfig.displayName || legacyBrand?.displayName || unitConfig.unit,
+      description: unitConfig.description || legacyBrand?.description || unitConfig.shortName || unitConfig.unit,
+      logoUrl: unitConfig.logoUrl ?? legacyBrand?.logoUrl ?? null,
+      icon: unitConfig.icon || legacyBrand?.icon || '◆',
+    };
+  }
+
+  function unitStyle(unit: string) {
+    return UNIT_STYLE[unit] ?? {
+      border: 'border-thiso-200',
+      bg: 'bg-white',
+      activeBorder: 'border-thiso-500',
+      activeBg: 'bg-thiso-100',
+      activeText: 'text-thiso-700',
+    };
+  }
+
   return (
     <div className="space-y-5">
       <a
@@ -52,19 +86,91 @@ export default function UnitGoodsVehicleStep({
 
       {guideOpen && <ProcessGuide onDismiss={onDismissGuide} />}
 
+      <FieldFrame field="businessLocationId" highlightedField={highlightedField}>
+        <p className="label">Bạn giao hàng tại khu vực nào? <span className="text-red-400">*</span></p>
+        {publicLocationsLoading && (
+          <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
+            Đang tải khu vực giao hàng...
+          </div>
+        )}
+        {!publicLocationsLoading && publicLocations.length > 0 && (
+          <div className="space-y-2.5">
+            {publicLocations.map((location) => {
+              const active = form.businessLocationId === location.id;
+              return (
+                <button
+                  key={location.id}
+                  type="button"
+                  onClick={() => {
+                    set('businessLocationId', location.id);
+                    set('unitConfigId', '');
+                    set('receivingUnit', '');
+                    set('goodsType', '');
+                    set('unitGoodsTypeId', '');
+                    set('vehicleType', '');
+                  }}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
+                    active
+                      ? 'border-thiso-700 bg-thiso-50 shadow-card-md'
+                      : 'border-thiso-200 bg-white hover:border-thiso-300'
+                  }`}
+                >
+                  {location.logoUrl ? (
+                    <img src={location.logoUrl} alt={location.locationName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
+                  ) : (
+                    <span className="w-10 h-10 rounded-xl bg-thiso-900 text-white text-xs font-black flex items-center justify-center flex-shrink-0">
+                      {location.code.slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className={`font-bold text-base ${active ? 'text-thiso-900' : 'text-thiso-800'}`}>{location.locationName}</p>
+                    <p className="text-xs text-thiso-400 mt-0.5">{location.address || location.code}</p>
+                  </div>
+                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all ${active ? 'border-thiso-700' : 'border-thiso-200'}`}>
+                    {active && <div className="w-full h-full rounded-full bg-thiso-700 opacity-60" />}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {!publicLocationsLoading && publicLocations.length === 0 && (
+          <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
+            {publicLocationsMsg || 'Chưa có khu vực giao hàng đang hoạt động.'}
+          </div>
+        )}
+        {fieldErrors.businessLocationId && <FieldError text={fieldErrors.businessLocationId} />}
+      </FieldFrame>
+
       <FieldFrame field="receivingUnit" highlightedField={highlightedField}>
         <p className="label">Bạn giao hàng đến đâu? <span className="text-red-400">*</span></p>
-        <div className="space-y-2.5">
-          {(['EMART', 'THISKYHALL', 'TENANT'] as Unit[]).map((u) => {
-            const style = UNIT_STYLE[u];
-            const brand = brandUnits[u] ?? UNIT_FALLBACKS[u];
-            const fb = UNIT_FALLBACKS[u];
-            const active = form.receivingUnit === u;
+        {!form.businessLocationId && (
+          <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
+            Chọn khu vực giao hàng trước để xem đơn vị nhận hàng.
+          </div>
+        )}
+        {form.businessLocationId && publicUnitsLoading && (
+          <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
+            Đang tải đơn vị nhận hàng...
+          </div>
+        )}
+        {form.businessLocationId && !publicUnitsLoading && publicUnits.length > 0 && (
+          <div className="space-y-2.5">
+            {publicUnits.map((unitConfig) => {
+            const style = unitStyle(unitConfig.unit);
+            const brand = unitBrand(unitConfig);
+            const active = form.unitConfigId === unitConfig.id;
             return (
               <button
-                key={u}
+                key={unitConfig.id}
                 type="button"
-                onClick={() => { set('receivingUnit', u); set('goodsType', ''); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
+                onClick={() => {
+                  set('unitConfigId', unitConfig.id);
+                  set('receivingUnit', unitConfig.unit);
+                  set('goodsType', '');
+                  set('unitGoodsTypeId', '');
+                  set('vehicleType', '');
+                }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left
                   ${active
                     ? `${style.activeBorder} ${style.activeBg} shadow-card-md`
@@ -73,11 +179,11 @@ export default function UnitGoodsVehicleStep({
                 {brand.logoUrl ? (
                   <img src={brand.logoUrl} alt={brand.displayName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
                 ) : (
-                  <span className="text-3xl flex-shrink-0">{brand.icon || fb.icon}</span>
+                  <span className="text-3xl flex-shrink-0">{brand.icon}</span>
                 )}
                 <div className="flex-1 min-w-0">
                   <p className={`font-bold text-base ${active ? style.activeText : 'text-thiso-800'}`}>{brand.displayName}</p>
-                  <p className="text-xs text-thiso-400 mt-0.5">{brand.description || fb.description}</p>
+                  <p className="text-xs text-thiso-400 mt-0.5">{brand.description}</p>
                 </div>
                 <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all
                   ${active ? style.activeBorder : 'border-thiso-200'}`}>
@@ -87,6 +193,12 @@ export default function UnitGoodsVehicleStep({
             );
           })}
         </div>
+        )}
+        {form.businessLocationId && !publicUnitsLoading && publicUnits.length === 0 && (
+          <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
+            {publicUnitsMsg || `${selectedLocation?.locationName ?? 'Khu vực này'} chưa có đơn vị nhận hàng đang hoạt động.`}
+          </div>
+        )}
         {fieldErrors.receivingUnit && <FieldError text={fieldErrors.receivingUnit} />}
       </FieldFrame>
 

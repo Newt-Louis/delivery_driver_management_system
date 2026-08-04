@@ -56,9 +56,12 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     if (!win) return;
     const ub = units[info.receivingUnit] ?? UNIT_FALLBACKS[info.receivingUnit];
     const fb = UNIT_FALLBACKS[info.receivingUnit];
-    const logoHtml = ub.logoUrl
-      ? `<img src="${ub.logoUrl}" style="width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-right:6px"/>`
-      : ub.icon || fb.icon;
+    const unitDisplayName = info.unitDisplayName || ub?.displayName || info.receivingUnit;
+    const unitIcon = info.unitIcon || ub?.icon || fb?.icon || '';
+    const unitLogoUrl = info.unitLogoUrl ?? ub?.logoUrl ?? null;
+    const logoHtml = unitLogoUrl
+      ? `<img src="${unitLogoUrl}" style="width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-right:6px"/>`
+      : unitIcon;
     win.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
 <title>Phiếu ${info.code}</title>
@@ -75,7 +78,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   .footer{text-align:center;font-size:10px;color:#ababab;margin-top:14px;line-height:1.6}
 </style></head><body><div class="ticket">
 <h2>Phiếu Đăng Ký Giao Hàng</h2>
-<div class="sub">${logoHtml} ${ub.displayName}</div>
+<div class="sub">${logoHtml} ${unitDisplayName}</div>
 <div class="code">${info.code}</div>
 <div class="qr"><img src="${qrDataUrl}"/></div>
 <div class="row"><span class="lbl">Biển số</span><span class="val">${info.vehiclePlate}</span></div>
@@ -95,6 +98,8 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 
   const unitBrand = units[info.receivingUnit] ?? UNIT_FALLBACKS[info.receivingUnit];
   const unitFb = UNIT_FALLBACKS[info.receivingUnit];
+  const unitDisplayName = info.unitDisplayName || unitBrand?.displayName || info.receivingUnit;
+  const unitIcon = info.unitIcon || unitBrand?.icon || unitFb?.icon || '';
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
@@ -103,7 +108,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
           <span className="text-3xl">✅</span>
         </div>
         <h2 className="text-xl font-black text-white">Đăng ký thành công!</h2>
-        <p className="text-green-100 text-sm mt-1">{unitBrand.icon || unitFb.icon} {unitBrand.displayName}</p>
+        <p className="text-green-100 text-sm mt-1">{unitIcon} {unitDisplayName}</p>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 pt-5 pb-6 max-w-sm mx-auto w-full space-y-4">

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useRealtimeScope, useSocket } from '../context/SocketContext';
@@ -6,9 +6,15 @@ import { useAuth } from '../context/AuthContext';
 import DockCard from '../components/DockCard';
 import type { Slot } from '../lib/types';
 
-const UNIT_ORDER = ['THISKYHALL', 'TENANT', 'EMART'];
-const UNIT_LABELS: Record<string, string> = { EMART: 'Emart', THISKYHALL: 'Thiskyhall', TENANT: 'Mall (Khách thuê)' };
-const UNIT_COLORS: Record<string, string> = { THISKYHALL: 'bg-purple-500', TENANT: 'bg-teal-500', EMART: 'bg-blue-500' };
+const UNIT_COLORS = ['bg-sky-500', 'bg-emerald-500', 'bg-amber-500', 'bg-indigo-500', 'bg-rose-500', 'bg-thiso-500'];
+
+type SlotGroup = {
+  key: string;
+  label: string;
+  icon: string;
+  colorClass: string;
+  slots: Slot[];
+};
 
 export default function DockManagement() {
   const queryClient = useQueryClient();
@@ -46,6 +52,27 @@ export default function DockManagement() {
     motorbikes: slots.filter((s) => s.vehicleType === 'MOTORBIKE').length,
   };
 
+  const slotGroups = useMemo<SlotGroup[]>(() => {
+    const groups = new Map<string, SlotGroup>();
+    for (const slot of slots) {
+      const unitConfig = slot.zone?.unitConfig;
+      const key = unitConfig?.id ?? slot.assignedUnit;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.slots.push(slot);
+        continue;
+      }
+      groups.set(key, {
+        key,
+        label: unitConfig?.displayName || unitConfig?.shortName || slot.assignedUnit,
+        icon: unitConfig?.icon || '◆',
+        colorClass: UNIT_COLORS[groups.size % UNIT_COLORS.length],
+        slots: [slot],
+      });
+    }
+    return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [slots]);
+
   return (
     <div className="max-w-7xl mx-auto py-6 px-4">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Quản lý Slot nhận hàng</h1>
@@ -79,17 +106,18 @@ export default function DockManagement() {
       </div>
 
       {/* Slots grouped by unit → then by vehicleType */}
-      {UNIT_ORDER.map((unit) => {
-        const unitSlots = slots.filter((s) => s.assignedUnit === unit);
+      {slotGroups.map((group) => {
+        const unitSlots = group.slots;
         const truckSlots = unitSlots.filter((s) => s.vehicleType === 'TRUCK');
         const motorbikeSlots = unitSlots.filter((s) => s.vehicleType === 'MOTORBIKE');
         const otherSlots = unitSlots.filter((s) => s.vehicleType === 'OTHER');
 
         return (
-          <div key={unit} className="mb-10">
+          <div key={group.key} className="mb-10">
             <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
-              <span className={`w-2 h-6 rounded-full ${UNIT_COLORS[unit]} inline-block`}></span>
-              {UNIT_LABELS[unit]}
+              <span className={`w-2 h-6 rounded-full ${group.colorClass} inline-block`}></span>
+              <span>{group.icon}</span>
+              {group.label}
               <span className="text-sm font-normal text-gray-400">({unitSlots.length} slots)</span>
             </h2>
 

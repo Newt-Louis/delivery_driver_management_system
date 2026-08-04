@@ -18,12 +18,12 @@ async function respond(res: Response, action: Promise<unknown>, successStatus = 
 
 // GET /api/slots — active slots (Dashboard, SlotManagement, CallModal)
 router.get('/', authenticate, enforceScope, asyncHandler(async (req, res) => {
-  res.json(await slotService.listSlots(true, req.scope));
+  res.json(await slotService.listSlots(true, req.scope, req.user));
 }));
 
 // GET /api/slots/all — all slots including inactive (admin backoffice)
 router.get('/all', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
-  res.json(await slotService.listSlots(false, req.scope));
+  res.json(await slotService.listSlots(false, req.scope, req.user));
 }));
 
 // PATCH /api/slots/:id/status

@@ -9,13 +9,32 @@ export function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) 
     where: {
       ...(activeOnly ? { isActive: true } : {}),
       zone: {
-        ...(scope?.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+        ...(scope?.unitConfigIds?.length ? { unitConfigId: { in: scope.unitConfigIds } } : {}),
+        ...(scope?.unitConfigId && !scope?.unitConfigIds?.length ? { unitConfigId: scope.unitConfigId } : {}),
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },
     orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
-      zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
+      zone: {
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          unitConfig: {
+            select: {
+              id: true,
+              unit: true,
+              displayName: true,
+              shortName: true,
+              icon: true,
+              logoUrl: true,
+              primaryColor: true,
+              businessLocationId: true,
+            },
+          },
+        },
+      },
       deliveries: {
         where: { status: { in: ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
         orderBy: { updatedAt: 'desc' },

@@ -49,6 +49,15 @@ router.get('/me', authenticate, asyncHandler(async (req, res) => {
   await respond(res, authService.currentUser(req.user!, req.authSession));
 }));
 
+router.get('/operational-context/locations', authenticate, asyncHandler(async (req, res) => {
+  await respond(res, authService.listOperationalBusinessLocations(req.user!));
+}));
+
+router.post('/operational-context', authenticate, asyncHandler(async (req, res) => {
+  const body = AuthFormRequest.parseOperationalContext(req.body);
+  await respond(res, authService.selectOperationalContext(req.user!, req.authSession, body));
+}));
+
 router.post('/renew', authLoginLimiter, asyncHandler(async (req, res) => {
   const token = AuthFormRequest.parseBearerToken(req.headers.authorization);
   if (!token) {

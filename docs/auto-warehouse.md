@@ -44,9 +44,12 @@ API:
 
 Rule:
 
-- `GET /api/aw-vendors/check?code=...&unit=...` là public check cho register form.
+- `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...` là public check cho register form.
+- Khi public check có `businessLocationId` hoặc `unitConfigId`, backend resolve `UnitConfig` active trước rồi match vendor bằng `unitConfigId`.
+- Contract `code + unit` không có scope chỉ còn là compatibility path cho client/dữ liệu cũ.
 - Vendor master data mới được gắn `unitConfigId`; cột `unit` là code snapshot/compat cho public contract theo `unit`.
-- Superadmin tạo vendor theo `unitConfigId`, backend tự copy `UnitConfig.unit` vào snapshot `unit`.
+- Backoffice và Superadmin tạo vendor theo `unitConfigId`, backend tự copy `UnitConfig.unit` vào snapshot `unit`.
+- Unique nghiệp vụ mới là `unitConfigId + vendorCode`; cùng một mã NCC có thể tồn tại ở hai `BusinessLocation` khác nhau nếu thuộc hai `UnitConfig` khác nhau.
 - Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
 - Slot thường loại `AUTO_WAREHOUSE`.
 - Khi start receiving delivery có `autoWarehouse = true`, status chuyển `AUTO_WAREHOUSE_RECEIVING`.
@@ -60,12 +63,12 @@ Files:
 
 Register:
 
-- Khi user nhập vendor code và receiving unit, frontend debounce check `/api/aw-vendors/check` với params `{ code, unit }`.
+- Khi user nhập vendor code sau khi đã chọn `BusinessLocation` và unit, frontend debounce check `/api/aw-vendors/check` với params `{ code, unit, businessLocationId, unitConfigId }`.
 - Nếu match, hiển thị thông tin vendor kho tự động và submit delivery với flag liên quan.
 
 Backoffice:
 
-- Tab `Kho tự động` quản lý vendor code active/inactive.
+- Tab `Kho tự động` load unit từ `/api/units/configs`, filter/tạo vendor theo `unitConfigId`, và chỉ làm việc trong scope hiện tại của tài khoản.
 
 Superadmin:
 
@@ -74,6 +77,6 @@ Superadmin:
 
 ## Quyền
 
-- Quản lý vendor trong Backoffice: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, nhưng action ghi vẫn phải theo operation scope nếu resolve được unit.
+- Quản lý vendor trong Backoffice: `SUPERADMIN`, `ADMIN_LOC`; list/create/update/delete đều đi qua `enforceScope` và unit operation scope.
 - Quản lý vendor toàn hệ thống trong Superadmin: chỉ `SUPERADMIN`.
 - Check vendor trong register: public.

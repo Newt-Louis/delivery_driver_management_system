@@ -38,6 +38,7 @@ export type StoredAuthSession = {
   userId: string;
   deviceId: string | null;
   deviceName: string | null;
+  selectedBusinessLocationId?: string | null;
   ip: string;
   userAgent: string | null;
   createdAt: string;
@@ -143,6 +144,71 @@ async function buildSafeAuthUser(user: Pick<User, 'id' | 'name' | 'email' | 'rol
     manageableUnits,
     unitPermissions: operationUnits,
     capabilities: [],
+  };
+}
+
+function mapPermissionUnit(unit: {
+  id: string;
+  unit: string;
+  displayName: string;
+  shortName: string;
+  icon: string | null;
+  businessLocationId: string;
+  isActive: boolean;
+}): AuthPermissionUnit {
+  return {
+    id: unit.id,
+    unit: unit.unit,
+    code: unit.unit,
+    displayName: unit.displayName,
+    shortName: unit.shortName,
+    icon: unit.icon,
+    businessLocationId: unit.businessLocationId,
+    isActive: unit.isActive,
+  };
+}
+
+async function applySessionOperationalScope(user: SafeAuthUser, session: StoredAuthSession): Promise<SafeAuthUser> {
+  if (user.role !== 'SUPERADMIN') return user;
+
+  const selectedBusinessLocationId = session.selectedBusinessLocationId ?? null;
+  if (!selectedBusinessLocationId) {
+    return {
+      ...user,
+      businessLocationId: null,
+      operationUnits: [],
+      manageableUnits: [],
+      unitPermissions: [],
+    };
+  }
+
+  const location = await prisma.businessLocation.findFirst({
+    where: { id: selectedBusinessLocationId, isActive: true },
+    select: { id: true },
+  });
+
+  if (!location) {
+    return {
+      ...user,
+      businessLocationId: null,
+      operationUnits: [],
+      manageableUnits: [],
+      unitPermissions: [],
+    };
+  }
+
+  const units = await prisma.unitConfig.findMany({
+    where: { businessLocationId: location.id, isActive: true },
+    select: { id: true, unit: true, displayName: true, shortName: true, icon: true, businessLocationId: true, isActive: true },
+    orderBy: { unit: 'asc' },
+  }).then((rows) => rows.map(mapPermissionUnit));
+
+  return {
+    ...user,
+    businessLocationId: location.id,
+    operationUnits: units,
+    manageableUnits: units,
+    unitPermissions: units,
   };
 }
 
@@ -292,6 +358,7 @@ export function sanitizeSession(session: StoredAuthSession) {
     id: session.id,
     deviceId: session.deviceId,
     deviceName: session.deviceName,
+    selectedBusinessLocationId: session.selectedBusinessLocationId ?? null,
     ip: session.ip,
     userAgent: session.userAgent,
     lastSeenAt: session.lastSeenAt,
@@ -317,6 +384,7 @@ export async function createAuthSession(args: {
     userId: args.user.id,
     deviceId: args.deviceId?.trim() || null,
     deviceName: args.deviceName?.trim().slice(0, 120) || null,
+    selectedBusinessLocationId: null,
     ip: requestInfo.ip,
     userAgent: requestInfo.userAgent,
     createdAt: now.toISOString(),
@@ -373,6 +441,7 @@ async function resolveActiveSessionAndUser(payload: AuthJwtPayload): Promise<{ u
       userId: payload.sub,
       deviceId: payload.sid ? null : null,
       deviceName: null,
+      selectedBusinessLocationId: null,
       ip: '',
       userAgent: null,
       createdAt: now.toISOString(),
@@ -383,7 +452,7 @@ async function resolveActiveSessionAndUser(payload: AuthJwtPayload): Promise<{ u
     };
     await writeSession(newSession);
     await writeAuthUserCache(user, newSession);
-    return { user, session: newSession };
+    return { user: await applySessionOperationalScope(user, newSession), session: newSession };
   }
 
   const user = await readAuthUserCache(session.userId) ?? await refreshAuthUserCache(session.userId);
@@ -395,7 +464,41 @@ async function resolveActiveSessionAndUser(payload: AuthJwtPayload): Promise<{ u
   const touchedSession = { ...session, lastSeenAt: new Date().toISOString() };
   await writeSession(touchedSession);
   await writeAuthUserCache(user, touchedSession);
-  return { user, session: touchedSession };
+  return { user: await applySessionOperationalScope(user, touchedSession), session: touchedSession };
+}
+
+export async function setSuperadminOperationalBusinessLocation(
+  user: SafeAuthUser,
+  session: StoredAuthSession | null | undefined,
+  businessLocationId: string,
+): Promise<{ user: SafeAuthUser; session: StoredAuthSession }> {
+  if (user.role !== 'SUPERADMIN') {
+    throw new AuthSessionError(403, 'Forbidden', 'Chỉ SUPERADMIN được chuyển khu vực vận hành.');
+  }
+  if (!session) {
+    throw new AuthSessionError(401, 'SessionMissing', 'Phiên đăng nhập không còn hợp lệ.');
+  }
+
+  const location = await prisma.businessLocation.findFirst({
+    where: { id: businessLocationId, isActive: true },
+    select: { id: true },
+  });
+  if (!location) {
+    throw new AuthSessionError(404, 'BusinessLocationNotFound', 'BusinessLocation không tồn tại hoặc đã bị tắt.');
+  }
+
+  const nextSession: StoredAuthSession = {
+    ...session,
+    selectedBusinessLocationId: location.id,
+    lastSeenAt: new Date().toISOString(),
+  };
+  await writeSession(nextSession);
+
+  const baseUser = await refreshAuthUserCache(user.id) ?? user;
+  return {
+    user: await applySessionOperationalScope(baseUser, nextSession),
+    session: nextSession,
+  };
 }
 
 export async function verifyAccessToken(token: string): Promise<{ user: SafeAuthUser; session: StoredAuthSession }> {

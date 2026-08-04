@@ -52,7 +52,6 @@ export const BACKOFFICE_TABS: readonly [BackofficeTab, string][] = [
 
 export function allowedBackofficeTabs(role?: string): BackofficeTab[] {
   if (role === 'SUPERADMIN') return BACKOFFICE_TABS.map(([tab]) => tab).filter((tab) => tab !== 'staff');
-  if (role === 'ADMIN_OPE') return ['units', 'awvendors'];
   if (role === 'ADMIN_LOC') return BACKOFFICE_TABS.map(([tab]) => tab).filter((tab) => tab !== 'users');
   return [];
 }

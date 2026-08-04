@@ -5,6 +5,8 @@ export type GoodsType = AppGoodsType;
 export type VehicleType = AppVehicleType;
 
 export interface FormState {
+  businessLocationId: string;
+  unitConfigId: string;
   receivingUnit: Unit | '';
   goodsType: GoodsType | '';
   unitGoodsTypeId: string;
@@ -26,6 +28,9 @@ export interface SuccessInfo {
   vendorName: string;
   driverName: string;
   receivingUnit: Unit;
+  unitDisplayName: string;
+  unitIcon: string;
+  unitLogoUrl: string | null;
   goodsType: GoodsType | '';
   goodsTypeName: string;
   vehicleType: VehicleType | '';

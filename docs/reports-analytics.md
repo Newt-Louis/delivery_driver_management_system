@@ -65,7 +65,8 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 - Non-`SUPERADMIN` bị ép scope theo `businessLocationId`; `SUPERADMIN` có thể xem rộng hơn tùy query/API.
 - Analytics:
   - View: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
-  - Analyze/accept: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`.
+  - Analyze/accept: `SUPERADMIN`, `ADMIN_LOC`.
+  - `ADMIN_OPE` chỉ xem để phục vụ vận hành, không chỉnh cấu hình thời gian nhận hàng.
 
 ## Lưu Ý Kỹ Thuật
 
@@ -73,7 +74,22 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 - `routes/reports.ts` chỉ giữ vai trò route/controller mỏng: parse query, resolve scope, gọi service và trả response.
 - Report query GET được validate trong `reportFormRequest.ts`; history/audit query GET được validate trong `backend/src/modules/history/historyFormRequest.ts`.
 - Query report nằm trong `reportRepository.ts`; tính toán rate, utilization và recommendation nằm trong `reportService.ts`.
+- `reportScope.ts` resolve scope từ auth profile hiện tại:
+  - `businessLocationId` lấy từ operational context/session đã qua `enforceScope`;
+  - danh sách unit thao tác lấy từ `user.operationUnits`;
+  - `unitConfigIds` là khóa lọc chính cho delivery/slot report.
+- Query param `unit=<unitCode>` vẫn được giữ để tương thích frontend/API cũ, nhưng backend chỉ map unit code này vào các `UnitConfig.id` nằm trong scope được phép. Không dùng `receivingUnit` làm lớp bảo mật chính.
+- `reportRepository.ts` dùng `unitConfigId` cho Prisma `where` và `unit_config_id`/`uc.id` trong raw SQL clause. Các group/report key có thể vẫn trả `receivingUnit` snapshot để không phá contract cũ, nhưng dữ liệu đầu vào đã được scope bằng `UnitConfig`.
+- Frontend `Reports.tsx` load filter unit từ `GET /api/units/configs`; label/export ưu tiên `UnitConfig.shortName/displayName`, fallback legacy chỉ dùng khi thiếu metadata.
 - `routes/analytics.ts` là route mỏng; thống kê live average, analyze và accept recommendation nằm trong `backend/src/modules/analytics`.
+- Analytics routes dùng `authenticate + enforceScope`.
+- `analyticsService.ts` resolve danh sách `unitConfigIds` từ auth profile hiện tại:
+  - `user.operationUnits` nếu tài khoản có unit operation scope;
+  - toàn bộ unit active trong selected/current `businessLocationId` cho role không cần unit scope nhưng đang ở operational context, ví dụ `SUPERADMIN`.
+- `analyticsRepository.ts` lọc `ReceivingTimeConfig` và live delivery samples theo `unitConfigId`.
+- Live receiving time stats group theo `unit_config_id + receiving_unit + vehicle_type + goods_type`; `receiving_unit` chỉ còn là snapshot/compat label.
+- Response `GET /api/analytics/receiving-times` include `unitConfig` rút gọn để frontend render label/icon/màu theo dữ liệu DB.
+- Frontend `ReceivingTimes.tsx` group theo `unitConfigId` động. Các unit legacy `EMART/THISKYHALL/TENANT` chỉ là fallback khi config thiếu metadata.
 - Date range trong reports cần thống nhất timezone VN nếu báo cáo theo ngày vận hành.
 - `ReceivingTimeConfig` mới có `unitConfigId`; unique mới theo `[unitConfigId, vehicleType, goodsType]` để tránh lẫn cấu hình giữa nhiều `BusinessLocation`.
 - Cột `unit` vẫn là code snapshot/compat cho report/API cũ.

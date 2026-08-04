@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
 import type { DeliveryTimeWindow, UnitGoodsType, UnitConfig, GoodsType } from '../../../lib/types';
-import { GOODS_LABELS, UNIT_ICONS, UNIT_LABELS } from '../constants';
-import type { UnitKey } from '../types';
 
 interface UnitConfigFormData {
   freshFoodEnabled: boolean;
@@ -28,7 +26,7 @@ interface UnitConfigFormData {
 function TimeWindowEditor({
   unit, goodsType, unitGoodsTypeId, editing,
 }: {
-  unit: UnitKey; goodsType: GoodsType; unitGoodsTypeId?: string; editing: boolean;
+  unit: string; goodsType: GoodsType; unitGoodsTypeId?: string; editing: boolean;
 }) {
   const qc = useQueryClient();
   const [addMode, setAddMode] = useState(false);
@@ -151,7 +149,7 @@ function TimeWindowEditor({
 // Each custom goods type row contains its own inline TimeWindowEditor.
 // When no custom types are configured, falls back to a single base-type window editor.
 
-function GoodsTypeEditor({ unit, baseType, editing }: { unit: UnitKey; baseType: GoodsType; editing: boolean }) {
+function GoodsTypeEditor({ unit, baseType, editing }: { unit: string; baseType: GoodsType; editing: boolean }) {
   const qc = useQueryClient();
   const [addMode, setAddMode]   = useState(false);
   const [newItem, setNewItem]   = useState({ emoji: '📦', name: '' });
@@ -260,7 +258,8 @@ function GoodsTypeEditor({ unit, baseType, editing }: { unit: UnitKey; baseType:
   );
 }
 
-function UnitConfigCard({ unit, config, onSaved }: { unit: UnitKey; config?: UnitConfig; onSaved: () => void }) {
+function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () => void }) {
+  const unit = config.unit;
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -343,10 +342,10 @@ function UnitConfigCard({ unit, config, onSaved }: { unit: UnitKey; config?: Uni
     <div className="bg-white border border-thiso-100 rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">{UNIT_ICONS[unit]}</span>
+          <span className="text-2xl">{config.icon || '🏬'}</span>
           <div>
-            <h3 className="font-bold text-thiso-800">{UNIT_LABELS[unit]}</h3>
-            {!config && <span className="text-xs text-thiso-400">Chưa cấu hình</span>}
+            <h3 className="font-bold text-thiso-800">{config.displayName || config.unit}</h3>
+            <span className="text-xs text-thiso-400 font-mono">{config.unit}</span>
           </div>
         </div>
         {!editing ? (
@@ -441,19 +440,22 @@ export default function UnitsTab() {
     queryKey: ['unit-configs'],
     queryFn: async () => (await api.get('/api/units/configs')).data,
   });
-  const configMap = Object.fromEntries(unitConfigs.map((c) => [c.unit, c])) as Record<UnitKey, UnitConfig>;
 
   return (
     <div className="space-y-5">
       <p className="text-sm text-thiso-400">
         Cấu hình khung giờ nhận hàng, slot booking và API tích hợp cho từng đơn vị.
       </p>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {(['EMART', 'THISKYHALL', 'TENANT'] as UnitKey[]).map((unit) => (
+      {unitConfigs.length === 0 && (
+        <div className="rounded-2xl border border-thiso-100 bg-white p-5 text-sm text-thiso-400">
+          Khu vực hiện tại chưa có đơn vị nào.
+        </div>
+      )}
+      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-5">
+        {unitConfigs.map((config) => (
           <UnitConfigCard
-            key={unit}
-            unit={unit}
-            config={configMap[unit]}
+            key={config.id}
+            config={config}
             onSaved={() => queryClient.invalidateQueries({ queryKey: ['unit-configs'] })}
           />
         ))}

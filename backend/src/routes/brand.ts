@@ -1,4 +1,3 @@
-import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { Router, Request, Response } from 'express';
 import { z } from 'zod';
 import { prisma } from '../lib/prisma';
@@ -8,25 +7,55 @@ import { getDefaultBusinessLocation } from '../lib/businessLocation';
 
 const router = Router();
 
-const UNIT_DEFAULTS: Record<ReceivingUnitCode, { displayName: string; shortName: string; description: string; primaryColor: string; icon: string }> = {
+const UNIT_DEFAULTS: Record<string, { displayName: string; shortName: string; description: string; primaryColor: string; icon: string }> = {
   EMART:      { displayName: 'Emart',             shortName: 'Emart',    description: 'Siêu thị',              primaryColor: '#FF9500', icon: '🏬' },
   THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall',  description: 'Trung tâm thương mại',  primaryColor: '#27A55E', icon: '🏢' },
   TENANT:     { displayName: 'Mall (Khách thuê)', shortName: 'Mall',     description: 'Khu vực khách thuê',    primaryColor: '#1C1C1C', icon: '🏪' },
 };
 
-// GET /api/brand — public: mall branding + all unit brandings
-router.get('/', asyncHandler(async (_req: Request, res: Response) => {
-  const location = await getDefaultBusinessLocation();
+function fallbackUnitBrand(unit: string) {
+  return UNIT_DEFAULTS[unit] ?? {
+    displayName: unit,
+    shortName: unit,
+    description: '',
+    primaryColor: '#1C1C1C',
+    icon: '📦',
+  };
+}
+
+// GET /api/brand — public: mall branding + all active unit brandings in one business location
+router.get('/', asyncHandler(async (req: Request, res: Response) => {
+  const businessLocationId = typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined;
+  const location = businessLocationId
+    ? await prisma.businessLocation.findFirst({ where: { id: businessLocationId, isActive: true } })
+    : await getDefaultBusinessLocation();
+
+  if (!location) {
+    res.status(404).json({ error: 'Không tìm thấy khu vực kinh doanh.' });
+    return;
+  }
+
   const unitConfigs = await prisma.unitConfig.findMany({
-    where: { businessLocationId: location.id },
-    select: { unit: true, displayName: true, shortName: true, description: true, icon: true, logoUrl: true, primaryColor: true },
+    where: { businessLocationId: location.id, isActive: true },
+    orderBy: [{ unit: 'asc' }],
+    select: {
+      id: true,
+      unit: true,
+      displayName: true,
+      shortName: true,
+      description: true,
+      icon: true,
+      logoUrl: true,
+      primaryColor: true,
+    },
   });
 
   const units: Record<string, object> = {};
-  for (const u of Object.values(ReceivingUnit)) {
-    const cfg = unitConfigs.find(c => c.unit === u);
-    const def = UNIT_DEFAULTS[u];
-    units[u] = {
+  for (const cfg of unitConfigs) {
+    const def = fallbackUnitBrand(cfg.unit);
+    units[cfg.unit] = {
+      id:           cfg.id,
+      unit:         cfg.unit,
       displayName:  cfg?.displayName  || def.displayName,
       shortName:    cfg?.shortName    || def.shortName,
       description:  cfg?.description  || def.description,

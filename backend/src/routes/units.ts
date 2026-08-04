@@ -31,66 +31,79 @@ router.get('/order-codes', asyncHandler(async (req, res) => {
   await respond(res, Promise.resolve(unitService.listOrderCodes(query)));
 }));
 
+router.get('/public/business-locations', publicReadLimiter, asyncHandler(async (_req, res) => {
+  await respond(res, Promise.resolve(unitService.listPublicBusinessLocations()));
+}));
+
+router.get('/public/configs', publicReadLimiter, asyncHandler(async (req, res) => {
+  const query = UnitFormRequest.parsePublicLocationQuery(req.query);
+  await respond(res, unitService.listPublicConfigs(query));
+}));
+
 router.get('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const query = UnitFormRequest.parseTimeWindowQuery(req.query);
   await respond(res, unitService.listTimeWindows(unit, query, req.user, req.scope));
 }));
 
-router.post('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.post('/:unit/time-windows', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const body = UnitFormRequest.parseCreateTimeWindow(req.body);
   await respond(res, unitService.createTimeWindow(unit, body, req.user, req.scope), 201);
 }));
 
-router.patch('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.patch('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const body = UnitFormRequest.parseUpdateTimeWindow(req.body);
   await respond(res, unitService.updateTimeWindow(req.params.id, body, req.user, req.scope));
 }));
 
-router.delete('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.delete('/time-windows/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   await respond(res, unitService.deleteTimeWindow(req.params.id, req.user, req.scope), 204);
 }));
 
 router.get('/:unit/goods-types', asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const query = UnitFormRequest.parseGoodsTypeQuery(req.query);
-  await respond(res, unitService.listGoodsTypes(unit, query));
+  const scope = UnitFormRequest.parsePublicUnitScopeQuery(req.query);
+  await respond(res, unitService.listGoodsTypes(unit, query, scope));
 }));
 
-router.post('/:unit/goods-types', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.post('/:unit/goods-types', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const body = UnitFormRequest.parseCreateGoodsType(req.body);
   await respond(res, unitService.createGoodsType(unit, body, req.user, req.scope), 201);
 }));
 
-router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const body = UnitFormRequest.parseUpdateGoodsType(req.body);
   await respond(res, unitService.updateGoodsType(req.params.id, body, req.user, req.scope));
 }));
 
-router.delete('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.delete('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   await respond(res, unitService.deleteGoodsType(req.params.id, req.user, req.scope), 204);
 }));
 
 router.get('/:unit/config', asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
-  await respond(res, unitService.getPublicConfig(unit));
+  const scope = UnitFormRequest.parsePublicUnitScopeQuery(req.query);
+  await respond(res, unitService.getPublicConfig(unit, scope));
 }));
 
 router.get('/:unit/vehicle-availability', publicReadLimiter, asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const query = UnitFormRequest.parseVehicleAvailabilityQuery(req.query);
-  await respond(res, unitService.getVehicleAvailability(unit, query));
+  const scope = UnitFormRequest.parsePublicUnitScopeQuery(req.query);
+  await respond(res, unitService.getVehicleAvailability(unit, query, scope));
 }));
 
 router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const query = UnitFormRequest.parseSlotsQuery(req.query);
-  await respond(res, unitService.getAvailableSlots(unit, query));
+  const scope = UnitFormRequest.parsePublicUnitScopeQuery(req.query);
+  await respond(res, unitService.getAvailableSlots(unit, query, scope));
 }));
 
-router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const body = UnitFormRequest.parseUnitConfig(req.body);
   await respond(res, unitService.updateConfig(unit, body, req.user, req.scope));

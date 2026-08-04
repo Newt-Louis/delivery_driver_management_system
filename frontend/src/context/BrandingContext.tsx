@@ -29,12 +29,32 @@ export interface BrandingData {
   refresh: () => void;
 }
 
+const UNKNOWN_UNIT_FALLBACK: UnitBranding = {
+  displayName: 'Đơn vị',
+  shortName: 'Unit',
+  description: '',
+  logoUrl: null,
+  primaryColor: '#1C1C1C',
+  icon: '🏬',
+};
+
 // Static fallbacks — used until API responds and when fields are empty
-const UNIT_FALLBACKS: Record<ReceivingUnit, UnitBranding> = {
+const LEGACY_UNIT_FALLBACKS: Record<string, UnitBranding> = {
   EMART:      { displayName: 'Emart',             shortName: 'Emart',   description: 'Siêu thị',             logoUrl: null, primaryColor: '#FF9500', icon: '🏬' },
   THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall', description: 'Trung tâm hội nghị', logoUrl: null, primaryColor: '#27A55E', icon: '🏢' },
   TENANT:     { displayName: 'Thiso Mall', shortName: 'Mall',    description: 'Trung tâm thương mại',   logoUrl: null, primaryColor: '#1C1C1C', icon: '🏪' },
 };
+
+const UNIT_FALLBACKS = new Proxy(LEGACY_UNIT_FALLBACKS, {
+  get(target, prop: string) {
+    if (prop in target) return target[prop];
+    return {
+      ...UNKNOWN_UNIT_FALLBACK,
+      displayName: prop,
+      shortName: prop,
+    };
+  },
+}) as Record<ReceivingUnit, UnitBranding>;
 
 const MALL_FALLBACK: MallBranding = {
   mallName: 'THISO GROUP',
@@ -68,7 +88,11 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       const { mall, units } = res.data as { mall: MallBranding; units: Record<ReceivingUnit, UnitBranding> };
       // Merge with fallbacks so empty strings fall back gracefully
       const mergedUnits = {} as Record<ReceivingUnit, UnitBranding>;
-      for (const u of ['EMART', 'THISKYHALL', 'TENANT'] as ReceivingUnit[]) {
+      const unitCodes = new Set<ReceivingUnit>([
+        ...Object.keys(LEGACY_UNIT_FALLBACKS),
+        ...Object.keys(units ?? {}),
+      ]);
+      for (const u of unitCodes) {
         const fb = UNIT_FALLBACKS[u];
         mergedUnits[u] = {
           displayName:  units[u]?.displayName  || fb.displayName,
@@ -115,7 +139,7 @@ export function useUnitBrand(unit: ReceivingUnit): UnitBranding {
   const { units } = useContext(BrandingContext);
   const fb = UNIT_FALLBACKS[unit];
   const u = units[unit];
-  return { ...u, icon: u.icon || fb.icon };
+  return { ...(u || fb), icon: (u?.icon || fb.icon) };
 }
 
 // Expose fallbacks for non-hook contexts (e.g. print windows)
