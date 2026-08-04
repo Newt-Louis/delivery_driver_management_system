@@ -123,8 +123,13 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 Trong tab Users:
 
 - Nút `Tạo tài khoản` mở modal tạo mới với thông tin tên, email, mật khẩu, role, location, department và unit operation scope.
+- Hàng công cụ phía trên bảng có filter độc lập theo location, unit, role, status và ô tìm kiếm tên/email. Các filter chạy client-side trên dữ liệu đã load của tab Users, không gọi lại API theo từng lần chọn hoặc gõ.
+- Role filter lấy các role có trong response `/api/users`; status filter được suy ra từ `isActive` và `deletedAt`.
+- Bảng có multi-sort theo từng cột; mỗi cột có lựa chọn `Cao đến thấp`, `Thấp đến cao`, `Bỏ chọn`. Nhiều cột được sort theo thứ tự người dùng chọn.
+- Bảng phân trang client-side, cho chọn 20, 50 hoặc 100 dòng mỗi trang ở cuối danh sách.
 - Nút `Edit` mở lại cùng modal ở chế độ chỉnh sửa cho `ADMIN_LOC`/`ADMIN_OPE`; mật khẩu không nằm trong modal edit, đổi mật khẩu đi qua API reset password riêng.
 - Cột `Status` hiển thị `Active`, `Disabled` hoặc `Deleted`.
+- Các cột thời gian `Tạo mới`, `Cập nhật`, `Xóa` map lần lượt từ `createdAt`, `updatedAt`, `deletedAt`; giá trị null hiển thị `-`.
 - Nút `Active`/`Disable` chỉ đổi `isActive`; khi disable thì backend revoke session/cache của user đó.
 - Nút `Delete` là soft delete: backend set `users.deleted_at` và `is_active = false`, không hard-delete user.
 - Với dòng đã soft-delete, Superadmin vẫn nhìn thấy và nút `Delete` đổi thành `Regenerate`; thao tác này clear `deleted_at` và bật lại `isActive`.

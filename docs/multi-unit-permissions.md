@@ -92,6 +92,7 @@ Module backend:
 - `backend/src/modules/users/userRepository.ts`: query user, location, unit config và history usage.
 - `backend/src/modules/users/userService.ts`: rule single SUPERADMIN, location scope, unit assignment, create/update/delete/deactivate, audit, refresh Redis profile/permission cache và revoke session.
 - `backend/prisma/migrations/20260803110000_add_user_deleted_at/migration.sql`: thêm `users.deleted_at` để soft-delete user.
+- `backend/prisma/migrations/20260804100000_add_user_updated_at/migration.sql`: thêm `users.updated_at` để UI quản trị hiển thị thời điểm cập nhật tài khoản.
 
 Với role `ADMIN_LOC`/`ADMIN_OPE`/`CHECKIN`/`RECEIVING`, backend bắt buộc có ít nhất một unit permission. Nếu client cũ chỉ gửi `unit`, backend sẽ dùng `unit` để resolve một `UnitConfig` tương ứng nhằm giữ tương thích.
 

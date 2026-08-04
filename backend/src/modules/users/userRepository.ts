@@ -6,7 +6,7 @@ export const USER_SAFE_SELECT = {
   id: true, name: true, email: true,
   role: true, unit: true, department: true,
   businessLocationId: true,
-  isActive: true, deletedAt: true, createdAt: true,
+  isActive: true, deletedAt: true, createdAt: true, updatedAt: true,
   unitPermissions: {
     select: {
       unitConfig: {

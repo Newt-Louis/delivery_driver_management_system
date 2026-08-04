@@ -1,4 +1,4 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { Fragment, FormEvent, ReactNode, useMemo, useState } from 'react';
 import type { Role, UnitConfig, User } from '../../../lib/types';
 import { canManageUserRole } from '../../../lib/permissions';
 import { superadminApi } from '../api';
@@ -9,6 +9,11 @@ type UserRow = User & {
   isActive?: boolean;
   deletedAt?: string | null;
 };
+
+type UserStatus = 'active' | 'disabled' | 'deleted';
+type SortKey = 'name' | 'email' | 'role' | 'location' | 'units' | 'status' | 'createdAt' | 'updatedAt' | 'deletedAt';
+type SortDirection = 'asc' | 'desc';
+type SortRule = { key: SortKey; direction: SortDirection };
 
 type UserFormState = {
   name: string;
@@ -25,6 +30,102 @@ type UserModalState =
   | { mode: 'edit'; user: UserRow };
 
 const ROLE_OPTIONS: Array<'ADMIN_LOC' | 'ADMIN_OPE'> = ['ADMIN_LOC', 'ADMIN_OPE'];
+const PAGE_SIZE_OPTIONS = [20, 50, 100];
+
+function userStatus(user: UserRow): UserStatus {
+  if (user.deletedAt) return 'deleted';
+  return user.isActive ? 'active' : 'disabled';
+}
+
+function userStatusLabel(status: UserStatus) {
+  if (status === 'deleted') return 'Deleted';
+  if (status === 'active') return 'Active';
+  return 'Disabled';
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return '-';
+  return new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(value));
+}
+
+function normalized(value: unknown) {
+  return String(value ?? '').toLowerCase();
+}
+
+function Highlight({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.trim().toLowerCase();
+  const parts: ReactNode[] = [];
+  let cursor = 0;
+  let index = lowerText.indexOf(lowerQuery);
+
+  while (index !== -1) {
+    if (index > cursor) parts.push(text.slice(cursor, index));
+    parts.push(
+      <mark key={`${index}-${lowerQuery}`} className="bg-gray-200 text-inherit rounded px-0.5">
+        {text.slice(index, index + lowerQuery.length)}
+      </mark>,
+    );
+    cursor = index + lowerQuery.length;
+    index = lowerText.indexOf(lowerQuery, cursor);
+  }
+
+  if (cursor < text.length) parts.push(text.slice(cursor));
+  return <>{parts.map((part, idx) => <Fragment key={idx}>{part}</Fragment>)}</>;
+}
+
+function SortIcon({ direction }: { direction?: SortDirection }) {
+  if (direction === 'asc') return <span className="text-[11px] leading-none">↑</span>;
+  if (direction === 'desc') return <span className="text-[11px] leading-none">↓</span>;
+  return <span className="text-[10px] leading-none">≡</span>;
+}
+
+function SortMenu({
+  value,
+  open,
+  onOpenChange,
+  onChange,
+}: {
+  value?: SortDirection;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (direction: SortDirection | '') => void;
+}) {
+  function choose(direction: SortDirection | '') {
+    onChange(direction);
+    onOpenChange(false);
+  }
+
+  return (
+    <span className="relative inline-flex align-middle">
+      <button
+        type="button"
+        className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded border text-thiso-500 transition-colors ${value ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-thiso-200 bg-white hover:bg-thiso-50'}`}
+        onClick={() => onOpenChange(!open)}
+        aria-label="Sắp xếp"
+      >
+        <SortIcon direction={value} />
+      </button>
+      {open && (
+        <div className="absolute left-1 top-6 z-30 min-w-[116px] rounded-md border border-thiso-100 bg-white py-1 shadow-lg">
+          <button type="button" className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-thiso-50 ${!value ? 'font-semibold text-thiso-800' : 'text-thiso-500'}`} onClick={() => choose('')}>
+            ≡ Bỏ chọn
+          </button>
+          <button type="button" className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-thiso-50 ${value === 'desc' ? 'font-semibold text-sky-700' : 'text-thiso-500'}`} onClick={() => choose('desc')}>
+            ↓ Cao đến thấp
+          </button>
+          <button type="button" className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-thiso-50 ${value === 'asc' ? 'font-semibold text-sky-700' : 'text-thiso-500'}`} onClick={() => choose('asc')}>
+            ↑ Thấp đến cao
+          </button>
+        </div>
+      )}
+    </span>
+  );
+}
 
 function userFormInitialState(locations: BusinessLocation[], user?: UserRow): UserFormState {
   const editableRole = user?.role && ROLE_OPTIONS.includes(user.role as 'ADMIN_LOC' | 'ADMIN_OPE')
@@ -181,7 +282,103 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
   const [modal, setModal] = useState<UserModalState | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
+  const [filters, setFilters] = useState({
+    businessLocationId: '',
+    unitConfigId: '',
+    role: '',
+    status: '',
+    search: '',
+  });
+  const [sortRules, setSortRules] = useState<SortRule[]>([]);
+  const [openSortKey, setOpenSortKey] = useState<SortKey | null>(null);
+  const [pageSize, setPageSize] = useState(20);
+  const [page, setPage] = useState(1);
   const locationNames = useMemo(() => new Map(locations.map((location) => [location.id, `${location.code} - ${location.locationName}`])), [locations]);
+  const roleOptions = useMemo(() => [...new Set(users.map((user) => user.role))].sort(), [users]);
+  const statusOptions = useMemo(() => [...new Set(users.map(userStatus))], [users]);
+  const filteredUnitOptions = useMemo(
+    () => units.filter((unit) => !filters.businessLocationId || unit.businessLocationId === filters.businessLocationId),
+    [filters.businessLocationId, units],
+  );
+
+  const getSortValue = (user: UserRow, key: SortKey) => {
+    if (key === 'name') return user.name;
+    if (key === 'email') return user.email;
+    if (key === 'role') return user.role;
+    if (key === 'location') return user.businessLocationId ? locationNames.get(user.businessLocationId) ?? user.businessLocationId : '';
+    if (key === 'units') return (user.unitPermissions ?? []).map((unit) => unit.code ?? unit.unit).join(', ');
+    if (key === 'status') return userStatusLabel(userStatus(user));
+    if (key === 'createdAt') return user.createdAt ? new Date(user.createdAt).getTime() : 0;
+    if (key === 'updatedAt') return user.updatedAt ? new Date(user.updatedAt).getTime() : 0;
+    return user.deletedAt ? new Date(user.deletedAt).getTime() : 0;
+  };
+
+  const filteredUsers = useMemo(() => {
+    const query = filters.search.trim().toLowerCase();
+    const rows = users.filter((user) => {
+      if (filters.businessLocationId && user.businessLocationId !== filters.businessLocationId) return false;
+      if (filters.role && user.role !== filters.role) return false;
+      if (filters.status && userStatus(user) !== filters.status) return false;
+      if (filters.unitConfigId && !(user.unitPermissions ?? []).some((unit) => unit.id === filters.unitConfigId)) return false;
+      if (query && !normalized(user.name).includes(query) && !normalized(user.email).includes(query)) return false;
+      return true;
+    });
+
+    if (sortRules.length === 0) return rows;
+    return [...rows].sort((a, b) => {
+      for (const rule of sortRules) {
+        const aValue = getSortValue(a, rule.key);
+        const bValue = getSortValue(b, rule.key);
+        const result = typeof aValue === 'number' && typeof bValue === 'number'
+          ? aValue - bValue
+          : String(aValue).localeCompare(String(bValue), 'vi', { sensitivity: 'base', numeric: true });
+        if (result !== 0) return rule.direction === 'asc' ? result : -result;
+      }
+      return 0;
+    });
+  }, [filters, sortRules, users, locationNames]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedUsers = filteredUsers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function updateFilter(key: keyof typeof filters, value: string) {
+    setFilters((current) => {
+      const next = { ...current, [key]: value };
+      if (key === 'businessLocationId' && value && !units.some((unit) => unit.id === current.unitConfigId && unit.businessLocationId === value)) {
+        next.unitConfigId = '';
+      }
+      return next;
+    });
+    setPage(1);
+  }
+
+  function setSort(key: SortKey, direction: SortDirection | '') {
+    setSortRules((current) => {
+      const withoutKey = current.filter((rule) => rule.key !== key);
+      if (!direction) return withoutKey;
+      return [...withoutKey, { key, direction }];
+    });
+    setPage(1);
+  }
+
+  function sortDirectionFor(key: SortKey) {
+    return sortRules.find((rule) => rule.key === key)?.direction;
+  }
+
+  function header(label: string, key: SortKey) {
+    return (
+      <th className="text-left p-3 whitespace-nowrap overflow-visible">
+        <span>{label}</span>
+        <SortMenu
+          value={sortDirectionFor(key)}
+          open={openSortKey === key}
+          onOpenChange={(open) => setOpenSortKey(open ? key : null)}
+          onChange={(direction) => setSort(key, direction)}
+        />
+      </th>
+    );
+  }
 
   async function mutateUser(id: string, action: () => Promise<unknown>) {
     try {
@@ -203,7 +400,31 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
 
   return (
     <section className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-col xl:flex-row gap-3 xl:items-end xl:justify-between">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 flex-1">
+          <select className="input" value={filters.businessLocationId} onChange={(e) => updateFilter('businessLocationId', e.target.value)}>
+            <option value="">Tất cả locations</option>
+            {locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
+          </select>
+          <select className="input" value={filters.unitConfigId} onChange={(e) => updateFilter('unitConfigId', e.target.value)}>
+            <option value="">Tất cả units</option>
+            {filteredUnitOptions.map((unit) => <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName}</option>)}
+          </select>
+          <select className="input" value={filters.role} onChange={(e) => updateFilter('role', e.target.value)}>
+            <option value="">Tất cả roles</option>
+            {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
+          </select>
+          <select className="input" value={filters.status} onChange={(e) => updateFilter('status', e.target.value)}>
+            <option value="">Tất cả status</option>
+            {statusOptions.map((status) => <option key={status} value={status}>{userStatusLabel(status)}</option>)}
+          </select>
+          <input
+            className="input"
+            value={filters.search}
+            onChange={(e) => updateFilter('search', e.target.value)}
+            placeholder="Tìm tên hoặc email"
+          />
+        </div>
         <button className="btn btn-primary" type="button" onClick={() => setModal({ mode: 'create' })}>
           Tạo tài khoản
         </button>
@@ -214,29 +435,42 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
         <table className="w-full text-sm">
           <thead className="bg-thiso-50 text-thiso-500">
             <tr>
-              <th className="text-left p-3">Tên</th>
-              <th className="text-left p-3">Email</th>
-              <th className="text-left p-3">Role</th>
-              <th className="text-left p-3">Location</th>
-              <th className="text-left p-3">Units</th>
-              <th className="text-left p-3">Status</th>
+              {header('Tên', 'name')}
+              {header('Email', 'email')}
+              {header('Role', 'role')}
+              {header('Location', 'location')}
+              {header('Units', 'units')}
+              {header('Status', 'status')}
+              {header('Tạo mới', 'createdAt')}
+              {header('Cập nhật', 'updatedAt')}
+              {header('Xóa', 'deletedAt')}
               <th className="text-left p-3">Action</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => {
+            {pagedUsers.length === 0 && (
+              <tr>
+                <td className="p-6 text-center text-thiso-400" colSpan={10}>
+                  Không tìm thấy thông tin.
+                </td>
+              </tr>
+            )}
+            {pagedUsers.map((user) => {
               const isDeleted = Boolean(user.deletedAt);
               const isBusy = busyUserId === user.id;
               const isSuperadmin = user.role === 'SUPERADMIN';
               const canManage = canManageUserRole('SUPERADMIN', user.role);
               return (
                 <tr key={user.id} className="border-t border-thiso-100">
-                  <td className="p-3">{user.name}</td>
-                  <td className="p-3">{user.email}</td>
+                  <td className="p-3"><Highlight text={user.name} query={filters.search} /></td>
+                  <td className="p-3"><Highlight text={user.email} query={filters.search} /></td>
                   <td className="p-3">{user.role}</td>
                   <td className="p-3">{user.businessLocationId ? locationNames.get(user.businessLocationId) ?? user.businessLocationId : '-'}</td>
                   <td className="p-3">{(user.unitPermissions ?? []).map((unit) => unit.code ?? unit.unit).join(', ') || '-'}</td>
                   <td className="p-3"><UserStatusBadge user={user} /></td>
+                  <td className="p-3 whitespace-nowrap">{formatDateTime(user.createdAt)}</td>
+                  <td className="p-3 whitespace-nowrap">{formatDateTime(user.updatedAt)}</td>
+                  <td className="p-3 whitespace-nowrap">{formatDateTime(user.deletedAt)}</td>
                   <td className="p-3">
                     <div className="flex flex-wrap gap-2">
                       <button className="btn btn-secondary px-3 py-1.5 text-xs" type="button" disabled={!canManage || isDeleted || isSuperadmin || isBusy} onClick={() => setModal({ mode: 'edit', user })}>
@@ -276,6 +510,26 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
           </tbody>
         </table>
       </TableShell>
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-thiso-500">
+        <div>
+          Hiển thị {filteredUsers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+          -{Math.min(currentPage * pageSize, filteredUsers.length)} / {filteredUsers.length} tài khoản
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Số dòng</span>
+          <select className="input py-1.5 w-24" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
+            {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+          </select>
+          <button className="btn btn-secondary px-3 py-1.5" type="button" disabled={currentPage <= 1} onClick={() => setPage(Math.max(1, currentPage - 1))}>
+            Trước
+          </button>
+          <span>Trang {currentPage}/{totalPages}</span>
+          <button className="btn btn-secondary px-3 py-1.5" type="button" disabled={currentPage >= totalPages} onClick={() => setPage(Math.min(totalPages, currentPage + 1))}>
+            Sau
+          </button>
+        </div>
+      </div>
 
       {modal && (
         <UserFormModal

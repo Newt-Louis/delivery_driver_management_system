@@ -8,17 +8,13 @@ import DevicesTab from '../features/superadmin/tabs/DevicesTab';
 import GoodsTypesTab from '../features/superadmin/tabs/GoodsTypesTab';
 import LocationsTab from '../features/superadmin/tabs/LocationsTab';
 import ReceivingTimesTab from '../features/superadmin/tabs/ReceivingTimesTab';
-import SlotsTab from '../features/superadmin/tabs/SlotsTab';
 import TimeWindowsTab from '../features/superadmin/tabs/TimeWindowsTab';
 import UnitConfigsTab from '../features/superadmin/tabs/UnitConfigsTab';
 import UsersTab from '../features/superadmin/tabs/UsersTab';
-import ZonesTab from '../features/superadmin/tabs/ZonesTab';
 
 const TABS: Array<[SuperadminTab, string]> = [
   ['locations', 'Locations'],
   ['units', 'Unit configs'],
-  ['zones', 'Zones'],
-  ['slots', 'Slots'],
   ['users', 'Users'],
   ['goods', 'Goods types'],
   ['windows', 'Time windows'],
@@ -34,10 +30,10 @@ export default function Superadmin() {
   const [businessLocationId, setBusinessLocationId] = useState('');
   const [unitConfigId, setUnitConfigId] = useState('');
 
-  const needsLocations = ['locations', 'units', 'users', 'zones', 'slots', 'goods', 'windows', 'devices', 'receivingTimes'].includes(activeTab);
-  const needsUnitOptions = ['units', 'zones', 'slots', 'goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
-  const showsLocationFilter = ['zones', 'slots', 'goods', 'windows', 'awvendors', 'devices', 'receivingTimes'].includes(activeTab);
-  const showsUnitFilter = ['zones', 'slots', 'goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
+  const needsLocations = ['locations', 'units', 'users', 'goods', 'windows', 'devices', 'receivingTimes'].includes(activeTab);
+  const needsUnitOptions = ['units', 'goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
+  const showsLocationFilter = ['goods', 'windows', 'awvendors', 'devices', 'receivingTimes'].includes(activeTab);
+  const showsUnitFilter = ['goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
 
   const locations = useQuery({
     queryKey: ['superadmin', 'locations'],
@@ -53,16 +49,6 @@ export default function Superadmin() {
     queryKey: ['superadmin', 'units', 'users-all'],
     queryFn: () => superadminApi.units(),
     enabled: activeTab === 'users',
-  });
-  const zones = useQuery({
-    queryKey: ['superadmin', 'zones', businessLocationId, unitConfigId],
-    queryFn: () => superadminApi.zones({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
-    enabled: activeTab === 'zones',
-  });
-  const slots = useQuery({
-    queryKey: ['superadmin', 'slots', businessLocationId, unitConfigId],
-    queryFn: () => superadminApi.slots({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
-    enabled: activeTab === 'slots',
   });
   const users = useQuery({ queryKey: ['superadmin', 'users'], queryFn: superadminApi.users, enabled: activeTab === 'users' });
   const goodsTypes = useQuery({
@@ -107,12 +93,6 @@ export default function Superadmin() {
       case 'units':
         queryClient.invalidateQueries({ queryKey: ['superadmin', 'units'] });
         break;
-      case 'zones':
-        queryClient.invalidateQueries({ queryKey: ['superadmin', 'zones'] });
-        break;
-      case 'slots':
-        queryClient.invalidateQueries({ queryKey: ['superadmin', 'slots'] });
-        break;
       case 'users':
         queryClient.invalidateQueries({ queryKey: ['superadmin', 'users'] });
         break;
@@ -156,10 +136,6 @@ export default function Superadmin() {
             onRefresh={refreshActiveTab}
           />
         );
-      case 'zones':
-        return <ZonesTab zones={zones.data ?? []} />;
-      case 'slots':
-        return <SlotsTab slots={slots.data ?? []} />;
       case 'users':
         return <UsersTab users={users.data ?? []} locations={allLocations} units={userUnits.data ?? []} onRefresh={refreshActiveTab} />;
       case 'goods':
