@@ -6,6 +6,7 @@ export const APP_CONFIG_KEYS = {
   staticIpAuth: 'auth.static_ip',
   faceIdAuth: 'auth.face_id',
   authSession: 'auth.session',
+  uiSettings: 'ui.settings',
 } as const;
 
 export type StaticIpAuthConfig = {
@@ -183,6 +184,21 @@ export async function getAuthSessionConfig(): Promise<AuthSessionConfig> {
     tokenTtlMinutes: Math.min(Math.max(Math.floor(tokenTtlMinutes), 5), 7 * 24 * 60),
     renewGraceMinutes: Math.min(Math.max(Math.floor(renewGraceMinutes), 0), 24 * 60),
     singleSessionPerUser: asBoolean(value.singleSessionPerUser, DEFAULT_AUTH_SESSION.singleSessionPerUser),
+  };
+}
+
+export type UiConfig = {
+  toastDurationSeconds: number;
+};
+
+const DEFAULT_UI_CONFIG: UiConfig = {
+  toastDurationSeconds: 3,
+};
+
+export async function getUiConfig(): Promise<UiConfig> {
+  const value = await getRawConfig(APP_CONFIG_KEYS.uiSettings);
+  return {
+    toastDurationSeconds: Math.max(1, asNumber(value.toastDurationSeconds, DEFAULT_UI_CONFIG.toastDurationSeconds)),
   };
 }
 

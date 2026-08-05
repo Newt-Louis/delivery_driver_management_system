@@ -1,8 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
-import { authenticate, requireRole } from '../middleware/auth';
 import { getDefaultBusinessLocation } from '../lib/businessLocation';
 
 const router = Router();
@@ -72,33 +70,6 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
     },
     units,
   });
-}));
-
-// PATCH /api/brand/mall — admin: update mall branding
-const mallSchema = z.object({
-  mallName:   z.string().min(1).max(100).optional(),
-  locationName: z.string().min(1).max(100).optional(),
-  address:    z.string().max(250).optional(),
-  avatarUrl:  z.string().nullable().optional(),
-  logoUrl:    z.string().nullable().optional(),
-  tagline:    z.string().max(200).nullable().optional(),
-});
-
-router.patch('/mall', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
-  const data = mallSchema.parse(req.body);
-  const location = await getDefaultBusinessLocation();
-  const locationName = data.locationName ?? data.mallName;
-  const updated = await prisma.businessLocation.update({
-    where: { id: location.id },
-    data: {
-      ...(locationName !== undefined ? { locationName } : {}),
-      ...(data.address !== undefined ? { address: data.address } : {}),
-      ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
-      ...(data.logoUrl !== undefined ? { logoUrl: data.logoUrl } : {}),
-      ...(data.tagline !== undefined ? { tagline: data.tagline } : {}),
-    },
-  });
-  res.json({ ...updated, mallName: updated.locationName });
 }));
 
 export default router;

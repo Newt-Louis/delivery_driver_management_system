@@ -51,7 +51,7 @@ export default function DriverInfoStep({
       </FieldFrame>
 
       <FieldFrame field="driverName" highlightedField={highlightedField}>
-        <label className="label">Tên tài xế <span className="text-red-400">*</span></label>
+        <label className="label">Tên tài xế <span className="text-thiso-300 font-normal normal-case tracking-normal ml-1">(không bắt buộc)</span></label>
         <input
           type="text"
           value={form.driverName}

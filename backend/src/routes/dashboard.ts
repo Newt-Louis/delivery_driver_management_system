@@ -171,9 +171,7 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
 
   for (const unitConfig of units) {
     const unit = unitConfig.unit;
-    const active   = activeWithCallCounts.filter((d) => (
-      d.unitConfigId === unitConfig.id || d.assignedSlot?.zone.unitConfig.id === unitConfig.id
-    ));
+    const active   = activeWithCallCounts.filter((d) => d.unitConfigId === unitConfig.id);
     const upcoming = allUpcoming.filter((d) => d.unitConfigId === unitConfig.id);
     const slots    = allSlots.filter((s) => s.assignedUnit === unit);
 

@@ -15,6 +15,7 @@ import Histories from './pages/Histories';
 import Cancelled from './pages/Cancelled';
 import Navbar from './components/Navbar';
 import SuperadminOperationalContextGate from './components/SuperadminOperationalContextGate';
+import ToastContainer from './components/ToastContainer';
 
 function homePathForRole(role?: string) {
   if (role === 'CHECKIN') return '/check-in';
@@ -120,6 +121,7 @@ export default function App() {
       </Routes>
       </div>
       {isAuthenticated && !isPublicFullscreen && <SuperadminOperationalContextGate />}
+      <ToastContainer />
     </div>
   );
 }

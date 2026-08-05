@@ -21,7 +21,7 @@ import { isSundayDate, todayDate } from '../utils/date';
 const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
   1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
   2: ['timeSlot', 'vendorName', 'poNumber'],
-  3: ['vehiclePlate', 'driverName', 'driverPhone'],
+   3: ['vehiclePlate', 'driverPhone'],
   4: [],
 };
 
@@ -302,7 +302,6 @@ export function useRegisterForm() {
     }
     if (step === 3) {
       if (!form.vehiclePlate.trim()) errs.vehiclePlate = 'Vui lòng nhập biển số xe';
-      if (!form.driverName.trim()) errs.driverName = 'Vui lòng nhập tên tài xế';
       if (form.driverPhone.replace(/\D/g, '').length < 9) errs.driverPhone = 'Số điện thoại không hợp lệ (cần ít nhất 9 số)';
     }
     setFieldErrors(errs);

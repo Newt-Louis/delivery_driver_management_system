@@ -42,7 +42,7 @@ export default function ReviewSubmitStep({
             { icon: '📦', label: 'Loại hàng', value: GOODS_LABEL[form.goodsType] ?? form.goodsType },
             { icon: '🚗', label: 'Biển số xe', value: form.vehiclePlate, mono: true },
             { icon: VEHICLE_INFO[form.vehicleType as VehicleType]?.icon ?? '🚗', label: 'Loại xe', value: VEHICLE_INFO[form.vehicleType as VehicleType]?.label ?? form.vehicleType },
-            { icon: '👤', label: 'Tài xế', value: form.driverName },
+            { icon: '👤', label: 'Tài xế', value: form.driverName || '—' },
             { icon: '📞', label: 'Điện thoại', value: form.driverPhone, mono: true },
             { icon: '🏭', label: 'Nhà cung cấp', value: form.vendorName },
             ...(form.vendorCode ? [{ icon: '🔑', label: 'Mã NCC', value: form.vendorCode, mono: true as const }] : []),

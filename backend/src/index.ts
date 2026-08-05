@@ -27,6 +27,7 @@ import deviceRoutes from './routes/devices';
 import auditLogRoutes from './routes/auditLogs';
 import historiesRoutes from './routes/histories';
 import superadminRoutes from './routes/superadmin';
+import configRoutes from './routes/config';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -51,6 +52,7 @@ app.use('/api/devices', deviceRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/histories', historiesRoutes);
 app.use('/api/superadmin', superadminRoutes);
+app.use('/api/config', configRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/health/scheduler', (_req, res) => res.json({ status: 'ok', scheduler: getSchedulerStatus() }));
@@ -65,6 +67,20 @@ async function start() {
   console.log('Database connected');
   await getRedis();
   console.log('Redis connected');
+
+  // Seed default UI settings config if not already present (never overwrite admin changes)
+  await prisma.appConfig.upsert({
+    where: { key: 'ui.settings' },
+    update: {},
+    create: {
+      key: 'ui.settings',
+      value: { toastDurationSeconds: 3 },
+      category: 'ui',
+      description: 'Cài đặt giao diện — thời gian hiển thị toast notification (giây). Mặc định: 3',
+      isRuntimeEditable: true,
+    },
+  }).catch(console.error);
+
   initWebPush();
 
   server.listen(PORT, () => {

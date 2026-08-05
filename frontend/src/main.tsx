@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './context/AuthContext';
 import { BrandingProvider } from './context/BrandingContext';
 import { SocketProvider } from './context/SocketContext';
+import { ToastProvider } from './context/ToastContext';
 import { setupPwa } from './lib/pwa';
 import App from './App';
 import './index.css';
@@ -20,7 +21,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <BrandingProvider>
           <AuthProvider>
             <SocketProvider>
-              <App />
+              <ToastProvider>
+                <App />
+              </ToastProvider>
             </SocketProvider>
           </AuthProvider>
         </BrandingProvider>

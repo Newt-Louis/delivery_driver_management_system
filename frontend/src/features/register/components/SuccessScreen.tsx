@@ -82,7 +82,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 <div class="code">${info.code}</div>
 <div class="qr"><img src="${qrDataUrl}"/></div>
 <div class="row"><span class="lbl">Biển số</span><span class="val">${info.vehiclePlate}</span></div>
-<div class="row"><span class="lbl">Tài xế</span><span class="val">${info.driverName}</span></div>
+<div class="row"><span class="lbl">Tài xế</span><span class="val">${info.driverName || '—'}</span></div>
 <div class="row"><span class="lbl">Nhà cung cấp</span><span class="val">${info.vendorName}</span></div>
 <div class="row"><span class="lbl">Loại hàng</span><span class="val">${info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</span></div>
 <div class="row"><span class="lbl">Giờ dự kiến</span><span class="val">${info.requestedTime}</span></div>

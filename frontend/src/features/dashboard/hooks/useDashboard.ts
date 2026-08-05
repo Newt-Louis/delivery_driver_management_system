@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useToast } from '../../../context/ToastContext';
 import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
 import type { DashboardSummary, DeliveryRegistration, DispatchData, UnitDispatch } from '../../../lib/types';
 import {
@@ -15,6 +16,7 @@ export function useDashboard() {
   const queryClient = useQueryClient();
   const socket = useSocket();
   const realtimeScope = useRealtimeScope();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>('ALL');
   const [callTarget, setCallTarget] = useState<DeliveryRegistration | null>(null);
   const [callPreSlot, setCallPreSlot] = useState<string | undefined>(undefined);
@@ -65,10 +67,14 @@ export function useDashboard() {
     try {
       await callDelivery(callTarget.id, slotId);
       invalidateAll();
-    } finally {
-      setCallLoading(false);
       setCallTarget(null);
       setCallPreSlot(undefined);
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Không thể gọi xe vào vị trí này.';
+      toast.error(message);
+    } finally {
+      setCallLoading(false);
     }
   }
 
@@ -82,6 +88,10 @@ export function useDashboard() {
     try {
       await runDeliveryAction(id, action, reason);
       invalidateAll();
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Thao tác không thành công.';
+      toast.error(message);
     } finally {
       setActionLoading(null);
       if (action === 'cancel') setCancelTargetId(null);

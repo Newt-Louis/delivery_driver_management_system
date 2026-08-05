@@ -4,7 +4,7 @@ import { z } from 'zod';
 
 const registerSchema = z.object({
   vendorName: z.string().min(1, 'Tên nhà cung cấp bắt buộc'),
-  driverName: z.string().min(1, 'Tên tài xế bắt buộc'),
+  driverName: z.string().default(''),
   driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
   vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),
   vehicleType: z.nativeEnum(VehicleType).default(VehicleType.OTHER),
