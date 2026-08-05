@@ -146,16 +146,16 @@ Shared presentation:
 
 `unitPresentation.ts` là helper dùng chung để render label, short name, icon, color và ticket prefix từ `UnitConfig` metadata. Khi một payload chỉ còn dữ liệu legacy hoặc thiếu metadata, helper sinh fallback generic từ mã unit thay vì map cứng theo `EMART`/`THISKYHALL`/`TENANT`. Các màn hình runtime như register, check-in, dashboard, docks, waiting screen, track, receiving times và histories nên dùng helper này khi cần hiển thị đơn vị.
 
-Các route page lớn của frontend giữ wrapper mỏng trong `frontend/src/pages/*`, còn implementation nằm trong feature folder:
+Các route page lớn của frontend giữ layout gốc trong `frontend/src/pages/*`, còn logic/API/component con nằm trong feature folder:
 
-- `frontend/src/features/dashboard/Dashboard.tsx`
-- `frontend/src/features/docks/DockManagement.tsx`
-- `frontend/src/features/check-in/CheckIn.tsx`
+- `frontend/src/pages/Dashboard.tsx` và `frontend/src/features/dashboard/*`
+- `frontend/src/pages/DockManagement.tsx` và `frontend/src/features/docks/*`
+- `frontend/src/pages/CheckIn.tsx` và `frontend/src/features/check-in/*`
 - `frontend/src/features/waiting-screen/WaitingScreen.tsx`
 - `frontend/src/features/track/Track.tsx`
 - `frontend/src/features/reports/Reports.tsx`
-- `frontend/src/features/receiving-times/ReceivingTimes.tsx`
-- `frontend/src/features/driver-view/DriverView.tsx`
+- `frontend/src/pages/ReceivingTimes.tsx` và `frontend/src/features/receiving-times/*`
+- `frontend/src/pages/DriverView.tsx` và `frontend/src/features/driver-view/*`
 
 ## Quy Tắc Hiện Tại
 

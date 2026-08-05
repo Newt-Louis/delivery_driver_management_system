@@ -13,8 +13,11 @@ Role `CHECKIN` chỉ làm nhiệm vụ:
 
 File:
 
-- `frontend/src/pages/CheckIn.tsx`: route wrapper.
-- `frontend/src/features/check-in/CheckIn.tsx`: implementation.
+- `frontend/src/pages/CheckIn.tsx`: page layout gốc, compose các phần của màn check-in.
+- `frontend/src/features/check-in/api.ts`: API helper cho lookup/check-in và waiting list.
+- `frontend/src/features/check-in/hooks/useCheckIn.ts`: state và orchestration cho form, result, waiting list, export.
+- `frontend/src/features/check-in/components/*`: form, result card, unit badge và waiting list.
+- `frontend/src/features/check-in/utils.ts`: formatter ticket, unit metadata và dữ liệu CSV.
 
 API đang dùng:
 

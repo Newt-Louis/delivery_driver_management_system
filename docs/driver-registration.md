@@ -98,7 +98,7 @@ Service:
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
 - Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`.
 - Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/PO/TC.
-- Tài xế có thể tự hủy chuyến tại `/cancelled`; endpoint public đối chiếu đúng 5 trường `vehiclePlate`, `driverPhone`, `poNumber`, `registrationCode`, `requestedTime`, sau đó archive lịch sử với lý do `Tài xế thao tác hủy` và xóa row operational.
+- Tài xế chỉ có thể tự hủy chuyến tại `/cancelled` trước khi check-in, tức delivery còn `REGISTERED`; endpoint public đối chiếu đúng 5 trường `vehiclePlate`, `driverPhone`, `poNumber`, `registrationCode`, `requestedTime`, sau đó archive lịch sử với lý do `Tài xế thao tác hủy` và xóa row operational.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Backend validate lại capacity slot khi submit để tránh frontend bị stale.
 - Capacity slot tính theo:

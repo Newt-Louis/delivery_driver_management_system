@@ -51,16 +51,6 @@ docker compose exec backend npm run seed
 
 ---
 
-## Tài khoản đăng nhập (sau khi seed)
-
-| Vai trò             | Email              | Mật khẩu    |
-| ------------------- | ------------------ | ----------- |
-| Admin               | admin@mall.com     | password123 |
-| Nhân viên Nhận hàng | receiving@mall.com | password123 |
-| Bảo vệ              | security@mall.com  | password123 |
-
----
-
 ## Các trang chính
 
 | Trang             | URL               | Mô tả                            |
@@ -70,30 +60,6 @@ docker compose exec backend npm run seed
 | Check-in          | `/check-in`       | Bảo vệ check-in xe vào cổng      |
 | Dashboard         | `/dashboard`      | Nhân viên Receiving điều phối    |
 | Quản lý Dock      | `/docks`          | Xem và cập nhật trạng thái dock  |
-
----
-
-## Cấu trúc thư mục
-
-```
-d:\QUE\
-├── backend/              # Node.js + Express + TypeScript
-│   ├── prisma/           # Schema, migrations, seed
-│   └── src/
-│       ├── lib/          # Prisma client
-│       ├── middleware/   # Auth, error handler
-│       ├── routes/       # API routes
-│       ├── services/     # priorityEngine.ts
-│       └── socket/       # Socket.IO
-├── frontend/             # React + Vite + TypeScript
-│   └── src/
-│       ├── components/   # Shared UI
-│       ├── context/      # Auth, Socket context
-│       ├── lib/          # API client, types
-│       └── pages/        # 6 trang
-├── docker-compose.yml
-└── README.md
-```
 
 ---
 
@@ -112,17 +78,6 @@ File: `backend/src/services/priorityEngine.ts`
 | Fresh Food chờ > 30 phút | +30  |
 
 Hàng chờ được sắp xếp: **điểm cao nhất → thời gian check-in sớm nhất**.
-
----
-
-## Realtime Events (Socket.IO)
-
-| Event                | Mô tả                       |
-| -------------------- | --------------------------- |
-| `queue_updated`      | Danh sách hàng chờ cập nhật |
-| `delivery_called`    | Xe được gọi vào dock        |
-| `slot_updated`       | Trạng thái slot/dock thay đổi |
-| `delivery_completed` | Xe hoàn tất nhận hàng       |
 
 ---
 

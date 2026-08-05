@@ -1,3 +1,7 @@
+export {};
+// Original monolith preserved for reference — superseded by hooks/useWaitingScreen.ts + layouts/*.tsx
+// Safe to delete once the refactored version is verified in production.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRealtimeScope, useSocket } from '../../context/SocketContext';
 import api from '../../lib/api';

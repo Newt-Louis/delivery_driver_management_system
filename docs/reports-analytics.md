@@ -10,8 +10,11 @@ Files:
 
 - `frontend/src/pages/Reports.tsx`: route wrapper.
 - `frontend/src/features/reports/Reports.tsx`: implementation.
-- `frontend/src/pages/ReceivingTimes.tsx`: route wrapper.
-- `frontend/src/features/receiving-times/ReceivingTimes.tsx`: implementation.
+- `frontend/src/pages/ReceivingTimes.tsx`: page layout gốc, compose header/actions, summary, info và bảng theo unit.
+- `frontend/src/features/receiving-times/api.ts`: API helper cho analytics receiving-times.
+- `frontend/src/features/receiving-times/hooks/useReceivingTimes.ts`: query, quyền apply, analyze/accept action, flash message và export.
+- `frontend/src/features/receiving-times/components/*`: header, summary, info, loading, footer và group table.
+- `frontend/src/features/receiving-times/utils.ts`: group config theo unit metadata và build CSV rows.
 
 ## Backend APIs
 

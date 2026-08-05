@@ -81,8 +81,11 @@ Quy ước dữ liệu:
 
 Frontend:
 
-- `frontend/src/pages/DockManagement.tsx`: route wrapper.
-- `frontend/src/features/docks/DockManagement.tsx`: implementation.
+- `frontend/src/pages/DockManagement.tsx`: page layout gốc, compose thống kê, nhóm slot và legend.
+- `frontend/src/features/docks/api.ts`: API helper cho slot list và đổi trạng thái slot.
+- `frontend/src/features/docks/hooks/useDockManagement.ts`: query, quyền edit, realtime invalidation và status action.
+- `frontend/src/features/docks/components/*`: stats grid, unit group, vehicle section và legend.
+- `frontend/src/features/docks/utils.ts`: tính thống kê và group slot theo unit/vehicle.
 - `frontend/src/components/DockCard.tsx`
 
 Route:

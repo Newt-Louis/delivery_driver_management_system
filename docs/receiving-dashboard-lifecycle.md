@@ -18,14 +18,17 @@ Lifecycle chuẩn:
 
 File:
 
-- `frontend/src/pages/Dashboard.tsx`: route wrapper.
-- `frontend/src/features/dashboard/Dashboard.tsx`: implementation.
+- `frontend/src/pages/Dashboard.tsx`: page layout gốc, compose header, alert, KPI, tabs, modal và tab content.
+- `frontend/src/features/dashboard/api.ts`: API helper cho summary, dispatch, delivery detail và lifecycle action.
+- `frontend/src/features/dashboard/hooks/useDashboard.ts`: state/orchestration cho query, socket invalidation, modal và lifecycle action.
+- `frontend/src/features/dashboard/components/*`: modal, table/filter, unit/all tab view, KPI, alert và header.
+- `frontend/src/features/dashboard/utils.ts`: formatter ticket/unit metadata, timeline, filter/sort và export rows.
 - `frontend/src/components/StatusBadge.tsx`
 - `frontend/src/components/GoodsBadge.tsx`
 
 Ghi chú kiến trúc frontend:
 
-- Dashboard implementation hiện nằm trong feature folder để page route mỏng hơn.
+- Dashboard page giữ layout gốc; feature folder chỉ chứa các trách nhiệm con để page compose lại.
 - Tab `Tất cả` aggregate từ các unit backend trả về.
 - Unit label/icon/color/ticket prefix dùng `frontend/src/lib/unitPresentation.ts`, ưu tiên metadata từ `UnitConfig` trong payload backend.
 - Dashboard không còn tự dựng UI bằng danh sách unit demo cố định; backend trả unit nào trong scope thì frontend sinh tab/card tương ứng.
@@ -93,6 +96,7 @@ API lifecycle:
   - Release slot nếu cần.
 - `POST /api/deliveries/public-cancel`
   - Public route dành cho tài xế tự hủy tại `/cancelled`.
+  - Chỉ cho hủy khi delivery còn `REGISTERED`; sau check-in (`WAITING` trở đi), tài xế không được tự hủy public nữa.
   - Đối chiếu đúng 5 thông tin: biển số xe, số điện thoại, mã PO/Thi Công, mã đăng ký, ngày giờ giao.
   - Sai bất kỳ thông tin nào trả message chung để tránh lộ dữ liệu.
   - Khi đúng, hủy với lý do `Tài xế thao tác hủy`, ghi history/events, reconcile slot và xóa row operational.

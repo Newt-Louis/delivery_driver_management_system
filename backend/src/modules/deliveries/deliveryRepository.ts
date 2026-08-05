@@ -42,11 +42,13 @@ export async function findDuplicateRegistration(args: {
   unitConfigId?: string | null;
   requestedTime?: Date | null;
   deliveryDate?: string;
+  client?: Prisma.TransactionClient | typeof prisma;
 }) {
   const day = args.requestedTime ?? parseDeliveryDate(args.deliveryDate) ?? new Date();
 
   const { start, end } = localDayRange(day);
-  const candidates = await prisma.deliveryRegistration.findMany({
+  const client = args.client ?? prisma;
+  const candidates = await client.deliveryRegistration.findMany({
     where: {
       vehiclePlate: args.vehiclePlate,
       ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
@@ -335,7 +337,7 @@ export async function findDeliveryForPublicCancel(args: {
     where: {
       registrationCode: args.registrationCode.toUpperCase().trim(),
       vehiclePlate: args.vehiclePlate,
-      status: { in: ACTIVE_DUPLICATE_STATUSES },
+      status: DeliveryStatus.REGISTERED,
       requestedTime: { gte: start, lt: end },
     },
     orderBy: { createdAt: 'desc' },

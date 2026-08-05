@@ -164,6 +164,25 @@ function duplicateRegistration(vehiclePlate: string, duplicate: unknown) {
   );
 }
 
+function duplicateRegistrationLockKey(args: {
+  unitConfigId: string;
+  vehiclePlate: string;
+  driverPhone: string;
+  poNumber: string;
+  requestedTime: Date | null;
+  deliveryDate?: string;
+}) {
+  const day = args.requestedTime ?? deliveryRepository.parseDeliveryDate(args.deliveryDate) ?? new Date();
+  return [
+    'registration-duplicate',
+    args.unitConfigId,
+    deliveryRepository.localDateKey(day),
+    args.vehiclePlate,
+    args.driverPhone,
+    args.poNumber,
+  ].join(':');
+}
+
 const PUBLIC_CANCEL_REASON = 'Tài xế thao tác hủy';
 const PUBLIC_CANCEL_MISMATCH_MESSAGE = 'Có thông tin bạn nhập không đúng, vui lòng nhập lại';
 
@@ -247,6 +266,27 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
 
   try {
     const delivery = await deliveryRepository.prisma.$transaction(async (tx) => {
+      const duplicateLockKey = duplicateRegistrationLockKey({
+        unitConfigId: unitConfig.id,
+        vehiclePlate,
+        driverPhone,
+        poNumber,
+        requestedTime,
+        deliveryDate: body.deliveryDate,
+      });
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
+
+      const duplicateInTransaction = await deliveryRepository.findDuplicateRegistration({
+        vehiclePlate,
+        driverPhone,
+        poNumber,
+        unitConfigId: unitConfig.id,
+        requestedTime,
+        deliveryDate: body.deliveryDate,
+        client: tx,
+      });
+      if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
+
       if (requestedTime) {
         await ensureRegistrationSlotCapacity(tx, {
           requestedTime,

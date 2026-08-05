@@ -192,6 +192,8 @@ async function createDelivery(
     assignedSlotId?: string | null;
     checkinTime?: Date | null;
     calledTime?: Date | null;
+    requestedTime?: Date | null;
+    poNumber?: string | null;
   } = {},
 ) {
   return prisma.deliveryRegistration.create({
@@ -204,7 +206,8 @@ async function createDelivery(
       receivingUnit: options.unit ?? ReceivingUnit.EMART,
       vehicleType: options.vehicleType ?? VehicleType.TRUCK,
       goodsType: options.goodsType ?? GoodsType.GENERAL_GOODS,
-      requestedTime: new Date(),
+      poNumber: options.poNumber ?? null,
+      requestedTime: options.requestedTime ?? new Date(),
       checkinTime: options.checkinTime ?? null,
       calledTime: options.calledTime ?? null,
       status: options.status ?? DeliveryStatus.REGISTERED,
@@ -375,6 +378,89 @@ test('50 concurrent identical registrations create one active delivery', async (
     }
   });
 });
+
+test('same active vehicle plate can register again with different phone or PO in the same day', async () => {
+  await withRegisterServer(async (baseUrl) => {
+    const prefix = nextPrefix('REGSAMEPLATE');
+    await cleanupPrefix(prefix);
+    const vehiclePlate = `${prefix}PLATE`;
+    const basePayload = {
+      vendorName: 'Same Plate Vendor',
+      driverName: 'Same Plate Driver',
+      vehiclePlate,
+      vehicleType: 'TRUCK',
+      receivingUnit: 'TENANT',
+      goodsType: 'GENERAL_GOODS',
+      note: prefix,
+    };
+
+    try {
+      const first = await fetch(`${baseUrl}/api/deliveries/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...basePayload,
+          driverPhone: '0900000000',
+          poNumber: 'PO0473829156',
+        }),
+      });
+      const second = await fetch(`${baseUrl}/api/deliveries/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...basePayload,
+          driverPhone: '0911111111',
+          poNumber: 'PO5839102746',
+        }),
+      });
+
+      assert.equal(first.status, 201);
+      assert.equal(second.status, 201);
+
+      const deliveries = await prisma.deliveryRegistration.findMany({
+        where: {
+          vehiclePlate,
+          status: { in: ACTIVE_REGISTRATION_STATUSES },
+        },
+      });
+      assert.equal(deliveries.length, 2);
+    } finally {
+      await cleanupPrefix(prefix);
+    }
+  });
+});
+
+test('public cancel rejects deliveries that have already checked in', async () => {
+  await withRegisterServer(async (baseUrl) => {
+    await withScope('PUBCANCELWAITING', ReceivingUnit.EMART, async (scope) => {
+      const requestedTime = new Date();
+      requestedTime.setSeconds(0, 0);
+      const delivery = await createDelivery(scope, 1, {
+        status: DeliveryStatus.WAITING,
+        checkinTime: new Date(),
+        requestedTime,
+        poNumber: 'PO0473829156',
+      });
+
+      const response = await fetch(`${baseUrl}/api/deliveries/public-cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehiclePlate: delivery.vehiclePlate,
+          driverPhone: delivery.driverPhone,
+          poNumber: delivery.poNumber,
+          registrationCode: delivery.registrationCode,
+          requestedTime: requestedTime.toISOString(),
+        }),
+      });
+
+      assert.equal(response.status, 400);
+      const unchanged = await prisma.deliveryRegistration.findUnique({ where: { id: delivery.id } });
+      assert.equal(unchanged?.status, DeliveryStatus.WAITING);
+    });
+  });
+});
+
 test('50 concurrent registrations for one time slot respect real slot capacity', async () => {
   await withRegisterServer(async (baseUrl) => {
     const prefix = nextPrefix('REGSLOT50');

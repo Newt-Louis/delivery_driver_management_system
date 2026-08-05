@@ -1,0 +1,74 @@
+import { useState } from 'react';
+import GoodsBadge from '../../../components/GoodsBadge';
+import type { DeliveryRegistration } from '../../../lib/types';
+import { VEHICLE_LABEL } from '../constants';
+import type { UnitKey } from '../types';
+import { getUnitMeta } from '../utils';
+
+export default function UpcomingSection({ deliveries, unit }: { deliveries: DeliveryRegistration[]; unit?: UnitKey }) {
+  const [open, setOpen] = useState(true);
+  if (deliveries.length === 0) return null;
+  const meta = unit ? getUnitMeta(unit) : null;
+
+  return (
+    <div className="mt-5">
+      <button
+        type="button"
+        className="flex items-center gap-2 text-sm font-semibold text-thiso-500 mb-2 hover:text-thiso-700"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span>{open ? '▼' : '▶'}</span>
+        <span>📋 Đã đặt — chưa check-in</span>
+        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta ? meta.badge : 'bg-gray-200 text-gray-600'}`}>
+          {deliveries.length}
+        </span>
+      </button>
+      {open && (
+        <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-thiso-50 text-xs text-thiso-400 uppercase border-b border-thiso-100 text-left">
+                <th className="px-4 py-2">Giờ đặt</th>
+                <th className="px-4 py-2">Biển số</th>
+                {!unit && <th className="px-4 py-2">Đơn vị</th>}
+                <th className="px-4 py-2">Nhà cung cấp</th>
+                <th className="px-4 py-2">Loại xe</th>
+                <th className="px-4 py-2">Hàng</th>
+                <th className="px-4 py-2">Mã ĐK</th>
+              </tr>
+            </thead>
+            <tbody>
+              {deliveries.map((delivery) => {
+                const deliveryMeta = getUnitMeta(delivery.receivingUnit);
+                const slot = delivery.requestedTime
+                  ? new Date(delivery.requestedTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                  : '—';
+                const isPast = delivery.requestedTime ? new Date(delivery.requestedTime) < new Date() : false;
+                return (
+                  <tr key={delivery.id} className={`border-b border-thiso-50 last:border-0 ${isPast ? 'bg-amber-50' : 'hover:bg-thiso-50'}`}>
+                    <td className="px-4 py-2.5">
+                      <span className={`font-mono font-bold ${isPast ? 'text-emart-600' : 'text-thiso-700'}`}>{slot}</span>
+                      {isPast && <div className="text-xs text-emart-400">Trễ slot</div>}
+                    </td>
+                    <td className="px-4 py-2.5 font-mono font-black text-thiso-800">{delivery.vehiclePlate}</td>
+                    {!unit && (
+                      <td className="px-4 py-2.5">
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${deliveryMeta.badge}`}>
+                          {deliveryMeta.icon} {deliveryMeta.label}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-4 py-2.5 text-thiso-600 truncate max-w-[140px]">{delivery.vendorName}</td>
+                    <td className="px-4 py-2.5 text-xs text-thiso-400">{VEHICLE_LABEL[delivery.vehicleType]}</td>
+                    <td className="px-4 py-2.5"><GoodsBadge type={delivery.goodsType} /></td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-thiso-400">{delivery.registrationCode}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
