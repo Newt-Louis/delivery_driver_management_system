@@ -8,8 +8,10 @@ Hệ thống có báo cáo lịch sử, tổng quan hiệu năng và phân tích
 
 Files:
 
-- `frontend/src/pages/Reports.tsx`
-- `frontend/src/pages/ReceivingTimes.tsx`
+- `frontend/src/pages/Reports.tsx`: route wrapper.
+- `frontend/src/features/reports/Reports.tsx`: implementation.
+- `frontend/src/pages/ReceivingTimes.tsx`: route wrapper.
+- `frontend/src/features/receiving-times/ReceivingTimes.tsx`: implementation.
 
 ## Backend APIs
 
@@ -81,6 +83,9 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 - Query param `unit=<unitCode>` vẫn được giữ để tương thích frontend/API cũ, nhưng backend chỉ map unit code này vào các `UnitConfig.id` nằm trong scope được phép. Không dùng `receivingUnit` làm lớp bảo mật chính.
 - `reportRepository.ts` dùng `unitConfigId` cho Prisma `where` và `unit_config_id`/`uc.id` trong raw SQL clause. Các group/report key có thể vẫn trả `receivingUnit` snapshot để không phá contract cũ, nhưng dữ liệu đầu vào đã được scope bằng `UnitConfig`.
 - Frontend `Reports.tsx` load filter unit từ `GET /api/units/configs`; label/export ưu tiên `UnitConfig.shortName/displayName`, fallback legacy chỉ dùng khi thiếu metadata.
+- Frontend `Reports.tsx` không giữ bảng label cố định cho `EMART`/`THISKYHALL`/`TENANT`; nếu API chưa trả label thì hiển thị mã unit gốc.
+- `GET /api/histories/delivery` và `GET /api/histories/audit` cũng áp dụng `businessLocationId` và `unitConfigId` operation scope. Delivery history response được enrich `unitConfig` rút gọn để bảng lịch sử render unit bằng metadata DB.
+- `GET /api/histories/delivery/:id/events` kiểm tra unit scope của history trước khi trả timeline; non-`SUPERADMIN` không được xem timeline của delivery history ngoài unit được cấp.
 - `routes/analytics.ts` là route mỏng; thống kê live average, analyze và accept recommendation nằm trong `backend/src/modules/analytics`.
 - Analytics routes dùng `authenticate + enforceScope`.
 - `analyticsService.ts` resolve danh sách `unitConfigIds` từ auth profile hiện tại:
@@ -89,7 +94,7 @@ Từ giai đoạn 3, danh sách lịch sử giao hàng đọc từ `delivery_his
 - `analyticsRepository.ts` lọc `ReceivingTimeConfig` và live delivery samples theo `unitConfigId`.
 - Live receiving time stats group theo `unit_config_id + receiving_unit + vehicle_type + goods_type`; `receiving_unit` chỉ còn là snapshot/compat label.
 - Response `GET /api/analytics/receiving-times` include `unitConfig` rút gọn để frontend render label/icon/màu theo dữ liệu DB.
-- Frontend `ReceivingTimes.tsx` group theo `unitConfigId` động. Các unit legacy `EMART/THISKYHALL/TENANT` chỉ là fallback khi config thiếu metadata.
+- Frontend `ReceivingTimes.tsx` group theo `unitConfigId` động và dùng `unitPresentation.ts` để render label/icon/màu. Các delivery/config legacy thiếu metadata fallback generic từ mã unit.
 - Date range trong reports cần thống nhất timezone VN nếu báo cáo theo ngày vận hành.
 - `ReceivingTimeConfig` mới có `unitConfigId`; unique mới theo `[unitConfigId, vehicleType, goodsType]` để tránh lẫn cấu hình giữa nhiều `BusinessLocation`.
 - Cột `unit` vẫn là code snapshot/compat cho report/API cũ.

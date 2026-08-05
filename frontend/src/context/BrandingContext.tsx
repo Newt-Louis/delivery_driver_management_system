@@ -38,16 +38,8 @@ const UNKNOWN_UNIT_FALLBACK: UnitBranding = {
   icon: '🏬',
 };
 
-// Static fallbacks — used until API responds and when fields are empty
-const LEGACY_UNIT_FALLBACKS: Record<string, UnitBranding> = {
-  EMART:      { displayName: 'Emart',             shortName: 'Emart',   description: 'Siêu thị',             logoUrl: null, primaryColor: '#FF9500', icon: '🏬' },
-  THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall', description: 'Trung tâm hội nghị', logoUrl: null, primaryColor: '#27A55E', icon: '🏢' },
-  TENANT:     { displayName: 'Thiso Mall', shortName: 'Mall',    description: 'Trung tâm thương mại',   logoUrl: null, primaryColor: '#1C1C1C', icon: '🏪' },
-};
-
-const UNIT_FALLBACKS = new Proxy(LEGACY_UNIT_FALLBACKS, {
-  get(target, prop: string) {
-    if (prop in target) return target[prop];
+const UNIT_FALLBACKS = new Proxy({} as Record<string, UnitBranding>, {
+  get(_target, prop: string) {
     return {
       ...UNKNOWN_UNIT_FALLBACK,
       displayName: prop,
@@ -64,11 +56,7 @@ const MALL_FALLBACK: MallBranding = {
 
 const INITIAL: BrandingData = {
   mall: MALL_FALLBACK,
-  units: {
-    EMART:      UNIT_FALLBACKS.EMART,
-    THISKYHALL: UNIT_FALLBACKS.THISKYHALL,
-    TENANT:     UNIT_FALLBACKS.TENANT,
-  },
+  units: {},
   isLoaded: false,
   refresh: () => {},
 };
@@ -88,10 +76,7 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
       const { mall, units } = res.data as { mall: MallBranding; units: Record<ReceivingUnit, UnitBranding> };
       // Merge with fallbacks so empty strings fall back gracefully
       const mergedUnits = {} as Record<ReceivingUnit, UnitBranding>;
-      const unitCodes = new Set<ReceivingUnit>([
-        ...Object.keys(LEGACY_UNIT_FALLBACKS),
-        ...Object.keys(units ?? {}),
-      ]);
+      const unitCodes = new Set<ReceivingUnit>(Object.keys(units ?? {}));
       for (const u of unitCodes) {
         const fb = UNIT_FALLBACKS[u];
         mergedUnits[u] = {

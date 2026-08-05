@@ -95,6 +95,9 @@ Superadmin master data:
 - `GET /api/superadmin/slots`
 - `GET /api/superadmin/goods-types`
 - `GET /api/superadmin/time-windows`
+- `GET/POST/PATCH/DELETE /api/superadmin/auto-warehouse-vendors`
+- `GET/POST/PATCH/DELETE /api/superadmin/devices`
+- `GET/POST/PATCH/DELETE /api/superadmin/receiving-time-configs`
 
 Module backend:
 
@@ -137,10 +140,28 @@ Register:
 - `frontend/src/features/register/steps/ScheduleStep.tsx`
 - `frontend/src/features/register/hooks/useRegisterForm.ts`
 
+Shared presentation:
+
+- `frontend/src/lib/unitPresentation.ts`
+
+`unitPresentation.ts` là helper dùng chung để render label, short name, icon, color và ticket prefix từ `UnitConfig` metadata. Khi một payload chỉ còn dữ liệu legacy hoặc thiếu metadata, helper sinh fallback generic từ mã unit thay vì map cứng theo `EMART`/`THISKYHALL`/`TENANT`. Các màn hình runtime như register, check-in, dashboard, docks, waiting screen, track, receiving times và histories nên dùng helper này khi cần hiển thị đơn vị.
+
+Các route page lớn của frontend giữ wrapper mỏng trong `frontend/src/pages/*`, còn implementation nằm trong feature folder:
+
+- `frontend/src/features/dashboard/Dashboard.tsx`
+- `frontend/src/features/docks/DockManagement.tsx`
+- `frontend/src/features/check-in/CheckIn.tsx`
+- `frontend/src/features/waiting-screen/WaitingScreen.tsx`
+- `frontend/src/features/track/Track.tsx`
+- `frontend/src/features/reports/Reports.tsx`
+- `frontend/src/features/receiving-times/ReceivingTimes.tsx`
+- `frontend/src/features/driver-view/DriverView.tsx`
+
 ## Quy Tắc Hiện Tại
 
 - Slot availability trong register tính theo tổng `Slot.maxCapacity` của các slot active, đúng vehicle type, không phải theo cột legacy `truckMaxPerSlot`/`motorbikeMaxPerSlot`.
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
+- Ticket prefix ưu tiên `UnitConfig.shortName`, sau đó `displayName`, sau đó mã `unit`; frontend không tự giữ bảng prefix cố định theo ba unit demo.
 - `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.
 - Non-`SUPERADMIN` phải đi qua `BusinessLocation` scope và `operationUnits` khi action resolve được `unitConfigId`.
 - Capacity không tách theo `goodsType`; goods type dùng cho eligibility, khung giờ và ưu tiên dispatch.

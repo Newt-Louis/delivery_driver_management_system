@@ -22,7 +22,6 @@ Files:
 - `frontend/src/features/backoffice/tabs/SlotsTab.tsx`
 - `frontend/src/features/backoffice/tabs/BrandTab.tsx`
 - `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`
-- `frontend/src/features/backoffice/tabs/UsersTab.tsx`
 - `frontend/src/features/backoffice/tabs/AWVendorTab.tsx`
 - `frontend/src/features/backoffice/components/SlotModal.tsx`
 - `frontend/src/pages/Superadmin.tsx`
@@ -48,7 +47,7 @@ Các tab cấu hình theo đơn vị không tự dựng danh sách unit ở fron
 - `SlotsTab`: filter hiển thị slot bằng `slot.zone.unitConfig.id`, không bằng text `assignedUnit`.
 - `AWVendorTab`: filter/tạo vendor bằng `unitConfigId`; backend tự lưu snapshot `unit` để tương thích public register.
 
-Các constant unit legacy như `EMART`, `THISKYHALL`, `TENANT` chỉ còn vai trò fallback hoặc tương thích dữ liệu cũ, không phải source of truth cho UI cấu hình mới.
+Các constant unit legacy như `EMART`, `THISKYHALL`, `TENANT` không còn là source of truth cho UI cấu hình mới. Khi cần presentation chung, frontend dùng `frontend/src/lib/unitPresentation.ts` để lấy label/icon/màu/prefix từ `UnitConfig` metadata và chỉ fallback generic khi payload thiếu metadata.
 
 ## Backend APIs
 
@@ -129,10 +128,10 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 - Zones và Slots: dữ liệu vận hành cụ thể thuộc Backoffice/ADMIN_LOC. `/superadmin` có thể đọc/audit system-wide khi cần, nhưng không phải bề mặt chính để ADMIN_LOC cấu hình zone/slot hằng ngày.
 - Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC` và `ADMIN_OPE` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.
 - Goods types và Time windows: dữ liệu vận hành theo `UnitConfig`; bề mặt cấu hình chính thuộc ADMIN_LOC trong Backoffice.
-- AW vendors: CRUD vendor kho tự động theo `unitConfigId`.
-- Devices: CRUD device registry theo `BusinessLocation`, không trả `deviceSecretHash`.
+- AW vendors: CRUD vendor kho tự động theo `unitConfigId`; form sửa không đổi `unitConfigId` để tránh di chuyển vendor qua unit khác ngoài luồng tạo mới.
+- Devices: CRUD device registry theo `BusinessLocation`, có thể rotate `deviceSecret` bằng field write-only khi sửa, không trả `deviceSecretHash`.
 - App configs: chỉnh JSON runtime config khi `isRuntimeEditable = true`; sensitive value bị mask.
-- Receiving time configs: dữ liệu cấu hình theo `unitConfigId + vehicleType + goodsType`; bề mặt cấu hình chính thuộc ADMIN_LOC, còn Superadmin dùng để quan sát/can thiệp system-wide khi cần.
+- Receiving time configs: CRUD cấu hình theo `unitConfigId + vehicleType + goodsType`; khi sửa chỉ đổi thời lượng cấu hình/đề xuất, không đổi unit/vehicle/goods để giữ unique key ổn định.
 
 Trong tab Users:
 

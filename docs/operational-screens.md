@@ -8,7 +8,8 @@ Ngoài register/check-in/dashboard, hệ thống có các màn hình vận hành
 
 Frontend:
 
-- `frontend/src/pages/WaitingScreen.tsx`
+- `frontend/src/pages/WaitingScreen.tsx`: route wrapper.
+- `frontend/src/features/waiting-screen/WaitingScreen.tsx`: implementation.
 
 Route:
 
@@ -41,7 +42,7 @@ Quy ước dữ liệu:
 
 - `GET /api/brand?businessLocationId=...` trả brand của `BusinessLocation` và danh sách `UnitConfig` active trong location đó ở object `units`.
 - `WaitingScreen` sinh tab/cột unit từ `brand.units`; nếu brand chưa có dữ liệu thì fallback từ unit của các delivery đang hiển thị.
-- Frontend không dùng danh sách `EMART`/`THISKYHALL`/`TENANT` làm source of truth nữa. Các key legacy chỉ còn là fallback label/icon khi gặp dữ liệu cũ thiếu brand.
+- Frontend không dùng danh sách `EMART`/`THISKYHALL`/`TENANT` làm source of truth nữa. Nhãn, màu, icon và ticket prefix đi qua `frontend/src/lib/unitPresentation.ts`; dữ liệu thiếu metadata được fallback generic từ mã unit.
 - `GET /api/deliveries/queue` khi có `businessLocationId` hoặc `unitConfigId` phải lọc bằng `DeliveryRegistration.unitConfigId` và slot thuộc `Zone -> UnitConfig`. Không fallback lỏng theo `receivingUnit` vì unit code có thể trùng giữa nhiều `BusinessLocation`.
 - Public queue vẫn là read-only; payload không chứa secret cấu hình unit.
 
@@ -49,7 +50,8 @@ Quy ước dữ liệu:
 
 Frontend:
 
-- `frontend/src/pages/Track.tsx`
+- `frontend/src/pages/Track.tsx`: route wrapper.
+- `frontend/src/features/track/Track.tsx`: implementation.
 
 Route:
 
@@ -71,15 +73,16 @@ Realtime:
 Quy ước dữ liệu:
 
 - `GET /api/track/:code` trả `unitConfig` của delivery và `assignedSlot.zone.unitConfig` nếu delivery đã được gọi vào slot.
-- Frontend ưu tiên `delivery.unitConfig.displayName/shortName/icon/logoUrl/primaryColor` để hiển thị đơn vị nhận hàng. `UNIT_LABEL` cũ chỉ còn là fallback cho delivery legacy chưa có `unitConfigId`.
+- Frontend ưu tiên `delivery.unitConfig.displayName/shortName/icon/logoUrl/primaryColor` để hiển thị đơn vị nhận hàng. Nếu delivery legacy chưa có `unitConfigId`, UI fallback generic từ snapshot `receivingUnit`.
 - Queue estimate trong `backend/src/services/trackRealtime.ts` dùng `delivery.unitConfigId` để tính vị trí chờ, tổng waiting, thời gian nhận hàng cấu hình và slot còn trống. Nếu delivery legacy chưa có `unitConfigId`, service mới fallback theo `receivingUnit`.
-- Ticket code hiện vẫn format bằng snapshot `receivingUnit + vehicleType + ticketNumber` để tương thích mã thẻ đã cấp.
+- Ticket code format bằng `UnitConfig.shortName/displayName` khi payload có metadata, sau đó mới fallback sang snapshot `receivingUnit + vehicleType + ticketNumber` để tương thích mã thẻ đã cấp.
 
 ## Dock Management
 
 Frontend:
 
-- `frontend/src/pages/DockManagement.tsx`
+- `frontend/src/pages/DockManagement.tsx`: route wrapper.
+- `frontend/src/features/docks/DockManagement.tsx`: implementation.
 - `frontend/src/components/DockCard.tsx`
 
 Route:
@@ -106,6 +109,7 @@ Mục đích:
 - Reconcile trạng thái slot khi cần sửa lệch dữ liệu vận hành.
 - Slot list được backend lọc theo `businessLocationId` và `operationUnits` của user hiện tại.
 - Frontend group slot theo `slot.zone.unitConfig` động, không dùng danh sách unit hardcode. Nếu dữ liệu legacy thiếu metadata thì UI fallback về `assignedUnit`.
+- `DockCard` dùng chung `unitPresentation.ts` để hiển thị unit trên từng slot card, thay vì giữ map label riêng trong component.
 
 ## Lưu Ý
 

@@ -1,14 +1,11 @@
 import type { ReceivingUnit } from '../../lib/types';
 
-export type UnitKey = 'EMART' | 'THISKYHALL' | 'TENANT';
-
 export type BackofficeTab =
   | 'slots'
   | 'zones'
   | 'units'
   | 'brand'
   | 'staff'
-  | 'users'
   | 'awvendors';
 
 export interface SystemUser {

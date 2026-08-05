@@ -8,7 +8,8 @@ Tài xế theo dõi hành trình tại `/track/:code`. Khi có thay đổi trạ
 
 Files:
 
-- `frontend/src/pages/Track.tsx`
+- `frontend/src/pages/Track.tsx`: route wrapper.
+- `frontend/src/features/track/Track.tsx`: implementation.
 - `frontend/src/lib/pwa.ts`
 - `frontend/src/lib/platform.ts`
 - `frontend/src/lib/chime.ts`
@@ -24,6 +25,7 @@ Chức năng:
 - Wake lock nếu trình duyệt hỗ trợ.
 - Audio/vibration khi được gọi vào slot.
 - Overlay xanh khi `CALLED`, dừng khi user bấm đóng.
+- Unit label/color/ticket prefix trên track dùng metadata `unitConfig` từ API khi có; nếu delivery legacy thiếu metadata thì fallback generic theo mã unit.
 
 API:
 

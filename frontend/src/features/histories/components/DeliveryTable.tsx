@@ -1,7 +1,8 @@
 import type { DeliveryHistoryItem, DeliverySortField, SortDir } from '../types';
-import { STATUS_LABEL, STATUS_COLOR, GOODS_LABEL, VEHICLE_LABEL, UNIT_LABEL } from '../constants';
+import { STATUS_LABEL, STATUS_COLOR, GOODS_LABEL, VEHICLE_LABEL } from '../constants';
 import { formatDateTime } from '../formatters';
 import { CellHeader, EmptyStateRow, Pagination, SortHeader } from './TableParts';
+import { unitPresentation } from '../../../lib/unitPresentation';
 
 interface DeliveryTableProps {
   items: DeliveryHistoryItem[];
@@ -26,7 +27,10 @@ export default function DeliveryTable({
     vendorName: { header: <CellHeader label="Nhà cung cấp" />, render: (d) => <span className="text-xs">{d.vendorName}</span> },
     driverName: { header: <CellHeader label="Tài xế" />, render: (d) => <span className="text-xs">{d.driverName}</span> },
     vehiclePlate: { header: <CellHeader label="Biển số" />, render: (d) => <span className="font-mono text-xs font-bold text-thiso-700">{d.vehiclePlate}</span> },
-    receivingUnit: { header: <SortHeader field="receivingUnit" label="Đơn vị nhận" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{UNIT_LABEL[d.receivingUnit] ?? d.receivingUnit}</span> },
+    receivingUnit: {
+      header: <SortHeader field="receivingUnit" label="Đơn vị nhận" sortField={sortField} sortDir={sortDir} onSort={onSort} />,
+      render: (d) => <span className="text-xs">{unitPresentation(d.receivingUnit, d.unitConfig).shortName}</span>,
+    },
     goodsType: { header: <SortHeader field="goodsType" label="Loại hàng" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{GOODS_LABEL[d.goodsType] ?? d.goodsType}</span> },
     vehicleType: { header: <SortHeader field="vehicleType" label="Loại xe" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType}</span> },
     finalStatus: { header: <SortHeader field="finalStatus" label="Trạng thái" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLOR[d.finalStatus] ?? 'bg-thiso-100 text-thiso-600'}`}>{STATUS_LABEL[d.finalStatus] ?? d.finalStatus}</span> },

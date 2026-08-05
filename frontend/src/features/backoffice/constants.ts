@@ -1,12 +1,6 @@
 import type { GoodsType } from '../../lib/types';
 import type { BackofficeTab } from './types';
 
-export const UNIT_LABELS: Record<string, string> = {
-  EMART: 'Emart',
-  THISKYHALL: 'Thiskyhall',
-  TENANT: 'Mall (Khách thuê)',
-};
-
 export const VEHICLE_LABEL: Record<string, string> = {
   TRUCK: '🚛 Xe Tải',
   MOTORBIKE: '🛵 Xe Máy',
@@ -34,25 +28,18 @@ export const GOODS_LABELS: Record<GoodsType, string> = {
   THI_CONG: '🔨 Thi công',
 };
 
-export const UNIT_ICONS: Record<string, string> = {
-  EMART: '🏬',
-  THISKYHALL: '🏢',
-  TENANT: '🏪',
-};
-
 export const BACKOFFICE_TABS: readonly [BackofficeTab, string][] = [
   ['slots', '🚪 Quản lý Slot'],
   ['zones', '🗺 Quản lý Khu'],
   ['units', '⚙ Cấu hình Đơn vị'],
   ['brand', '🎨 Thương hiệu'],
   ['staff', '👷 Nhân viên'],
-  ['users', '👤 Người dùng'],
   ['awvendors', '🏭 Kho tự động'],
 ];
 
 export function allowedBackofficeTabs(role?: string): BackofficeTab[] {
   if (role === 'SUPERADMIN') return BACKOFFICE_TABS.map(([tab]) => tab).filter((tab) => tab !== 'staff');
-  if (role === 'ADMIN_LOC') return BACKOFFICE_TABS.map(([tab]) => tab).filter((tab) => tab !== 'users');
+  if (role === 'ADMIN_LOC') return BACKOFFICE_TABS.map(([tab]) => tab);
   return [];
 }
 
@@ -68,10 +55,4 @@ export const STAFF_ROLE_META: Record<string, { label: string; color: string; ico
   ADMIN_OPE: { label: 'Nhân viên điều phối', color: 'bg-orange-100 text-orange-700', icon: '🛠' },
   RECEIVING: { label: 'Nhân viên nhận hàng', color: 'bg-sky-100 text-sky-700', icon: '📦' },
   CHECKIN: { label: 'Nhân viên check-in', color: 'bg-amber-100 text-amber-700', icon: '🔐' },
-};
-
-export const UNIT_META_U: Record<string, string> = {
-  EMART: 'Emart',
-  THISKYHALL: 'Thiskyhall',
-  TENANT: 'Mall (Khách thuê)',
 };

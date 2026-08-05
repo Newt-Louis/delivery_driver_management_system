@@ -56,10 +56,10 @@ Hàm chính:
 File:
 
 - `frontend/src/context/SocketContext.tsx`
-- `frontend/src/pages/Dashboard.tsx`
-- `frontend/src/pages/WaitingScreen.tsx`
-- `frontend/src/pages/DockManagement.tsx`
-- `frontend/src/pages/Track.tsx`
+- `frontend/src/pages/Dashboard.tsx` -> `frontend/src/features/dashboard/Dashboard.tsx`
+- `frontend/src/pages/WaitingScreen.tsx` -> `frontend/src/features/waiting-screen/WaitingScreen.tsx`
+- `frontend/src/pages/DockManagement.tsx` -> `frontend/src/features/docks/DockManagement.tsx`
+- `frontend/src/pages/Track.tsx` -> `frontend/src/features/track/Track.tsx`
 
 `SocketContext`:
 

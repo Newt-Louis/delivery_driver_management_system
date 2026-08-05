@@ -13,7 +13,8 @@ Role `CHECKIN` chỉ làm nhiệm vụ:
 
 File:
 
-- `frontend/src/pages/CheckIn.tsx`
+- `frontend/src/pages/CheckIn.tsx`: route wrapper.
+- `frontend/src/features/check-in/CheckIn.tsx`: implementation.
 
 API đang dùng:
 
@@ -27,7 +28,7 @@ Chức năng:
 - Check-in lượt hợp lệ.
 - Xem danh sách xe đang chờ.
 - Export CSV danh sách waiting.
-- Label/màu đơn vị trên kết quả check-in và danh sách waiting ưu tiên `delivery.unitConfig`; fallback legacy theo `receivingUnit` chỉ dùng cho dữ liệu cũ thiếu `unitConfigId`.
+- Label/màu/ticket prefix đơn vị trên kết quả check-in và danh sách waiting đi qua `frontend/src/lib/unitPresentation.ts`, ưu tiên `delivery.unitConfig` và fallback generic theo `receivingUnit` nếu payload legacy thiếu metadata.
 
 Route:
 
@@ -67,7 +68,7 @@ Service:
   - Ghi event `CHECKED_IN` trong `delivery_history_events`.
 - `reserveTicketNumber()`
   - Cấp ticket atomic theo ngày VN + receiving unit + vehicle type.
-  - Ticket code vẫn format từ snapshot `receivingUnit + vehicleType + ticketNumber` để tương thích số thẻ đã cấp.
+  - Backend vẫn lưu sequence theo snapshot `receivingUnit + vehicleType + ngày` để tương thích số thẻ đã cấp; frontend format hiển thị bằng metadata unit khi API trả đủ `unitConfig`.
 
 ## Scope Unit Động
 

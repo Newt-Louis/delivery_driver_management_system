@@ -1,4 +1,4 @@
-import type { ReceivingUnit, GoodsType, VehicleType, DeliveryStatus } from '../../lib/types';
+import type { ReceivingUnit, GoodsType, VehicleType, DeliveryStatus, UnitConfig } from '../../lib/types';
 
 export type HistoryTab = 'delivery' | 'audit' | 'access';
 
@@ -10,6 +10,8 @@ export interface DeliveryHistoryItem {
   driverPhone: string;
   vehiclePlate: string;
   receivingUnit: ReceivingUnit;
+  unitConfigId: string | null;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'> | null;
   goodsType: GoodsType;
   vehicleType: VehicleType;
   autoWarehouse: boolean;

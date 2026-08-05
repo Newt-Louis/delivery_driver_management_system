@@ -1,16 +1,4 @@
-import type { GoodsType, Unit, VehicleType } from './types';
-
-export const UNIT_STYLE: Record<Unit, {
-  border: string;
-  bg: string;
-  activeBorder: string;
-  activeBg: string;
-  activeText: string;
-}> = {
-  EMART:      { border: 'border-thiso-200', bg: 'bg-white', activeBorder: 'border-emart-400', activeBg: 'bg-emart-50',   activeText: 'text-emart-700'  },
-  THISKYHALL: { border: 'border-thiso-200', bg: 'bg-white', activeBorder: 'border-sky-500',   activeBg: 'bg-sky-50',    activeText: 'text-sky-700'    },
-  TENANT:     { border: 'border-thiso-200', bg: 'bg-white', activeBorder: 'border-thiso-500', activeBg: 'bg-thiso-100', activeText: 'text-thiso-700'  },
-};
+import type { GoodsType, VehicleType } from './types';
 
 export const VEHICLE_INFO: Record<VehicleType, {
   label: string;

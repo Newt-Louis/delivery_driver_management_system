@@ -8,7 +8,6 @@ import ZonesTab from '../features/backoffice/tabs/ZonesTab';
 import UnitsTab from '../features/backoffice/tabs/UnitsTab';
 import BrandTab from '../features/backoffice/tabs/BrandTab';
 import StaffUsersTab from '../features/backoffice/tabs/StaffUsersTab';
-import UsersTab from '../features/backoffice/tabs/UsersTab';
 import AWVendorTab from '../features/backoffice/tabs/AWVendorTab';
 
 export default function Backoffice() {
@@ -36,8 +35,6 @@ export default function Backoffice() {
         return <BrandTab />;
       case 'staff':
         return <StaffUsersTab />;
-      case 'users':
-        return <UsersTab currentUserId={user?.id ?? ''} />;
       case 'awvendors':
         return <AWVendorTab />;
       default:

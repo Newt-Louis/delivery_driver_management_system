@@ -7,14 +7,8 @@ import { getDefaultBusinessLocation } from '../lib/businessLocation';
 
 const router = Router();
 
-const UNIT_DEFAULTS: Record<string, { displayName: string; shortName: string; description: string; primaryColor: string; icon: string }> = {
-  EMART:      { displayName: 'Emart',             shortName: 'Emart',    description: 'Siêu thị',              primaryColor: '#FF9500', icon: '🏬' },
-  THISKYHALL: { displayName: 'Thiskyhall',         shortName: 'Skyhall',  description: 'Trung tâm thương mại',  primaryColor: '#27A55E', icon: '🏢' },
-  TENANT:     { displayName: 'Mall (Khách thuê)', shortName: 'Mall',     description: 'Khu vực khách thuê',    primaryColor: '#1C1C1C', icon: '🏪' },
-};
-
 function fallbackUnitBrand(unit: string) {
-  return UNIT_DEFAULTS[unit] ?? {
+  return {
     displayName: unit,
     shortName: unit,
     description: '',

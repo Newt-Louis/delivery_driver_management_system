@@ -4,7 +4,8 @@ import type { VehicleAvailabilityOption } from '../api';
 import FieldFrame from '../components/FieldFrame';
 import ProcessGuide from '../components/ProcessGuide';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
-import { UNIT_STYLE, VEHICLE_INFO } from '../constants';
+import { VEHICLE_INFO } from '../constants';
+import { unitFallbackColor } from '../../../lib/unitPresentation';
 import type { FormState, RegisterFieldErrors, SetFormField, Unit } from '../types';
 
 type UnitGoodsVehicleStepProps = {
@@ -57,16 +58,6 @@ export default function UnitGoodsVehicleStep({
       description: unitConfig.description || legacyBrand?.description || unitConfig.shortName || unitConfig.unit,
       logoUrl: unitConfig.logoUrl ?? legacyBrand?.logoUrl ?? null,
       icon: unitConfig.icon || legacyBrand?.icon || '◆',
-    };
-  }
-
-  function unitStyle(unit: string) {
-    return UNIT_STYLE[unit] ?? {
-      border: 'border-thiso-200',
-      bg: 'bg-white',
-      activeBorder: 'border-thiso-500',
-      activeBg: 'bg-thiso-100',
-      activeText: 'text-thiso-700',
     };
   }
 
@@ -157,9 +148,9 @@ export default function UnitGoodsVehicleStep({
         {form.businessLocationId && !publicUnitsLoading && publicUnits.length > 0 && (
           <div className="space-y-2.5">
             {publicUnits.map((unitConfig) => {
-            const style = unitStyle(unitConfig.unit);
             const brand = unitBrand(unitConfig);
             const active = form.unitConfigId === unitConfig.id;
+            const color = unitConfig.primaryColor || unitFallbackColor(unitConfig.unit);
             return (
               <button
                 key={unitConfig.id}
@@ -173,8 +164,9 @@ export default function UnitGoodsVehicleStep({
                 }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left
                   ${active
-                    ? `${style.activeBorder} ${style.activeBg} shadow-card-md`
-                    : `${style.border} ${style.bg} hover:border-thiso-300`}`}
+                    ? 'shadow-card-md bg-white'
+                    : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
+                style={active ? { borderColor: color, backgroundColor: `${color}10` } : undefined}
               >
                 {brand.logoUrl ? (
                   <img src={brand.logoUrl} alt={brand.displayName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
@@ -182,11 +174,13 @@ export default function UnitGoodsVehicleStep({
                   <span className="text-3xl flex-shrink-0">{brand.icon}</span>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className={`font-bold text-base ${active ? style.activeText : 'text-thiso-800'}`}>{brand.displayName}</p>
+                  <p className="font-bold text-base text-thiso-800" style={active ? { color } : undefined}>{brand.displayName}</p>
                   <p className="text-xs text-thiso-400 mt-0.5">{brand.description}</p>
                 </div>
-                <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all
-                  ${active ? style.activeBorder : 'border-thiso-200'}`}>
+                <div
+                  className="w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all border-thiso-200"
+                  style={active ? { borderColor: color, color } : undefined}
+                >
                   {active && <div className="w-full h-full rounded-full bg-current opacity-60" />}
                 </div>
               </button>

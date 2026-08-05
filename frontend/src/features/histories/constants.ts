@@ -59,12 +59,6 @@ export const VEHICLE_LABEL: Record<string, string> = {
   OTHER: 'Khác',
 };
 
-export const UNIT_LABEL: Record<string, string> = {
-  EMART: 'Emart',
-  THISKYHALL: 'Thiskyhall',
-  TENANT: 'Mall (Khách thuê)',
-};
-
 export const ACTOR_TYPE_LABEL: Record<string, string> = {
   USER: 'Người dùng',
   STAFF: 'Nhân viên',

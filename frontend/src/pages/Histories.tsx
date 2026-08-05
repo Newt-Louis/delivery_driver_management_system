@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import api from '../lib/api';
 import { useDeliveryHistory } from '../features/histories/hooks/useDeliveryHistory';
 import { useAuditLogs } from '../features/histories/hooks/useAuditLogs';
-import { DELIVERY_COLUMNS, AUDIT_COLUMNS, DELIVERY_STORAGE_KEY, AUDIT_STORAGE_KEY, GOODS_LABEL, VEHICLE_LABEL, UNIT_LABEL } from '../features/histories/constants';
+import { DELIVERY_COLUMNS, AUDIT_COLUMNS, DELIVERY_STORAGE_KEY, AUDIT_STORAGE_KEY, GOODS_LABEL, VEHICLE_LABEL } from '../features/histories/constants';
 import type { DeliveryHistoryItem, AuditLogItem, HistoryTab } from '../features/histories/types';
+import type { UnitConfig } from '../lib/types';
 import ColumnToggle from '../features/histories/components/ColumnToggle';
 import DeliveryTable from '../features/histories/components/DeliveryTable';
 import AuditTable from '../features/histories/components/AuditTable';
@@ -33,6 +36,10 @@ export default function Histories() {
 
   // ─── Delivery tab ─────────────────────────────────────────────────────────
   const delivery = useDeliveryHistory();
+  const { data: units = [] } = useQuery<UnitConfig[]>({
+    queryKey: ['unit-configs'],
+    queryFn: async () => (await api.get('/api/units/configs')).data,
+  });
   const [deliveryVisible, setDeliveryVisible] = useState(() =>
     loadColumns(DELIVERY_STORAGE_KEY, DELIVERY_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
   );
@@ -112,7 +119,9 @@ export default function Histories() {
               </select>
               <select className="input text-sm py-1.5 min-w-[140px]" value={delivery.filters.receivingUnit} onChange={(e) => delivery.setFilter('receivingUnit', e.target.value)}>
                 <option value="">Tất cả đơn vị</option>
-                {Object.entries(UNIT_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                {units.map((unit) => (
+                  <option key={unit.id} value={unit.unit}>{unit.shortName || unit.displayName || unit.unit}</option>
+                ))}
               </select>
               <select className="input text-sm py-1.5 min-w-[140px]" value={delivery.filters.goodsType} onChange={(e) => delivery.setFilter('goodsType', e.target.value)}>
                 <option value="">Tất cả loại hàng</option>

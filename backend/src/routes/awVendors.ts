@@ -96,7 +96,7 @@ router.get('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC
   })());
 }));
 
-// GET /api/aw-vendors/check?code=xxx&unit=EMART&unitConfigId=... — public, check active vendor code
+// GET /api/aw-vendors/check?code=xxx&unit=<unit-code>&unitConfigId=... — public, check active vendor code
 router.get('/check', asyncHandler(async (req: Request, res: Response) => {
   const { code, unit, unitConfigId, businessLocationId } = req.query as {
     code?: string;

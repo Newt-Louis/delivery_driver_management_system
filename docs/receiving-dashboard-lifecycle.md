@@ -18,16 +18,17 @@ Lifecycle chuẩn:
 
 File:
 
-- `frontend/src/pages/Dashboard.tsx`
+- `frontend/src/pages/Dashboard.tsx`: route wrapper.
+- `frontend/src/features/dashboard/Dashboard.tsx`: implementation.
 - `frontend/src/components/StatusBadge.tsx`
 - `frontend/src/components/GoodsBadge.tsx`
 
 Ghi chú kiến trúc frontend:
 
-- Dashboard hiện vẫn là page lớn legacy, nhưng tab unit đã đi theo payload động từ backend.
+- Dashboard implementation hiện nằm trong feature folder để page route mỏng hơn.
 - Tab `Tất cả` aggregate từ các unit backend trả về.
-- Unit cũ như `EMART`, `THISKYHALL`, `TENANT` chỉ còn là fallback hiển thị cho dữ liệu demo/legacy. Unit mới phải lấy nhãn/icon/branding từ `UnitConfig`.
-- Phase refactor tiếp theo cần tách Dashboard thành `features/dashboard/api.ts`, `types.ts`, `hooks` và `components` để giảm monolith.
+- Unit label/icon/color/ticket prefix dùng `frontend/src/lib/unitPresentation.ts`, ưu tiên metadata từ `UnitConfig` trong payload backend.
+- Dashboard không còn tự dựng UI bằng danh sách unit demo cố định; backend trả unit nào trong scope thì frontend sinh tab/card tương ứng.
 
 API:
 

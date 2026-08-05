@@ -80,12 +80,12 @@ export default function Login() {
           <div className="text-thiso-400 text-sm tracking-wider uppercase">{mall.tagline ?? 'Delivery Management System'}</div>
 
           <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-            {(['EMART', 'THISKYHALL', 'TENANT'] as const).map((u) => (
-              <div key={u} className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1">
-                {units[u]?.logoUrl ? (
-                  <img src={units[u].logoUrl!} alt={units[u].shortName} className="w-4 h-4 rounded object-contain" />
+            {Object.entries(units).map(([code, unit]) => (
+              <div key={code} className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1">
+                {unit.logoUrl ? (
+                  <img src={unit.logoUrl} alt={unit.shortName} className="w-4 h-4 rounded object-contain" />
                 ) : null}
-                <span className="text-[11px] font-bold text-white tracking-wider">{units[u]?.shortName?.toUpperCase() || u}</span>
+                <span className="text-[11px] font-bold text-white tracking-wider">{unit.shortName?.toUpperCase() || code}</span>
               </div>
             ))}
           </div>

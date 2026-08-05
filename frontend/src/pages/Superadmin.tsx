@@ -145,11 +145,11 @@ export default function Superadmin() {
       case 'awvendors':
         return <AwVendorsTab vendors={vendors.data ?? []} units={allUnits} onRefresh={refreshActiveTab} />;
       case 'devices':
-        return <DevicesTab devices={devices.data ?? []} />;
+        return <DevicesTab devices={devices.data ?? []} locations={allLocations} onRefresh={refreshActiveTab} />;
       case 'appconfigs':
         return <AppConfigsTab appConfigs={appConfigs.data ?? []} onRefresh={refreshActiveTab} />;
       case 'receivingTimes':
-        return <ReceivingTimesTab receivingTimes={receivingTimes.data ?? []} />;
+        return <ReceivingTimesTab receivingTimes={receivingTimes.data ?? []} units={allUnits} onRefresh={refreshActiveTab} />;
       default:
         return null;
     }

@@ -6,14 +6,19 @@ import { getTrackDelivery } from '../services/trackRealtime';
 import { publicLookupLimiter } from '../middleware/rateLimit';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
-const UNIT_TICKET_PREFIX: Record<string, string> = {
-  EMART: 'EMART', THISKYHALL: 'THISKY', TENANT: 'MALL',
-};
 const VT_TICKET_PREFIX: Record<string, string> = {
   TRUCK: 'T', MOTORBIKE: 'M', OTHER: 'X',
 };
+function normalizeTicketPrefix(value: string): string {
+  const normalized = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+  return normalized || 'UNIT';
+}
 export function formatTicketCode(unit: string, vehicleType: string, n: number): string {
-  const up = UNIT_TICKET_PREFIX[unit] ?? unit;
+  const up = normalizeTicketPrefix(unit);
   const vp = VT_TICKET_PREFIX[vehicleType] ?? 'X';
   return `${up}-${vp}${String(n).padStart(3, '0')}`;
 }

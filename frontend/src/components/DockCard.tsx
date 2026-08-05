@@ -1,16 +1,11 @@
 import type { Slot } from '../lib/types';
+import { unitPresentation } from '../lib/unitPresentation';
 
 const STATUS_CONFIG = {
   AVAILABLE: { label: 'Trống', className: 'bg-green-50 border-green-300 text-green-800' },
   OCCUPIED: { label: 'Đang dùng', className: 'bg-red-50 border-red-300 text-red-800' },
   RESERVED: { label: 'Đặt trước', className: 'bg-yellow-50 border-yellow-300 text-yellow-800' },
   MAINTENANCE: { label: 'Bảo trì', className: 'bg-gray-100 border-gray-300 text-gray-600' },
-};
-
-const UNIT_LABELS: Record<string, string> = {
-  EMART: 'Emart',
-  THISKYHALL: 'Thiskyhall',
-  TENANT: 'Mall (Khách thuê)',
 };
 
 const VEHICLE_BADGE: Record<string, string> = {
@@ -34,6 +29,7 @@ interface Props {
 
 export default function DockCard({ slot, onStatusChange, canEdit }: Props) {
   const cfg = STATUS_CONFIG[slot.status] ?? STATUS_CONFIG.AVAILABLE;
+  const unit = unitPresentation(slot.assignedUnit, slot.zone?.unitConfig);
   const activeDeliveries = slot.deliveries?.filter(
     (d) => d.status === 'CALLED' || d.status === 'RECEIVING' || d.status === 'AUTO_WAREHOUSE_RECEIVING',
   ) ?? [];
@@ -60,7 +56,7 @@ export default function DockCard({ slot, onStatusChange, canEdit }: Props) {
             )}
           </div>
           <div className="text-sm opacity-80">{slot.name}</div>
-          <div className="text-xs mt-1 font-medium">{UNIT_LABELS[slot.assignedUnit]}</div>
+          <div className="text-xs mt-1 font-medium">{unit.shortName || unit.label}</div>
         </div>
         <span className="text-xs font-semibold px-2 py-1 rounded-full bg-white bg-opacity-60">
           {cfg.label}

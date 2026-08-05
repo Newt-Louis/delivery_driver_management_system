@@ -15,8 +15,16 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
   const where: Prisma.DeliveryHistoryWhereInput = {};
 
   // Scope
-  if (req.user?.role !== 'SUPERADMIN' && req.user?.businessLocationId) {
-    where.businessLocationId = req.user.businessLocationId;
+  if (req.scope?.businessLocationId) {
+    where.businessLocationId = req.scope.businessLocationId;
+  }
+  const operationUnitIds = req.user?.role === 'SUPERADMIN'
+    ? undefined
+    : req.user?.operationUnits?.filter((unit) => unit.isActive).map((unit) => unit.id);
+  if (req.scope?.unitConfigId) {
+    where.unitConfigId = req.scope.unitConfigId;
+  } else if (operationUnitIds) {
+    where.unitConfigId = operationUnitIds.length > 0 ? { in: operationUnitIds } : '__NO_UNIT_SCOPE__';
   }
 
   // Date range
@@ -60,6 +68,7 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
         driverPhone: true,
         vehiclePlate: true,
         receivingUnit: true,
+        unitConfigId: true,
         goodsType: true,
         vehicleType: true,
         autoWarehouse: true,
@@ -86,8 +95,29 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
     prisma.deliveryHistory.count({ where }),
   ]);
 
+  const unitConfigIds = [...new Set(items.map((item) => item.unitConfigId).filter(Boolean))] as string[];
+  const unitConfigs = unitConfigIds.length
+    ? await prisma.unitConfig.findMany({
+        where: { id: { in: unitConfigIds } },
+        select: {
+          id: true,
+          unit: true,
+          displayName: true,
+          shortName: true,
+          icon: true,
+          logoUrl: true,
+          primaryColor: true,
+          businessLocationId: true,
+        },
+      })
+    : [];
+  const unitConfigById = new Map(unitConfigs.map((unit) => [unit.id, unit]));
+
   res.json({
-    items,
+    items: items.map((item) => ({
+      ...item,
+      unitConfig: item.unitConfigId ? unitConfigById.get(item.unitConfigId) ?? null : null,
+    })),
     total,
     page: form.page,
     limit: form.limit,
@@ -100,13 +130,20 @@ router.get('/delivery', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
 router.get('/delivery/:id/events', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
   const history = await prisma.deliveryHistory.findUnique({
     where: { id: req.params.id },
-    select: { businessLocationId: true },
+    select: { businessLocationId: true, unitConfigId: true },
   });
   if (!history) {
     res.status(404).json({ error: 'Không tìm thấy bản ghi lịch sử.' });
     return;
   }
   if (!enforceResourceScope(req, res, history.businessLocationId)) return;
+  if (req.user?.role !== 'SUPERADMIN') {
+    const allowed = req.user?.operationUnits?.some((unit) => unit.isActive && unit.id === history.unitConfigId);
+    if (!allowed) {
+      res.status(403).json({ error: 'Bạn không có quyền xem lịch sử của đơn vị này.' });
+      return;
+    }
+  }
 
   const events = await prisma.deliveryHistoryEvent.findMany({
     where: { deliveryHistoryId: req.params.id },
@@ -136,8 +173,16 @@ router.get('/audit', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMI
   const where: Prisma.AuditLogWhereInput = {};
 
   // Scope
-  if (req.user?.role !== 'SUPERADMIN' && req.user?.businessLocationId) {
-    where.businessLocationId = req.user.businessLocationId;
+  if (req.scope?.businessLocationId) {
+    where.businessLocationId = req.scope.businessLocationId;
+  }
+  const operationUnitIds = req.user?.role === 'SUPERADMIN'
+    ? undefined
+    : req.user?.operationUnits?.filter((unit) => unit.isActive).map((unit) => unit.id);
+  if (req.scope?.unitConfigId) {
+    where.unitConfigId = req.scope.unitConfigId;
+  } else if (operationUnitIds) {
+    where.unitConfigId = operationUnitIds.length > 0 ? { in: operationUnitIds } : '__NO_UNIT_SCOPE__';
   }
 
   // Date range
