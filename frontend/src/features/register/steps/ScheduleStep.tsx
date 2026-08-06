@@ -76,7 +76,7 @@ export default function ScheduleStep({
         </div>
       )}
 
-      <FieldFrame field="timeSlot" highlightedField={highlightedField}>
+      <FieldFrame field="timeSlot" highlightedField={highlightedField} variant="choice">
         <p className="label">Chọn khung giờ <span className="text-red-400">*</span></p>
 
         {slotsLoading && (

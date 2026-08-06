@@ -35,6 +35,7 @@ export interface SuccessInfo {
   goodsTypeName: string;
   vehicleType: VehicleType | '';
   requestedTime: string;
+  locationName: string;
 }
 
 export type RegisterFieldErrors = Partial<Record<keyof FormState, string>>;

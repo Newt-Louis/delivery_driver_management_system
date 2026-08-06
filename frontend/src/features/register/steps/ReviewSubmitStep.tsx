@@ -7,6 +7,7 @@ type ReviewSubmitStepProps = {
   form: FormState;
   unitConfig: UnitConfig | null;
   brandUnits: Record<Unit, UnitBranding>;
+  locationName: string;
   awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
   awVendorName: string;
   submitError: string;
@@ -18,6 +19,7 @@ export default function ReviewSubmitStep({
   form,
   unitConfig,
   brandUnits,
+  locationName,
   awStatus,
   awVendorName,
   submitError,
@@ -38,6 +40,7 @@ export default function ReviewSubmitStep({
         </div>
         <div className="divide-y divide-thiso-100">
           {[
+            ...(locationName ? [{ icon: '📍', label: 'Khu vực giao hàng', value: locationName }] : []),
             { icon: '🏢', label: 'Đơn vị nhận', value: `${unitIcon} ${unitDisplayName}` },
             { icon: '📦', label: 'Loại hàng', value: GOODS_LABEL[form.goodsType] ?? form.goodsType },
             { icon: '🚗', label: 'Biển số xe', value: form.vehiclePlate, mono: true },

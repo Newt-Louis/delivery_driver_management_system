@@ -77,7 +77,7 @@ export default function UnitGoodsVehicleStep({
 
       {guideOpen && <ProcessGuide onDismiss={onDismissGuide} />}
 
-      <FieldFrame field="businessLocationId" highlightedField={highlightedField}>
+      <FieldFrame field="businessLocationId" highlightedField={highlightedField} variant="choice">
         <p className="label">Bạn giao hàng tại khu vực nào? <span className="text-red-400">*</span></p>
         {publicLocationsLoading && (
           <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
@@ -133,7 +133,7 @@ export default function UnitGoodsVehicleStep({
         {fieldErrors.businessLocationId && <FieldError text={fieldErrors.businessLocationId} />}
       </FieldFrame>
 
-      <FieldFrame field="receivingUnit" highlightedField={highlightedField}>
+      <FieldFrame field="receivingUnit" highlightedField={highlightedField} variant="choice">
         <p className="label">Bạn giao hàng đến đâu? <span className="text-red-400">*</span></p>
         {!form.businessLocationId && (
           <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
@@ -197,7 +197,7 @@ export default function UnitGoodsVehicleStep({
       </FieldFrame>
 
       {form.receivingUnit && (
-        <FieldFrame field="goodsType" highlightedField={highlightedField} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <FieldFrame field="goodsType" highlightedField={highlightedField} variant="choice" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
           <p className="label">Loại hàng bạn giao <span className="text-red-400">*</span></p>
           {!unitConfig && <p className="text-xs text-thiso-400 py-2">Đang tải...</p>}
           {unitConfig && (
@@ -274,7 +274,7 @@ export default function UnitGoodsVehicleStep({
       )}
 
       {form.goodsType && (
-        <FieldFrame field="vehicleType" highlightedField={highlightedField} className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+        <FieldFrame field="vehicleType" highlightedField={highlightedField} variant="choice" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
           <p className="label">Loại phương tiện <span className="text-red-400">*</span></p>
           {vehicleAvailabilityLoading && (
             <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">

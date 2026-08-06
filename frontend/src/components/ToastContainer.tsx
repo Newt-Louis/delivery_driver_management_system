@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useToasts, type Toast, type ToastType } from '../context/ToastContext';
 
@@ -13,13 +13,11 @@ type Phase = 'entering' | 'visible' | 'exiting';
 
 function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) {
   const [phase, setPhase] = useState<Phase>('entering');
-  const startedRef = useRef(false);
   const s = TYPE_STYLES[toast.type];
 
   useEffect(() => {
-    if (startedRef.current) return;
-    startedRef.current = true;
-
+    // RAF ensures the 'entering' state is painted before transitioning to 'visible'.
+    // Cleanup cancels both RAF and timer if the component unmounts early (e.g. Strict Mode double-invoke).
     const raf = requestAnimationFrame(() => setPhase('visible'));
     const timer = setTimeout(() => {
       setPhase('exiting');

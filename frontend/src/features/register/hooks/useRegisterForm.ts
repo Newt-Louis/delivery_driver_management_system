@@ -370,6 +370,7 @@ export function useRegisterForm() {
         deliveryDate: form.deliveryDate,
         note: form.note || undefined,
       });
+      const selectedLocation = publicLocations.find((l) => l.id === form.businessLocationId);
       setSuccess({
         code: res.registrationCode,
         vehiclePlate: plate,
@@ -385,6 +386,7 @@ export function useRegisterForm() {
         requestedTime: form.timeSlot === 'OTHER'
           ? `Ngày ${form.deliveryDate.split('-').reverse().join('/')} (không có giờ cụ thể)`
           : `${form.timeSlot} ngày ${form.deliveryDate.split('-').reverse().join('/')}`,
+        locationName: selectedLocation?.locationName ?? '',
       });
     } catch (err: unknown) {
       const d = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data;

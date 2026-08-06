@@ -51,6 +51,7 @@ export default function Register() {
   } = useRegisterForm();
 
   const { units: brandUnits } = useBranding();
+  const selectedLocation = publicLocations.find((l) => l.id === form.businessLocationId);
   const slotMinutes = form.vehicleType === 'MOTORBIKE' ? unitConfig?.motorbikeSlotMinutes : unitConfig?.truckSlotMinutes;
   const maxPerSlot = slots.find((slot) => !slot.isPast)?.maxPerSlot ?? slots[0]?.maxPerSlot;
 
@@ -153,6 +154,7 @@ export default function Register() {
             form={form}
             unitConfig={unitConfig}
             brandUnits={brandUnits}
+            locationName={selectedLocation?.locationName ?? ''}
             awStatus={awStatus}
             awVendorName={awVendorName}
             submitError={submitError}

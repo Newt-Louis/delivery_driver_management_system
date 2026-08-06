@@ -9,6 +9,7 @@ export default function DeliveryInfoCard({ delivery, unitMeta }: {
   unitMeta: UnitMeta;
 }) {
   const rows = [
+    ...(delivery.locationName ? [{ label: 'Khu vực giao hàng', value: delivery.locationName }] : []),
     { label: 'Biển số xe',   value: delivery.vehiclePlate, mono: true },
     { label: 'Tài xế',       value: delivery.driverName },
     { label: 'Nhà cung cấp', value: delivery.vendorName },

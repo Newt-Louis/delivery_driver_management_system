@@ -15,6 +15,9 @@ const TRACK_INCLUDE = {
       primaryColor: true,
       truckSlotMinutes: true,
       motorbikeSlotMinutes: true,
+      businessLocation: {
+        select: { locationName: true },
+      },
     },
   },
   assignedSlot: {
@@ -129,7 +132,11 @@ export async function getTrackDelivery(registrationCode: string) {
     };
   }
 
-  return { ...delivery, queueInfo };
+  return {
+    ...delivery,
+    locationName: delivery.unitConfig?.businessLocation?.locationName ?? null,
+    queueInfo,
+  };
 }
 
 function hasTrackSubscribers(registrationCode: string): boolean {

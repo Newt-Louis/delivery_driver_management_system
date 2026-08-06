@@ -37,6 +37,7 @@ export interface TrackDelivery {
   receivingUnit: string;
   unitConfigId?: string | null;
   unitConfig?: TrackUnitConfig | null;
+  locationName: string | null;
   goodsType: string;
   vehicleType: string;
   poNumber: string | null;

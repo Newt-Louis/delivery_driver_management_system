@@ -44,11 +44,110 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     };
   }, [navigate, trackPath]);
 
-  function downloadQR() {
-    const a = document.createElement('a');
-    a.href = qrDataUrl;
-    a.download = `QR-${info.code}-${info.vehiclePlate}.png`;
-    a.click();
+  function downloadQRWithInfo() {
+    if (!qrDataUrl) return;
+
+    const rows: [string, string][] = [
+      ['Biển số', info.vehiclePlate],
+      ['Tài xế', info.driverName || '—'],
+      ['Nhà cung cấp', info.vendorName],
+      ['Loại hàng', info.goodsTypeName || GOODS_LABEL[info.goodsType] || String(info.goodsType)],
+      ['Giờ dự kiến', info.requestedTime],
+      ...(info.locationName ? [['Khu vực', info.locationName] as [string, string]] : []),
+    ];
+
+    const W = 400;
+    const PAD = 24;
+    const QR_SIZE = 200;
+    const ROW_H = 36;
+    const H = 20 + 30 + 24 + 12 + 50 + 16 + QR_SIZE + 20 + rows.length * ROW_H + 55 + 20;
+
+    const canvas = document.createElement('canvas');
+    const scale = 2;
+    canvas.width = W * scale;
+    canvas.height = H * scale;
+    const ctx = canvas.getContext('2d')!;
+    ctx.scale(scale, scale);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#1C1C1C';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(8, 8, W - 16, H - 16);
+
+    let cy = 20;
+
+    cy += 30;
+    ctx.fillStyle = '#1C1C1C';
+    ctx.font = 'bold 17px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Phiếu Đăng Ký Giao Hàng', W / 2, cy);
+
+    cy += 24;
+    ctx.font = '12px Arial, sans-serif';
+    ctx.fillStyle = '#818181';
+    ctx.fillText(
+      info.locationName ? `${unitDisplayName} · ${info.locationName}` : unitDisplayName,
+      W / 2, cy,
+    );
+
+    cy += 12;
+    ctx.fillStyle = '#f0f4ff';
+    ctx.fillRect(PAD, cy, W - PAD * 2, 50);
+    ctx.fillStyle = '#1C1C1C';
+    ctx.font = 'bold 26px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(info.code, W / 2, cy + 33);
+    cy += 66;
+
+    const qrY = cy;
+    const rowsStartY = cy + QR_SIZE + 20;
+
+    const qrImg = new Image();
+    qrImg.onload = () => {
+      ctx.drawImage(qrImg, (W - QR_SIZE) / 2, qrY, QR_SIZE, QR_SIZE);
+
+      let rowY = rowsStartY;
+      rows.forEach(([label, value]) => {
+        ctx.strokeStyle = '#ebebeb';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PAD, rowY);
+        ctx.lineTo(W - PAD, rowY);
+        ctx.stroke();
+
+        ctx.font = '12px Arial, sans-serif';
+        ctx.fillStyle = '#818181';
+        ctx.textAlign = 'left';
+        ctx.fillText(label, PAD, rowY + 24);
+
+        ctx.font = 'bold 12px Arial, sans-serif';
+        ctx.fillStyle = '#1C1C1C';
+        ctx.textAlign = 'right';
+        ctx.fillText(value, W - PAD, rowY + 24);
+
+        rowY += ROW_H;
+      });
+
+      ctx.strokeStyle = '#ebebeb';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, rowY);
+      ctx.lineTo(W - PAD, rowY);
+      ctx.stroke();
+
+      ctx.font = '11px Arial, sans-serif';
+      ctx.fillStyle = '#ababab';
+      ctx.textAlign = 'center';
+      ctx.fillText('Đưa QR cho bảo vệ scan để check-in', W / 2, rowY + 22);
+      ctx.fillText(trackUrl, W / 2, rowY + 38);
+
+      const a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = `Phieu-${info.code}-${info.vehiclePlate}.png`;
+      a.click();
+    };
+    qrImg.src = qrDataUrl;
   }
 
   function printTicket() {
@@ -62,6 +161,9 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     const logoHtml = unitLogoUrl
       ? `<img src="${unitLogoUrl}" style="width:32px;height:32px;object-fit:contain;vertical-align:middle;margin-right:6px"/>`
       : unitIcon;
+    const locationRow = info.locationName
+      ? `<div class="row"><span class="lbl">Khu vực</span><span class="val">${info.locationName}</span></div>`
+      : '';
     win.document.write(`<!DOCTYPE html><html><head>
 <meta charset="utf-8"/>
 <title>Phiếu ${info.code}</title>
@@ -86,6 +188,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 <div class="row"><span class="lbl">Nhà cung cấp</span><span class="val">${info.vendorName}</span></div>
 <div class="row"><span class="lbl">Loại hàng</span><span class="val">${info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</span></div>
 <div class="row"><span class="lbl">Giờ dự kiến</span><span class="val">${info.requestedTime}</span></div>
+${locationRow}
 <div class="footer">
   Đưa QR cho bảo vệ scan để check-in<br>
   Theo dõi: <span style="font-size:9px;color:#555">${trackUrl}</span>
@@ -161,7 +264,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 
         <div className="grid grid-cols-2 gap-2.5">
           <button
-            onClick={downloadQR}
+            onClick={downloadQRWithInfo}
             disabled={!qrDataUrl}
             className="h-11 flex items-center justify-center gap-2 bg-thiso-100 text-thiso-700 rounded-xl font-bold text-sm hover:bg-thiso-200 disabled:opacity-40 transition-colors"
           >
