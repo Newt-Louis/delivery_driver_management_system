@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
-import type { DeliveryTimeWindow, UnitGoodsType, UnitConfig, GoodsType } from '../../../lib/types';
+import type { DeliveryTimeWindow, /* UnitGoodsType, */ UnitConfig, GoodsType } from '../../../lib/types';
 
 interface UnitConfigFormData {
   freshFoodEnabled: boolean;
@@ -146,117 +146,120 @@ function TimeWindowEditor({
 }
 
 // ─── Goods Type Editor ───────────────────────────────────────────────────────
-// Each custom goods type row contains its own inline TimeWindowEditor.
-// When no custom types are configured, falls back to a single base-type window editor.
-
-function GoodsTypeEditor({ unit, baseType, editing }: { unit: string; baseType: GoodsType; editing: boolean }) {
-  const qc = useQueryClient();
-  const [addMode, setAddMode]   = useState(false);
-  const [newItem, setNewItem]   = useState({ emoji: '📦', name: '' });
-  const [editId, setEditId]     = useState<string | null>(null);
-  const [editItem, setEditItem] = useState<{ emoji: string; name: string } | null>(null);
-  const [saving, setSaving]     = useState(false);
-
-  const { data: items = [], isLoading } = useQuery<UnitGoodsType[]>({
-    queryKey: ['goods-types', unit, baseType],
-    queryFn: async () => (await api.get(`/api/units/${unit}/goods-types?all=1&baseType=${baseType}`)).data,
-  });
-
-  function invalidate() { qc.invalidateQueries({ queryKey: ['goods-types', unit, baseType] }); }
-
-  async function addItem() {
-    if (!newItem.name.trim()) return;
-    setSaving(true);
-    try {
-      await api.post(`/api/units/${unit}/goods-types`, { baseType, name: newItem.name.trim(), emoji: newItem.emoji || '📦' });
-      invalidate();
-      setAddMode(false);
-      setNewItem({ emoji: '📦', name: '' });
-    } finally { setSaving(false); }
-  }
-
-  async function saveEdit(id: string) {
-    if (!editItem) return;
-    setSaving(true);
-    try {
-      await api.patch(`/api/units/goods-types/${id}`, editItem);
-      invalidate();
-      setEditId(null); setEditItem(null);
-    } finally { setSaving(false); }
-  }
-
-  async function deleteItem(id: string) {
-    await api.delete(`/api/units/goods-types/${id}`);
-    invalidate();
-  }
-
-  async function toggleItem(item: UnitGoodsType) {
-    await api.patch(`/api/units/goods-types/${item.id}`, { enabled: !item.enabled });
-    invalidate();
-  }
-
-  if (isLoading) return <p className="text-xs text-thiso-400 py-1">Đang tải...</p>;
-
-  return (
-    <div className="space-y-2 mt-2">
-      {/* Per-custom-type rows, each with its own time window sub-editor */}
-      {items.map(item => (
-        <div key={item.id} className={`rounded-xl border p-2.5 space-y-2 ${item.enabled ? 'bg-white border-thiso-200' : 'bg-thiso-50 border-thiso-100 opacity-70'}`}>
-          {/* Item header */}
-          {editId === item.id && editItem ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <input type="text" value={editItem.emoji} onChange={e => setEditItem(v => ({ ...v!, emoji: e.target.value }))} className="input text-xs py-1 w-12 text-center" maxLength={4} />
-              <input type="text" value={editItem.name} onChange={e => setEditItem(v => ({ ...v!, name: e.target.value }))} placeholder="Tên loại hàng" className="input text-xs py-1 flex-1 min-w-0" />
-              <button onClick={() => saveEdit(item.id)} disabled={saving} className="text-xs px-2 py-1 bg-sky-600 text-white rounded-lg">Lưu</button>
-              <button onClick={() => { setEditId(null); setEditItem(null); }} className="text-xs px-2 py-1 border border-thiso-200 rounded-lg text-thiso-500">Hủy</button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-base leading-none">{item.emoji}</span>
-              <span className="text-sm font-medium text-thiso-800 flex-1">{item.name}</span>
-              {editing && (
-                <>
-                  <button onClick={() => toggleItem(item)} className={`text-[10px] px-1.5 py-0.5 rounded-full ${item.enabled ? 'bg-green-100 text-green-700' : 'bg-thiso-100 text-thiso-400'}`}>
-                    {item.enabled ? 'Bật' : 'Tắt'}
-                  </button>
-                  <button onClick={() => { setEditId(item.id); setEditItem({ emoji: item.emoji, name: item.name }); }} className="text-xs text-thiso-400 hover:text-sky-600 px-1">✏</button>
-                  <button onClick={() => deleteItem(item.id)} className="text-xs text-thiso-400 hover:text-red-500 px-1">✕</button>
-                </>
-              )}
-            </div>
-          )}
-          {/* Time windows scoped to this custom type */}
-          <div className="border-t border-thiso-100 pt-2 pl-1">
-            <p className="text-[10px] font-semibold text-thiso-400 uppercase tracking-wide mb-1">Khung giờ nhận hàng</p>
-            <TimeWindowEditor unit={unit} goodsType={baseType} unitGoodsTypeId={item.id} editing={editing} />
-          </div>
-        </div>
-      ))}
-
-      {/* Add new custom type button / inline form */}
-      {editing && (
-        addMode ? (
-          <div className="flex flex-wrap items-center gap-2 py-1.5 px-2 bg-sky-50 rounded-lg border border-sky-200">
-            <input type="text" value={newItem.emoji} onChange={e => setNewItem(v => ({ ...v, emoji: e.target.value }))} className="input text-xs py-1 w-12 text-center" maxLength={4} placeholder="📦" />
-            <input type="text" value={newItem.name} onChange={e => setNewItem(v => ({ ...v, name: e.target.value }))} placeholder="Tên loại hàng..." className="input text-xs py-1 flex-1 min-w-0" />
-            <button onClick={addItem} disabled={saving || !newItem.name.trim()} className="text-xs px-2 py-1 bg-sky-600 text-white rounded-lg whitespace-nowrap disabled:opacity-50">+ Thêm</button>
-            <button onClick={() => setAddMode(false)} className="text-xs px-2 py-1 border border-thiso-200 rounded-lg text-thiso-500">Hủy</button>
-          </div>
-        ) : (
-          <button onClick={() => setAddMode(true)} className="text-xs text-sky-600 hover:text-sky-700 font-semibold py-0.5">+ Thêm danh mục</button>
-        )
-      )}
-
-      {/* Fallback: base-type windows when no custom types are configured */}
-      {items.length === 0 && (
-        <div>
-          <p className="text-xs font-medium text-thiso-500 mb-1">Khung giờ nhận hàng</p>
-          <TimeWindowEditor unit={unit} goodsType={baseType} editing={editing} />
-        </div>
-      )}
-    </div>
-  );
-}
+// ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa.
+// Hệ thống chỉ dùng 3 loại hàng mặc định từ enum GoodsType
+// (FRESH_FOOD / GENERAL_GOODS / THI_CONG). Các API create/update/delete
+// goods-types đã bị chặn ở backend (routes/units.ts) nên toàn bộ component
+// này được tạm ẩn. Code bên dưới giữ lại để tham khảo khi mở khóa lại tính năng.
+//
+// function GoodsTypeEditor({ unit, baseType, editing }: { unit: string; baseType: GoodsType; editing: boolean }) {
+//   const qc = useQueryClient();
+//   const [addMode, setAddMode]   = useState(false);
+//   const [newItem, setNewItem]   = useState({ emoji: '📦', name: '' });
+//   const [editId, setEditId]     = useState<string | null>(null);
+//   const [editItem, setEditItem] = useState<{ emoji: string; name: string } | null>(null);
+//   const [saving, setSaving]     = useState(false);
+//
+//   const { data: items = [], isLoading } = useQuery<UnitGoodsType[]>({
+//     queryKey: ['goods-types', unit, baseType],
+//     queryFn: async () => (await api.get(`/api/units/${unit}/goods-types?all=1&baseType=${baseType}`)).data,
+//   });
+//
+//   function invalidate() { qc.invalidateQueries({ queryKey: ['goods-types', unit, baseType] }); }
+//
+//   async function addItem() {
+//     if (!newItem.name.trim()) return;
+//     setSaving(true);
+//     try {
+//       await api.post(`/api/units/${unit}/goods-types`, { baseType, name: newItem.name.trim(), emoji: newItem.emoji || '📦' });
+//       invalidate();
+//       setAddMode(false);
+//       setNewItem({ emoji: '📦', name: '' });
+//     } finally { setSaving(false); }
+//   }
+//
+//   async function saveEdit(id: string) {
+//     if (!editItem) return;
+//     setSaving(true);
+//     try {
+//       await api.patch(`/api/units/goods-types/${id}`, editItem);
+//       invalidate();
+//       setEditId(null); setEditItem(null);
+//     } finally { setSaving(false); }
+//   }
+//
+//   async function deleteItem(id: string) {
+//     await api.delete(`/api/units/goods-types/${id}`);
+//     invalidate();
+//   }
+//
+//   async function toggleItem(item: UnitGoodsType) {
+//     await api.patch(`/api/units/goods-types/${item.id}`, { enabled: !item.enabled });
+//     invalidate();
+//   }
+//
+//   if (isLoading) return <p className="text-xs text-thiso-400 py-1">Đang tải...</p>;
+//
+//   return (
+//     <div className="space-y-2 mt-2">
+//       {/* Per-custom-type rows, each with its own time window sub-editor */}
+//       {items.map(item => (
+//         <div key={item.id} className={`rounded-xl border p-2.5 space-y-2 ${item.enabled ? 'bg-white border-thiso-200' : 'bg-thiso-50 border-thiso-100 opacity-70'}`}>
+//           {/* Item header */}
+//           {editId === item.id && editItem ? (
+//             <div className="flex flex-wrap items-center gap-2">
+//               <input type="text" value={editItem.emoji} onChange={e => setEditItem(v => ({ ...v!, emoji: e.target.value }))} className="input text-xs py-1 w-12 text-center" maxLength={4} />
+//               <input type="text" value={editItem.name} onChange={e => setEditItem(v => ({ ...v!, name: e.target.value }))} placeholder="Tên loại hàng" className="input text-xs py-1 flex-1 min-w-0" />
+//               <button onClick={() => saveEdit(item.id)} disabled={saving} className="text-xs px-2 py-1 bg-sky-600 text-white rounded-lg">Lưu</button>
+//               <button onClick={() => { setEditId(null); setEditItem(null); }} className="text-xs px-2 py-1 border border-thiso-200 rounded-lg text-thiso-500">Hủy</button>
+//             </div>
+//           ) : (
+//             <div className="flex items-center gap-2">
+//               <span className="text-base leading-none">{item.emoji}</span>
+//               <span className="text-sm font-medium text-thiso-800 flex-1">{item.name}</span>
+//               {editing && (
+//                 <>
+//                   <button onClick={() => toggleItem(item)} className={`text-[10px] px-1.5 py-0.5 rounded-full ${item.enabled ? 'bg-green-100 text-green-700' : 'bg-thiso-100 text-thiso-400'}`}>
+//                     {item.enabled ? 'Bật' : 'Tắt'}
+//                   </button>
+//                   <button onClick={() => { setEditId(item.id); setEditItem({ emoji: item.emoji, name: item.name }); }} className="text-xs text-thiso-400 hover:text-sky-600 px-1">✏</button>
+//                   <button onClick={() => deleteItem(item.id)} className="text-xs text-thiso-400 hover:text-red-500 px-1">✕</button>
+//                 </>
+//               )}
+//             </div>
+//           )}
+//           {/* Time windows scoped to this custom type */}
+//           <div className="border-t border-thiso-100 pt-2 pl-1">
+//             <p className="text-[10px] font-semibold text-thiso-400 uppercase tracking-wide mb-1">Khung giờ nhận hàng</p>
+//             <TimeWindowEditor unit={unit} goodsType={baseType} unitGoodsTypeId={item.id} editing={editing} />
+//           </div>
+//         </div>
+//       ))}
+//
+//       {/* Add new custom type button / inline form */}
+//       {editing && (
+//         addMode ? (
+//           <div className="flex flex-wrap items-center gap-2 py-1.5 px-2 bg-sky-50 rounded-lg border border-sky-200">
+//             <input type="text" value={newItem.emoji} onChange={e => setNewItem(v => ({ ...v, emoji: e.target.value }))} className="input text-xs py-1 w-12 text-center" maxLength={4} placeholder="📦" />
+//             <input type="text" value={newItem.name} onChange={e => setNewItem(v => ({ ...v, name: e.target.value }))} placeholder="Tên loại hàng..." className="input text-xs py-1 flex-1 min-w-0" />
+//             <button onClick={addItem} disabled={saving || !newItem.name.trim()} className="text-xs px-2 py-1 bg-sky-600 text-white rounded-lg whitespace-nowrap disabled:opacity-50">+ Thêm</button>
+//             <button onClick={() => setAddMode(false)} className="text-xs px-2 py-1 border border-thiso-200 rounded-lg text-thiso-500">Hủy</button>
+//           </div>
+//         ) : (
+//           <button onClick={() => setAddMode(true)} className="text-xs text-sky-600 hover:text-sky-700 font-semibold py-0.5">+ Thêm danh mục</button>
+//         )
+//       )}
+//
+//       {/* Fallback: base-type windows when no custom types are configured */}
+//       {items.length === 0 && (
+//         <div>
+//           <p className="text-xs font-medium text-thiso-500 mb-1">Khung giờ nhận hàng</p>
+//           <TimeWindowEditor unit={unit} goodsType={baseType} editing={editing} />
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
 
 function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () => void }) {
   const unit = config.unit;
@@ -369,7 +372,14 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
             <span className="text-sm font-semibold text-green-700">🥬 Hàng tươi sống</span>
             {toggle('Kích hoạt', 'freshFoodEnabled')}
           </div>
-          {form.freshFoodEnabled && <GoodsTypeEditor unit={unit} baseType="FRESH_FOOD" editing={editing} />}
+          {/* ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa */}
+          {/* {form.freshFoodEnabled && <GoodsTypeEditor unit={unit} baseType="FRESH_FOOD" editing={editing} />} */}
+          {form.freshFoodEnabled && (
+            <div className="space-y-2 mt-2">
+              <p className="text-xs font-medium text-thiso-500 mb-1">Khung giờ nhận hàng</p>
+              <TimeWindowEditor unit={unit} goodsType="FRESH_FOOD" editing={editing} />
+            </div>
+          )}
           {toggle('Chủ nhật: chỉ nhận hàng tươi sống', 'sundayFreshFoodOnly')}
         </div>
 
@@ -379,7 +389,14 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
             <span className="text-sm font-semibold text-thiso-600">📦 Hàng thường</span>
             {toggle('Kích hoạt', 'generalGoodsEnabled')}
           </div>
-          {form.generalGoodsEnabled && <GoodsTypeEditor unit={unit} baseType="GENERAL_GOODS" editing={editing} />}
+          {/* ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa */}
+          {/* {form.generalGoodsEnabled && <GoodsTypeEditor unit={unit} baseType="GENERAL_GOODS" editing={editing} />} */}
+          {form.generalGoodsEnabled && (
+            <div className="space-y-2 mt-2">
+              <p className="text-xs font-medium text-thiso-500 mb-1">Khung giờ nhận hàng</p>
+              <TimeWindowEditor unit={unit} goodsType="GENERAL_GOODS" editing={editing} />
+            </div>
+          )}
         </div>
 
         {/* Thi Công */}
@@ -388,7 +405,14 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
             <span className="text-sm font-semibold text-amber-700">🔨 Thi công</span>
             {toggle('Kích hoạt', 'thiCongEnabled')}
           </div>
-          {form.thiCongEnabled && <GoodsTypeEditor unit={unit} baseType="THI_CONG" editing={editing} />}
+          {/* ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa */}
+          {/* {form.thiCongEnabled && <GoodsTypeEditor unit={unit} baseType="THI_CONG" editing={editing} />} */}
+          {form.thiCongEnabled && (
+            <div className="space-y-2 mt-2">
+              <p className="text-xs font-medium text-thiso-500 mb-1">Khung giờ nhận hàng</p>
+              <TimeWindowEditor unit={unit} goodsType="THI_CONG" editing={editing} />
+            </div>
+          )}
         </div>
 
         {/* Slot config */}

@@ -230,7 +230,7 @@ export default function UnitGoodsVehicleStep({
                         : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
                   >
                     <div className="text-2xl mb-2">🥬</div>
-                    <p className="font-bold text-sm text-thiso-800">Hàng tươi sống</p>
+                    <p className="font-bold text-sm text-thiso-800">Hàng tươi sống / mát / đông lạnh</p>
                     {unitConfig.sundayFreshFoodOnly && (
                       <span className="inline-block mt-1 text-[10px] bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full">Cả Chủ nhật</span>
                     )}

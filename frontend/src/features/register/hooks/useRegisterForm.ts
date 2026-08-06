@@ -7,7 +7,7 @@ import {
   getSlotAvailability,
   getOrderCodes,
   getUnitConfig,
-  getUnitGoodsTypes,
+  // getUnitGoodsTypes, ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa
   getVehicleAvailability,
   registerDelivery,
   type OrderCodeOption,
@@ -173,7 +173,9 @@ export function useRegisterForm() {
       return;
     }
     getUnitConfig(form.receivingUnit, selectedUnitScope).then(setUnitConfig).catch(() => {});
-    getUnitGoodsTypes(form.receivingUnit, selectedUnitScope).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
+    // ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa — chỉ dùng 3 loại mặc định từ enum GoodsType.
+    // getUnitGoodsTypes(form.receivingUnit, selectedUnitScope).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
+    setCustomGoodsTypes([]);
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId]);
 
   useEffect(() => {

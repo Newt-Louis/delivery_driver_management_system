@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, enforceScope, requireRole } from '../middleware/auth';
 import { sendDomainError } from '../modules/http/domainErrorResponse';
+import { domainError } from '../modules/shared/domainError';
 import { UnitFormRequest } from '../modules/units/unitFormRequest';
 import * as unitService from '../modules/units/unitService';
 import { publicReadLimiter } from '../middleware/rateLimit';
@@ -61,26 +62,21 @@ router.delete('/time-windows/:id', authenticate, enforceScope, requireRole('SUPE
   await respond(res, unitService.deleteTimeWindow(req.params.id, req.user, req.scope), 204);
 }));
 
-router.get('/:unit/goods-types', asyncHandler(async (req, res) => {
-  const unit = UnitFormRequest.parseUnit(req.params.unit);
-  const query = UnitFormRequest.parseGoodsTypeQuery(req.query);
-  const scope = UnitFormRequest.parsePublicUnitScopeQuery(req.query);
-  await respond(res, unitService.listGoodsTypes(unit, query, scope));
+// Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa — hệ thống chỉ dùng 3 loại mặc định từ enum GoodsType.
+router.get('/:unit/goods-types', asyncHandler(async (_req, res) => {
+  sendDomainError(res, domainError.forbidden('Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa'));
 }));
 
-router.post('/:unit/goods-types', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
-  const unit = UnitFormRequest.parseUnit(req.params.unit);
-  const body = UnitFormRequest.parseCreateGoodsType(req.body);
-  await respond(res, unitService.createGoodsType(unit, body, req.user, req.scope), 201);
+router.post('/:unit/goods-types', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (_req, res) => {
+  sendDomainError(res, domainError.forbidden('Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa'));
 }));
 
-router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
-  const body = UnitFormRequest.parseUpdateGoodsType(req.body);
-  await respond(res, unitService.updateGoodsType(req.params.id, body, req.user, req.scope));
+router.patch('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (_req, res) => {
+  sendDomainError(res, domainError.forbidden('Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa'));
 }));
 
-router.delete('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
-  await respond(res, unitService.deleteGoodsType(req.params.id, req.user, req.scope), 204);
+router.delete('/goods-types/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (_req, res) => {
+  sendDomainError(res, domainError.forbidden('Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa'));
 }));
 
 router.get('/:unit/config', asyncHandler(async (req, res) => {

@@ -1,5 +1,5 @@
 import api from '../../lib/api';
-import type { BusinessLocation, ReceivingUnit, UnitConfig, UnitGoodsType, SlotInfo, VehicleType, GoodsType } from '../../lib/types';
+import type { BusinessLocation, ReceivingUnit, UnitConfig, /* UnitGoodsType, */ SlotInfo, VehicleType, GoodsType } from '../../lib/types';
 
 export type SlotAvailabilityParams = {
   date: string;
@@ -61,10 +61,11 @@ export async function getUnitConfig(unit: ReceivingUnit, scope?: PublicUnitScope
   return res.data;
 }
 
-export async function getUnitGoodsTypes(unit: ReceivingUnit, scope?: PublicUnitScope): Promise<UnitGoodsType[]> {
-  const res = await api.get(`/api/units/${unit}/goods-types`, { params: scope });
-  return res.data;
-}
+// ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa — hệ thống chỉ dùng 3 loại mặc định từ enum GoodsType.
+// export async function getUnitGoodsTypes(unit: ReceivingUnit, scope?: PublicUnitScope): Promise<UnitGoodsType[]> {
+//   const res = await api.get(`/api/units/${unit}/goods-types`, { params: scope });
+//   return res.data;
+// }
 
 export async function getSlotAvailability(
   unit: ReceivingUnit,
