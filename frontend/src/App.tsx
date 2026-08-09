@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import CheckIn from './pages/CheckIn';
@@ -31,7 +32,7 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
 }
 
 export default function App() {
-  const { isAuthenticated, user, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
 
   // Pages that have their own full-screen layout — hide the global nav
@@ -116,7 +117,7 @@ export default function App() {
             </ProtectedRoute>
           }
         />
-        <Route path="/" element={isLoading ? null : <Navigate to={isAuthenticated ? homePathForRole(user?.role) : '/register'} replace />} />
+        <Route path="/" element={isLoading ? null : <Home />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </div>
