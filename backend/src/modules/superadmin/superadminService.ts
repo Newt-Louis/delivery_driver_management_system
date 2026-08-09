@@ -17,6 +17,7 @@ type UnitConfigUpdate = ReturnType<typeof SuperadminFormRequest.parseUnitConfigU
 type AutoWarehouseVendorCreate = ReturnType<typeof SuperadminFormRequest.parseAutoWarehouseVendorCreate>;
 type AutoWarehouseVendorUpdate = ReturnType<typeof SuperadminFormRequest.parseAutoWarehouseVendorUpdate>;
 type AppConfigUpdate = ReturnType<typeof SuperadminFormRequest.parseAppConfigUpdate>;
+type ApiConfigCreate = ReturnType<typeof SuperadminFormRequest.parseApiConfigCreate>;
 type ReceivingTimeConfigCreate = ReturnType<typeof SuperadminFormRequest.parseReceivingTimeConfigCreate>;
 type ReceivingTimeConfigUpdate = ReturnType<typeof SuperadminFormRequest.parseReceivingTimeConfigUpdate>;
 type DeviceCreate = ReturnType<typeof SuperadminFormRequest.parseDeviceCreate>;
@@ -513,6 +514,7 @@ export async function updateAppConfig(key: string, body: AppConfigUpdate, actor:
       value: json(body.value),
       ...(body.category !== undefined ? { category: body.category } : {}),
       ...(body.description !== undefined ? { description: body.description } : {}),
+      ...(body.isSensitive !== undefined ? { isSensitive: body.isSensitive } : {}),
       ...(body.isRuntimeEditable !== undefined ? { isRuntimeEditable: body.isRuntimeEditable } : {}),
     },
     create: {
@@ -520,6 +522,7 @@ export async function updateAppConfig(key: string, body: AppConfigUpdate, actor:
       category: body.category ?? 'system',
       value: json(body.value),
       description: body.description ?? '',
+      isSensitive: body.isSensitive ?? false,
       isRuntimeEditable: body.isRuntimeEditable ?? true,
     },
   });
@@ -600,4 +603,47 @@ export async function deleteReceivingTimeConfig(id: string, actor: AuthUser | un
     before: json(existing),
   });
   return { deleted: true };
+}
+
+export async function createApiConfig(body: ApiConfigCreate, actor: AuthUser | undefined) {
+  const key = `api.settings.${body.name}`;
+  const existing = await prisma.appConfig.findUnique({ where: { key } });
+  if (existing) throw domainError.conflict(`Key "${key}" đã tồn tại.`);
+
+  const value = json({
+    endpoint: body.endpoint,
+    method: body.method,
+    payload_keys: body.payload_keys,
+    auth: body.auth,
+  });
+
+  const config = await prisma.appConfig.create({
+    data: { key, value, category: body.category, description: body.description, isSensitive: body.isSensitive, isRuntimeEditable: body.isRuntimeEditable },
+  });
+
+  await invalidateAppConfigCache(key);
+  await recordAuditLog({
+    ...userActor(actor),
+    action: 'app_config.create',
+    targetType: 'AppConfig',
+    targetId: config.id,
+    after: json({ key: config.key, category: config.category }),
+  });
+  return maskAppConfig(config);
+}
+
+export async function deleteApiConfig(name: string, actor: AuthUser | undefined) {
+  const key = `api.settings.${name}`;
+  const existing = await prisma.appConfig.findUnique({ where: { key } });
+  if (!existing) throw domainError.notFound(`Config "${key}" không tồn tại.`);
+
+  await prisma.appConfig.delete({ where: { key } });
+  await invalidateAppConfigCache(key);
+  await recordAuditLog({
+    ...userActor(actor),
+    action: 'app_config.delete',
+    targetType: 'AppConfig',
+    targetId: existing.id,
+    before: json({ key: existing.key, category: existing.category }),
+  });
 }

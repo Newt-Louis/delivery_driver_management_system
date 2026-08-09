@@ -1,7 +1,6 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { DeliveryRegistration, DeliveryHistoryEventType, DeliveryStatus, Prisma, Slot } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { helperFunctions } from '../helperFunction';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 import { recordDeliveryEvent } from '../modules/history/historyService';
 import type { HistoryActor } from '../modules/history/types';
@@ -42,28 +41,6 @@ function getSlotMismatchMessage(delivery: DeliveryRegistration, slot: Slot): str
     return `Slot ${slot.code} nhận ${slot.vehicleType}, không nhận xe ${delivery.vehicleType}.`;
   }
   return null;
-}
-
-function currentTimeMinutes(now = new Date()) {
-  return now.getHours() * 60 + now.getMinutes();
-}
-
-async function unitHasOpenReceivingWindow(
-  tx: Prisma.TransactionClient,
-  unit: ReceivingUnitCode,
-  now = new Date(),
-): Promise<boolean> {
-  const nowMins = currentTimeMinutes(now);
-  const windows = await tx.deliveryTimeWindow.findMany({
-    where: { unit, enabled: true },
-    select: { startTime: true, endTime: true },
-  });
-
-  return windows.some((window) => {
-    const start = helperFunctions.timeToMinutes(window.startTime);
-    const end = helperFunctions.timeToMinutes(window.endTime);
-    return start <= nowMins && nowMins < end;
-  });
 }
 
 async function getDeliveryHomeLocationId(
@@ -192,15 +169,7 @@ export async function manualCallDelivery(args: {
           outcome: 'slot_full',
           delivery,
           slot,
-          message: `Slot ${slot.code} đang có xe, không thể mượn cho đơn vị khác.`,
-        };
-      }
-      if (await unitHasOpenReceivingWindow(tx, slot.assignedUnit)) {
-        return {
-          outcome: 'slot_unavailable',
-          delivery,
-          slot,
-          message: `Slot ${slot.code} đang trong khung giờ nhận hàng của ${slot.assignedUnit}.`,
+          message: `${slot.assignedUnit} slot đang không trống!`,
         };
       }
     }

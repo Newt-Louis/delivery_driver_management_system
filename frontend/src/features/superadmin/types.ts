@@ -58,6 +58,7 @@ export type SuperadminTab =
   | 'awvendors'
   | 'devices'
   | 'appconfigs'
+  | 'apiconfigs'
   | 'receivingTimes';
 
 export interface SuperadminData {

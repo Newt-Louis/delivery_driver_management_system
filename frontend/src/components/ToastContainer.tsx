@@ -4,7 +4,7 @@ import { useToasts, type Toast, type ToastType } from '../context/ToastContext';
 
 const TYPE_STYLES: Record<ToastType, { bg: string; border: string; icon: string; text: string }> = {
   success: { bg: 'bg-green-50',  border: 'border-green-400',  icon: '✓', text: 'text-green-800'  },
-  error:   { bg: 'bg-red-50',    border: 'border-red-400',    icon: '✕', text: 'text-red-800'    },
+  error:   { bg: 'bg-red-50',    border: 'border-red-400',    icon: '⊗', text: 'text-red-800'    },
   warning: { bg: 'bg-orange-50', border: 'border-orange-400', icon: '⚠', text: 'text-orange-800' },
   info:    { bg: 'bg-sky-50',    border: 'border-sky-400',    icon: 'ℹ', text: 'text-sky-800'    },
 };

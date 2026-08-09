@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { superadminApi } from '../features/superadmin/api';
 import type { SuperadminTab } from '../features/superadmin/types';
 import AppConfigsTab from '../features/superadmin/tabs/AppConfigsTab';
+import ApiConfigsTab from '../features/superadmin/tabs/ApiConfigsTab';
 import AwVendorsTab from '../features/superadmin/tabs/AwVendorsTab';
 import DevicesTab from '../features/superadmin/tabs/DevicesTab';
 import GoodsTypesTab from '../features/superadmin/tabs/GoodsTypesTab';
@@ -21,6 +22,7 @@ const TABS: Array<[SuperadminTab, string]> = [
   ['awvendors', 'AW vendors'],
   ['devices', 'Devices'],
   ['appconfigs', 'App configs'],
+  ['apiconfigs', 'API tích hợp'],
   ['receivingTimes', 'Receiving times'],
 ];
 
@@ -71,7 +73,7 @@ export default function Superadmin() {
     queryFn: () => superadminApi.devices({ businessLocationId: businessLocationId || undefined }),
     enabled: activeTab === 'devices',
   });
-  const appConfigs = useQuery({ queryKey: ['superadmin', 'appconfigs'], queryFn: superadminApi.appConfigs, enabled: activeTab === 'appconfigs' });
+  const appConfigs = useQuery({ queryKey: ['superadmin', 'appconfigs'], queryFn: superadminApi.appConfigs, enabled: activeTab === 'appconfigs' || activeTab === 'apiconfigs' });
   const receivingTimes = useQuery({
     queryKey: ['superadmin', 'receiving-times', businessLocationId, unitConfigId],
     queryFn: () => superadminApi.receivingTimeConfigs({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
@@ -109,6 +111,7 @@ export default function Superadmin() {
         queryClient.invalidateQueries({ queryKey: ['superadmin', 'devices'] });
         break;
       case 'appconfigs':
+      case 'apiconfigs':
         queryClient.invalidateQueries({ queryKey: ['superadmin', 'appconfigs'] });
         break;
       case 'receivingTimes':
@@ -147,7 +150,9 @@ export default function Superadmin() {
       case 'devices':
         return <DevicesTab devices={devices.data ?? []} locations={allLocations} onRefresh={refreshActiveTab} />;
       case 'appconfigs':
-        return <AppConfigsTab appConfigs={appConfigs.data ?? []} onRefresh={refreshActiveTab} />;
+        return <AppConfigsTab appConfigs={(appConfigs.data ?? []).filter((c) => !c.key.startsWith('api.settings.'))} onRefresh={refreshActiveTab} />;
+      case 'apiconfigs':
+        return <ApiConfigsTab apiConfigs={(appConfigs.data ?? []).filter((c) => c.key.startsWith('api.settings.'))} onRefresh={refreshActiveTab} />;
       case 'receivingTimes':
         return <ReceivingTimesTab receivingTimes={receivingTimes.data ?? []} units={allUnits} onRefresh={refreshActiveTab} />;
       default:

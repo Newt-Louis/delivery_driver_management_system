@@ -427,29 +427,29 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
         </div>
 
         {/* API config */}
-        <div className="bg-thiso-50 rounded-xl p-3 space-y-2">
-          <span className="text-sm font-semibold text-thiso-600">🔗 API Nhà cung cấp & PO</span>
-          <div>
-            <label className="text-xs text-gray-500">URL API Nhà cung cấp</label>
-            <input type="url" className="input text-sm py-1.5" placeholder="https://api.example.com/vendors" value={form.vendorApiUrl} onChange={(e) => setF('vendorApiUrl', e.target.value)} disabled={!editing} />
-          </div>
-          {editing && (
-            <div>
-              <label className="text-xs text-gray-500">API Key Nhà cung cấp (để trống nếu không đổi)</label>
-              <input type="password" className="input text-sm py-1.5" placeholder="••••••••" value={form.vendorApiKey} onChange={(e) => setF('vendorApiKey', e.target.value)} />
-            </div>
-          )}
-          <div>
-            <label className="text-xs text-gray-500">URL API PO</label>
-            <input type="url" className="input text-sm py-1.5" placeholder="https://api.example.com/po" value={form.poApiUrl} onChange={(e) => setF('poApiUrl', e.target.value)} disabled={!editing} />
-          </div>
-          {editing && (
-            <div>
-              <label className="text-xs text-gray-500">API Key PO (để trống nếu không đổi)</label>
-              <input type="password" className="input text-sm py-1.5" placeholder="••••••••" value={form.poApiKey} onChange={(e) => setF('poApiKey', e.target.value)} />
-            </div>
-          )}
-        </div>
+        {/*<div className="bg-thiso-50 rounded-xl p-3 space-y-2">*/}
+        {/*  <span className="text-sm font-semibold text-thiso-600">🔗 API Nhà cung cấp & PO</span>*/}
+        {/*  <div>*/}
+        {/*    <label className="text-xs text-gray-500">URL API Nhà cung cấp</label>*/}
+        {/*    <input type="url" className="input text-sm py-1.5" placeholder="https://api.example.com/vendors" value={form.vendorApiUrl} onChange={(e) => setF('vendorApiUrl', e.target.value)} disabled={!editing} />*/}
+        {/*  </div>*/}
+        {/*  {editing && (*/}
+        {/*    <div>*/}
+        {/*      <label className="text-xs text-gray-500">API Key Nhà cung cấp (để trống nếu không đổi)</label>*/}
+        {/*      <input type="password" className="input text-sm py-1.5" placeholder="••••••••" value={form.vendorApiKey} onChange={(e) => setF('vendorApiKey', e.target.value)} />*/}
+        {/*    </div>*/}
+        {/*  )}*/}
+        {/*  <div>*/}
+        {/*    <label className="text-xs text-gray-500">URL API PO</label>*/}
+        {/*    <input type="url" className="input text-sm py-1.5" placeholder="https://api.example.com/po" value={form.poApiUrl} onChange={(e) => setF('poApiUrl', e.target.value)} disabled={!editing} />*/}
+        {/*  </div>*/}
+        {/*  {editing && (*/}
+        {/*    <div>*/}
+        {/*      <label className="text-xs text-gray-500">API Key PO (để trống nếu không đổi)</label>*/}
+        {/*      <input type="password" className="input text-sm py-1.5" placeholder="••••••••" value={form.poApiKey} onChange={(e) => setF('poApiKey', e.target.value)} />*/}
+        {/*    </div>*/}
+        {/*  )}*/}
+        {/*</div>*/}
       </div>
 
       {saveError && <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>}

@@ -131,6 +131,15 @@ router.patch('/app-configs/:key', asyncHandler(async (req, res) => {
   await respond(res, superadminService.updateAppConfig(req.params.key, body, req.user));
 }));
 
+router.post('/api-configs', asyncHandler(async (req, res) => {
+  const body = SuperadminFormRequest.parseApiConfigCreate(req.body);
+  await respond(res, superadminService.createApiConfig(body, req.user), 201);
+}));
+
+router.delete('/api-configs/:name', asyncHandler(async (req, res) => {
+  await respond(res, superadminService.deleteApiConfig(req.params.name, req.user));
+}));
+
 router.get('/receiving-time-configs', asyncHandler(async (req, res) => {
   const query = SuperadminFormRequest.parseLocationQuery(req.query);
   await respond(res, Promise.resolve(superadminService.listReceivingTimeConfigs(query)));

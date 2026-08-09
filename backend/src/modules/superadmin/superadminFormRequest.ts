@@ -94,7 +94,28 @@ export const SuperadminFormRequest = {
       value: z.unknown(),
       category: z.string().trim().min(1).max(80).optional(),
       description: z.string().trim().max(500).optional(),
+      isSensitive: z.boolean().optional(),
       isRuntimeEditable: z.boolean().optional(),
+    }).parse(body);
+  },
+
+  parseApiConfigCreate(body: unknown) {
+    const authSchema = z.discriminatedUnion('type', [
+      z.object({ type: z.literal('none') }),
+      z.object({ type: z.literal('basic'), header: z.string().min(1) }),
+      z.object({ type: z.literal('bearer'), header: z.string().min(1) }),
+      z.object({ type: z.literal('api_key'), header: z.string().min(1) }),
+    ]);
+    return z.object({
+      name: z.string().trim().min(1).max(100).regex(/^[a-z0-9_-]+$/, 'Tên chỉ gồm chữ thường, số, _ và -'),
+      endpoint: z.string().url('Endpoint phải là URL hợp lệ'),
+      method: z.enum(['GET', 'POST']),
+      payload_keys: z.array(z.string().trim().min(1)).default([]),
+      auth: authSchema,
+      category: z.string().trim().min(1).max(80).default('api'),
+      description: z.string().trim().max(500).default(''),
+      isSensitive: z.boolean().default(false),
+      isRuntimeEditable: z.boolean().default(true),
     }).parse(body);
   },
 
