@@ -53,31 +53,28 @@ docker compose exec backend npm run seed
 
 ## Các trang chính
 
-| Trang             | URL               | Mô tả                            |
-| ----------------- | ----------------- | -------------------------------- |
-| Đăng ký giao hàng | `/register`       | Công khai – NCC/tài xế đăng ký   |
-| Màn hình chờ      | `/waiting-screen` | Công khai – TV display, realtime |
-| Check-in          | `/check-in`       | Bảo vệ check-in xe vào cổng      |
-| Dashboard         | `/dashboard`      | Nhân viên Receiving điều phối    |
-| Quản lý Dock      | `/docks`          | Xem và cập nhật trạng thái dock  |
+| Trang                  | URL               | Mô tả                                           |
+| ---------------------- | ----------------- | ----------------------------------------------- |
+| Trang chủ              | `/`               | Công khai – điểm vào mặc định, đăng ký online mới |
+| Đăng ký thủ công       | `/register`       | Công khai – nhập đăng ký thủ công/bản giấy      |
+| Màn hình chờ           | `/waiting-screen` | Công khai – TV display, realtime                |
+| Check-in               | `/check-in`       | Bảo vệ check-in xe vào cổng                     |
+| Dashboard              | `/dashboard`      | Nhân viên Receiving điều phối                   |
+| Quản lý Dock           | `/docks`          | Xem và cập nhật trạng thái dock                 |
 
 ---
 
-## AI Priority Scoring Engine
+## Điều phối tự động
 
-File: `backend/src/services/priorityEngine.ts`
+File chính: `backend/src/services/autoAssign.ts`
 
-| Điều kiện                | Điểm |
-| ------------------------ | ---- |
-| Fresh Food (base)        | 100  |
-| Auto Warehouse (base)    | 80   |
-| General Goods (base)     | 50   |
-| Nhà cung cấp VIP         | +20  |
-| Đến đúng giờ             | +10  |
-| Đến trễ                  | -20  |
-| Fresh Food chờ > 30 phút | +30  |
+Luồng hiện tại tự gọi xe từ hàng đợi `WAITING` vào slot phù hợp khi còn sức chứa:
 
-Hàng chờ được sắp xếp: **điểm cao nhất → thời gian check-in sớm nhất**.
+- Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
+- Slot thường không nhận `AUTO_WAREHOUSE`.
+- `FRESH_FOOD` được ưu tiên trước trong slot thường nếu slot nhận được loại hàng này.
+- Slot nhiều sức chứa dựa vào `maxCapacity`, đặc biệt cho xe máy.
+- Khi assign/complete/cancel, hệ thống cập nhật slot và emit realtime events để dashboard, màn hình chờ và dock management refresh.
 
 ---
 

@@ -136,9 +136,12 @@ Backoffice:
 
 Register:
 
+- `frontend/src/pages/Home.tsx`
 - `frontend/src/features/register/steps/UnitGoodsVehicleStep.tsx`
 - `frontend/src/features/register/steps/ScheduleStep.tsx`
 - `frontend/src/features/register/hooks/useRegisterForm.ts`
+
+`Home.tsx` là trang chủ public tại `/` và là điểm đặt luồng đăng ký online mới bằng mã PO/Thi Công. Các file trong `frontend/src/features/register/*` hiện thuộc luồng đăng ký thủ công tại `/register`.
 
 Shared presentation:
 

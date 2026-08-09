@@ -10,7 +10,7 @@ Mỗi file tập trung vào một miền nghiệp vụ riêng:
 - [permission-toolkit.md](permission-toolkit.md): helper role/scope dùng chung cho backend và frontend.
 - [app-config-advanced-auth.md](app-config-advanced-auth.md): cấu hình ứng dụng, IP nội bộ và Face ID/WebAuthn.
 - [business-location-unit-zone-slot.md](business-location-unit-zone-slot.md): cây dữ liệu `BusinessLocation -> UnitConfig -> Zone -> Slot`.
-- [driver-registration.md](driver-registration.md): luồng tài xế đăng ký giao hàng tại `/register`.
+- [driver-registration.md](driver-registration.md): trang chủ `/`, luồng đăng ký online mới và luồng đăng ký thủ công tại `/register`.
 - [check-in-flow.md](check-in-flow.md): luồng check-in chuẩn qua user role `CHECKIN` và route `/check-in`.
 - [receiving-dashboard-lifecycle.md](receiving-dashboard-lifecycle.md): dashboard điều phối, bắt đầu nhận hàng, hoàn tất, hủy.
 - [auto-assign.md](auto-assign.md): logic tự động gọi xe vào slot.

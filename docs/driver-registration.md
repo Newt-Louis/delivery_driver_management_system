@@ -2,7 +2,12 @@
 
 ## Mục Tiêu
 
-Tài xế/NCC đăng ký giao hàng công khai tại `/register`, không cần đăng nhập. Sau khi đăng ký thành công, tài xế nhận:
+Tài xế/NCC có hai điểm vào public, không cần đăng nhập:
+
+- `/`: trang chủ mặc định của domain, hiện là nơi đặt nền cho luồng đăng ký online mới bằng mã PO/Thi Công và API Config.
+- `/register`: luồng đăng ký thủ công hiện có, giữ nguyên để dùng khi nhập từ bản giấy hoặc khi hệ thống/API online gặp sự cố.
+
+Sau khi đăng ký thành công qua luồng thủ công hiện tại, tài xế nhận:
 
 - `registrationCode`
 - QR code/tracking code
@@ -12,6 +17,7 @@ Tài xế/NCC đăng ký giao hàng công khai tại `/register`, không cần �
 
 Files:
 
+- `frontend/src/pages/Home.tsx`
 - `frontend/src/pages/Register.tsx`
 - `frontend/src/features/register/hooks/useRegisterForm.ts`
 - `frontend/src/features/register/api.ts`
@@ -26,7 +32,24 @@ Files:
 - `frontend/src/features/register/components/FieldFeedback.tsx`
 - `frontend/src/features/register/components/OtherTimeModal.tsx`
 
-Wizard:
+Routes:
+
+- `/` render `Home.tsx`. Đây không còn redirect sang `/register`.
+- `/register` render `Register.tsx` và giữ wizard thủ công cũ.
+- `/taixe` hiện vẫn redirect sang `/register`.
+
+Homepage `/` hiện có:
+
+- Lời chào `Hệ thống điều phối giao hàng THISO`.
+- Ô nhập mã PO/Thi Công.
+- Nút camera dạng SVG nét vẽ trong input. Hiện nút này mới là khung UI, chưa bật camera thật.
+- Validate format cơ bản phía client:
+  - PO: `PO` + 10 chữ số.
+  - Thi Công: 5 ký tự chữ/số.
+- Link sang `/register` cho đăng ký thủ công/bản giấy.
+- Link sang `/track` để theo dõi đơn.
+
+Wizard thủ công `/register`:
 
 1. Chọn `BusinessLocation`, đơn vị nhận hàng, loại hàng, loại xe.
 2. Chọn ngày và khung giờ.
@@ -45,6 +68,8 @@ Logic trong `useRegisterForm.ts`:
 - Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId` và unit code snapshot.
 - Scroll tới field lỗi đầu tiên khi validate fail.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
+
+Lưu ý: các logic trong `frontend/src/features/register/*` hiện thuộc luồng thủ công `/register`. Luồng online mới trên `/` không nên sửa trực tiếp các step này nếu mục tiêu là giữ `/register` ổn định cho đăng ký bản giấy.
 
 ## Backend
 
@@ -94,7 +119,7 @@ Service:
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
 - Số PO/Mã thi công được normalize uppercase và bỏ ký tự phân cách.
 - Trong lúc chưa có API thật, `GET /api/units/order-codes` trả mock 20 mã `PO##########` và 20 mã `TC##########`; backend register vẫn validate lại mã này.
-- `BusinessLocation` public là bước đầu của `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
+- `BusinessLocation` public là bước đầu của luồng thủ công `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
 - Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`.
 - Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/PO/TC.
@@ -110,6 +135,24 @@ Service:
 - Capacity không tách theo `goodsType`.
 - `UnitGoodsType`, `DeliveryTimeWindow` và `AutoWarehouseVendor` có `unitConfigId` là scope chính; cột `unit` là code snapshot/compat cho API theo `:unit`.
 - Nếu unit có custom goods type enabled, frontend hiển thị danh mục custom đó; nếu không có time window riêng cho custom type thì backend/frontend fallback về time window base goods type của cùng unit.
+
+## Luồng Online Mới Trên `/`
+
+Trạng thái hiện tại của code:
+
+- Đã có `frontend/src/pages/Home.tsx`.
+- Route `/` trong `frontend/src/App.tsx` render `Home`.
+- Chưa có endpoint backend verify mã PO/Thi Công.
+- Chưa có QR scanner thật; nút camera mới hiển thị icon nét vẽ và thông báo placeholder.
+- Chưa thay đổi payload hoặc service `POST /api/deliveries/register`.
+
+Hướng phát triển tiếp theo:
+
+- Tạo endpoint public verify mã, ví dụ `POST /api/deliveries/verify-order-code`.
+- Backend phân loại mã PO/Thi Công, đọc API Config từ `app_configs` và gọi API ngoài.
+- Response verify trả dữ liệu đã normalize: `businessLocationId`, `unitConfigId`, `receivingUnit`, `goodsType`, `vehicleType`, `vendorName`, `vendorCode`.
+- Homepage `/` dùng dữ liệu verify để tiếp tục flow online: chọn ngày giao, nhập thông tin tài xế, review và submit.
+- `/register` vẫn giữ vai trò đăng ký thủ công, không bị refactor theo luồng online.
 
 ## Output Thành Công
 
