@@ -2,35 +2,10 @@ import { FormEvent, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
-
-function CameraIcon() {
-  return (
-    <svg aria-hidden="true" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4 8.5A2.5 2.5 0 0 1 6.5 6H8l1.4-1.9A2 2 0 0 1 11 3.3h2a2 2 0 0 1 1.6.8L16 6h1.5A2.5 2.5 0 0 1 20 8.5v8A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-8Z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.5a3 3 0 1 0 6 0 3 3 0 0 0-6 0Z" />
-    </svg>
-  );
-}
-
-function ArrowRightIcon() {
-  return (
-    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M13 6l6 6-6 6" />
-    </svg>
-  );
-}
-
-function HomeIcon() {
-  return (
-    <svg aria-hidden="true" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 11.5 12 4l9 7.5" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 10.5V20h13v-9.5" />
-    </svg>
-  );
-}
+import { CameraIcon, ArrowRightIcon } from '../components/Icon';
 
 function normalizeOrderCode(value: string) {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return value.trim().replace(/[^A-Za-z0-9]/g, '');
 }
 
 export default function Home() {
@@ -40,7 +15,7 @@ export default function Home() {
   const [message, setMessage] = useState('');
 
   const normalizedCode = useMemo(() => normalizeOrderCode(orderCode), [orderCode]);
-  const codeLooksSupported = /^PO\d{10}$/.test(normalizedCode) || /^[A-Z0-9]{5}$/.test(normalizedCode);
+  const codeLooksSupported = /^PO\d{10}$/.test(normalizedCode) || /^[A-Za-z0-9]{5}$/.test(normalizedCode);
   const staffHomePath = user?.role === 'CHECKIN' ? '/check-in' : '/dashboard';
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -89,13 +64,9 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-6xl gap-8 px-4 py-8 md:grid-cols-[minmax(0,1fr)_360px] md:items-start md:py-12">
-        <div className="space-y-6">
+      <section className="mx-auto grid w-full max-w-3xl justify-items-center gap-8 px-4 py-8 sm:px-6 md:py-12 lg:px-8">
+        <div className="w-full space-y-6">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 rounded-lg border border-sky-100 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-800">
-              <HomeIcon />
-              Trang chủ giao hàng
-            </div>
             <h1 className="max-w-3xl text-3xl font-black leading-tight text-thiso-900 sm:text-4xl">
               Hệ thống điều phối giao hàng THISO
             </h1>
@@ -108,8 +79,8 @@ export default function Home() {
             <label htmlFor="home-order-code" className="label">
               Mã PO / Thi Công
             </label>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative min-w-0 flex-1">
                 <input
                   id="home-order-code"
                   type="text"
@@ -134,8 +105,8 @@ export default function Home() {
                   <CameraIcon />
                 </button>
               </div>
-              <button type="submit" className="btn btn-primary h-12 shrink-0 gap-2 px-4">
-                <span className="hidden sm:inline">Kiểm tra</span>
+              <button type="submit" className="btn btn-primary h-12 w-full shrink-0 justify-center gap-2 px-4 sm:w-auto">
+                <span>Kiểm tra</span>
                 <ArrowRightIcon />
               </button>
             </div>
@@ -162,25 +133,6 @@ export default function Home() {
             </Link>
           </div>
         </div>
-
-        <aside className="rounded-lg border border-thiso-100 bg-white p-5 shadow-card-md">
-          <img src="/truck.svg" alt="Delivery truck" className="mb-5 h-20 w-20 rounded-2xl" />
-          <div className="space-y-4">
-            <div>
-              <p className="section-heading">Luồng mặc định mới</p>
-              <p className="mt-1 text-sm leading-6 text-thiso-600">
-                Domain gốc `/` sẽ là nơi bắt đầu đăng ký online bằng mã PO/Thi Công.
-              </p>
-            </div>
-            <div className="divider" />
-            <div>
-              <p className="section-heading">Luồng dự phòng</p>
-              <p className="mt-1 text-sm leading-6 text-thiso-600">
-                `/register` tiếp tục giữ màn hình đăng ký hiện tại để nhân viên hoặc tài xế nhập thủ công.
-              </p>
-            </div>
-          </div>
-        </aside>
       </section>
     </main>
   );
