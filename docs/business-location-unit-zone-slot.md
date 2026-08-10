@@ -23,13 +23,14 @@ Models:
   - `businessLocationId`, `unit`, `isActive`.
   - Cấu hình loại hàng: `freshFoodEnabled`, `generalGoodsEnabled`, `thiCongEnabled`.
   - Rule Chủ nhật: `sundayFreshFoodOnly`.
-  - Cấu hình khung giờ: `truckSlotMinutes`, `motorbikeSlotMinutes`.
+  - Cấu hình capacity ngày và slot: `truckSlotMinutes`, `motorbikeSlotMinutes`, `truckMaxPerSlot`, `motorbikeMaxPerSlot`.
+  - Cấu hình auto-cancel xe đã gọi không vào: `autoCancelCalledEnabled`, `autoCancelCalledAfterMinutes`.
   - Branding và API vendor/PO.
 - `Zone`
   - `unitConfigId`, `code`, `name`.
   - Unique theo `[unitConfigId, code]`.
 - `Slot`
-  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `autoAssign`, `autoWarehouseOnly`, `maxCapacity`, `status`, `isActive`.
+  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `autoWarehouseOnly`, `maxCapacity`, `status`, `isActive`.
 
 Các bảng nghiệp vụ vẫn giữ cột text snapshot như `receivingUnit`, `assignedUnit`, `unit` để đọc lịch sử/report dễ hơn, nhưng source of truth quan hệ mới là `unitConfigId` khi model có field này.
 
@@ -61,6 +62,7 @@ Vehicle/slot availability public:
 
 - `GET /api/units/:unit/vehicle-availability`
 - `GET /api/units/:unit/slots`
+- `GET /api/units/:unit/daily-registration-stats`
 
 Mock order code public:
 
@@ -162,11 +164,14 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 
 ## Quy Tắc Hiện Tại
 
-- Slot availability trong register tính theo tổng `Slot.maxCapacity` của các slot active, đúng vehicle type, không phải theo cột legacy `truckMaxPerSlot`/`motorbikeMaxPerSlot`.
+- `/register` thủ công không còn chọn khung giờ. Calendar tháng hiện tại dùng `daily-registration-stats` để hiển thị số xe đã đăng ký và mật độ theo ngày.
+- Capacity ngày của `/register` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
+- API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register`.
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
 - Ticket prefix ưu tiên `UnitConfig.shortName`, sau đó `displayName`, sau đó mã `unit`; frontend không tự giữ bảng prefix cố định theo ba unit demo.
 - `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.
 - Non-`SUPERADMIN` phải đi qua `BusinessLocation` scope và `operationUnits` khi action resolve được `unitConfigId`.
-- Capacity không tách theo `goodsType`; goods type dùng cho eligibility, khung giờ và ưu tiên dispatch.
+- Capacity ngày không tách theo `goodsType` khi đếm số lượt đã đăng ký; goods type dùng cho eligibility, nhóm time window ước lượng và ưu tiên dispatch.
+- `Slot.goodsPriority` điều khiển thứ tự ưu tiên auto-assign trong phạm vi các loại hàng slot được phép nhận. Nếu cùng một loại hàng, xe có `checkinTime`/số thứ tự sớm hơn được gọi trước.
 - `MAINTENANCE` và `RESERVED` là trạng thái manual.
 - `AVAILABLE` và `OCCUPIED` nên được reconcile từ active deliveries.

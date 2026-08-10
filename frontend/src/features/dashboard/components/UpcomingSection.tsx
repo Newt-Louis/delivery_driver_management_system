@@ -5,6 +5,10 @@ import { VEHICLE_LABEL } from '../constants';
 import type { UnitKey } from '../types';
 import { getUnitMeta } from '../utils';
 
+function localDateKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+}
+
 export default function UpcomingSection({ deliveries, unit }: { deliveries: DeliveryRegistration[]; unit?: UnitKey }) {
   const [open, setOpen] = useState(true);
   if (deliveries.length === 0) return null;
@@ -28,7 +32,7 @@ export default function UpcomingSection({ deliveries, unit }: { deliveries: Deli
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-thiso-50 text-xs text-thiso-400 uppercase border-b border-thiso-100 text-left">
-                <th className="px-4 py-2">Giờ đặt</th>
+                <th className="px-4 py-2">Ngày giao</th>
                 <th className="px-4 py-2">Biển số</th>
                 {!unit && <th className="px-4 py-2">Đơn vị</th>}
                 <th className="px-4 py-2">Nhà cung cấp</th>
@@ -40,15 +44,15 @@ export default function UpcomingSection({ deliveries, unit }: { deliveries: Deli
             <tbody>
               {deliveries.map((delivery) => {
                 const deliveryMeta = getUnitMeta(delivery.receivingUnit);
-                const slot = delivery.requestedTime
-                  ? new Date(delivery.requestedTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+                const dateLabel = delivery.requestedTime
+                  ? new Date(delivery.requestedTime).toLocaleDateString('vi-VN')
                   : '—';
-                const isPast = delivery.requestedTime ? new Date(delivery.requestedTime) < new Date() : false;
+                const isPast = delivery.requestedTime ? localDateKey(new Date(delivery.requestedTime)) < localDateKey(new Date()) : false;
                 return (
                   <tr key={delivery.id} className={`border-b border-thiso-50 last:border-0 ${isPast ? 'bg-amber-50' : 'hover:bg-thiso-50'}`}>
                     <td className="px-4 py-2.5">
-                      <span className={`font-mono font-bold ${isPast ? 'text-emart-600' : 'text-thiso-700'}`}>{slot}</span>
-                      {isPast && <div className="text-xs text-emart-400">Trễ slot</div>}
+                      <span className={`font-mono font-bold ${isPast ? 'text-emart-600' : 'text-thiso-700'}`}>{dateLabel}</span>
+                      {isPast && <div className="text-xs text-emart-400">Quá ngày</div>}
                     </td>
                     <td className="px-4 py-2.5 font-mono font-black text-thiso-800">{delivery.vehiclePlate}</td>
                     {!unit && (

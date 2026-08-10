@@ -58,6 +58,13 @@ const slotsQuerySchema = z.object({
   unitGoodsTypeId: z.string().optional(),
 });
 
+const dailyStatsQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-\d{2}$/),
+  goodsType: z.nativeEnum(GoodsType),
+  vehicleType: z.nativeEnum(VehicleType),
+  unitGoodsTypeId: z.string().optional(),
+});
+
 const unitConfigSchema = z.object({
   freshFoodEnabled: z.boolean().optional(),
   generalGoodsEnabled: z.boolean().optional(),
@@ -67,6 +74,8 @@ const unitConfigSchema = z.object({
   motorbikeSlotMinutes: z.number().int().min(5).max(60).optional(),
   truckMaxPerSlot: z.number().int().min(1).max(20).optional(),
   motorbikeMaxPerSlot: z.number().int().min(1).max(20).optional(),
+  autoCancelCalledEnabled: z.boolean().optional(),
+  autoCancelCalledAfterMinutes: z.number().int().min(5).max(999).optional(),
   vendorApiUrl: z.string().url().nullable().optional(),
   vendorApiKey: z.string().nullable().optional(),
   poApiUrl: z.string().url().nullable().optional(),
@@ -106,6 +115,7 @@ export type UpdateUnitGoodsTypePayload = z.infer<typeof updateUnitGoodsTypeSchem
 export type GoodsTypeQuery = z.infer<typeof goodsTypeQuerySchema>;
 export type VehicleAvailabilityQuery = z.infer<typeof vehicleAvailabilityQuerySchema>;
 export type SlotsQuery = z.infer<typeof slotsQuerySchema>;
+export type DailyStatsQuery = z.infer<typeof dailyStatsQuerySchema>;
 export type UnitConfigPayload = z.infer<typeof unitConfigSchema>;
 export type IntegrationQuery = z.infer<typeof integrationQuerySchema>;
 export type OrderCodeQuery = z.infer<typeof orderCodeQuerySchema>;
@@ -133,6 +143,13 @@ export const UnitFormRequest = {
       throw new UnitRequestError('date, goodsType, vehicleType required');
     }
     return slotsQuerySchema.parse(query);
+  },
+  parseDailyStatsQuery: (query: unknown): DailyStatsQuery => {
+    const raw = query as Record<string, unknown>;
+    if (!raw.month || !raw.goodsType || !raw.vehicleType) {
+      throw new UnitRequestError('month, goodsType, vehicleType required');
+    }
+    return dailyStatsQuerySchema.parse(query);
   },
   parseUnitConfig: (body: unknown): UnitConfigPayload => unitConfigSchema.parse(body),
   parseIntegrationQuery: (query: unknown): IntegrationQuery => integrationQuerySchema.parse(query),

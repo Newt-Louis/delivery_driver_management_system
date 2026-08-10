@@ -8,6 +8,13 @@ export type SlotAvailabilityParams = {
   unitGoodsTypeId?: string;
 };
 
+export type DailyRegistrationStatsParams = {
+  month: string;
+  goodsType: GoodsType;
+  vehicleType: VehicleType;
+  unitGoodsTypeId?: string;
+};
+
 export type RegisterDeliveryPayload = {
   businessLocationId: string;
   unitConfigId: string;
@@ -46,6 +53,16 @@ export type PublicUnitScope = {
   unitConfigId?: string;
 };
 
+export type DailyRegistrationStat = {
+  date: string;
+  registered: number;
+  capacity: number;
+  percent: number | null;
+  level: 'none' | 'low' | 'medium' | 'high';
+  available: boolean;
+  reason?: string;
+};
+
 export async function getPublicBusinessLocations(): Promise<BusinessLocation[]> {
   const res = await api.get('/api/units/public/business-locations');
   return res.data;
@@ -73,6 +90,15 @@ export async function getSlotAvailability(
   scope?: PublicUnitScope,
 ): Promise<{ slots: SlotInfo[]; reason?: string }> {
   const res = await api.get(`/api/units/${unit}/slots`, { params: { ...params, ...scope } });
+  return res.data;
+}
+
+export async function getDailyRegistrationStats(
+  unit: ReceivingUnit,
+  params: DailyRegistrationStatsParams,
+  scope?: PublicUnitScope,
+): Promise<{ days: DailyRegistrationStat[]; reason?: string }> {
+  const res = await api.get(`/api/units/${unit}/daily-registration-stats`, { params: { ...params, ...scope } });
   return res.data;
 }
 

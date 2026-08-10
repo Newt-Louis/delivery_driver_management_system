@@ -213,6 +213,7 @@ model Slot {
   assignedUnit      String                 @map("assigned_unit")
   vehicleType       VehicleType            @default(TRUCK) @map("vehicle_type")
   acceptedGoods     GoodsType[]            @default([]) @map("accepted_goods") // empty = accepts all goods
+  goodsPriority     GoodsType[]            @default([]) @map("goods_priority")
   autoAssign        Boolean                @default(true) @map("auto_assign")
   autoWarehouseOnly Boolean                @default(false) @map("auto_warehouse_only")
   maxCapacity       Int                    @default(1) @map("max_capacity")
@@ -471,6 +472,10 @@ model UnitConfig {
   motorbikeSlotMinutes Int @default(15) @map("motorbike_slot_minutes")
   truckMaxPerSlot      Int @default(1) @map("truck_max_per_slot")
   motorbikeMaxPerSlot  Int @default(3) @map("motorbike_max_per_slot")
+
+  // AUTO CANCEL CALLED NO-SHOW
+  autoCancelCalledEnabled      Boolean @default(false) @map("auto_cancel_called_enabled")
+  autoCancelCalledAfterMinutes Int     @default(15) @map("auto_cancel_called_after_minutes")
 
   // INTEGRATIONS
   vendorApiUrl String? @map("vendor_api_url")

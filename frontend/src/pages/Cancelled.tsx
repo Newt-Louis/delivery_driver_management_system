@@ -7,7 +7,7 @@ type CancelForm = {
   driverPhone: string;
   poNumber: string;
   registrationCode: string;
-  requestedTime: string;
+  deliveryDate: string;
 };
 
 const EMPTY_FORM: CancelForm = {
@@ -15,7 +15,7 @@ const EMPTY_FORM: CancelForm = {
   driverPhone: '',
   poNumber: '',
   registrationCode: '',
-  requestedTime: '',
+  deliveryDate: '',
 };
 
 function normalizePlate(value: string) {
@@ -54,7 +54,7 @@ export default function Cancelled() {
         driverPhone: normalizePhone(form.driverPhone),
         poNumber: normalizeOrderCode(form.poNumber),
         registrationCode: form.registrationCode.trim().toUpperCase(),
-        requestedTime: form.requestedTime,
+        deliveryDate: form.deliveryDate,
       });
       setSuccess(res.message || 'Hủy thành công');
       setForm(EMPTY_FORM);
@@ -143,11 +143,11 @@ export default function Cancelled() {
           </label>
 
           <label className="block">
-            <span className="label">Ngày giờ giao</span>
+            <span className="label">Ngày giao</span>
             <input
-              type="datetime-local"
-              value={form.requestedTime}
-              onChange={(e) => setField('requestedTime', e.target.value)}
+              type="date"
+              value={form.deliveryDate}
+              onChange={(e) => setField('deliveryDate', e.target.value)}
               required
               className="input py-3"
               style={{ fontSize: '16px' }}

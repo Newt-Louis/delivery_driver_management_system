@@ -5,7 +5,7 @@ import type { DeliveryRegistration } from '../../../lib/types';
 import { fetchDeliveryDetail } from '../api';
 import { GOODS_LABEL, VEHICLE_FULL } from '../constants';
 import type { DeliveryLifecycleAction } from '../types';
-import { formatDateTime, getDeliveryTimeline, getTicketCode, getUnitMeta } from '../utils';
+import { formatDateOnly, formatDateTime, getDeliveryTimeline, getTicketCode, getUnitMeta } from '../utils';
 import DetailRow from './DetailRow';
 
 interface DeliveryDetailModalProps {
@@ -67,7 +67,7 @@ export default function DeliveryDetailModal({ id, onClose, onCall, onAction }: D
             </div>
 
             <div className="px-5 py-4 grid grid-cols-2 gap-3 border-b border-thiso-100 bg-thiso-50/50">
-              <DetailRow label="Giờ đặt lịch" value={formatDateTime(delivery.requestedTime)} />
+              <DetailRow label="Ngày giao" value={formatDateOnly(delivery.requestedTime)} />
               <DetailRow label="Giờ đăng ký" value={formatDateTime(delivery.createdAt)} />
               <DetailRow label="Check-in" value={formatDateTime(delivery.checkinTime)} />
               <DetailRow label="Được gọi" value={formatDateTime(delivery.calledTime)} />

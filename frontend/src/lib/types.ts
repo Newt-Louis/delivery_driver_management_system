@@ -80,6 +80,7 @@ export interface Slot {
   assignedUnit: ReceivingUnit;
   vehicleType: VehicleType;
   acceptedGoods: GoodsType[];
+  goodsPriority: GoodsType[];
   autoAssign: boolean;
   autoWarehouseOnly: boolean;
   maxCapacity: number;
@@ -197,6 +198,8 @@ export interface UnitConfig {
   motorbikeSlotMinutes: number;
   truckMaxPerSlot: number;
   motorbikeMaxPerSlot: number;
+  autoCancelCalledEnabled: boolean;
+  autoCancelCalledAfterMinutes: number;
   vendorApiUrl: string | null;
   poApiUrl: string | null;
   displayName: string;

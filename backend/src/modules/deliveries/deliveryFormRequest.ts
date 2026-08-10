@@ -16,7 +16,7 @@ const registerSchema = z.object({
   poNumber: z.string().min(1, 'Vui lòng nhập Số PO hoặc Mã số thi công'),
   vendorCode: z.string().optional(),
   requestedTime: z.string().optional(),
-  deliveryDate: z.string().optional(),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   note: z.string().optional(),
 });
 
@@ -36,7 +36,8 @@ const publicCancelSchema = z.object({
   driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
   poNumber: z.string().min(1, 'Vui lòng nhập Số PO hoặc Mã số thi công'),
   registrationCode: z.string().min(1, 'Mã đăng ký bắt buộc'),
-  requestedTime: z.string().min(1, 'Ngày giờ giao bắt buộc'),
+  requestedTime: z.string().optional(),
+  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export type RegisterDeliveryPayload = z.infer<typeof registerSchema>;

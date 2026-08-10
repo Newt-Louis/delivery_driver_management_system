@@ -39,7 +39,8 @@ Hàm chính:
 - `findNextWaitingDeliveryForSlot(tx, slot)`
   - Chọn xe theo unit + vehicle type.
   - Áp dụng filter hàng hóa theo slot.
-  - Ưu tiên `FRESH_FOOD` nếu slot có thể nhận fresh food.
+  - Ưu tiên theo `Slot.goodsPriority`; slot cũ chưa cấu hình priority fallback theo thứ tự `FRESH_FOOD`, `GENERAL_GOODS`, `THI_CONG`.
+  - Trong cùng một loại hàng, xe được gọi FIFO theo `checkinTime`, sau đó `createdAt`.
 - `emitAutoAssignResult(result, unit)`
   - Ghi audit.
   - Emit socket.
@@ -50,7 +51,8 @@ Hàm chính:
 
 - Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
 - Slot thường không nhận `AUTO_WAREHOUSE`.
-- `FRESH_FOOD` được ưu tiên trong slot thường nếu slot chấp nhận.
+- Slot thường chỉ nhận các loại nằm trong `acceptedGoods`; nếu `acceptedGoods` rỗng thì hiểu là nhận tất cả hàng thường.
+- `goodsPriority` chỉ sắp thứ tự ưu tiên trong phạm vi hàng slot được nhận, không cho phép auto-assign đưa loại hàng không được nhận vào slot.
 - `maxCapacity` cho phép nhiều xe trong một slot, đặc biệt xe máy.
 - Tổng sức chứa của một unit/vehicle là tổng `Slot.maxCapacity` của các slot active phù hợp; ví dụ 5 slot xe tải, mỗi slot 2 chỗ, thì auto assign chỉ dừng khi đủ 10 active deliveries.
 - `MAINTENANCE` và `RESERVED` không được auto assign.

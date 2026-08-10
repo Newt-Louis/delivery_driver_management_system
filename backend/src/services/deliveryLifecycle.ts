@@ -77,7 +77,12 @@ export async function completeDelivery(deliveryId: string, actor: HistoryActor =
   });
 }
 
-export async function cancelDelivery(deliveryId: string, reason: string, actor: HistoryActor = {}): Promise<CancelDeliveryResult> {
+export async function cancelDelivery(
+  deliveryId: string,
+  reason: string,
+  actor: HistoryActor = {},
+  options: { message?: string } = {},
+): Promise<CancelDeliveryResult> {
   return prisma.$transaction(async (tx) => {
     await lockDelivery(tx, deliveryId);
 
@@ -102,7 +107,7 @@ export async function cancelDelivery(deliveryId: string, reason: string, actor: 
       fromStatus: delivery.status,
       toStatus: cancelled.status,
       occurredAt: new Date(),
-      message: 'Hủy lượt giao hàng',
+      message: options.message ?? 'Hủy lượt giao hàng',
       reason,
     }, tx);
     const releasedSlotId = await releaseSlotForDelivery(tx, delivery);

@@ -2,6 +2,7 @@ import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../do
 import { DeliveryStatus, GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import type { SocketScope } from '../../socket';
+import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import { getCallHistoryCounts } from '../history/historyRepository';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
@@ -77,24 +78,31 @@ export function isUniqueConstraintError(error: unknown): error is Prisma.PrismaC
 }
 
 export function localDateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return getVNDateKey(date);
 }
 
 export function localTimeKey(date: Date): string {
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return date.toLocaleTimeString('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
 }
 
 export function localDayRange(date: Date): { start: Date; end: Date } {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
-  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-  return { start, end };
+  return getVNDateRangeUtc(getVNDateKey(date));
 }
 
 export function parseDeliveryDate(value?: string): Date | null {
+  return parseDeliveryDateStartVN(value);
+}
+
+export function parseDeliveryDateStartVN(value?: string): Date | null {
   if (!value) return null;
   const [year, month, day] = value.split('-').map(Number);
   if (!year || !month || !day) return null;
-  const date = new Date(year, month - 1, day);
+  const date = new Date(Date.UTC(year, month - 1, day) - 7 * 60 * 60 * 1000);
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
@@ -120,6 +128,69 @@ export async function getRegistrationSlotCapacity(unitConfigId: string, unit: Re
   });
 
   return slots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
+}
+
+function timeToMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+export async function getRegistrationDailyCapacity(args: {
+  unitConfigId: string;
+  unit: ReceivingUnitCode;
+  goodsType: GoodsType;
+  vehicleType: VehicleType;
+  unitGoodsTypeId?: string;
+}): Promise<number | null> {
+  const unitConfig = await prisma.unitConfig.findUnique({
+    where: { id: args.unitConfigId },
+    select: {
+      truckSlotMinutes: true,
+      motorbikeSlotMinutes: true,
+      truckMaxPerSlot: true,
+      motorbikeMaxPerSlot: true,
+    },
+  });
+  if (!unitConfig) return null;
+
+  let timeWindows = args.unitGoodsTypeId
+    ? await prisma.deliveryTimeWindow.findMany({
+        where: { unitGoodsTypeId: args.unitGoodsTypeId, enabled: true },
+        select: { startTime: true, endTime: true },
+      })
+    : await prisma.deliveryTimeWindow.findMany({
+        where: {
+          unitConfigId: args.unitConfigId,
+          unit: args.unit,
+          goodsType: args.goodsType,
+          unitGoodsTypeId: null,
+          enabled: true,
+        },
+        select: { startTime: true, endTime: true },
+      });
+
+  if (timeWindows.length === 0 && args.unitGoodsTypeId) {
+    timeWindows = await prisma.deliveryTimeWindow.findMany({
+      where: {
+        unitConfigId: args.unitConfigId,
+        unit: args.unit,
+        goodsType: args.goodsType,
+        unitGoodsTypeId: null,
+        enabled: true,
+      },
+      select: { startTime: true, endTime: true },
+    });
+  }
+
+  if (timeWindows.length === 0) return null;
+
+  const isMotorbike = args.vehicleType === VehicleType.MOTORBIKE;
+  const slotMinutes = isMotorbike ? unitConfig.motorbikeSlotMinutes : unitConfig.truckSlotMinutes;
+  const maxPerSlot = isMotorbike ? unitConfig.motorbikeMaxPerSlot : unitConfig.truckMaxPerSlot;
+  return timeWindows.reduce((total, win) => {
+    const slotCount = Math.max(0, Math.floor((timeToMinutes(win.endTime) - timeToMinutes(win.startTime)) / slotMinutes));
+    return total + slotCount * maxPerSlot;
+  }, 0);
 }
 
 export async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnitCode[]> {
@@ -327,18 +398,23 @@ export async function findDeliveryForPublicCancel(args: {
   vehiclePlate: string;
   driverPhone: string;
   poNumber: string;
-  requestedTime: Date;
+  requestedTime?: Date | null;
+  deliveryDate?: string;
 }) {
-  const start = new Date(args.requestedTime);
-  start.setSeconds(0, 0);
-  const end = new Date(start.getTime() + 60_000);
+  const range = args.requestedTime
+    ? (() => {
+        const start = new Date(args.requestedTime);
+        start.setSeconds(0, 0);
+        return { start, end: new Date(start.getTime() + 60_000) };
+      })()
+    : localDayRange(parseDeliveryDateStartVN(args.deliveryDate) ?? new Date());
 
   const candidates = await prisma.deliveryRegistration.findMany({
     where: {
       registrationCode: args.registrationCode.toUpperCase().trim(),
       vehiclePlate: args.vehiclePlate,
       status: DeliveryStatus.REGISTERED,
-      requestedTime: { gte: start, lt: end },
+      requestedTime: { gte: range.start, lt: range.end },
     },
     orderBy: { createdAt: 'desc' },
   });

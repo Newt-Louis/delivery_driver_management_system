@@ -51,7 +51,6 @@ export default function ReviewSubmitStep({
             ...(form.vendorCode ? [{ icon: '🔑', label: 'Mã NCC', value: form.vendorCode, mono: true as const }] : []),
             { icon: '📋', label: 'Số PO / Mã thi công', value: form.poNumber, mono: true as const },
             { icon: '📅', label: 'Ngày giao', value: form.deliveryDate.split('-').reverse().join('/') },
-            { icon: '🕐', label: 'Giờ giao', value: form.timeSlot === 'OTHER' ? 'Không có giờ cụ thể' : form.timeSlot, mono: form.timeSlot !== 'OTHER' },
           ].map(({ icon, label, value, mono }) => (
             <div key={label} className="flex items-center justify-between px-4 py-3 gap-3">
               <div className="flex items-center gap-2.5 flex-shrink-0 min-w-[130px]">
@@ -80,7 +79,7 @@ export default function ReviewSubmitStep({
           ✏ Sửa điểm giao
         </button>
         <button onClick={() => onEditStep(2)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
-          ✏ Sửa giờ & đơn hàng
+          ✏ Sửa ngày & đơn hàng
         </button>
         <button onClick={() => onEditStep(3)} className="flex-1 py-2 text-xs text-thiso-500 bg-white border border-thiso-200 rounded-xl hover:bg-thiso-50 transition-colors">
           ✏ Sửa thông tin xe

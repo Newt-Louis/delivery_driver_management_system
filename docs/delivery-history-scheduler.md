@@ -59,10 +59,15 @@ Job hiện có:
   - `RECEIVING` hoặc `AUTO_WAREHOUSE_RECEIVING` cuối ngày: đánh dấu `INCOMPLETED`, ghi history/events, reconcile/release slot, xóa khỏi bảng vận hành.
 - `archive-cancelled-deliveries`: chạy mỗi 120 phút.
   - Archive/xóa các lượt `CANCELLED` đã có `cancelReason` và quá cutoff 120 phút.
+- `auto-cancel-called-no-show`: chạy mỗi phút.
+  - Quét delivery `CALLED` của unit đang bật `UnitConfig.autoCancelCalledEnabled`.
+  - Tính thời gian quá hạn từ event gọi gần nhất trong `delivery_history_events`: `AUTO_ASSIGNED`, `MANUAL_CALLED`, `RECALLED`, `REASSIGNED_SLOT`; fallback về `calledTime` nếu thiếu event.
+  - Khi quá `autoCancelCalledAfterMinutes`, chuyển delivery sang `CANCELLED`, ghi reason/message `Tài xế check-in rồi nhưng không vào`, release slot, emit realtime và trigger auto-assign tiếp.
+  - Row operational `CANCELLED` không bị archive ngay; `archive-cancelled-deliveries` sẽ xóa/archive sau 120 phút như cancel thường.
 
 Mỗi job run đều ghi `scheduler_job_histories`.
 
-Scheduler hiện chạy trong chính backend process qua `startOperationalScheduler()` sau khi server listen. `schedulerService.ts` quản lý timer theo từng job state, có guard `isRunning` để tránh overlap, heartbeat log mỗi 30 phút, graceful stop khi process nhận `SIGTERM`/`SIGINT`, và endpoint `GET /health/scheduler` để xem `nextRunAt`, `lastRunAt`, `isRunning`, `lastProcessed`, `lastSucceeded`, `lastFailed`.
+Scheduler hiện chạy trong chính backend process qua `startOperationalScheduler()` sau khi server listen. `schedulerService.ts` dùng `node-cron` cho lịch chạy thật, có guard `isRunning` để tránh overlap, graceful stop khi process nhận `SIGTERM`/`SIGINT`, và endpoint `GET /health/scheduler` để xem `nextRunAt`, `lastRunAt`, `isRunning`, `lastProcessed`, `lastSucceeded`, `lastFailed` của từng job.
 
 Hiện chưa có queue worker riêng. Scheduler chỉ quyết định khi nào kích hoạt job; nếu sau này cần retry/backoff/dedupe phức tạp hoặc job dài, queue/worker sẽ là một tầng thiết kế khác.
 

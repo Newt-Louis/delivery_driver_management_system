@@ -23,6 +23,12 @@ type AssignResult = {
   activeCount: number;
 };
 
+const DEFAULT_NORMAL_GOODS_PRIORITY: GoodsType[] = [
+  GoodsType.FRESH_FOOD,
+  GoodsType.GENERAL_GOODS,
+  GoodsType.THI_CONG,
+];
+
 async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
   const activeStatus = {
     in: [
@@ -92,11 +98,13 @@ async function getAllSlotsWithDeliveries(scope?: SocketScope) {
   });
 }
 
-function goodsFilterForSlot(slot: Slot): Prisma.Sql | null {
+function goodsFilterForSlot(slot: Slot, goodsType?: GoodsType): Prisma.Sql | null {
   const acceptedGoods = slot.acceptedGoods as GoodsType[];
 
   if (slot.autoWarehouseOnly) {
-    return Prisma.sql`AND "goods_type" = ${GoodsType.AUTO_WAREHOUSE}::"GoodsType"`;
+    return goodsType
+      ? Prisma.sql`AND "goods_type" = ${goodsType}::"GoodsType"`
+      : Prisma.sql`AND "goods_type" = ${GoodsType.AUTO_WAREHOUSE}::"GoodsType"`;
   }
 
   const allowedGoods = acceptedGoods.length > 0
@@ -105,6 +113,10 @@ function goodsFilterForSlot(slot: Slot): Prisma.Sql | null {
 
   if (acceptedGoods.length > 0 && allowedGoods.length === 0) {
     return null;
+  }
+
+  if (goodsType) {
+    return Prisma.sql`AND "goods_type" = ${goodsType}::"GoodsType"`;
   }
 
   if (acceptedGoods.length === 0) {
@@ -116,47 +128,59 @@ function goodsFilterForSlot(slot: Slot): Prisma.Sql | null {
   `;
 }
 
-function freshFoodPriorityForSlot(slot: Slot): Prisma.Sql {
+function candidateGoodsForSlot(slot: Slot): GoodsType[] {
   const acceptedGoods = slot.acceptedGoods as GoodsType[];
-  const canAcceptFreshFood = !slot.autoWarehouseOnly
-    && (acceptedGoods.length === 0 || acceptedGoods.includes(GoodsType.FRESH_FOOD));
+  const priority = slot.goodsPriority as GoodsType[];
 
-  if (!canAcceptFreshFood) {
-    return Prisma.sql``;
-  }
+  if (slot.autoWarehouseOnly) return [GoodsType.AUTO_WAREHOUSE];
 
-  return Prisma.sql`
-    CASE WHEN "goods_type" = ${GoodsType.FRESH_FOOD}::"GoodsType" THEN 0 ELSE 1 END,
-  `;
+  const allowedGoods = acceptedGoods.length > 0
+    ? acceptedGoods.filter((goodsType) => goodsType !== GoodsType.AUTO_WAREHOUSE)
+    : DEFAULT_NORMAL_GOODS_PRIORITY;
+
+  if (allowedGoods.length === 0) return [];
+
+  const ordered = [
+    ...priority.filter((goodsType) => allowedGoods.includes(goodsType)),
+    ...allowedGoods.filter((goodsType) => !priority.includes(goodsType)),
+  ];
+
+  return [...new Set(ordered)];
 }
 
 async function findNextWaitingDeliveryForSlot(
   tx: Prisma.TransactionClient,
   slot: Slot,
 ): Promise<DeliveryRegistration | null> {
-  const goodsFilter = goodsFilterForSlot(slot);
-  if (!goodsFilter) return null;
+  const goodsCandidates = candidateGoodsForSlot(slot);
+  if (goodsCandidates.length === 0) return null;
 
-  const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
-    SELECT "id"
-    FROM "delivery_registrations"
-    WHERE "receiving_unit" = ${slot.assignedUnit}
-      AND "vehicle_type" = ${slot.vehicleType}::"VehicleType"
-      AND "status" = ${DeliveryStatus.WAITING}::"DeliveryStatus"
-      ${goodsFilter}
-    ORDER BY
-      ${freshFoodPriorityForSlot(slot)}
-      "checkin_time" ASC NULLS LAST,
-      "created_at" ASC
-    LIMIT 1
-    FOR UPDATE SKIP LOCKED
-  `);
+  for (const goodsType of goodsCandidates) {
+    const goodsFilter = goodsFilterForSlot(slot, goodsType);
+    if (!goodsFilter) continue;
 
-  if (rows.length === 0) return null;
+    const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+      SELECT "id"
+      FROM "delivery_registrations"
+      WHERE "receiving_unit" = ${slot.assignedUnit}
+        AND "vehicle_type" = ${slot.vehicleType}::"VehicleType"
+        AND "status" = ${DeliveryStatus.WAITING}::"DeliveryStatus"
+        ${goodsFilter}
+      ORDER BY
+        "checkin_time" ASC NULLS LAST,
+        "created_at" ASC
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    `);
 
-  return tx.deliveryRegistration.findUnique({
-    where: { id: rows[0].id },
-  });
+    if (rows.length === 0) continue;
+
+    return tx.deliveryRegistration.findUnique({
+      where: { id: rows[0].id },
+    });
+  }
+
+  return null;
 }
 
 async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnitCode): Promise<AssignResult | null> {
@@ -289,7 +313,7 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCod
 
 // Called after check-in or after a delivery completes/cancels.
 // For each slot with available capacity, calls the next best-matching WAITING delivery.
-// FRESH_FOOD is always considered first within the slot's accepted goods.
+// Goods are considered by the slot's configured priority, then FIFO within each goods type.
 // Motorbike slots support multi-vehicle capacity (maxCapacity field).
 // Returns number of vehicles assigned in this round.
 export async function triggerAutoAssign(unit: ReceivingUnitCode, scope: AutoAssignScope = {}): Promise<number> {

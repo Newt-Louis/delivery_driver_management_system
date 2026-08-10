@@ -17,6 +17,10 @@ export const UNIT_CONFIG_AUDIT_SELECT = {
   sundayFreshFoodOnly: true,
   truckSlotMinutes: true,
   motorbikeSlotMinutes: true,
+  truckMaxPerSlot: true,
+  motorbikeMaxPerSlot: true,
+  autoCancelCalledEnabled: true,
+  autoCancelCalledAfterMinutes: true,
   displayName: true,
   shortName: true,
   icon: true,
@@ -235,6 +239,7 @@ export function listMatchingOperationalSlots(args: {
       vehicleType: true,
       maxCapacity: true,
       acceptedGoods: true,
+      goodsPriority: true,
       autoWarehouseOnly: true,
     },
   });
@@ -253,6 +258,33 @@ export function listActiveBookingsForDay(args: {
       ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
       vehicleType: args.vehicleType,
       requestedTime: { gte: args.dayStart, lte: args.dayEnd },
+      status: {
+        in: [
+          DeliveryStatus.REGISTERED,
+          DeliveryStatus.WAITING,
+          DeliveryStatus.CALLED,
+          DeliveryStatus.RECEIVING,
+          DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
+        ],
+      },
+    },
+    select: { requestedTime: true },
+  });
+}
+
+export function listActiveBookingsForRange(args: {
+  unit: ReceivingUnitCode;
+  unitConfigId?: string;
+  vehicleType: VehicleType;
+  rangeStart: Date;
+  rangeEnd: Date;
+}) {
+  return prisma.deliveryRegistration.findMany({
+    where: {
+      receivingUnit: args.unit,
+      ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
+      vehicleType: args.vehicleType,
+      requestedTime: { gte: args.rangeStart, lt: args.rangeEnd },
       status: {
         in: [
           DeliveryStatus.REGISTERED,

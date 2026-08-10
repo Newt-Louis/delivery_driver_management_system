@@ -1,5 +1,5 @@
 import { GOODS_LABEL } from '../constants';
-import { getTrackUnit, fmtDate } from '../utils';
+import { getTrackUnit, fmtDateOnly } from '../utils';
 import type { TrackDelivery } from '../types';
 
 type UnitMeta = ReturnType<typeof getTrackUnit>;
@@ -16,7 +16,7 @@ export default function DeliveryInfoCard({ delivery, unitMeta }: {
     { label: 'Đơn vị nhận',  value: unitMeta.label },
     { label: 'Loại hàng',    value: GOODS_LABEL[delivery.goodsType] ?? delivery.goodsType },
     ...(delivery.poNumber    ? [{ label: 'Số PO / Mã thi công', value: delivery.poNumber, mono: true }] : []),
-    ...(delivery.requestedTime ? [{ label: 'Giờ đăng ký',      value: fmtDate(delivery.requestedTime) }] : []),
+    ...(delivery.requestedTime ? [{ label: 'Ngày giao',        value: fmtDateOnly(delivery.requestedTime) }] : []),
     ...(delivery.note        ? [{ label: 'Ghi chú',             value: delivery.note }] : []),
   ];
 

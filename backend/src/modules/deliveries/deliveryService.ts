@@ -101,33 +101,31 @@ function isSundayDeliveryDate(requestedTime?: Date | null, deliveryDate?: string
   return new Date(year, month - 1, day).getDay() === 0;
 }
 
-async function ensureRegistrationSlotCapacity(
+async function ensureRegistrationDailyCapacity(
   tx: Prisma.TransactionClient,
   args: {
     requestedTime: Date;
     receivingUnit: ReceivingUnitCode;
     unitConfigId: string;
     vehicleType: RegisterDeliveryPayload['vehicleType'];
-    maxPerSlot: number | null;
+    dailyCapacity: number | null;
   },
 ): Promise<void> {
-  if (args.maxPerSlot === null) return;
+  if (args.dailyCapacity === null) return;
 
   const dateKey = deliveryRepository.localDateKey(args.requestedTime);
-  const timeKey = deliveryRepository.localTimeKey(args.requestedTime);
   const lockKey = [
-    'registration-slot',
+    'registration-day',
     args.unitConfigId,
     args.receivingUnit,
     args.vehicleType,
     dateKey,
-    timeKey,
   ].join(':');
 
   await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(lockKey)})`);
 
   const { start, end } = deliveryRepository.localDayRange(args.requestedTime);
-  const bookings = await tx.deliveryRegistration.findMany({
+  const booked = await tx.deliveryRegistration.count({
     where: {
       receivingUnit: args.receivingUnit,
       unitConfigId: args.unitConfigId,
@@ -143,16 +141,10 @@ async function ensureRegistrationSlotCapacity(
       },
       requestedTime: { gte: start, lt: end },
     },
-    select: { requestedTime: true },
   });
 
-  const booked = bookings.filter((booking) => (
-    booking.requestedTime
-    && deliveryRepository.localTimeKey(booking.requestedTime) === timeKey
-  )).length;
-
-  if (booked >= args.maxPerSlot) {
-    throw new SlotFullError(`Khung gio ${timeKey} ngay ${dateKey} da het cho. Vui long chon khung gio khac.`);
+  if (booked >= args.dailyCapacity) {
+    throw new SlotFullError(`Ngày ${dateKey} đã đạt công suất đăng ký ước lượng. Vui lòng chọn ngày khác.`);
   }
 }
 
@@ -186,8 +178,8 @@ function duplicateRegistrationLockKey(args: {
 const PUBLIC_CANCEL_REASON = 'Tài xế thao tác hủy';
 const PUBLIC_CANCEL_MISMATCH_MESSAGE = 'Có thông tin bạn nhập không đúng, vui lòng nhập lại';
 
-function parseRequestedTime(value: string | undefined): Date | null {
-  const requestedTime = value ? new Date(value) : null;
+function parseRequestedTime(value: string | undefined, deliveryDate?: string): Date | null {
+  const requestedTime = value ? new Date(value) : deliveryRepository.parseDeliveryDateStartVN(deliveryDate);
   if (requestedTime && Number.isNaN(requestedTime.getTime())) {
     throw domainError.badRequest('Thoi gian giao hang khong hop le');
   }
@@ -219,7 +211,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     throw domainError.badRequest('Mã PO/Thi Công không hợp lệ');
   }
 
-  const requestedTime = parseRequestedTime(body.requestedTime);
+  const requestedTime = parseRequestedTime(body.requestedTime, body.deliveryDate);
   const unitConfig = await deliveryRepository.resolveRegistrationUnitConfig({
     receivingUnit: body.receivingUnit,
     unitConfigId: body.unitConfigId,
@@ -260,8 +252,14 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     throw domainError.unprocessable('Chủ nhật chỉ nhận hàng tươi sống', 'SundayFreshFoodOnly');
   }
 
-  const maxPerSlot = requestedTime
-    ? await deliveryRepository.getRegistrationSlotCapacity(unitConfig.id, body.receivingUnit, body.vehicleType)
+  const dailyCapacity = requestedTime
+    ? await deliveryRepository.getRegistrationDailyCapacity({
+        unitConfigId: unitConfig.id,
+        unit: body.receivingUnit,
+        goodsType: resolvedGoodsType,
+        vehicleType: body.vehicleType,
+        unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : body.unitGoodsTypeId,
+      })
     : null;
 
   try {
@@ -288,12 +286,12 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
       if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
 
       if (requestedTime) {
-        await ensureRegistrationSlotCapacity(tx, {
+        await ensureRegistrationDailyCapacity(tx, {
           requestedTime,
           receivingUnit: body.receivingUnit,
           unitConfigId: unitConfig.id,
           vehicleType: body.vehicleType,
-          maxPerSlot,
+          dailyCapacity,
         });
       }
 
@@ -356,8 +354,9 @@ export async function publicCancel(body: PublicCancelPayload) {
   const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
   const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
   const requestedTime = parseRequestedTime(body.requestedTime);
+  const deliveryDate = body.deliveryDate ?? (requestedTime ? deliveryRepository.localDateKey(requestedTime) : undefined);
 
-  if (!requestedTime || !vehiclePlate || !driverPhone || !poNumber) {
+  if ((!requestedTime && !deliveryDate) || !vehiclePlate || !driverPhone || !poNumber) {
     throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
   }
 
@@ -367,6 +366,7 @@ export async function publicCancel(body: PublicCancelPayload) {
     driverPhone,
     poNumber,
     requestedTime,
+    deliveryDate,
   });
   if (!delivery) {
     throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);

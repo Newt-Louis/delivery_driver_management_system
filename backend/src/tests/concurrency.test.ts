@@ -14,6 +14,7 @@ import { triggerAutoAssign } from '../services/autoAssign';
 import { getVNDateKey } from '../lib/dateVN';
 import { getIO, initSocket } from '../socket';
 import deliveryRoutes from '../routes/deliveries';
+import { autoCancelCalledNoShowDeliveries, closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
 
 const server = createServer();
 initSocket(server);
@@ -161,6 +162,7 @@ async function createSlot(
     vehicleType?: VehicleType;
     maxCapacity?: number;
     acceptedGoods?: GoodsType[];
+    goodsPriority?: GoodsType[];
     autoWarehouseOnly?: boolean;
   },
 ) {
@@ -173,6 +175,7 @@ async function createSlot(
       vehicleType: options.vehicleType ?? VehicleType.TRUCK,
       maxCapacity: options.maxCapacity ?? 1,
       acceptedGoods: options.acceptedGoods ?? [],
+      goodsPriority: options.goodsPriority ?? [],
       autoWarehouseOnly: options.autoWarehouseOnly ?? false,
       status: SlotStatus.AVAILABLE,
       isActive: true,
@@ -204,6 +207,7 @@ async function createDelivery(
       driverPhone: `090${String(index).padStart(7, '0')}`,
       vehiclePlate: `${scope.prefix}${String(index).padStart(3, '0')}`,
       receivingUnit: options.unit ?? ReceivingUnit.EMART,
+      unitConfigId: scope.unitConfigId,
       vehicleType: options.vehicleType ?? VehicleType.TRUCK,
       goodsType: options.goodsType ?? GoodsType.GENERAL_GOODS,
       poNumber: options.poNumber ?? null,
@@ -213,6 +217,27 @@ async function createDelivery(
       status: options.status ?? DeliveryStatus.REGISTERED,
       assignedSlotId: options.assignedSlotId ?? null,
       note: scope.prefix,
+    },
+  });
+}
+
+async function createCallEvent(scope: TestScope, delivery: Awaited<ReturnType<typeof createDelivery>>, slotId: string, occurredAt: Date) {
+  const slot = await prisma.slot.findUniqueOrThrow({ where: { id: slotId } });
+  return prisma.deliveryHistoryEvent.create({
+    data: {
+      deliveryRegistrationId: delivery.id,
+      originalDeliveryId: delivery.id,
+      registrationCode: delivery.registrationCode,
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+      eventType: DeliveryHistoryEventType.MANUAL_CALLED,
+      fromStatus: DeliveryStatus.WAITING,
+      toStatus: DeliveryStatus.CALLED,
+      occurredAt,
+      slotId: slot.id,
+      slotCode: slot.code,
+      slotName: slot.name,
+      message: 'Manual call test',
     },
   });
 }
@@ -461,61 +486,58 @@ test('public cancel rejects deliveries that have already checked in', async () =
   });
 });
 
-test('50 concurrent registrations for one time slot respect real slot capacity', async () => {
+test('public cancel accepts deliveryDate for date-only registrations', async () => {
   await withRegisterServer(async (baseUrl) => {
-    const prefix = nextPrefix('REGSLOT50');
-    await cleanupPrefix(prefix);
-    const location = await prisma.businessLocation.findFirst({
-      where: { isActive: true },
-      orderBy: { createdAt: 'asc' },
-    });
-    assert.ok(location);
+    await withScope('PUBCANCELDATE', ReceivingUnit.EMART, async (scope) => {
+      const deliveryDate = localDateTimeAfterDays(45, 0, 0).slice(0, 10);
+      const delivery = await createDelivery(scope, 1, {
+        status: DeliveryStatus.REGISTERED,
+        requestedTime: new Date(`${deliveryDate}T00:00:00+07:00`),
+        poNumber: 'PO0473829156',
+      });
 
-    const config = await prisma.unitConfig.findUnique({
-      where: {
-        businessLocationId_unit: {
-          businessLocationId: location.id,
+      const response = await fetch(`${baseUrl}/api/deliveries/public-cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vehiclePlate: delivery.vehiclePlate,
+          driverPhone: delivery.driverPhone,
+          poNumber: delivery.poNumber,
+          registrationCode: delivery.registrationCode,
+          deliveryDate,
+        }),
+      });
+
+      assert.equal(response.status, 200);
+      const removed = await prisma.deliveryRegistration.findUnique({ where: { id: delivery.id } });
+      assert.equal(removed, null);
+      const history = await prisma.deliveryHistory.findFirstOrThrow({ where: { originalDeliveryId: delivery.id } });
+      assert.equal(history.closeReason, 'Tài xế thao tác hủy');
+    });
+  });
+});
+
+test('50 concurrent registrations for one day respect estimated daily capacity', async () => {
+  await withRegisterServer(async (baseUrl) => {
+    await withScope('REGDAY50', ReceivingUnit.EMART, async (scope) => {
+      await prisma.unitConfig.update({
+        where: { id: scope.unitConfigId },
+        data: { truckSlotMinutes: 30, truckMaxPerSlot: 1 },
+      });
+      await prisma.deliveryTimeWindow.create({
+        data: {
+          unitConfigId: scope.unitConfigId,
           unit: ReceivingUnit.EMART,
+          goodsType: GoodsType.GENERAL_GOODS,
+          label: 'Daily capacity test',
+          startTime: '08:00',
+          endTime: '11:00',
+          enabled: true,
         },
-      },
-    });
-    assert.ok(config);
+      });
+      const deliveryDate = localDateTimeAfterDays(30, 0, 0).slice(0, 10);
+      const expectedCapacity = 6;
 
-    const requestedTime = localDateTimeAfterDays(30, 3, 17);
-    const zone = await prisma.zone.create({
-      data: {
-        code: `${prefix}Z`,
-        name: `Zone ${prefix}`,
-        unitConfigId: config.id,
-      },
-    });
-    await prisma.slot.create({
-      data: {
-        code: `${prefix}S1`,
-        name: `Slot ${prefix}`,
-        zoneId: zone.id,
-        assignedUnit: ReceivingUnit.EMART,
-        vehicleType: VehicleType.TRUCK,
-        maxCapacity: 1,
-        acceptedGoods: [],
-        status: SlotStatus.AVAILABLE,
-        isActive: true,
-        autoAssign: true,
-      },
-    });
-    const matchingSlots = await prisma.slot.findMany({
-      where: {
-        assignedUnit: ReceivingUnit.EMART,
-        vehicleType: VehicleType.TRUCK,
-        isActive: true,
-        status: { notIn: [SlotStatus.MAINTENANCE, SlotStatus.RESERVED] },
-        zone: { unitConfigId: config.id },
-      },
-      select: { maxCapacity: true },
-    });
-    const expectedCapacity = matchingSlots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
-
-    try {
       const responses = await Promise.all(
         Array.from({ length: 50 }, (_, i) => fetch(`${baseUrl}/api/deliveries/register`, {
           method: 'POST',
@@ -524,13 +546,15 @@ test('50 concurrent registrations for one time slot respect real slot capacity',
             vendorName: 'Concurrent Slot Vendor',
             driverName: `Driver ${i}`,
             driverPhone: `091${String(i).padStart(7, '0')}`,
-            vehiclePlate: `${prefix}${String(i).padStart(3, '0')}`,
+            vehiclePlate: `${scope.prefix}${String(i).padStart(3, '0')}`,
             vehicleType: 'TRUCK',
             receivingUnit: 'EMART',
+            businessLocationId: scope.businessLocationId,
+            unitConfigId: scope.unitConfigId,
             goodsType: 'GENERAL_GOODS',
             poNumber: 'PO5839102746',
-            requestedTime,
-            note: prefix,
+            deliveryDate,
+            note: scope.prefix,
           }),
         })),
       );
@@ -541,14 +565,12 @@ test('50 concurrent registrations for one time slot respect real slot capacity',
 
       const deliveries = await prisma.deliveryRegistration.findMany({
         where: {
-          note: prefix,
+          note: scope.prefix,
           status: DeliveryStatus.REGISTERED,
         },
       });
       assert.equal(deliveries.length, expectedCapacity);
-    } finally {
-      await cleanupPrefix(prefix);
-    }
+    });
   });
 });
 test('20 concurrent check-ins receive unique ticket numbers', async () => {
@@ -634,6 +656,83 @@ test('5 concurrent manual calls for one delivery create one call and four recall
     assert.equal(callEvents, 5);
     assert.equal(final.status, DeliveryStatus.CALLED);
     assert.equal(final.assignedSlotId, slot.id);
+  });
+});
+
+test('auto-cancel no-show skips CALLED deliveries when unit setting is disabled', async () => {
+  await withScope('AUTOCANCELOFF', ReceivingUnit.EMART, async (scope) => {
+    await prisma.unitConfig.update({
+      where: { id: scope.unitConfigId },
+      data: { autoCancelCalledEnabled: false, autoCancelCalledAfterMinutes: 5 },
+    });
+    const slot = await createSlot(scope, { suffix: 'S1' });
+    const calledTime = new Date(Date.now() - 30 * 60_000);
+    const delivery = await createDelivery(scope, 1, {
+      status: DeliveryStatus.CALLED,
+      assignedSlotId: slot.id,
+      calledTime,
+    });
+    await createCallEvent(scope, delivery, slot.id, calledTime);
+
+    const result = await autoCancelCalledNoShowDeliveries();
+
+    const final = await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: delivery.id } });
+    assert.equal(final.status, DeliveryStatus.CALLED);
+    assert.equal(result.succeeded, 0);
+  });
+});
+
+test('close daily archives REGISTERED deliveries for the business date', async () => {
+  await withScope('CLOSEDAILY', ReceivingUnit.EMART, async (scope) => {
+    const businessDate = localDateTimeAfterDays(60, 0, 0).slice(0, 10);
+    const delivery = await createDelivery(scope, 1, {
+      status: DeliveryStatus.REGISTERED,
+      requestedTime: new Date(`${businessDate}T00:00:00+07:00`),
+      poNumber: 'PO0473829156',
+    });
+
+    const result = await closeDailyDeliveries({ businessDate });
+
+    assert.equal(result.succeeded, 1);
+    const removed = await prisma.deliveryRegistration.findUnique({ where: { id: delivery.id } });
+    assert.equal(removed, null);
+    const history = await prisma.deliveryHistory.findFirstOrThrow({ where: { originalDeliveryId: delivery.id } });
+    assert.equal(history.finalStatus, 'EXPIRED');
+    assert.equal(history.closeReason, 'Không tới check-in');
+  });
+});
+
+test('auto-cancel no-show cancels overdue CALLED delivery and leaves row for archive job', async () => {
+  await withScope('AUTOCANCELON', ReceivingUnit.EMART, async (scope) => {
+    await prisma.unitConfig.update({
+      where: { id: scope.unitConfigId },
+      data: { autoCancelCalledEnabled: true, autoCancelCalledAfterMinutes: 5 },
+    });
+    const slot = await createSlot(scope, { suffix: 'S1' });
+    const calledTime = new Date(Date.now() - 30 * 60_000);
+    const delivery = await createDelivery(scope, 1, {
+      status: DeliveryStatus.CALLED,
+      assignedSlotId: slot.id,
+      calledTime,
+    });
+    await createCallEvent(scope, delivery, slot.id, calledTime);
+
+    const result = await autoCancelCalledNoShowDeliveries();
+
+    assert.equal(result.succeeded, 1);
+    const final = await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: delivery.id } });
+    assert.equal(final.status, DeliveryStatus.CANCELLED);
+    assert.equal(final.cancelReason, 'Tài xế check-in rồi nhưng không vào');
+
+    const event = await prisma.deliveryHistoryEvent.findFirstOrThrow({
+      where: { originalDeliveryId: delivery.id, eventType: DeliveryHistoryEventType.CANCELLED },
+      orderBy: { occurredAt: 'desc' },
+    });
+    assert.equal(event.message, 'Tài xế check-in rồi nhưng không vào');
+    assert.equal(event.reason, 'Tài xế check-in rồi nhưng không vào');
+
+    const history = await prisma.deliveryHistory.findFirst({ where: { originalDeliveryId: delivery.id } });
+    assert.equal(history, null);
   });
 });
 
@@ -817,5 +916,40 @@ test('auto-assign prioritizes FRESH_FOOD over older general goods for normal slo
     assert.equal(finalFresh.status, DeliveryStatus.CALLED);
     assert.equal(finalFresh.assignedSlotId, slot.id);
     assert.equal(finalGeneral.status, DeliveryStatus.WAITING);
+  });
+});
+
+test('auto-assign follows slot goodsPriority before FIFO within the same goods type', async (t) => {
+  await withScope('PRIORITYCFG', ReceivingUnit.EMART, async (scope) => {
+    if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
+    const slot = await createSlot(scope, {
+      suffix: 'S1',
+      acceptedGoods: [GoodsType.FRESH_FOOD, GoodsType.GENERAL_GOODS],
+      goodsPriority: [GoodsType.GENERAL_GOODS, GoodsType.FRESH_FOOD],
+    });
+    const olderFresh = await createDelivery(scope, 1, {
+      status: DeliveryStatus.WAITING,
+      goodsType: GoodsType.FRESH_FOOD,
+      checkinTime: new Date(Date.now() - 20_000),
+    });
+    const newerGeneral = await createDelivery(scope, 2, {
+      status: DeliveryStatus.WAITING,
+      goodsType: GoodsType.GENERAL_GOODS,
+      checkinTime: new Date(Date.now() - 10_000),
+    });
+
+    const called = await triggerAutoAssign(ReceivingUnit.EMART, {
+      businessLocationId: scope.businessLocationId,
+      unitConfigId: scope.unitConfigId,
+    });
+
+    const [finalFresh, finalGeneral] = await Promise.all([
+      prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: olderFresh.id } }),
+      prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: newerGeneral.id } }),
+    ]);
+    assert.equal(called, 1);
+    assert.equal(finalGeneral.status, DeliveryStatus.CALLED);
+    assert.equal(finalGeneral.assignedSlotId, slot.id);
+    assert.equal(finalFresh.status, DeliveryStatus.WAITING);
   });
 });

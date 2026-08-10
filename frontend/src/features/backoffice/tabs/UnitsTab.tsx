@@ -12,6 +12,8 @@ interface UnitConfigFormData {
   motorbikeSlotMinutes: number;
   truckMaxPerSlot: number;
   motorbikeMaxPerSlot: number;
+  autoCancelCalledEnabled: boolean;
+  autoCancelCalledAfterMinutes: number;
   vendorApiUrl: string;
   vendorApiKey: string;
   poApiUrl: string;
@@ -275,6 +277,8 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
     motorbikeSlotMinutes: config?.motorbikeSlotMinutes ?? 15,
     truckMaxPerSlot: config?.truckMaxPerSlot ?? 1,
     motorbikeMaxPerSlot: config?.motorbikeMaxPerSlot ?? 3,
+    autoCancelCalledEnabled: config?.autoCancelCalledEnabled ?? false,
+    autoCancelCalledAfterMinutes: config?.autoCancelCalledAfterMinutes ?? 15,
     vendorApiUrl: config?.vendorApiUrl ?? '',
     vendorApiKey: '',
     poApiUrl: config?.poApiUrl ?? '',
@@ -298,6 +302,8 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
         motorbikeSlotMinutes: Number(form.motorbikeSlotMinutes),
         truckMaxPerSlot: Number(form.truckMaxPerSlot),
         motorbikeMaxPerSlot: Number(form.motorbikeMaxPerSlot),
+        autoCancelCalledEnabled: form.autoCancelCalledEnabled,
+        autoCancelCalledAfterMinutes: Number(form.autoCancelCalledAfterMinutes),
         vendorApiUrl: form.vendorApiUrl || null,
         vendorApiKey: form.vendorApiKey || null,
         poApiUrl: form.poApiUrl || null,
@@ -423,6 +429,34 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
             {numInput('Xe tải: tối đa xe/slot', 'truckMaxPerSlot', 1, 20)}
             {numInput('Xe máy: phút/slot', 'motorbikeSlotMinutes', 5, 60)}
             {numInput('Xe máy: tối đa xe/slot', 'motorbikeMaxPerSlot', 1, 20)}
+          </div>
+        </div>
+
+        <div className="bg-red-50 rounded-xl p-3 space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm font-semibold text-red-700">Tự động hủy</span>
+            <button
+              type="button"
+              onClick={() => editing && setF('autoCancelCalledEnabled', !form.autoCancelCalledEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${form.autoCancelCalledEnabled ? 'bg-red-600' : 'bg-thiso-200'} ${!editing ? 'opacity-60 cursor-default' : ''}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${form.autoCancelCalledEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-thiso-500">Từ lần cuối gọi vào slot sau:</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={5}
+                max={999}
+                className="input text-sm py-1.5"
+                value={form.autoCancelCalledAfterMinutes}
+                onChange={(e) => setF('autoCancelCalledAfterMinutes', Number(e.target.value))}
+                disabled={!editing || !form.autoCancelCalledEnabled}
+              />
+              <span className="text-sm font-semibold text-thiso-500">/ phút</span>
+            </div>
           </div>
         </div>
 

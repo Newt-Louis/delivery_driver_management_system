@@ -2,12 +2,14 @@ import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../do
 import { GoodsType, Prisma, VehicleType } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { helperFunctions } from '../../helperFunction';
+import { getVNDateKey } from '../../lib/dateVN';
 import { roleHasUnitOperationScope } from '../../domain/permissions';
 import { assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { domainError } from '../shared/domainError';
 import type {
   GoodsTypeQuery,
+  DailyStatsQuery,
   IntegrationQuery,
   OrderCodeQuery,
   PublicLocationQuery,
@@ -35,6 +37,10 @@ interface UnitConfigAuditSnapshot {
   sundayFreshFoodOnly: boolean;
   truckSlotMinutes: number;
   motorbikeSlotMinutes: number;
+  truckMaxPerSlot: number;
+  motorbikeMaxPerSlot: number;
+  autoCancelCalledEnabled: boolean;
+  autoCancelCalledAfterMinutes: number;
   displayName: string;
   shortName: string;
   icon: string | null;
@@ -71,6 +77,10 @@ function auditUnitConfigSnapshot(config: UnitConfigAuditSnapshot): Record<string
     sundayFreshFoodOnly: config.sundayFreshFoodOnly,
     truckSlotMinutes: config.truckSlotMinutes,
     motorbikeSlotMinutes: config.motorbikeSlotMinutes,
+    truckMaxPerSlot: config.truckMaxPerSlot,
+    motorbikeMaxPerSlot: config.motorbikeMaxPerSlot,
+    autoCancelCalledEnabled: config.autoCancelCalledEnabled,
+    autoCancelCalledAfterMinutes: config.autoCancelCalledAfterMinutes,
     displayName: config.displayName,
     shortName: config.shortName,
     icon: config.icon,
@@ -103,6 +113,69 @@ function parseLocalDate(date: string) {
     dayStart: new Date(year, month - 1, day, 0, 0, 0),
     dayEnd: new Date(year, month - 1, day, 23, 59, 59),
   };
+}
+
+function parseMonthRange(monthKey: string) {
+  const [year, month] = monthKey.split('-').map(Number);
+  const monthStart = new Date(Date.UTC(year, month - 1, 1) - 7 * 60 * 60 * 1000);
+  const monthEnd = new Date(Date.UTC(year, month, 1) - 7 * 60 * 60 * 1000);
+  return { year, month, monthStart, monthEnd, daysInMonth: new Date(year, month, 0).getDate() };
+}
+
+function localDateKey(date: Date): string {
+  return getVNDateKey(date);
+}
+
+async function listEnabledCapacityWindows(args: {
+  unitConfigId: string;
+  unit: ReceivingUnitCode;
+  goodsType: GoodsType;
+  unitGoodsTypeId?: string;
+}) {
+  let timeWindows = args.unitGoodsTypeId
+    ? await unitRepository.listTimeWindows({ unitGoodsTypeId: args.unitGoodsTypeId, enabled: true })
+    : await unitRepository.listTimeWindows({
+        unitConfigId: args.unitConfigId,
+        unit: args.unit,
+        goodsType: args.goodsType,
+        unitGoodsTypeId: null,
+        enabled: true,
+      });
+
+  if (timeWindows.length === 0 && args.unitGoodsTypeId) {
+    timeWindows = await unitRepository.listTimeWindows({
+      unitConfigId: args.unitConfigId,
+      unit: args.unit,
+      goodsType: args.goodsType,
+      unitGoodsTypeId: null,
+      enabled: true,
+    });
+  }
+
+  return timeWindows;
+}
+
+function estimateDailyCapacity(args: {
+  timeWindows: Array<{ startTime: string; endTime: string }>;
+  slotMinutes: number;
+  maxPerSlot: number;
+}): number {
+  if (args.slotMinutes <= 0 || args.maxPerSlot <= 0) return 0;
+
+  return args.timeWindows.reduce((total, win) => {
+    const startMins = helperFunctions.timeToMinutes(win.startTime);
+    const endMins = helperFunctions.timeToMinutes(win.endTime);
+    const slotCount = Math.max(0, Math.floor((endMins - startMins) / args.slotMinutes));
+    return total + slotCount * args.maxPerSlot;
+  }, 0);
+}
+
+function capacityLevel(registered: number, capacity: number | null) {
+  if (!capacity || capacity <= 0) return 'none';
+  const percent = registered / capacity;
+  if (percent < 0.5) return 'low';
+  if (percent <= 0.8) return 'medium';
+  return 'high';
 }
 
 export async function listConfigs(user: AuthUser | undefined, scope?: ScopeInput) {
@@ -469,6 +542,64 @@ export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQue
   }
 
   return { slots };
+}
+
+export async function getDailyRegistrationStats(unit: ReceivingUnitCode, query: DailyStatsQuery, scope?: PublicUnitScopeQuery) {
+  const config = await resolvePublicUnitConfig(unit, scope);
+  const { year, month, monthStart, monthEnd, daysInMonth } = parseMonthRange(query.month);
+
+  if (!helperFunctions.unitAcceptsGoods(config, query.goodsType)) {
+    return { days: [], reason: 'Đơn vị này không nhận loại hàng đã chọn' };
+  }
+
+  const isMotorbike = query.vehicleType === VehicleType.MOTORBIKE;
+  const slotMinutes = isMotorbike ? config.motorbikeSlotMinutes : config.truckSlotMinutes;
+  const maxPerWindowSlot = isMotorbike ? config.motorbikeMaxPerSlot : config.truckMaxPerSlot;
+  const timeWindows = await listEnabledCapacityWindows({
+    unitConfigId: config.id,
+    unit,
+    goodsType: query.goodsType,
+    unitGoodsTypeId: query.unitGoodsTypeId,
+  });
+  const dailyCapacity = estimateDailyCapacity({ timeWindows, slotMinutes, maxPerSlot: maxPerWindowSlot });
+
+  const bookings = await unitRepository.listActiveBookingsForRange({
+    unit,
+    unitConfigId: config.id,
+    vehicleType: query.vehicleType,
+    rangeStart: monthStart,
+    rangeEnd: monthEnd,
+  });
+
+  const counts = new Map<string, number>();
+  for (const booking of bookings) {
+    if (!booking.requestedTime) continue;
+    const key = localDateKey(booking.requestedTime);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  const days = Array.from({ length: daysInMonth }, (_, index) => {
+    const date = new Date(year, month - 1, index + 1);
+    const dateKey = localDateKey(date);
+    const registered = counts.get(dateKey) ?? 0;
+    const sundayBlocked = date.getDay() === 0 && config.sundayFreshFoodOnly && query.goodsType !== GoodsType.FRESH_FOOD;
+    const capacity = sundayBlocked ? 0 : dailyCapacity;
+    const percent = capacity > 0 ? registered / capacity : null;
+    return {
+      date: dateKey,
+      registered,
+      capacity,
+      percent,
+      level: capacityLevel(registered, capacity),
+      available: !sundayBlocked && (capacity <= 0 || registered < capacity),
+      reason: sundayBlocked ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined,
+    };
+  });
+
+  return {
+    days,
+    reason: timeWindows.length === 0 ? 'Chưa cấu hình khung giờ nhận hàng để ước lượng công suất ngày.' : undefined,
+  };
 }
 
 export async function updateConfig(

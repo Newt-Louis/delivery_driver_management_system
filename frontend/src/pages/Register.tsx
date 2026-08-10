@@ -28,9 +28,9 @@ export default function Register() {
     publicUnitsMsg,
     unitConfig,
     customGoodsTypes,
-    slots,
-    slotsMsg,
-    slotsLoading,
+    dailyStats,
+    dailyStatsMsg,
+    dailyStatsLoading,
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
@@ -39,8 +39,6 @@ export default function Register() {
     sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
-    showOtherTimeModal,
-    setShowOtherTimeModal,
     contentRef,
     set,
     next,
@@ -52,8 +50,6 @@ export default function Register() {
 
   const { units: brandUnits } = useBranding();
   const selectedLocation = publicLocations.find((l) => l.id === form.businessLocationId);
-  const slotMinutes = form.vehicleType === 'MOTORBIKE' ? unitConfig?.motorbikeSlotMinutes : unitConfig?.truckSlotMinutes;
-  const maxPerSlot = slots.find((slot) => !slot.isPast)?.maxPerSlot ?? slots[0]?.maxPerSlot;
 
   if (success) return <SuccessScreen info={success} onReset={resetForm} />;
 
@@ -121,17 +117,13 @@ export default function Register() {
             form={form}
             fieldErrors={fieldErrors}
             highlightedField={highlightedField}
-            unitConfig={unitConfig}
-            slots={slots}
-            slotsMsg={slotsMsg}
-            slotsLoading={slotsLoading}
+            dailyStats={dailyStats}
+            dailyStatsMsg={dailyStatsMsg}
+            dailyStatsLoading={dailyStatsLoading}
             orderCodes={orderCodes}
             orderCodesLoading={orderCodesLoading}
-            slotMinutes={slotMinutes}
-            maxPerSlot={maxPerSlot}
             sundayFreshFoodBlocked={sundayFreshFoodBlocked}
-            showOtherTimeModal={showOtherTimeModal}
-            setShowOtherTimeModal={setShowOtherTimeModal}
+            sundayFreshFoodOnly={Boolean(unitConfig?.sundayFreshFoodOnly)}
             set={set}
           />
         )}

@@ -52,7 +52,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
       ['Tài xế', info.driverName || '—'],
       ['Nhà cung cấp', info.vendorName],
       ['Loại hàng', info.goodsTypeName || GOODS_LABEL[info.goodsType] || String(info.goodsType)],
-      ['Giờ dự kiến', info.requestedTime],
+      ['Ngày giao', info.requestedTime],
       ...(info.locationName ? [['Khu vực', info.locationName] as [string, string]] : []),
     ];
 
@@ -187,7 +187,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 <div class="row"><span class="lbl">Tài xế</span><span class="val">${info.driverName || '—'}</span></div>
 <div class="row"><span class="lbl">Nhà cung cấp</span><span class="val">${info.vendorName}</span></div>
 <div class="row"><span class="lbl">Loại hàng</span><span class="val">${info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</span></div>
-<div class="row"><span class="lbl">Giờ dự kiến</span><span class="val">${info.requestedTime}</span></div>
+<div class="row"><span class="lbl">Ngày giao</span><span class="val">${info.requestedTime}</span></div>
 ${locationRow}
 <div class="footer">
   Đưa QR cho bảo vệ scan để check-in<br>

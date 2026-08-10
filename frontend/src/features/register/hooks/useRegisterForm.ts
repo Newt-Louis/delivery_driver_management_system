@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BusinessLocation, SlotInfo, UnitConfig, UnitGoodsType } from '../../../lib/types';
+import type { BusinessLocation, UnitConfig, UnitGoodsType } from '../../../lib/types';
 import {
   checkAutoWarehouseVendor,
+  getDailyRegistrationStats,
   getPublicBusinessLocations,
   getPublicUnitConfigs,
-  getSlotAvailability,
   getOrderCodes,
   getUnitConfig,
   // getUnitGoodsTypes, ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa
   getVehicleAvailability,
   registerDelivery,
+  type DailyRegistrationStat,
+  type DailyRegistrationStatsParams,
   type OrderCodeOption,
-  type SlotAvailabilityParams,
   type VehicleAvailabilityOption,
 } from '../api';
 import { LS_KEY } from '../constants';
@@ -20,7 +21,7 @@ import { isSundayDate, todayDate } from '../utils/date';
 
 const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
   1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
-  2: ['timeSlot', 'vendorName', 'poNumber'],
+  2: ['deliveryDate', 'vendorName', 'poNumber'],
    3: ['vehiclePlate', 'driverPhone'],
   4: [],
 };
@@ -66,9 +67,9 @@ export function useRegisterForm() {
   const [publicUnitsMsg, setPublicUnitsMsg] = useState('');
   const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
   const [customGoodsTypes, setCustomGoodsTypes] = useState<UnitGoodsType[]>([]);
-  const [slots, setSlots] = useState<SlotInfo[]>([]);
-  const [slotsMsg, setSlotsMsg] = useState('');
-  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [dailyStats, setDailyStats] = useState<DailyRegistrationStat[]>([]);
+  const [dailyStatsMsg, setDailyStatsMsg] = useState('');
+  const [dailyStatsLoading, setDailyStatsLoading] = useState(false);
   const [orderCodes, setOrderCodes] = useState<OrderCodeOption[]>([]);
   const [orderCodesLoading, setOrderCodesLoading] = useState(false);
   const [vehicleAvailability, setVehicleAvailability] = useState<VehicleAvailabilityOption[]>([]);
@@ -77,7 +78,6 @@ export function useRegisterForm() {
   const [awStatus, setAwStatus] = useState<'idle' | 'loading' | 'match' | 'nomatch'>('idle');
   const [awVendorName, setAwVendorName] = useState('');
   const awDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [showOtherTimeModal, setShowOtherTimeModal] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const sundayFreshFoodBlocked = Boolean(
     unitConfig?.sundayFreshFoodOnly
@@ -215,21 +215,21 @@ export function useRegisterForm() {
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.unitGoodsTypeId]);
 
   useEffect(() => {
-    if (step !== 2 || !form.receivingUnit || !selectedUnitScope || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
-    setSlotsLoading(true);
-    setSlotsMsg('');
-    setSlots([]);
+    if (step !== 2 || !form.receivingUnit || !selectedUnitScope || !form.goodsType || !form.vehicleType) return;
+    setDailyStatsLoading(true);
+    setDailyStatsMsg('');
+    setDailyStats([]);
     setForm(f => ({ ...f, timeSlot: '' }));
-    const slotParams: SlotAvailabilityParams = {
-      date: form.deliveryDate,
+    const statsParams: DailyRegistrationStatsParams = {
+      month: form.deliveryDate.slice(0, 7),
       goodsType: form.goodsType,
       vehicleType: form.vehicleType,
     };
-    if (form.unitGoodsTypeId) slotParams.unitGoodsTypeId = form.unitGoodsTypeId;
-    getSlotAvailability(form.receivingUnit, slotParams, selectedUnitScope)
-      .then(data => { setSlots(data.slots ?? []); if (data.reason) setSlotsMsg(data.reason); })
-      .catch(() => setSlotsMsg('Không thể tải danh sách giờ. Vui lòng thử lại.'))
-      .finally(() => setSlotsLoading(false));
+    if (form.unitGoodsTypeId) statsParams.unitGoodsTypeId = form.unitGoodsTypeId;
+    getDailyRegistrationStats(form.receivingUnit, statsParams, selectedUnitScope)
+      .then(data => { setDailyStats(data.days ?? []); if (data.reason) setDailyStatsMsg(data.reason); })
+      .catch(() => setDailyStatsMsg('Không thể tải thông tin ngày đăng ký. Vui lòng thử lại.'))
+      .finally(() => setDailyStatsLoading(false));
   }, [step, form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.vehicleType, form.deliveryDate, form.unitGoodsTypeId]);
 
   useEffect(() => {
@@ -267,12 +267,6 @@ export function useRegisterForm() {
     contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [step]);
 
-  useEffect(() => {
-    if (sundayFreshFoodBlocked && form.timeSlot) {
-      setForm(f => ({ ...f, timeSlot: '' }));
-    }
-  }, [form.timeSlot, sundayFreshFoodBlocked]);
-
   function scrollToFirstError(errs: RegisterFieldErrors) {
     const firstField = REQUIRED_FIELDS_BY_STEP[step]?.find(field => errs[field]) ?? null;
     setHighlightedField(firstField);
@@ -293,8 +287,12 @@ export function useRegisterForm() {
       else if (!form.vehicleType) errs.vehicleType = 'Vui lòng chọn loại phương tiện';
     }
     if (step === 2) {
-      if (sundayFreshFoodBlocked) errs.timeSlot = 'Chủ nhật chỉ nhận hàng tươi sống';
-      else if (!form.timeSlot) errs.timeSlot = 'Vui lòng chọn khung giờ giao hàng';
+      const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
+      if (sundayFreshFoodBlocked) errs.deliveryDate = 'Chủ nhật chỉ nhận hàng tươi sống';
+      else if (!form.deliveryDate) errs.deliveryDate = 'Vui lòng chọn ngày giao hàng';
+      else if (selectedDayStats?.available === false) {
+        errs.deliveryDate = selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký';
+      }
       if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
       const orderCode = normalizeOrderCode(form.poNumber);
       if (!orderCode) errs.poNumber = 'Vui lòng nhập Số PO hoặc Mã số thi công';
@@ -351,7 +349,6 @@ export function useRegisterForm() {
     setSubmitting(true);
     setSubmitError('');
     try {
-      const requestedTime = form.timeSlot === 'OTHER' ? undefined : `${form.deliveryDate}T${form.timeSlot}:00`;
       const plate = form.vehiclePlate.toUpperCase().replace(/\s+/g, '');
       const poNumber = normalizeOrderCode(form.poNumber);
       const selectedCustomType = customGoodsTypes.find(ct => ct.id === form.unitGoodsTypeId);
@@ -368,7 +365,6 @@ export function useRegisterForm() {
         unitGoodsTypeId: form.unitGoodsTypeId || undefined,
         poNumber,
         vendorCode: form.vendorCode || undefined,
-        requestedTime,
         deliveryDate: form.deliveryDate,
         note: form.note || undefined,
       });
@@ -385,9 +381,7 @@ export function useRegisterForm() {
         goodsType: form.goodsType,
         goodsTypeName: selectedCustomType ? `${selectedCustomType.emoji} ${selectedCustomType.name}` : '',
         vehicleType: form.vehicleType,
-        requestedTime: form.timeSlot === 'OTHER'
-          ? `Ngày ${form.deliveryDate.split('-').reverse().join('/')} (không có giờ cụ thể)`
-          : `${form.timeSlot} ngày ${form.deliveryDate.split('-').reverse().join('/')}`,
+        requestedTime: form.deliveryDate.split('-').reverse().join('/'),
         locationName: selectedLocation?.locationName ?? '',
       });
     } catch (err: unknown) {
@@ -443,9 +437,9 @@ export function useRegisterForm() {
     setRememberInfo,
     unitConfig,
     customGoodsTypes,
-    slots,
-    slotsMsg,
-    slotsLoading,
+    dailyStats,
+    dailyStatsMsg,
+    dailyStatsLoading,
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
@@ -454,8 +448,6 @@ export function useRegisterForm() {
     sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
-    showOtherTimeModal,
-    setShowOtherTimeModal,
     contentRef,
     set,
     next,

@@ -42,9 +42,9 @@ Tab và quyền:
 Các tab cấu hình theo đơn vị không tự dựng danh sách unit ở frontend. Danh sách unit hợp lệ luôn lấy từ `GET /api/units/configs`, đã được backend lọc theo `BusinessLocation` hiện tại và `UserUnitPermission` của tài khoản đăng nhập. Các tab đang theo quy ước này:
 
 - `BrandTab`: render card thương hiệu cho từng `UnitConfig`; lưu bằng `PATCH /api/units/:unit/config` để giữ contract cũ nhưng dữ liệu resolve trong scope hiện tại.
-- `UnitsTab`: render cấu hình hàng hóa, khung giờ, slot duration/capacity và API tích hợp theo từng `UnitConfig`.
+- `UnitsTab`: render cấu hình hàng hóa, khung giờ, slot duration/capacity, auto-cancel no-show và API tích hợp theo từng `UnitConfig`.
 - `ZonesTab`: tạo/sửa zone bằng `unitConfigId`; nhãn đơn vị lấy từ `UnitConfig.displayName/shortName/unit`.
-- `SlotsTab`: filter hiển thị slot bằng `slot.zone.unitConfig.id`, không bằng text `assignedUnit`.
+- `SlotsTab`: filter hiển thị slot bằng `slot.zone.unitConfig.id`, không bằng text `assignedUnit`; `SlotModal` cho ADMIN_LOC sắp xếp thứ tự ưu tiên loại hàng bằng kéo thả.
 - `AWVendorTab`: filter/tạo vendor bằng `unitConfigId`; backend tự lưu snapshot `unit` để tương thích public register.
 
 Các constant unit legacy như `EMART`, `THISKYHALL`, `TENANT` không còn là source of truth cho UI cấu hình mới. Khi cần presentation chung, frontend dùng `frontend/src/lib/unitPresentation.ts` để lấy label/icon/màu/prefix từ `UnitConfig` metadata và chỉ fallback generic khi payload thiếu metadata.
@@ -110,6 +110,12 @@ Backend refactor hiện tại:
 `/api/aw-vendors` hiện đi qua `authenticate + enforceScope` và chỉ cho `SUPERADMIN`/`ADMIN_LOC` quản trị. List/create/update/delete đều resolve `UnitConfig` trong scope hiện tại rồi kiểm tra unit operation permission. Public check `/api/aw-vendors/check` vẫn mở cho register, nhưng khi client truyền `businessLocationId` hoặc `unitConfigId` thì vendor được match bằng `unitConfigId` để tránh lẫn dữ liệu giữa nhiều location có cùng mã unit.
 
 Schema `AutoWarehouseVendor` giữ cột `unit` như snapshot tương thích, nhưng unique nghiệp vụ mới là `unitConfigId + vendorCode`. Vì vậy cùng một mã NCC có thể tồn tại ở hai `BusinessLocation` khác nhau nếu chúng thuộc hai `UnitConfig` khác nhau.
+
+`UnitConfig` có thêm cấu hình tự động hủy xe đã gọi nhưng không vào:
+
+- `autoCancelCalledEnabled`: bật/tắt theo từng unit.
+- `autoCancelCalledAfterMinutes`: số phút tính từ lần gọi/nhắc lại/chuyển slot gần nhất, giới hạn UI/API hiện tại là 5 đến 999 phút.
+- Khi quá hạn, scheduler chuyển delivery `CALLED` sang `CANCELLED` với lý do `Tài xế check-in rồi nhưng không vào`; row `CANCELLED` ở lại operational 120 phút rồi job archive xử lý như cancel thường.
 
 ## Lưu Ý Kiến Trúc
 

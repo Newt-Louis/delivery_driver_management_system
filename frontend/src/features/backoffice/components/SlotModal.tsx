@@ -16,12 +16,28 @@ const slotSchema = z.object({
   autoAssign: z.boolean().default(true),
   maxCapacity: z.number().int().min(1).max(10).default(1),
   acceptedGoods: z.array(z.enum(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'])).default([]),
+  goodsPriority: z.array(z.enum(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'])).default([]),
   autoWarehouseOnly: z.boolean().default(false),
 });
 type SlotForm = z.infer<typeof slotSchema>;
 
+const NORMAL_GOODS: GoodsType[] = ['FRESH_FOOD', 'GENERAL_GOODS', 'THI_CONG'];
+
+function defaultGoodsPriority(slot?: Slot | null): GoodsType[] {
+  const acceptedGoods = (slot?.acceptedGoods ?? []).filter((goodsType) => NORMAL_GOODS.includes(goodsType));
+  const priority = (slot?.goodsPriority ?? []).filter((goodsType) => NORMAL_GOODS.includes(goodsType));
+  if (priority.length > 0) {
+    return [
+      ...priority,
+      ...acceptedGoods.filter((goodsType) => !priority.includes(goodsType)),
+    ];
+  }
+  return acceptedGoods.length > 0 ? acceptedGoods : NORMAL_GOODS;
+}
+
 export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zones: Zone[]; onClose: () => void; onSaved: () => void }) {
   const [serverError, setServerError] = useState('');
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const isEdit = !!slot;
   const unitOptions = Array.from(new Map(
     zones
@@ -33,28 +49,50 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
   const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SlotForm>({
     resolver: zodResolver(slotSchema),
     defaultValues: slot
-      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, autoWarehouseOnly: slot.autoWarehouseOnly ?? false, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[] }
-      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, autoWarehouseOnly: false, maxCapacity: 1, acceptedGoods: [] },
+      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, autoWarehouseOnly: slot.autoWarehouseOnly ?? false, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: defaultGoodsPriority(slot) }
+      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, autoWarehouseOnly: false, maxCapacity: 1, acceptedGoods: [], goodsPriority: NORMAL_GOODS },
   });
 
-  const acceptedGoods = watch('acceptedGoods') ?? [];
+  const goodsPriority = watch('goodsPriority') ?? [];
+  const autoWarehouseOnly = watch('autoWarehouseOnly');
   const assignedUnit = watch('assignedUnit');
   const matchingZones = zones.filter((z) => z.unitConfig?.unit === assignedUnit);
 
-  function toggleGoods(g: GoodsType) {
-    if (acceptedGoods.includes(g)) {
-      setValue('acceptedGoods', acceptedGoods.filter((x) => x !== g));
-    } else {
-      setValue('acceptedGoods', [...acceptedGoods, g]);
-    }
+  function setPriority(next: GoodsType[]) {
+    setValue('goodsPriority', next, { shouldDirty: true, shouldValidate: true });
+  }
+
+  function addGoods(goodsType: GoodsType) {
+    if (goodsPriority.includes(goodsType)) return;
+    setPriority([...goodsPriority, goodsType]);
+  }
+
+  function removeGoods(goodsType: GoodsType) {
+    setPriority(goodsPriority.filter((item) => item !== goodsType));
+  }
+
+  function moveGoods(fromIndex: number, toIndex: number) {
+    if (fromIndex === toIndex) return;
+    const next = [...goodsPriority];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setPriority(next);
   }
 
   async function onSubmit(data: SlotForm) {
     setServerError('');
     try {
-      const payload = { ...data, zoneId: data.zoneId };
+      const orderedGoods = data.autoWarehouseOnly
+        ? []
+        : data.goodsPriority.filter((goodsType) => NORMAL_GOODS.includes(goodsType));
+      if (!data.autoWarehouseOnly && orderedGoods.length === 0) {
+        setServerError('Vui lòng giữ ít nhất một loại hàng nhận cho slot.');
+        return;
+      }
+      const acceptedGoods = orderedGoods.length === NORMAL_GOODS.length ? [] : orderedGoods;
+      const payload = { ...data, zoneId: data.zoneId, acceptedGoods, goodsPriority: orderedGoods };
       if (isEdit) {
-        await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, autoWarehouseOnly: payload.autoWarehouseOnly, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods });
+        await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, autoWarehouseOnly: payload.autoWarehouseOnly, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods, goodsPriority: payload.goodsPriority });
       } else {
         await api.post('/api/slots', payload);
       }
@@ -165,20 +203,59 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
 
           {/* Accepted goods */}
           <div>
-            <label className="label mb-2">Loại hàng nhận (trống = nhận tất cả)</label>
-            <div className="flex flex-wrap gap-2">
-              {(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'] as GoodsType[]).map((g) => (
-                <button
-                  key={g}
-                  type="button"
-                  onClick={() => toggleGoods(g)}
-                  className={`text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ${acceptedGoods.includes(g) ? 'bg-thiso-800 text-white border-thiso-800' : 'bg-white text-thiso-500 border-thiso-200 hover:border-thiso-400'}`}
+            <label className="label mb-2">LOẠI HÀNG NHẬN</label>
+            <div className={`space-y-2 rounded-xl border border-thiso-100 bg-thiso-50 p-2.5 ${autoWarehouseOnly ? 'opacity-50' : ''}`}>
+              {goodsPriority.map((goodsType, index) => (
+                <div
+                  key={goodsType}
+                  draggable={!autoWarehouseOnly}
+                  onDragStart={() => setDragIndex(index)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => {
+                    if (dragIndex !== null) moveGoods(dragIndex, index);
+                    setDragIndex(null);
+                  }}
+                  onDragEnd={() => setDragIndex(null)}
+                  className="flex items-center gap-2 rounded-lg border border-thiso-100 bg-white px-2.5 py-2 text-sm shadow-sm"
                 >
-                  {GOODS_LABELS[g]}
-                </button>
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-thiso-100 text-[11px] font-black text-thiso-600">
+                    {index + 1}
+                  </span>
+                  <span className="cursor-grab text-thiso-300">↕</span>
+                  <span className="min-w-0 flex-1 font-semibold text-thiso-700">{GOODS_LABELS[goodsType]}</span>
+                  <button
+                    type="button"
+                    disabled={autoWarehouseOnly}
+                    onClick={() => removeGoods(goodsType)}
+                    className="rounded-md px-2 py-1 text-xs font-bold text-thiso-400 hover:bg-red-50 hover:text-red-600 disabled:cursor-default"
+                  >
+                    Bỏ
+                  </button>
+                </div>
               ))}
+              <div className="flex flex-wrap gap-2 pt-1">
+                {NORMAL_GOODS.filter((goodsType) => !goodsPriority.includes(goodsType)).map((goodsType) => (
+                  <button
+                    key={goodsType}
+                    type="button"
+                    disabled={autoWarehouseOnly}
+                    onClick={() => addGoods(goodsType)}
+                    className="rounded-full border border-thiso-200 bg-white px-3 py-1.5 text-xs font-semibold text-thiso-500 hover:border-thiso-400 disabled:cursor-default"
+                  >
+                    + {GOODS_LABELS[goodsType]}
+                  </button>
+                ))}
+              </div>
+              {autoWarehouseOnly && (
+                <p className="text-xs text-thiso-400">Slot kho tự động chỉ nhận xe AUTO_WAREHOUSE.</p>
+              )}
+              {!autoWarehouseOnly && goodsPriority.length === NORMAL_GOODS.length && (
+                <p className="text-xs text-thiso-400">Slot nhận tất cả loại hàng thường theo thứ tự ưu tiên ở trên.</p>
+              )}
+              {!autoWarehouseOnly && goodsPriority.length < NORMAL_GOODS.length && (
+                <p className="text-xs text-thiso-400">Slot chỉ nhận các loại hàng đang nằm trong danh sách ưu tiên.</p>
+              )}
             </div>
-            {acceptedGoods.length === 0 && <p className="text-xs text-thiso-400 mt-1">Slot nhận tất cả loại hàng</p>}
           </div>
 
           {serverError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{serverError}</div>}

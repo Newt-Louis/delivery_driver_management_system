@@ -5,7 +5,7 @@ export type CancelDeliveryPayload = {
   driverPhone: string;
   poNumber: string;
   registrationCode: string;
-  requestedTime: string;
+  deliveryDate: string;
 };
 
 export async function cancelDelivery(payload: CancelDeliveryPayload): Promise<{ success: boolean; message: string }> {

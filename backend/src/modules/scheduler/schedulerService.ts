@@ -1,117 +1,138 @@
+import cron, { type ScheduledTask } from 'node-cron';
 import { SchedulerJobTrigger } from '@prisma/client';
-import { helperFunctions } from '../../helperFunction';
-import { archiveCancelledDeliveries, closeDailyDeliveries, type SchedulerJobResult } from './deliveryJobs';
+import {
+  archiveCancelledDeliveries,
+  autoCancelCalledNoShowDeliveries,
+  closeDailyDeliveries,
+  type SchedulerJobResult,
+} from './deliveryJobs';
 
 const TIMEZONE = 'Asia/Ho_Chi_Minh';
-const DAILY_CLOSE_HOUR = 23;
-const DAILY_CLOSE_MINUTE = 59;
-const CANCELLED_ARCHIVE_INTERVAL_MS = 120 * 60 * 1000;
-const HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000;
+const DAILY_CLOSE_CRON = '59 23 * * *';
+const CANCELLED_ARCHIVE_CRON = '0 */2 * * *';
+const CALLED_NO_SHOW_CRON = '* * * * *';
 
 interface JobState {
   isRunning: boolean;
-  timer: ReturnType<typeof setTimeout> | null;
+  task: ScheduledTask | null;
   lastRunAt: Date | null;
   lastResult: SchedulerJobResult | null;
   nextRunAt: Date | null;
 }
 
-const dailyCloseJob: JobState = { isRunning: false, timer: null, lastRunAt: null, lastResult: null, nextRunAt: null };
-const cancelledArchiveJob: JobState = { isRunning: false, timer: null, lastRunAt: null, lastResult: null, nextRunAt: null };
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+const dailyCloseJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
+const cancelledArchiveJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
+const calledNoShowJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
 
-function scheduleNextDailyClose(): void {
-  const nextRun = helperFunctions.nextVietnamDailyRunUtc(DAILY_CLOSE_HOUR, DAILY_CLOSE_MINUTE);
-  const delay = Math.max(1_000, nextRun.getTime() - Date.now());
-  dailyCloseJob.nextRunAt = nextRun;
-
-  if (dailyCloseJob.timer) clearTimeout(dailyCloseJob.timer);
-  dailyCloseJob.timer = setTimeout(async () => {
-    if (dailyCloseJob.isRunning) {
-      console.warn('[scheduler] close-daily-deliveries skipped: previous run still in progress');
-      scheduleNextDailyClose();
-      return;
-    }
-    dailyCloseJob.isRunning = true;
-    dailyCloseJob.lastRunAt = new Date();
-    try {
-      const result = await closeDailyDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED });
-      dailyCloseJob.lastResult = result;
-      console.log(`[scheduler] close-daily-deliveries done: ${result.processed} processed, ${result.succeeded} succeeded, ${result.failed} failed`);
-    } catch (error) {
-      console.error('[scheduler] close-daily-deliveries failed', error);
-    } finally {
-      dailyCloseJob.isRunning = false;
-      scheduleNextDailyClose();
-    }
-  }, delay);
-  console.log(`[scheduler] close-daily-deliveries scheduled at ${nextRun.toISOString()} (${TIMEZONE})`);
+function nextVietnamDailyRunUtc(hour: number, minute: number): Date {
+  const nowInVietnam = new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
+  const nextInVietnam = new Date(nowInVietnam);
+  nextInVietnam.setHours(hour, minute, 0, 0);
+  if (nextInVietnam.getTime() <= nowInVietnam.getTime()) {
+    nextInVietnam.setDate(nextInVietnam.getDate() + 1);
+  }
+  return new Date(nextInVietnam.getTime() - 7 * 60 * 60 * 1000);
 }
 
-function scheduleCancelledArchive(): void {
-  const nextRun = new Date(Date.now() + CANCELLED_ARCHIVE_INTERVAL_MS);
-  cancelledArchiveJob.nextRunAt = nextRun;
+function nextIntervalRun(minutes: number): Date {
+  return new Date(Date.now() + minutes * 60_000);
+}
 
-  if (cancelledArchiveJob.timer) clearTimeout(cancelledArchiveJob.timer);
-  cancelledArchiveJob.timer = setTimeout(async () => {
-    if (cancelledArchiveJob.isRunning) {
-      console.warn('[scheduler] archive-cancelled-deliveries skipped: previous run still in progress');
-      scheduleCancelledArchive();
-      return;
-    }
-    cancelledArchiveJob.isRunning = true;
-    cancelledArchiveJob.lastRunAt = new Date();
-    try {
-      const result = await archiveCancelledDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED });
-      cancelledArchiveJob.lastResult = result;
-      console.log(`[scheduler] archive-cancelled-deliveries done: ${result.processed} processed, ${result.succeeded} succeeded, ${result.failed} failed`);
-    } catch (error) {
-      console.error('[scheduler] archive-cancelled-deliveries failed', error);
-    } finally {
-      cancelledArchiveJob.isRunning = false;
-      scheduleCancelledArchive();
-    }
-  }, CANCELLED_ARCHIVE_INTERVAL_MS);
-  console.log(`[scheduler] archive-cancelled-deliveries scheduled at ${nextRun.toISOString()} (${TIMEZONE})`);
+async function runJob(
+  name: string,
+  state: JobState,
+  fn: () => Promise<SchedulerJobResult>,
+  resolveNextRun: () => Date,
+) {
+  if (state.isRunning) {
+    console.warn(`[scheduler] ${name} skipped: previous run still in progress`);
+    return;
+  }
+
+  state.isRunning = true;
+  state.lastRunAt = new Date();
+  try {
+    const result = await fn();
+    state.lastResult = result;
+    console.log(`[scheduler] ${name} done: ${result.processed} processed, ${result.succeeded} succeeded, ${result.failed} failed`);
+  } catch (error) {
+    console.error(`[scheduler] ${name} failed`, error);
+  } finally {
+    state.isRunning = false;
+    state.nextRunAt = resolveNextRun();
+  }
+}
+
+function scheduleJob(
+  name: string,
+  expression: string,
+  state: JobState,
+  fn: () => Promise<SchedulerJobResult>,
+  resolveNextRun: () => Date,
+) {
+  state.nextRunAt = resolveNextRun();
+  state.task = cron.schedule(
+    expression,
+    () => {
+      void runJob(name, state, fn, resolveNextRun);
+    },
+    { timezone: TIMEZONE },
+  );
+  console.log(`[scheduler] ${name} scheduled with cron "${expression}" (${TIMEZONE})`);
+}
+
+function jobStatus(state: JobState) {
+  return {
+    nextRunAt: state.nextRunAt?.toISOString() ?? null,
+    isRunning: state.isRunning,
+    lastRunAt: state.lastRunAt?.toISOString() ?? null,
+    lastProcessed: state.lastResult?.processed ?? null,
+    lastSucceeded: state.lastResult?.succeeded ?? null,
+    lastFailed: state.lastResult?.failed ?? null,
+  };
 }
 
 export function getSchedulerStatus() {
   return {
-    dailyClose: {
-      nextRunAt: dailyCloseJob.nextRunAt?.toISOString() ?? null,
-      isRunning: dailyCloseJob.isRunning,
-      lastRunAt: dailyCloseJob.lastRunAt?.toISOString() ?? null,
-      lastProcessed: dailyCloseJob.lastResult?.processed ?? null,
-      lastSucceeded: dailyCloseJob.lastResult?.succeeded ?? null,
-      lastFailed: dailyCloseJob.lastResult?.failed ?? null,
-    },
-    cancelledArchive: {
-      nextRunAt: cancelledArchiveJob.nextRunAt?.toISOString() ?? null,
-      isRunning: cancelledArchiveJob.isRunning,
-      lastRunAt: cancelledArchiveJob.lastRunAt?.toISOString() ?? null,
-      lastProcessed: cancelledArchiveJob.lastResult?.processed ?? null,
-      lastSucceeded: cancelledArchiveJob.lastResult?.succeeded ?? null,
-      lastFailed: cancelledArchiveJob.lastResult?.failed ?? null,
-    },
+    dailyClose: jobStatus(dailyCloseJob),
+    cancelledArchive: jobStatus(cancelledArchiveJob),
+    calledNoShowAutoCancel: jobStatus(calledNoShowJob),
   };
 }
 
 export function startOperationalScheduler() {
   console.log(`[scheduler] Starting operational scheduler (${TIMEZONE})`);
-  scheduleNextDailyClose();
-  scheduleCancelledArchive();
 
-  // Heartbeat every 30 minutes
-  heartbeatTimer = setInterval(() => {
-    const now = new Date().toLocaleString('vi-VN', { timeZone: TIMEZONE });
-    console.log(`[scheduler] heartbeat at ${now}`);
-  }, HEARTBEAT_INTERVAL_MS);
+  scheduleJob(
+    'close-daily-deliveries',
+    DAILY_CLOSE_CRON,
+    dailyCloseJob,
+    () => closeDailyDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED }),
+    () => nextVietnamDailyRunUtc(23, 59),
+  );
+  scheduleJob(
+    'archive-cancelled-deliveries',
+    CANCELLED_ARCHIVE_CRON,
+    cancelledArchiveJob,
+    () => archiveCancelledDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED }),
+    () => nextIntervalRun(120),
+  );
+  scheduleJob(
+    'auto-cancel-called-no-show',
+    CALLED_NO_SHOW_CRON,
+    calledNoShowJob,
+    () => autoCancelCalledNoShowDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED }),
+    () => nextIntervalRun(1),
+  );
 
   return {
     stop() {
-      if (dailyCloseJob.timer) { clearTimeout(dailyCloseJob.timer); dailyCloseJob.timer = null; }
-      if (cancelledArchiveJob.timer) { clearTimeout(cancelledArchiveJob.timer); cancelledArchiveJob.timer = null; }
-      if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+      dailyCloseJob.task?.stop();
+      cancelledArchiveJob.task?.stop();
+      calledNoShowJob.task?.stop();
+      dailyCloseJob.task = null;
+      cancelledArchiveJob.task = null;
+      calledNoShowJob.task = null;
       console.log('[scheduler] Scheduler stopped');
     },
   };

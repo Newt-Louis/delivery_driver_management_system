@@ -10,6 +10,21 @@ function slotUnitLabel(slot: Slot) {
   return unit?.displayName || unit?.shortName || unit?.unit || slot.assignedUnit;
 }
 
+const NORMAL_GOODS: GoodsType[] = ['FRESH_FOOD', 'GENERAL_GOODS', 'THI_CONG'];
+
+function slotGoodsPriority(slot: Slot): GoodsType[] {
+  if (slot.autoWarehouseOnly) return [];
+  const acceptedGoods = slot.acceptedGoods.filter((goodsType) => NORMAL_GOODS.includes(goodsType));
+  const priority = slot.goodsPriority.filter((goodsType) => NORMAL_GOODS.includes(goodsType));
+  if (priority.length > 0) {
+    return [
+      ...priority,
+      ...acceptedGoods.filter((goodsType) => !priority.includes(goodsType)),
+    ];
+  }
+  return acceptedGoods.length > 0 ? acceptedGoods : NORMAL_GOODS;
+}
+
 export default function SlotsTab() {
   const queryClient = useQueryClient();
   const [editSlot, setEditSlot] = useState<Slot | null | undefined>(undefined);
@@ -174,10 +189,10 @@ export default function SlotsTab() {
                     {slot.autoWarehouseOnly && (
                       <span className="text-xs px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-bold">🏭 AW Only</span>
                     )}
-                    {!slot.autoWarehouseOnly && slot.acceptedGoods.length === 0
-                      ? <span className="text-xs text-thiso-300 italic">Tất cả</span>
-                      : !slot.autoWarehouseOnly && slot.acceptedGoods.map((g) => (
-                        <span key={g} className="text-xs px-1.5 py-0.5 rounded bg-thiso-100 text-thiso-600 font-medium">{GOODS_LABELS[g as GoodsType]}</span>
+                    {!slot.autoWarehouseOnly && slotGoodsPriority(slot).map((g, index) => (
+                        <span key={g} className="text-xs px-1.5 py-0.5 rounded bg-thiso-100 text-thiso-600 font-medium">
+                          {index + 1}. {GOODS_LABELS[g]}
+                        </span>
                       ))
                     }
                   </div>

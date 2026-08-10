@@ -99,6 +99,13 @@ router.get('/:unit/slots', publicReadLimiter, asyncHandler(async (req, res) => {
   await respond(res, unitService.getAvailableSlots(unit, query, scope));
 }));
 
+router.get('/:unit/daily-registration-stats', publicReadLimiter, asyncHandler(async (req, res) => {
+  const unit = UnitFormRequest.parseUnit(req.params.unit);
+  const query = UnitFormRequest.parseDailyStatsQuery(req.query);
+  const scope = UnitFormRequest.parsePublicUnitScopeQuery(req.query);
+  await respond(res, unitService.getDailyRegistrationStats(unit, query, scope));
+}));
+
 router.patch('/:unit/config', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const unit = UnitFormRequest.parseUnit(req.params.unit);
   const body = UnitFormRequest.parseUnitConfig(req.body);

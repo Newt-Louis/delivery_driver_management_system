@@ -72,7 +72,7 @@ Luồng hiện tại tự gọi xe từ hàng đợi `WAITING` vào slot phù h�
 
 - Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
 - Slot thường không nhận `AUTO_WAREHOUSE`.
-- `FRESH_FOOD` được ưu tiên trước trong slot thường nếu slot nhận được loại hàng này.
+- Thứ tự ưu tiên loại hàng của slot được cấu hình trong Backoffice > Slots > SlotModal (`goodsPriority`); trong cùng một loại hàng, xe tới trước được gọi trước.
 - Slot nhiều sức chứa dựa vào `maxCapacity`, đặc biệt cho xe máy.
 - Khi assign/complete/cancel, hệ thống cập nhật slot và emit realtime events để dashboard, màn hình chờ và dock management refresh.
 

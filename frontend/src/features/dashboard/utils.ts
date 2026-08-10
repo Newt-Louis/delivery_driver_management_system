@@ -56,6 +56,15 @@ export function formatDateTime(iso: string | null | undefined): string {
   });
 }
 
+export function formatDateOnly(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
 export function getDeliveryTimeline(delivery: DeliveryRegistration) {
   const timeline: { time: string; label: string; icon: string; accent?: string }[] = [
     { time: delivery.createdAt, label: 'Đăng ký giao hàng', icon: '📝' },
