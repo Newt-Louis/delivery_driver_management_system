@@ -4,7 +4,7 @@
 
 Tài xế/NCC có hai điểm vào public, không cần đăng nhập:
 
-- `/`: trang chủ mặc định của domain, hiện là nơi đặt nền cho luồng đăng ký online mới bằng mã PO/Thi Công và API Config.
+- `/`: trang chủ mặc định của domain, hiện là luồng đăng ký nhanh bằng mã PO/Thi Công và API Config.
 - `/register`: luồng đăng ký thủ công hiện có, giữ nguyên để dùng khi nhập từ bản giấy hoặc khi hệ thống/API online gặp sự cố.
 
 Sau khi đăng ký thành công qua luồng thủ công hiện tại, tài xế nhận:
@@ -44,8 +44,12 @@ Homepage `/` hiện có:
 - Ô nhập mã PO/Thi Công.
 - Nút camera dạng SVG nét vẽ trong input. Hiện nút này mới là khung UI, chưa bật camera thật.
 - Validate format cơ bản phía client:
-  - PO: `PO` + 10 chữ số.
-  - Thi Công: 5 ký tự chữ/số.
+  - PO: 10 chữ số, có thể có prefix `PO`.
+  - Thi Công: tối thiểu 5 ký tự sau khi chuẩn hóa.
+- Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
+- Step 2 PO chỉ nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO.
+- Step 2 Thi Công nhập thông tin tài xế/xe/NCC và chọn ngày giao bằng calendar tháng hiện tại.
+- Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký.
 - Link sang `/register` cho đăng ký thủ công/bản giấy.
 - Link sang `/track` để theo dõi đơn.
 
@@ -76,6 +80,7 @@ Lưu ý: các logic trong `frontend/src/features/register/*` hiện thuộc lu�
 API chính:
 
 - `POST /api/deliveries/register`
+- `POST /api/deliveries/quick-verify`
 - `GET /api/units/public/business-locations`
 - `GET /api/units/public/configs`
 - `GET /api/units/:unit/config`
@@ -93,6 +98,7 @@ Module backend:
 - `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, public cancel, check-in lookup, call/cancel và query list.
 - `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, resolve `UnitConfig`, capacity ước lượng theo ngày, duplicate theo ngày giao và auto-warehouse vendor.
 - `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao, public cancel, capacity lock theo ngày, Sunday fresh-food-only, history event và response.
+- `backend/src/modules/deliveries/quickRegistrationService.ts`: đọc API Config, gọi API PO/Thi Công bên thứ 3, log response thật, chuẩn hóa location/unit/goods/date và phát token xác thực ngắn hạn cho submit cuối.
 - `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
 - `backend/src/modules/units/unitRepository.ts`: query cấu hình unit, khung giờ, slot vận hành và booking active.
@@ -119,7 +125,8 @@ Service:
 - Biển số xe được normalize uppercase và bỏ khoảng trắng.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
 - Số PO/Mã thi công được normalize uppercase và bỏ ký tự phân cách.
-- Trong lúc chưa có API thật, `GET /api/units/order-codes` trả mock 20 mã `PO##########` và 20 mã `TC##########`; backend register vẫn validate lại mã này.
+- Luồng thủ công vẫn dùng `GET /api/units/order-codes` trả mock 20 mã `PO##########` và 20 mã `TC##########`; backend register vẫn validate lại mã này.
+- Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
 - `BusinessLocation` public là bước đầu của luồng thủ công `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
 - Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`.
@@ -138,23 +145,36 @@ Service:
 - `UnitGoodsType`, `DeliveryTimeWindow` và `AutoWarehouseVendor` có `unitConfigId` là scope chính; cột `unit` là code snapshot/compat cho API theo `:unit`.
 - Nếu unit có custom goods type enabled, frontend hiển thị danh mục custom đó; nếu không có time window riêng cho custom type thì backend/frontend fallback về time window base goods type của cùng unit.
 
-## Luồng Online Mới Trên `/`
+## Luồng Online Trên `/`
 
-Trạng thái hiện tại của code:
+Endpoint verify:
 
-- Đã có `frontend/src/pages/Home.tsx`.
-- Route `/` trong `frontend/src/App.tsx` render `Home`.
-- Chưa có endpoint backend verify mã PO/Thi Công.
-- Chưa có QR scanner thật; nút camera mới hiển thị icon nét vẽ và thông báo placeholder.
-- Chưa thay đổi payload hoặc service `POST /api/deliveries/register`.
+- `POST /api/deliveries/quick-verify`
+- Body: `{ "code": "..." }`
+- Backend tự phân loại mã:
+  - `PO` nếu mã là 10 chữ số hoặc `PO` + 10 chữ số.
+  - Các mã còn lại đủ format cơ bản được xử lý như mã Thi Công.
+- Backend đọc config theo key ứng viên:
+  - PO: `api.settings.po`, `api.settings.po_verify`, `api.settings.po_delivery`, `api.settings.po_delivery_verify`.
+  - Thi Công: `api.settings.thi_cong`, `api.settings.thicong`, `api.settings.construction`, `api.settings.construction_verify`, `api.settings.contractor_work`.
+- Config không được hardcode endpoint hoặc credential trong source. Giá trị request cố định nên nằm trong `payload`, `payload_defaults` hoặc `payloadDefaults` của `app_configs`.
+- Auth lấy từ `value.auth.header` trong `app_configs`.
+- Backend log response thật của API bên thứ 3 để đối chiếu trong giai đoạn tích hợp.
+- Backend không trả raw response của bên thứ 3 xuống frontend; frontend chỉ nhận dữ liệu đã chuẩn hóa.
 
-Hướng phát triển tiếp theo:
+PO normalization:
 
-- Tạo endpoint public verify mã, ví dụ `POST /api/deliveries/verify-order-code`.
-- Backend phân loại mã PO/Thi Công, đọc API Config từ `app_configs` và gọi API ngoài.
-- Response verify trả dữ liệu đã normalize: `businessLocationId`, `unitConfigId`, `receivingUnit`, `goodsType`, `vehicleType`, `vendorName`, `vendorCode`.
-- Homepage `/` dùng dữ liệu verify để tiếp tục flow online: chọn ngày giao, nhập thông tin tài xế, review và submit.
-- `/register` vẫn giữ vai trò đăng ký thủ công, không bị refactor theo luồng online.
+- `WERKS` map sang `BusinessLocation.code`: `1001 -> PVT`, `1002 -> SALA`, `1003 -> PHI`, `2001 -> THT`.
+- Unit PO match `unit_configs.unit = EMART` sau khi normalize.
+- `EINDT` dạng `yyyyMMdd` được đổi thành `deliveryDate`.
+- Nếu response PO đang thiếu field placeholder nhưng HTTP 200 có body, backend dùng dữ liệu demo tối thiểu để frontend vẫn chạy được và tiếp tục log response thật ở server.
+
+Thi Công normalization:
+
+- `data.scope.location` match `business_locations.code`.
+- `data.scope.unit` fuzzy match trong `unit_configs.unit` của location, hỗ trợ các biến thể `thisky`, `thiskyhall`, `mall`, `thiso mall`, `thisomall`.
+- Goods type của luồng Thi Công là `THI_CONG`.
+- Ngày giao do tài xế chọn ở step 2 vì response Thi Công không cố định một ngày giao duy nhất.
 
 ## Output Thành Công
 

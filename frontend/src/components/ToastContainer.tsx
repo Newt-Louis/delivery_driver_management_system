@@ -46,7 +46,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
           ? 'opacity 500ms ease'
           : 'transform 300ms ease, opacity 300ms ease',
       }}
-      className={`flex items-start gap-3 w-80 px-4 py-3 rounded-xl border shadow-lg cursor-pointer select-none ${s.bg} ${s.border} ${s.text}`}
+      className={`flex w-full items-start gap-3 rounded-xl border px-4 py-3 shadow-lg cursor-pointer select-none sm:w-80 ${s.bg} ${s.border} ${s.text}`}
     >
       <span className="text-sm font-bold mt-0.5 shrink-0 w-4 text-center">{s.icon}</span>
       <span className="text-sm font-medium leading-snug flex-1 min-w-0">{toast.message}</span>
@@ -59,7 +59,7 @@ export default function ToastContainer() {
   const { toasts, removeToast } = useToasts();
 
   return createPortal(
-    <div className="fixed bottom-5 right-5 z-[9999] flex flex-col-reverse gap-2 items-end pointer-events-none">
+    <div className="fixed inset-x-3 bottom-4 z-[9999] flex flex-col-reverse gap-2 pointer-events-none sm:inset-x-auto sm:right-5 sm:bottom-5 sm:items-end">
       {toasts.map((toast) => (
         <div key={toast.id} className="pointer-events-auto">
           <ToastItem toast={toast} onRemove={() => removeToast(toast.id)} />

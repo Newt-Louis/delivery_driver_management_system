@@ -5,6 +5,7 @@ import { publicWriteLimiter } from '../middleware/rateLimit';
 import { DeliveryFormRequest } from '../modules/deliveries/deliveryFormRequest';
 import { sendDomainError } from '../modules/http/domainErrorResponse';
 import * as deliveryService from '../modules/deliveries/deliveryService';
+import { verifyQuickRegistrationCode } from '../modules/deliveries/quickRegistrationService';
 
 const router = Router();
 
@@ -31,6 +32,12 @@ router.post('/auto-dispatch/:unit', authenticate, requireRole('SUPERADMIN', 'ADM
 router.post('/register', publicWriteLimiter, asyncHandler(async (req, res) => {
   const body = DeliveryFormRequest.parseRegister(req.body);
   await respond(res, deliveryService.registerDelivery(body), 201);
+}));
+
+// POST /api/deliveries/quick-verify
+router.post('/quick-verify', publicWriteLimiter, asyncHandler(async (req, res) => {
+  const body = DeliveryFormRequest.parseQuickVerify(req.body);
+  await respond(res, verifyQuickRegistrationCode(body.code));
 }));
 
 // POST /api/deliveries/public-cancel

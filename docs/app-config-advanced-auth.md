@@ -43,6 +43,7 @@ Files:
 - `backend/src/services/staticIpAuth.ts`
 - `backend/src/services/faceIdAuth.ts`
 - `backend/src/routes/auth.ts`
+- `backend/src/modules/deliveries/quickRegistrationService.ts`
 
 Hàm chính:
 
@@ -74,6 +75,53 @@ API:
 - `POST /api/auth/face-id/authenticate/verify`
 - `GET /api/superadmin/app-configs`
 - `PATCH /api/superadmin/app-configs/:key`
+- `POST /api/superadmin/api-configs`
+- `DELETE /api/superadmin/api-configs/:name`
+
+## API Config Cho Đăng Ký Nhanh
+
+Superadmin có tab API Config để lưu cấu hình request tích hợp bên thứ 3 vào `app_configs`. Các config này phục vụ `POST /api/deliveries/quick-verify`, nơi tài xế nhập mã PO hoặc mã Thi Công tại trang `/`.
+
+Key được backend tìm theo danh sách ứng viên:
+
+- PO:
+  - `api.settings.po`
+  - `api.settings.po_verify`
+  - `api.settings.po_delivery`
+  - `api.settings.po_delivery_verify`
+- Thi Công:
+  - `api.settings.thi_cong`
+  - `api.settings.thicong`
+  - `api.settings.construction`
+  - `api.settings.construction_verify`
+  - `api.settings.contractor_work`
+
+Value JSON hỗ trợ:
+
+```json
+{
+  "endpoint": "https://example.internal/api/check",
+  "method": "POST",
+  "payload_keys": ["BUKRS", "EBELN"],
+  "payload_defaults": {
+    "BUKRS": "VN01"
+  },
+  "code_key": "EBELN",
+  "auth": {
+    "type": "basic",
+    "header": "Authorization: Basic <base64-user-pass>"
+  }
+}
+```
+
+Quy tắc:
+
+- Không lưu endpoint hoặc credential trong source code; backend chỉ đọc từ `app_configs`.
+- `payload_defaults`, `payloadDefaults` hoặc `payload` dùng cho giá trị cố định cần gửi kèm request.
+- `code_key` hoặc `codeKey` cho biết field nào nhận mã tài xế nhập. Nếu không khai báo, backend tự suy luận theo `payload_keys`, ví dụ PO ưu tiên `EBELN`.
+- `auth.header` được chuyển thành HTTP header khi gọi API ngoài.
+- Với PO, có thể cấu hình thêm `site_location_map` hoặc `siteLocationMap` nếu mã site bên thứ 3 thay đổi. Backend có fallback mặc định cho `1001`, `1002`, `1003`, `2001`.
+- Response thật của bên thứ 3 được log ở backend để phục vụ tích hợp. Không trả raw response này về frontend.
 
 ## Trạng Thái Hiện Tại
 

@@ -221,7 +221,7 @@ function ApiConfigModal({ editItem, onClose, onDone }: ApiConfigModalProps) {
               <div className="flex items-center gap-0">
                 <span className="input rounded-r-none bg-thiso-50 text-thiso-400 text-sm px-3 py-2 border border-r-0 border-thiso-200 select-none whitespace-nowrap">api.settings.</span>
                 <input
-                  className="input rounded-l-none flex-1"
+                  className="input rounded-l-none"
                   placeholder="po_sala_verify"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))}

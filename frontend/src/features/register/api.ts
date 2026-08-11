@@ -31,6 +31,7 @@ export type RegisterDeliveryPayload = {
   requestedTime?: string;
   deliveryDate?: string;
   note?: string;
+  quickVerificationToken?: string;
 };
 
 export type RegisterDeliveryResponse = {
@@ -46,6 +47,29 @@ export type VehicleAvailabilityOption = {
 export type OrderCodeOption = {
   code: string;
   kind: 'PO' | 'TC';
+};
+
+export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
+
+export type QuickVerifyResponse = {
+  kind: QuickRegistrationKind;
+  orderCode: string;
+  businessLocationId: string;
+  businessLocationCode: string;
+  businessLocationName: string;
+  unitConfigId: string;
+  receivingUnit: string;
+  unitDisplayName: string;
+  unitIcon: string | null;
+  unitLogoUrl: string | null;
+  goodsType: GoodsType;
+  vehicleType: VehicleType;
+  deliveryDate?: string;
+  vendorCode?: string;
+  vendorName?: string;
+  title?: string;
+  externalMessage?: string;
+  verificationToken: string;
 };
 
 export type PublicUnitScope = {
@@ -130,5 +154,10 @@ export async function checkAutoWarehouseVendor(code: string, unit: ReceivingUnit
 
 export async function registerDelivery(payload: RegisterDeliveryPayload): Promise<RegisterDeliveryResponse> {
   const res = await api.post('/api/deliveries/register', payload);
+  return res.data;
+}
+
+export async function quickVerifyOrderCode(code: string): Promise<QuickVerifyResponse> {
+  const res = await api.post('/api/deliveries/quick-verify', { code });
   return res.data;
 }

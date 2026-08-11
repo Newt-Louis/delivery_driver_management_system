@@ -5,7 +5,8 @@ import DarkDesktopLayout from '../features/waiting-screen/layouts/DarkDesktopLay
 
 export default function WaitingScreen() {
   const hook = useWaitingScreen();
-  if (hook.isMobile) return <MobileLayout {...hook} />;
-  if (hook.view === 'bright') return <BrightDesktopLayout {...hook} />;
-  return <DarkDesktopLayout {...hook} />;
+  // if (hook.isMobile) return <MobileLayout {...hook} />;
+  // if (hook.view === 'bright') return <BrightDesktopLayout {...hook} />;
+  // return <DarkDesktopLayout {...hook} />;
+  return <MobileLayout {...hook} />;
 }

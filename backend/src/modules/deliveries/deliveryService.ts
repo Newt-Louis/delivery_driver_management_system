@@ -20,6 +20,7 @@ import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/hi
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
 import { isKnownMockOrderCode } from '../units/orderCodeMock';
+import { verifyQuickRegistrationToken } from './quickRegistrationService';
 import type { CheckInLookupPayload, PublicCancelPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
 
@@ -204,10 +205,11 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
 
   const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
   const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
+  const quickVerification = verifyQuickRegistrationToken(body.quickVerificationToken);
   if (!driverPhone || driverPhone.length < 9) {
     throw domainError.badRequest('Số điện thoại không hợp lệ');
   }
-  if (!poNumber || !isKnownMockOrderCode(poNumber)) {
+  if (!poNumber || (!isKnownMockOrderCode(poNumber) && quickVerification?.orderCode !== poNumber)) {
     throw domainError.badRequest('Mã PO/Thi Công không hợp lệ');
   }
 
@@ -219,6 +221,17 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   });
   if (!unitConfig) {
     throw domainError.badRequest('Đơn vị nhận hàng không thuộc khu vực đã chọn hoặc đã bị tắt.');
+  }
+  if (quickVerification) {
+    if (
+      quickVerification.unitConfigId !== unitConfig.id
+      || quickVerification.businessLocationId !== unitConfig.businessLocationId
+      || quickVerification.receivingUnit !== body.receivingUnit
+      || quickVerification.goodsType !== body.goodsType
+      || (quickVerification.deliveryDate && quickVerification.deliveryDate !== body.deliveryDate)
+    ) {
+      throw domainError.badRequest('Thông tin đăng ký không khớp với lượt kiểm tra mã. Vui lòng kiểm tra lại mã.');
+    }
   }
 
   const duplicate = await deliveryRepository.findDuplicateRegistration({

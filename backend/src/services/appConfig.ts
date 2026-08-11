@@ -93,7 +93,7 @@ function asNullableString(value: unknown, fallback: string | null): string | nul
   return typeof value === 'string' && value.trim() ? value : fallback;
 }
 
-async function getRawConfig(key: string): Promise<Record<string, unknown>> {
+export async function getRawAppConfig(key: string): Promise<Record<string, unknown>> {
   const redis = await getRedis();
   const cached = await redis.get(appConfigCacheKey(key));
   if (cached) {
@@ -120,7 +120,7 @@ export async function invalidateAppConfigCache(key: string): Promise<void> {
 
 export async function refreshAppConfigCache(key: string): Promise<Record<string, unknown>> {
   await invalidateAppConfigCache(key);
-  return getRawConfig(key);
+  return getRawAppConfig(key);
 }
 
 export async function upsertAppConfigValue(args: {
@@ -147,7 +147,7 @@ export async function upsertAppConfigValue(args: {
 }
 
 export async function getStaticIpAuthConfig(): Promise<StaticIpAuthConfig> {
-  const value = await getRawConfig(APP_CONFIG_KEYS.staticIpAuth);
+  const value = await getRawAppConfig(APP_CONFIG_KEYS.staticIpAuth);
   return {
     enabled: asBoolean(value.enabled, DEFAULT_STATIC_IP_AUTH.enabled),
     allowedIps: asStringArray(value.allowedIps, DEFAULT_STATIC_IP_AUTH.allowedIps),
@@ -158,7 +158,7 @@ export async function getStaticIpAuthConfig(): Promise<StaticIpAuthConfig> {
 }
 
 export async function getFaceIdAuthConfig(): Promise<FaceIdAuthConfig> {
-  const value = await getRawConfig(APP_CONFIG_KEYS.faceIdAuth);
+  const value = await getRawAppConfig(APP_CONFIG_KEYS.faceIdAuth);
   const userVerification = asString(value.userVerification, DEFAULT_FACE_ID_AUTH.userVerification);
   return {
     enabled: asBoolean(value.enabled, DEFAULT_FACE_ID_AUTH.enabled),
@@ -177,7 +177,7 @@ export async function getFaceIdAuthConfig(): Promise<FaceIdAuthConfig> {
 }
 
 export async function getAuthSessionConfig(): Promise<AuthSessionConfig> {
-  const value = await getRawConfig(APP_CONFIG_KEYS.authSession);
+  const value = await getRawAppConfig(APP_CONFIG_KEYS.authSession);
   const tokenTtlMinutes = asNumber(value.tokenTtlMinutes, DEFAULT_AUTH_SESSION.tokenTtlMinutes);
   const renewGraceMinutes = asNumber(value.renewGraceMinutes, DEFAULT_AUTH_SESSION.renewGraceMinutes);
   return {
@@ -196,7 +196,7 @@ const DEFAULT_UI_CONFIG: UiConfig = {
 };
 
 export async function getUiConfig(): Promise<UiConfig> {
-  const value = await getRawConfig(APP_CONFIG_KEYS.uiSettings);
+  const value = await getRawAppConfig(APP_CONFIG_KEYS.uiSettings);
   return {
     toastDurationSeconds: Math.max(1, asNumber(value.toastDurationSeconds, DEFAULT_UI_CONFIG.toastDurationSeconds)),
   };

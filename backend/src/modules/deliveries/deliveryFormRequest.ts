@@ -18,6 +18,11 @@ const registerSchema = z.object({
   requestedTime: z.string().optional(),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   note: z.string().optional(),
+  quickVerificationToken: z.string().optional(),
+});
+
+const quickVerifySchema = z.object({
+  code: z.string().min(1, 'Vui lòng nhập mã PO hoặc mã Thi Công'),
 });
 
 const checkInLookupSchema = z.object({
@@ -41,6 +46,7 @@ const publicCancelSchema = z.object({
 });
 
 export type RegisterDeliveryPayload = z.infer<typeof registerSchema>;
+export type QuickVerifyPayload = z.infer<typeof quickVerifySchema>;
 export type CheckInLookupPayload = z.infer<typeof checkInLookupSchema>;
 export type PublicCancelPayload = z.infer<typeof publicCancelSchema>;
 
@@ -49,6 +55,7 @@ export const DeliveryFormRequest = {
     unit?.trim() ? unit.trim().toUpperCase() as ReceivingUnit : null
   ),
   parseRegister: (body: unknown): RegisterDeliveryPayload => registerSchema.parse(body),
+  parseQuickVerify: (body: unknown): QuickVerifyPayload => quickVerifySchema.parse(body),
   parseListQuery: (query: Record<string, unknown>) => ({
     unit: typeof query.unit === 'string' ? query.unit.trim().toUpperCase() as ReceivingUnit : undefined,
     goodsType: typeof query.goodsType === 'string' ? query.goodsType as GoodsType : undefined,
