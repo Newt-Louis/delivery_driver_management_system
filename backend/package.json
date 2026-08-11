@@ -16,7 +16,7 @@
     "postinstall": "prisma generate",
     "test:load": "artillery run load-test.yml",
     "test:register-race": "node scripts/register-race.js",
-    "redis:ui": "redis-commander --redis-host localhost --redis-port 6379 --port 8081 --http-auth-username dev --http-auth-password dev --read-only"
+    "redis:ui": "sh -c 'redis-commander --redis-host localhost --redis-port 6379 --redis-password \"$REDIS_PASSWORD\" --port 8081 --http-auth-username dev --http-auth-password dev --read-only'"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

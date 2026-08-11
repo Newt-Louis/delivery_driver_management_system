@@ -14,6 +14,8 @@ Các dữ liệu chính:
 - `auth:user:{userId}:unit-permissions`: unit permission của `CHECKIN` và `RECEIVING`.
 - `app-config:{key}`: cache JSON cho từng dòng `app_configs`.
 
+Một số `app-config:{key}` có thể chứa header xác thực API bên thứ 3, nên Redis phải được xem là nơi có dữ liệu nhạy cảm tương đương cache/session store. Không publish Redis ra internet hoặc mạng nội bộ không tin cậy.
+
 Nếu database thay đổi, Redis chỉ thay đổi khi code chủ động refresh hoặc invalidate key. Vì vậy mọi route ghi user/app config phải gọi helper cache tương ứng sau khi ghi DB thành công.
 
 ## Luồng Đồng Bộ User
@@ -44,6 +46,18 @@ Hoặc nếu route tự ghi Prisma trực tiếp thì phải gọi:
 await refreshAppConfigCache(key);
 ```
 
+## Bảo Mật Redis
+
+Docker Compose hiện cấu hình Redis theo hướng an toàn hơn cho môi trường server:
+
+- Redis yêu cầu `REDIS_PASSWORD`.
+- Port Redis chỉ bind ra `127.0.0.1:6379`, không mở trên toàn bộ network interface của host.
+- Backend trong Docker nên dùng `REDIS_URL=redis://:<password>@redis:6379`.
+- Backend chạy local ngoài Docker nên dùng `REDIS_URL=redis://:<password>@localhost:6379`.
+- Không dùng password mẫu trong production.
+
+Không thể đảm bảo tuyệt đối "không hacker nào lấy được Redis" nếu server, Docker host, file `.env`, backup volume hoặc network bị compromise. Điều có thể đảm bảo ở mức cấu hình repo là Redis không còn mở trần `0.0.0.0:6379` và phải có password trước khi đọc được dữ liệu.
+
 ## Xem Redis Trên Trình Duyệt Khi Dev
 
 Backend có devDependency `redis-commander`.
@@ -58,6 +72,7 @@ Mở Redis UI:
 
 ```bash
 cd backend
+export REDIS_PASSWORD=<redis-password-trong-.env>
 npm run redis:ui
 ```
 

@@ -209,7 +209,10 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   if (!driverPhone || driverPhone.length < 9) {
     throw domainError.badRequest('Số điện thoại không hợp lệ');
   }
-  if (!poNumber || (!isKnownMockOrderCode(poNumber) && quickVerification?.orderCode !== poNumber)) {
+  const quickVerifiedOrderCode = quickVerification
+    ? deliveryRepository.normalizeOrderCode(quickVerification.orderCode)
+    : undefined;
+  if (!poNumber || (!isKnownMockOrderCode(poNumber) && quickVerifiedOrderCode !== poNumber)) {
     throw domainError.badRequest('Mã PO/Thi Công không hợp lệ');
   }
 
@@ -227,7 +230,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
       quickVerification.unitConfigId !== unitConfig.id
       || quickVerification.businessLocationId !== unitConfig.businessLocationId
       || quickVerification.receivingUnit !== body.receivingUnit
-      || quickVerification.goodsType !== body.goodsType
+      || (quickVerification.kind !== 'CONSTRUCTION' && quickVerification.goodsType !== body.goodsType)
       || (quickVerification.deliveryDate && quickVerification.deliveryDate !== body.deliveryDate)
     ) {
       throw domainError.badRequest('Thông tin đăng ký không khớp với lượt kiểm tra mã. Vui lòng kiểm tra lại mã.');

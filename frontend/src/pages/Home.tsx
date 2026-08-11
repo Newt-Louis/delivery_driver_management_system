@@ -6,6 +6,7 @@ import { useToast } from '../context/ToastContext';
 import { CameraIcon, ArrowRightIcon } from '../components/Icon';
 import {
   getDailyRegistrationStats,
+  getUnitConfig,
   quickVerifyOrderCode,
   registerDelivery,
   type DailyRegistrationStat,
@@ -13,9 +14,9 @@ import {
 } from '../features/register/api';
 import DeliveryDateCalendar from '../features/register/components/DeliveryDateCalendar';
 import SuccessScreen from '../features/register/components/SuccessScreen';
-import { todayDate } from '../features/register/utils/date';
+import { isSundayDate, todayDate } from '../features/register/utils/date';
 import type { SuccessInfo } from '../features/register/types';
-import type { GoodsType, VehicleType } from '../lib/types';
+import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
 
 type Step = 1 | 2 | 3;
 
@@ -26,6 +27,14 @@ type QuickForm = {
   vendorCode: string;
   vendorName: string;
   deliveryDate: string;
+  goodsType: GoodsType | '';
+};
+
+type GoodsOption = {
+  value: GoodsType;
+  icon: string;
+  title: string;
+  hint: string;
 };
 
 const GOODS_LABEL: Record<GoodsType, string> = {
@@ -42,7 +51,7 @@ const VEHICLE_LABEL: Record<VehicleType, string> = {
 };
 
 function normalizeOrderCode(value: string) {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return value.trim().replace(/[^A-Za-z0-9]/g, '');
 }
 
 function formatDate(value?: string) {
@@ -65,6 +74,7 @@ function emptyForm(): QuickForm {
     vendorCode: '',
     vendorName: '',
     deliveryDate: todayDate(),
+    goodsType: '',
   };
 }
 
@@ -90,16 +100,73 @@ export default function Home() {
   const [dailyStats, setDailyStats] = useState<DailyRegistrationStat[]>([]);
   const [dailyStatsMsg, setDailyStatsMsg] = useState('');
   const [dailyStatsLoading, setDailyStatsLoading] = useState(false);
+  const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
+  const [unitConfigLoading, setUnitConfigLoading] = useState(false);
+  const [unitConfigMsg, setUnitConfigMsg] = useState('');
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
 
   const normalizedCode = useMemo(() => normalizeOrderCode(orderCode), [orderCode]);
-  const codeLooksSupported = /^(PO)?\d{10}$/.test(normalizedCode) || normalizedCode.length >= 5;
+  const constructionCodeLooksSupported = /^[A-Za-z0-9]{5}$/.test(normalizedCode) && /[A-Za-z]/.test(normalizedCode) && /\d/.test(normalizedCode);
+  const codeLooksSupported = /^PO[A-Za-z0-9]{10}$/.test(normalizedCode) || constructionCodeLooksSupported;
   const staffHomePath = user?.role === 'CHECKIN' ? '/check-in' : '/dashboard';
   const needsCalendar = verified?.kind === 'CONSTRUCTION';
+  const effectiveGoodsType = needsCalendar ? form.goodsType : (verified?.goodsType ?? '');
   const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
+  const goodsOptions = useMemo(() => {
+    if (!unitConfig) return [];
+    const options: GoodsOption[] = [];
+    if (unitConfig.freshFoodEnabled) {
+      options.push({ value: 'FRESH_FOOD', icon: '🥬', title: 'Hàng tươi sống / mát / đông lạnh', hint: unitConfig.sundayFreshFoodOnly ? 'Cả Chủ nhật' : '' });
+    }
+    if (unitConfig.generalGoodsEnabled) {
+      options.push({ value: 'GENERAL_GOODS', icon: '📦', title: 'Hàng thường', hint: unitConfig.sundayFreshFoodOnly ? 'Không nhận CN' : '' });
+    }
+    if (unitConfig.thiCongEnabled) {
+      options.push({ value: 'THI_CONG', icon: '🔨', title: 'Thi công', hint: 'Công trình' });
+    }
+    return options;
+  }, [unitConfig]);
 
   useEffect(() => {
-    if (!verified || !needsCalendar) return;
+    if (!verified || !needsCalendar) {
+      setUnitConfig(null);
+      setUnitConfigMsg('');
+      setUnitConfigLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setUnitConfigLoading(true);
+    setUnitConfigMsg('');
+    getUnitConfig(verified.receivingUnit, {
+      businessLocationId: verified.businessLocationId,
+      unitConfigId: verified.unitConfigId,
+    })
+      .then((config) => {
+        if (cancelled) return;
+        setUnitConfig(config);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setUnitConfig(null);
+        setUnitConfigMsg('Không tải được loại hàng đang mở cho đơn vị này.');
+      })
+      .finally(() => {
+        if (!cancelled) setUnitConfigLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [needsCalendar, verified]);
+
+  useEffect(() => {
+    if (!verified || !needsCalendar || !effectiveGoodsType) {
+      setDailyStats([]);
+      setDailyStatsMsg('');
+      setDailyStatsLoading(false);
+      return;
+    }
 
     const month = form.deliveryDate.slice(0, 7);
     let cancelled = false;
@@ -109,7 +176,7 @@ export default function Home() {
       verified.receivingUnit,
       {
         month,
-        goodsType: verified.goodsType,
+        goodsType: effectiveGoodsType,
         vehicleType: verified.vehicleType,
       },
       {
@@ -134,7 +201,7 @@ export default function Home() {
     return () => {
       cancelled = true;
     };
-  }, [form.deliveryDate, needsCalendar, verified]);
+  }, [effectiveGoodsType, form.deliveryDate, needsCalendar, verified]);
 
   function setField<K extends keyof QuickForm>(key: K, value: QuickForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -147,7 +214,7 @@ export default function Home() {
       return;
     }
     if (!codeLooksSupported) {
-      toast.error('Mã PO cần 10 chữ số, mã Thi Công cần tối thiểu 5 ký tự.');
+      toast.error('Mã PO cần có dạng PO + 10 ký tự chữ/số, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
       return;
     }
 
@@ -160,9 +227,12 @@ export default function Home() {
         vendorCode: data.vendorCode ?? '',
         vendorName: data.vendorName ?? '',
         deliveryDate: data.deliveryDate ?? todayDate(),
+        goodsType: data.kind === 'CONSTRUCTION' ? '' : data.goodsType,
       });
       setDailyStats([]);
       setDailyStatsMsg('');
+      setUnitConfig(null);
+      setUnitConfigMsg('');
       setStep(2);
       toast.success(data.kind === 'PO' ? 'Mã PO hợp lệ.' : 'Mã Thi Công hợp lệ.');
     } catch (err) {
@@ -179,12 +249,16 @@ export default function Home() {
       toast.error('Vui lòng chọn ngày giao hàng.');
       return false;
     }
-    if (needsCalendar && selectedDayStats?.available === false) {
-      toast.error(selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký.');
+    if (needsCalendar && !form.goodsType) {
+      toast.error('Vui lòng chọn loại hàng giao.');
       return false;
     }
-    if (!form.driverName.trim()) {
-      toast.error('Vui lòng nhập tên tài xế.');
+    if (unitConfig?.sundayFreshFoodOnly && isSundayDate(form.deliveryDate) && effectiveGoodsType && effectiveGoodsType !== 'FRESH_FOOD') {
+      toast.error('Chủ nhật chỉ nhận hàng tươi sống.');
+      return false;
+    }
+    if (needsCalendar && selectedDayStats?.available === false) {
+      toast.error(selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký.');
       return false;
     }
     if (form.driverPhone.replace(/\D/g, '').length < 9) {
@@ -193,10 +267,6 @@ export default function Home() {
     }
     if (!form.vehiclePlate.trim()) {
       toast.error('Vui lòng nhập biển số xe.');
-      return false;
-    }
-    if (!form.vendorName.trim()) {
-      toast.error('Vui lòng nhập tên NCC / công ty.');
       return false;
     }
     return true;
@@ -209,6 +279,7 @@ export default function Home() {
 
   async function submitRegistration() {
     if (!verified || !validateDetails()) return;
+    const submitGoodsType = effectiveGoodsType || verified.goodsType;
 
     setSubmitting(true);
     try {
@@ -222,7 +293,7 @@ export default function Home() {
         vehiclePlate: plate,
         vehicleType: verified.vehicleType,
         receivingUnit: verified.receivingUnit,
-        goodsType: verified.goodsType,
+        goodsType: submitGoodsType,
         poNumber: verified.orderCode,
         vendorCode: form.vendorCode.trim() || undefined,
         deliveryDate: form.deliveryDate,
@@ -239,8 +310,8 @@ export default function Home() {
         unitDisplayName: verified.unitDisplayName,
         unitIcon: verified.unitIcon ?? '',
         unitLogoUrl: verified.unitLogoUrl,
-        goodsType: verified.goodsType,
-        goodsTypeName: GOODS_LABEL[verified.goodsType],
+        goodsType: submitGoodsType,
+        goodsTypeName: GOODS_LABEL[submitGoodsType],
         vehicleType: verified.vehicleType,
         requestedTime: formatDate(form.deliveryDate),
         locationName: verified.businessLocationName,
@@ -260,6 +331,8 @@ export default function Home() {
     setForm(emptyForm());
     setDailyStats([]);
     setDailyStatsMsg('');
+    setUnitConfig(null);
+    setUnitConfigMsg('');
     setSuccess(null);
   }
 
@@ -342,7 +415,7 @@ export default function Home() {
                         type="text"
                         value={orderCode}
                         onChange={(event) => setOrderCode(event.target.value.replace(/\s/g, ''))}
-                        placeholder="VD: 4500771142 hoặc REG-2026-0811"
+                        placeholder="VD: PO4500771142 hoặc A1B2C"
                         autoComplete="off"
                         autoCapitalize="characters"
                         className="input h-12 pr-12 font-mono text-base tracking-wide"
@@ -380,7 +453,8 @@ export default function Home() {
                   </p>
                   <p className="mt-1 font-mono text-sm font-black text-thiso-900">{verified.orderCode}</p>
                   <p className="mt-1 text-sm text-thiso-500">
-                    {verified.unitDisplayName} · {verified.businessLocationName} · {GOODS_LABEL[verified.goodsType]}
+                    {verified.unitDisplayName} · {verified.businessLocationName}
+                    {effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}
                   </p>
                 </div>
 
@@ -396,8 +470,59 @@ export default function Home() {
                       value={form.deliveryDate}
                       stats={dailyStats}
                       loading={dailyStatsLoading}
+                      disabledReasonForDate={(date) => (
+                        unitConfig?.sundayFreshFoodOnly && form.goodsType && form.goodsType !== 'FRESH_FOOD' && isSundayDate(date)
+                          ? 'Chủ nhật chỉ nhận hàng tươi sống'
+                          : undefined
+                      )}
                       onChange={(date) => setField('deliveryDate', date)}
                     />
+
+                    <div className="mt-4">
+                      <p className="label">Loại hàng bạn giao <span className="text-red-400">*</span></p>
+                      {unitConfigLoading && (
+                        <div className="rounded-lg border border-thiso-100 bg-white px-3 py-3 text-sm text-thiso-400">
+                          Đang tải loại hàng...
+                        </div>
+                      )}
+                      {unitConfigMsg && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                          {unitConfigMsg}
+                        </div>
+                      )}
+                      {!unitConfigLoading && !unitConfigMsg && goodsOptions.length > 0 && (
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                          {goodsOptions.map((option) => {
+                            const active = form.goodsType === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setField('goodsType', option.value)}
+                                className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                                  active
+                                    ? 'border-sky-400 bg-sky-50 shadow-card-md'
+                                    : 'border-thiso-200 bg-white hover:border-thiso-300'
+                                }`}
+                              >
+                                <div className="mb-2 text-2xl">{option.icon}</div>
+                                <p className="text-sm font-bold text-thiso-800">{option.title}</p>
+                                {option.hint && (
+                                  <span className="mt-1 inline-block rounded-full bg-thiso-100 px-1.5 py-0.5 text-[10px] font-semibold text-thiso-500">
+                                    {option.hint}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {!unitConfigLoading && !unitConfigMsg && goodsOptions.length === 0 && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+                          Đơn vị này chưa mở loại hàng nào để đăng ký.
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <div className="rounded-lg border border-thiso-100 bg-thiso-50 px-3 py-3">
@@ -408,7 +533,7 @@ export default function Home() {
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div>
-                    <label className="label">Tên tài xế <span className="text-red-400">*</span></label>
+                    <label className="label">Tên tài xế</label>
                     <input className="input h-11" value={form.driverName} onChange={(e) => setField('driverName', e.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" style={{ fontSize: '16px' }} />
                   </div>
                   <div>
@@ -424,7 +549,7 @@ export default function Home() {
                     <input className="input h-11 font-mono" value={form.vendorCode} onChange={(e) => setField('vendorCode', e.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="08723875" autoComplete="off" style={{ fontSize: '16px' }} />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="label">Tên NCC / Công ty <span className="text-red-400">*</span></label>
+                    <label className="label">Tên NCC / Công ty</label>
                     <input className="input h-11" value={form.vendorName} onChange={(e) => setField('vendorName', e.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" style={{ fontSize: '16px' }} />
                   </div>
                 </div>
@@ -449,7 +574,7 @@ export default function Home() {
                   <ReviewRow label="Khu vực" value={`${verified.businessLocationName} (${verified.businessLocationCode})`} />
                   <ReviewRow label="Đơn vị" value={verified.unitDisplayName} />
                   <ReviewRow label="Ngày giao" value={formatDate(form.deliveryDate)} />
-                  <ReviewRow label="Loại hàng" value={GOODS_LABEL[verified.goodsType]} />
+                  <ReviewRow label="Loại hàng" value={effectiveGoodsType ? GOODS_LABEL[effectiveGoodsType] : 'Chưa chọn'} />
                   <ReviewRow label="Loại xe" value={VEHICLE_LABEL[verified.vehicleType]} />
                   <ReviewRow label="Tài xế" value={form.driverName} />
                   <ReviewRow label="Số điện thoại" value={form.driverPhone} />

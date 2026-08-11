@@ -82,19 +82,10 @@ API:
 
 Superadmin có tab API Config để lưu cấu hình request tích hợp bên thứ 3 vào `app_configs`. Các config này phục vụ `POST /api/deliveries/quick-verify`, nơi tài xế nhập mã PO hoặc mã Thi Công tại trang `/`.
 
-Key được backend tìm theo danh sách ứng viên:
+Key được backend dùng cố định:
 
-- PO:
-  - `api.settings.po`
-  - `api.settings.po_verify`
-  - `api.settings.po_delivery`
-  - `api.settings.po_delivery_verify`
-- Thi Công:
-  - `api.settings.thi_cong`
-  - `api.settings.thicong`
-  - `api.settings.construction`
-  - `api.settings.construction_verify`
-  - `api.settings.contractor_work`
+- PO: `api.settings.po_verify`
+- Thi Công: `api.settings.thi_cong_verify`
 
 Value JSON hỗ trợ:
 

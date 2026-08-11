@@ -54,20 +54,8 @@ const DEFAULT_SITE_LOCATION_MAP: Record<string, string> = {
   '2001': 'THT',
 };
 
-const PO_CONFIG_KEYS = [
-  'api.settings.po',
-  'api.settings.po_verify',
-  'api.settings.po_delivery',
-  'api.settings.po_delivery_verify',
-];
-
-const CONSTRUCTION_CONFIG_KEYS = [
-  'api.settings.thi_cong',
-  'api.settings.thicong',
-  'api.settings.construction',
-  'api.settings.construction_verify',
-  'api.settings.contractor_work',
-];
+const PO_CONFIG_KEY = 'api.settings.po_verify';
+const CONSTRUCTION_CONFIG_KEY = 'api.settings.thi_cong_verify';
 
 const EMPTY_200_MESSAGE = 'Đã có lỗi trong quá trình kiểm tra, vui lòng liên hệ bộ phận phát triển';
 const CONNECTIVITY_MESSAGE = 'Có lỗi kết nối với bên kiểm tra, vui lòng thông báo cho bộ phận liên quan';
@@ -90,19 +78,24 @@ function normalizeText(value: string): string {
   return value.trim().toUpperCase().replace(/[\s_-]+/g, '');
 }
 
-function normalizeExternalCode(value: string): string {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+function stripCodeWhitespace(value: string): string {
+  return value.trim().replace(/\s+/g, '');
+}
+
+function normalizePoCode(value: string): string {
+  return stripCodeWhitespace(value).replace(/[^A-Za-z0-9]/g, '');
 }
 
 function normalizePoForPayload(value: string): string {
-  const normalized = normalizeExternalCode(value);
+  const normalized = normalizePoCode(value);
   return normalized.startsWith('PO') ? normalized.slice(2) : normalized;
 }
 
 function classifyCode(code: string): QuickRegistrationKind {
-  const normalized = normalizeExternalCode(code);
-  if (/^(PO)?\d{10}$/.test(normalized)) return 'PO';
-  return 'CONSTRUCTION';
+  const cleaned = stripCodeWhitespace(code);
+  if (/^PO[A-Za-z0-9]{10}$/.test(cleaned)) return 'PO';
+  if (/^[A-Za-z0-9]{5}$/.test(cleaned) && /[A-Za-z]/.test(cleaned) && /\d/.test(cleaned)) return 'CONSTRUCTION';
+  throw domainError.badRequest('Mã PO cần có dạng PO + 10 ký tự chữ/số, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
 }
 
 function isEmptyObject(value: unknown): boolean {
@@ -111,39 +104,38 @@ function isEmptyObject(value: unknown): boolean {
   return Object.keys(value as Record<string, unknown>).length === 0;
 }
 
-async function readFirstApiConfig(keys: string[]): Promise<ApiConfig> {
-  for (const key of keys) {
-    const raw = await getRawAppConfig(key);
-    const endpoint = asString(raw.endpoint);
-    if (!endpoint) continue;
-    const auth = asRecord(raw.auth);
-    const payloadDefaults = {
-      ...asRecord(raw.payload),
-      ...asRecord(raw.payload_defaults),
-      ...asRecord(raw.payloadDefaults),
-    };
-    const siteLocationMap = {
-      ...DEFAULT_SITE_LOCATION_MAP,
-      ...asRecord(raw.site_location_map),
-      ...asRecord(raw.siteLocationMap),
-    };
-    const method = raw.method === 'GET' ? 'GET' : 'POST';
-    return {
-      endpoint,
-      method,
-      payloadKeys: asStringArray(raw.payload_keys),
-      authHeader: asString(auth.header),
-      codeKey: asString(raw.code_key) ?? asString(raw.codeKey),
-      payloadDefaults,
-      siteLocationMap: Object.fromEntries(
-        Object.entries(siteLocationMap)
-          .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-          .map(([k, v]) => [String(k).trim(), v.trim().toUpperCase()]),
-      ),
-    };
+async function readApiConfig(key: string): Promise<ApiConfig> {
+  const raw = await getRawAppConfig(key);
+  const endpoint = asString(raw.endpoint);
+  if (!endpoint) {
+    throw domainError.badRequest(`Chưa cấu hình API kiểm tra mã trong app_configs với key ${key}.`);
   }
 
-  throw domainError.badRequest('Chưa cấu hình API kiểm tra mã trong app_configs.');
+  const auth = asRecord(raw.auth);
+  const payloadDefaults = {
+    ...asRecord(raw.payload),
+    ...asRecord(raw.payload_defaults),
+    ...asRecord(raw.payloadDefaults),
+  };
+  const siteLocationMap = {
+    ...DEFAULT_SITE_LOCATION_MAP,
+    ...asRecord(raw.site_location_map),
+    ...asRecord(raw.siteLocationMap),
+  };
+  const method = raw.method === 'GET' ? 'GET' : 'POST';
+  return {
+    endpoint,
+    method,
+    payloadKeys: asStringArray(raw.payload_keys),
+    authHeader: asString(auth.header),
+    codeKey: asString(raw.code_key) ?? asString(raw.codeKey),
+    payloadDefaults,
+    siteLocationMap: Object.fromEntries(
+      Object.entries(siteLocationMap)
+        .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+        .map(([k, v]) => [String(k).trim(), v.trim().toUpperCase()]),
+    ),
+  };
 }
 
 function replaceTemplateValues(value: unknown, code: string): unknown {
@@ -173,7 +165,7 @@ function resolveCodeKey(config: ApiConfig, kind: QuickRegistrationKind): string 
 }
 
 function buildPayload(config: ApiConfig, kind: QuickRegistrationKind, code: string): Record<string, unknown> {
-  const requestCode = kind === 'PO' ? normalizePoForPayload(code) : normalizeExternalCode(code);
+  const requestCode = kind === 'PO' ? normalizePoForPayload(code) : stripCodeWhitespace(code);
   const payload = replaceTemplateValues(config.payloadDefaults, requestCode) as Record<string, unknown>;
   const codeKey = resolveCodeKey(config, kind);
 
@@ -189,15 +181,27 @@ function buildPayload(config: ApiConfig, kind: QuickRegistrationKind, code: stri
   return payload;
 }
 
+function parseAuthHeader(header: string | undefined): { name: string; value: string } | null {
+  if (!header) return null;
+  const idx = header.indexOf(':');
+  if (idx <= 0) return null;
+  const name = header.slice(0, idx).trim();
+  const value = header.slice(idx + 1).trim();
+  return name && value ? { name, value } : null;
+}
+
+function redactSecret(value: string): string {
+  if (value.length <= 8) return '*'.repeat(value.length);
+  return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
 async function callExternalApi(kind: QuickRegistrationKind, code: string): Promise<unknown> {
-  const config = await readFirstApiConfig(kind === 'PO' ? PO_CONFIG_KEYS : CONSTRUCTION_CONFIG_KEYS);
+  const config = await readApiConfig(kind === 'PO' ? PO_CONFIG_KEY : CONSTRUCTION_CONFIG_KEY);
   const payload = buildPayload(config, kind, code);
   const headers: Record<string, string> = { Accept: 'application/json' };
-  if (config.authHeader) {
-    const idx = config.authHeader.indexOf(':');
-    if (idx > 0) {
-      headers[config.authHeader.slice(0, idx).trim()] = config.authHeader.slice(idx + 1).trim();
-    }
+  const authHeader = parseAuthHeader(config.authHeader);
+  if (authHeader) {
+    headers[authHeader.name] = authHeader.value;
   }
 
   let url = config.endpoint;
@@ -212,6 +216,16 @@ async function callExternalApi(kind: QuickRegistrationKind, code: string): Promi
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(payload);
   }
+
+  console.log('[quick-register] External API request', {
+    kind,
+    method: config.method,
+    url,
+    payload,
+    auth: authHeader
+      ? { name: authHeader.name, value: redactSecret(authHeader.value), length: authHeader.value.length }
+      : null,
+  });
 
   let response: Response;
   try {
@@ -241,6 +255,9 @@ async function callExternalApi(kind: QuickRegistrationKind, code: string): Promi
 
   if (response.status >= 500) {
     throw domainError.badRequest(CONNECTIVITY_MESSAGE, 'ExternalApiServerError');
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw domainError.badRequest('API kiểm tra từ chối xác thực. Vui lòng kiểm tra Authorization trong cấu hình API.', 'ExternalApiUnauthorized');
   }
   if (response.status >= 400) {
     throw domainError.notFound(kind === 'PO' ? 'Mã PO không tồn tại' : 'Mã Thi Công không tồn tại');
@@ -355,7 +372,7 @@ function withToken(data: Omit<NormalizedQuickRegistration, 'verificationToken'>)
 }
 
 async function normalizePo(code: string, body: unknown): Promise<NormalizedQuickRegistration> {
-  const config = await readFirstApiConfig(PO_CONFIG_KEYS);
+  const config = await readApiConfig(PO_CONFIG_KEY);
   const responseItem = parsePoItem(body);
   const item: Record<string, unknown> = {
     WERKS: '1002',
@@ -382,7 +399,7 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
 
   return withToken({
     kind: 'PO',
-    orderCode: normalizeExternalCode(code).startsWith('PO') ? normalizeExternalCode(code) : `PO${normalizeExternalCode(code)}`,
+    orderCode: normalizePoCode(code).startsWith('PO') ? normalizePoCode(code) : `PO${normalizePoCode(code)}`,
     businessLocationId: location.id,
     businessLocationCode: location.code,
     businessLocationName: location.locationName,
@@ -439,7 +456,7 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
 
   return withToken({
     kind: 'CONSTRUCTION',
-    orderCode: normalizeExternalCode(code),
+    orderCode: stripCodeWhitespace(code),
     businessLocationId: location.id,
     businessLocationCode: location.code,
     businessLocationName: location.locationName,
@@ -457,7 +474,7 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
 }
 
 export async function verifyQuickRegistrationCode(inputCode: string): Promise<NormalizedQuickRegistration> {
-  const code = normalizeExternalCode(inputCode);
+  const code = stripCodeWhitespace(inputCode);
   if (!code) throw domainError.badRequest('Vui lòng nhập mã PO hoặc mã Thi Công.');
 
   const kind = classifyCode(code);

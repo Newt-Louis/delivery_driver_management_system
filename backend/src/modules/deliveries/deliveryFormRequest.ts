@@ -3,7 +3,7 @@ import { GoodsType, VehicleType } from '@prisma/client';
 import { z } from 'zod';
 
 const registerSchema = z.object({
-  vendorName: z.string().min(1, 'Tên nhà cung cấp bắt buộc'),
+  vendorName: z.string().optional().default(''),
   driverName: z.string().default(''),
   driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
   vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),

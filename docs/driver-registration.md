@@ -44,11 +44,11 @@ Homepage `/` hiện có:
 - Ô nhập mã PO/Thi Công.
 - Nút camera dạng SVG nét vẽ trong input. Hiện nút này mới là khung UI, chưa bật camera thật.
 - Validate format cơ bản phía client:
-  - PO: 10 chữ số, có thể có prefix `PO`.
-  - Thi Công: tối thiểu 5 ký tự sau khi chuẩn hóa.
+  - PO: `PO` + 10 ký tự chữ/số, không có khoảng trắng.
+  - Thi Công: đúng 5 ký tự có cả chữ và số, không có khoảng trắng.
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
-- Step 2 PO chỉ nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO.
-- Step 2 Thi Công nhập thông tin tài xế/xe/NCC và chọn ngày giao bằng calendar tháng hiện tại.
+- Step 2 PO nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO; chỉ số điện thoại và biển số xe là bắt buộc.
+- Step 2 Thi Công nhập thông tin tài xế/xe/NCC và chọn ngày giao bằng calendar tháng hiện tại; chỉ số điện thoại và biển số xe là bắt buộc.
 - Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký.
 - Link sang `/register` cho đăng ký thủ công/bản giấy.
 - Link sang `/track` để theo dõi đơn.
@@ -152,11 +152,11 @@ Endpoint verify:
 - `POST /api/deliveries/quick-verify`
 - Body: `{ "code": "..." }`
 - Backend tự phân loại mã:
-  - `PO` nếu mã là 10 chữ số hoặc `PO` + 10 chữ số.
-  - Các mã còn lại đủ format cơ bản được xử lý như mã Thi Công.
-- Backend đọc config theo key ứng viên:
-  - PO: `api.settings.po`, `api.settings.po_verify`, `api.settings.po_delivery`, `api.settings.po_delivery_verify`.
-  - Thi Công: `api.settings.thi_cong`, `api.settings.thicong`, `api.settings.construction`, `api.settings.construction_verify`, `api.settings.contractor_work`.
+  - `PO` nếu mã có dạng `PO` + 10 ký tự chữ/số.
+  - `Thi Công` nếu mã có đúng 5 ký tự có cả chữ và số.
+- Backend đọc config theo key cố định:
+  - PO: `api.settings.po_verify`.
+  - Thi Công: `api.settings.thi_cong_verify`.
 - Config không được hardcode endpoint hoặc credential trong source. Giá trị request cố định nên nằm trong `payload`, `payload_defaults` hoặc `payloadDefaults` của `app_configs`.
 - Auth lấy từ `value.auth.header` trong `app_configs`.
 - Backend log response thật của API bên thứ 3 để đối chiếu trong giai đoạn tích hợp.
@@ -173,7 +173,8 @@ Thi Công normalization:
 
 - `data.scope.location` match `business_locations.code`.
 - `data.scope.unit` fuzzy match trong `unit_configs.unit` của location, hỗ trợ các biến thể `thisky`, `thiskyhall`, `mall`, `thiso mall`, `thisomall`.
-- Goods type của luồng Thi Công là `THI_CONG`.
+- Luồng Thi Công không mặc định `goodsType`; sau khi verify mã thành công, frontend lấy public `UnitConfig` của đúng unit để hiển thị các loại hàng đang mở và tài xế tự chọn loại hàng giao.
+- Mã Thi Công được giữ nguyên chữ hoa/thường khi gửi sang API bên thứ 3 vì endpoint kiểm tra phân biệt case.
 - Ngày giao do tài xế chọn ở step 2 vì response Thi Công không cố định một ngày giao duy nhất.
 
 ## Output Thành Công

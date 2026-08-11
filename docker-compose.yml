@@ -26,15 +26,18 @@ services:
   redis:
     image: redis:7-alpine
     container_name: mall_redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
+    command: ["sh", "-c", "redis-server --appendonly yes --protected-mode yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes:
       - ./data/redis:/data
     networks:
       - mall-net
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -48,7 +51,7 @@ services:
   #     DATABASE_URL: postgresql://malluser:mallpass@postgres:5432/malldb
   #     DIRECT_URL: postgresql://malluser:mallpass@postgres:5432/malldb
   #     JWT_SECRET: mall-jwt-secret-2024-change-in-production
-  #     REDIS_URL: redis://redis:6379
+  #     REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379
   #     PORT: 4000
   #     NODE_ENV: production
   #     TZ: Asia/Ho_Chi_Minh
