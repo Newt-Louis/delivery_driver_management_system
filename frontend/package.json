@@ -11,6 +11,8 @@
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
     "@tanstack/react-query": "^5.17.19",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "^0.21.3",
     "axios": "^1.6.7",
     "jsqr": "^1.4.0",
     "qrcode": "^1.5.4",

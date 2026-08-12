@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import type { IScannerControls } from '@zxing/browser';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
@@ -54,6 +55,72 @@ function normalizeOrderCode(value: string) {
   return value.trim().replace(/[^A-Za-z0-9]/g, '');
 }
 
+function isPoCode(value: string) {
+  return /^450\d{7}$/.test(value);
+}
+
+function isConstructionCode(value: string) {
+  return /^[A-Za-z0-9]{5}$/.test(value) && /[A-Za-z]/.test(value) && /\d/.test(value);
+}
+
+function extractScannedOrderCode(raw: string) {
+  const value = raw.trim();
+  const candidates: string[] = [];
+
+  try {
+    const url = new URL(value);
+    ['code', 'orderCode', 'poNumber', 'registrationCode'].forEach((key) => {
+      const param = url.searchParams.get(key);
+      if (param) candidates.push(param);
+    });
+    const lastPathPart = url.pathname.split('/').filter(Boolean).pop();
+    if (lastPathPart) candidates.push(lastPathPart);
+  } catch {
+    // Plain barcode/QR content is the common path.
+  }
+
+  candidates.push(value);
+  candidates.push(...(value.match(/450\d{7}/g) ?? []));
+  candidates.push(...(value.match(/[A-Za-z0-9]{5,}/g) ?? []));
+
+  for (const candidate of candidates) {
+    const cleaned = normalizeOrderCode(candidate);
+    if (isPoCode(cleaned) || isConstructionCode(cleaned)) return cleaned;
+  }
+
+  return normalizeOrderCode(value);
+}
+
+function scannerErrorMessage(error: unknown) {
+  const name = (error as { name?: string })?.name;
+  if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Trình duyệt chưa được cấp quyền camera.';
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'Không tìm thấy camera trên thiết bị này.';
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'Camera đang được ứng dụng khác sử dụng.';
+  if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') {
+    return 'Camera cần HTTPS hoặc localhost để hoạt động.';
+  }
+  return 'Không mở được camera. Vui lòng thử lại.';
+}
+
+function createScanHints(library: typeof import('@zxing/library')) {
+  const formats = [
+    library.BarcodeFormat.QR_CODE,
+    library.BarcodeFormat.CODE_128,
+    library.BarcodeFormat.CODE_39,
+    library.BarcodeFormat.CODE_93,
+    library.BarcodeFormat.EAN_13,
+    library.BarcodeFormat.EAN_8,
+    library.BarcodeFormat.UPC_A,
+    library.BarcodeFormat.UPC_E,
+    library.BarcodeFormat.ITF,
+    library.BarcodeFormat.DATA_MATRIX,
+    library.BarcodeFormat.PDF_417,
+  ];
+  const hints = new Map<import('@zxing/library').DecodeHintType, import('@zxing/library').BarcodeFormat[]>();
+  hints.set(library.DecodeHintType.POSSIBLE_FORMATS, formats);
+  return hints;
+}
+
 function formatDate(value?: string) {
   if (!value) return 'Chưa chọn';
   const [year, month, day] = value.split('-');
@@ -104,10 +171,15 @@ export default function Home() {
   const [unitConfigLoading, setUnitConfigLoading] = useState(false);
   const [unitConfigMsg, setUnitConfigMsg] = useState('');
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerStatus, setScannerStatus] = useState('');
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const scannerControlsRef = useRef<IScannerControls | null>(null);
+  const scanHandledRef = useRef(false);
 
   const normalizedCode = useMemo(() => normalizeOrderCode(orderCode), [orderCode]);
-  const constructionCodeLooksSupported = /^[A-Za-z0-9]{5}$/.test(normalizedCode) && /[A-Za-z]/.test(normalizedCode) && /\d/.test(normalizedCode);
-  const codeLooksSupported = /^450\d{7}$/.test(normalizedCode) || constructionCodeLooksSupported;
+  const constructionCodeLooksSupported = isConstructionCode(normalizedCode);
+  const codeLooksSupported = isPoCode(normalizedCode) || constructionCodeLooksSupported;
   const staffHomePath = user?.role === 'CHECKIN' ? '/check-in' : '/dashboard';
   const needsCalendar = verified?.kind === 'CONSTRUCTION';
   const effectiveGoodsType = needsCalendar ? form.goodsType : (verified?.goodsType ?? '');
@@ -202,6 +274,97 @@ export default function Home() {
       cancelled = true;
     };
   }, [effectiveGoodsType, form.deliveryDate, needsCalendar, verified]);
+
+  function stopScanner() {
+    scannerControlsRef.current?.stop();
+    scannerControlsRef.current = null;
+
+    const stream = videoRef.current?.srcObject;
+    if (stream instanceof MediaStream) {
+      stream.getTracks().forEach((track) => track.stop());
+    }
+    if (videoRef.current) videoRef.current.srcObject = null;
+  }
+
+  useEffect(() => {
+    if (!scannerOpen) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerStatus('Trình duyệt không hỗ trợ camera.');
+      return;
+    }
+
+    let active = true;
+    scanHandledRef.current = false;
+    setScannerStatus('Đang mở camera...');
+
+    Promise.all([import('@zxing/browser'), import('@zxing/library')])
+      .then(([browser, library]) => {
+        if (!active) return null;
+        const reader = new browser.BrowserMultiFormatReader(createScanHints(library), {
+          delayBetweenScanAttempts: 250,
+          delayBetweenScanSuccess: 500,
+          tryPlayVideoTimeout: 5000,
+        });
+
+        return reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          },
+          video,
+          (result, _error, controls) => {
+            if (!active || scanHandledRef.current) return;
+            scannerControlsRef.current = controls;
+
+            if (!result) return;
+            const scannedCode = extractScannedOrderCode(result.getText());
+            if (!scannedCode) {
+              setScannerStatus('Không đọc được mã.');
+              return;
+            }
+
+            scanHandledRef.current = true;
+            setOrderCode(scannedCode);
+            setVerified(null);
+            setDailyStats([]);
+            setDailyStatsMsg('');
+            setUnitConfig(null);
+            setUnitConfigMsg('');
+            setStep(1);
+            toast.success(`Đã quét mã: ${scannedCode}`);
+            stopScanner();
+            setScannerOpen(false);
+          },
+        );
+      })
+      .then((controls) => {
+        if (!controls) return;
+        if (!active) {
+          controls.stop();
+          return;
+        }
+        scannerControlsRef.current = controls;
+        setScannerStatus('Đang quét...');
+      })
+      .catch((error) => {
+        if (!active) return;
+        const message = scannerErrorMessage(error);
+        setScannerStatus(message);
+        toast.error(message);
+      });
+
+    return () => {
+      active = false;
+      stopScanner();
+    };
+  }, [scannerOpen, toast]);
 
   function setField<K extends keyof QuickForm>(key: K, value: QuickForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -423,7 +586,7 @@ export default function Home() {
                       />
                       <button
                         type="button"
-                        onClick={() => toast.info('Quét QR bằng camera sẽ được kết nối ở bước thiết bị sau.')}
+                        onClick={() => setScannerOpen(true)}
                         className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-thiso-500 transition-colors hover:bg-thiso-100 hover:text-thiso-900"
                         aria-label="Quét mã bằng camera"
                         title="Quét mã bằng camera"
@@ -608,6 +771,51 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {scannerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="home-scanner-title"
+          onClick={() => {
+            stopScanner();
+            setScannerOpen(false);
+          }}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-card-lg"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-thiso-100 px-4 py-3">
+              <div>
+                <h2 id="home-scanner-title" className="text-base font-black text-thiso-900">Quét mã</h2>
+                <p className="text-xs font-semibold text-thiso-400">{scannerStatus || 'Đang khởi động...'}</p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary h-9 px-3"
+                onClick={() => {
+                  stopScanner();
+                  setScannerOpen(false);
+                }}
+              >
+                Đóng
+              </button>
+            </div>
+            <div className="relative aspect-[3/4] bg-black sm:aspect-video">
+              <video
+                ref={videoRef}
+                className="h-full w-full object-cover"
+                muted
+                playsInline
+                autoPlay
+              />
+              <div className="pointer-events-none absolute inset-10 rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.22)]" />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

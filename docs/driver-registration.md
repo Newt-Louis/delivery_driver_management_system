@@ -42,7 +42,7 @@ Homepage `/` hiện có:
 
 - Lời chào `Hệ thống điều phối giao hàng THISO`.
 - Ô nhập mã PO/Thi Công.
-- Nút camera dạng SVG nét vẽ trong input. Hiện nút này mới là khung UI, chưa bật camera thật.
+- Nút camera trong input mở scanner thật để quét QR/barcode, tách mã PO/Thi Công từ nội dung quét và tự điền vào ô nhập mã.
 - Validate format cơ bản phía client:
   - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
   - Thi Công: đúng 5 ký tự có cả chữ và số, không có khoảng trắng.
