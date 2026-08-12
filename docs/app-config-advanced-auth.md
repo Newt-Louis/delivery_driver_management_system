@@ -111,6 +111,7 @@ Quy tắc:
 - `payload_defaults`, `payloadDefaults` hoặc `payload` dùng cho giá trị cố định cần gửi kèm request.
 - `code_key` hoặc `codeKey` cho biết field nào nhận mã tài xế nhập. Nếu không khai báo, backend tự suy luận theo `payload_keys`, ví dụ PO ưu tiên `EBELN`.
 - `auth.header` được chuyển thành HTTP header khi gọi API ngoài.
+- Với PO, backend luôn gửi `BUKRS = VN01` và `EBELN = <mã PO 10 số>` sau khi đọc config, kể cả khi hai key này chưa có trong `payload_defaults`.
 - Với PO, có thể cấu hình thêm `site_location_map` hoặc `siteLocationMap` nếu mã site bên thứ 3 thay đổi. Backend có fallback mặc định cho `1001`, `1002`, `1003`, `2001`.
 - Response thật của bên thứ 3 được log ở backend để phục vụ tích hợp. Không trả raw response này về frontend.
 

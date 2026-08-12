@@ -44,7 +44,7 @@ Homepage `/` hiện có:
 - Ô nhập mã PO/Thi Công.
 - Nút camera dạng SVG nét vẽ trong input. Hiện nút này mới là khung UI, chưa bật camera thật.
 - Validate format cơ bản phía client:
-  - PO: `PO` + 10 ký tự chữ/số, không có khoảng trắng.
+  - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
   - Thi Công: đúng 5 ký tự có cả chữ và số, không có khoảng trắng.
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
 - Step 2 PO nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO; chỉ số điện thoại và biển số xe là bắt buộc.
@@ -124,7 +124,7 @@ Service:
 
 - Biển số xe được normalize uppercase và bỏ khoảng trắng.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
-- Số PO/Mã thi công được normalize uppercase và bỏ ký tự phân cách.
+- Số PO/Mã thi công khi lưu/so sánh trong đăng ký được normalize uppercase và bỏ ký tự phân cách; riêng bước quick verify mã Thi Công giữ nguyên hoa/thường khi gọi API bên thứ 3.
 - Luồng thủ công vẫn dùng `GET /api/units/order-codes` trả mock 20 mã `PO##########` và 20 mã `TC##########`; backend register vẫn validate lại mã này.
 - Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
 - `BusinessLocation` public là bước đầu của luồng thủ công `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
@@ -152,12 +152,12 @@ Endpoint verify:
 - `POST /api/deliveries/quick-verify`
 - Body: `{ "code": "..." }`
 - Backend tự phân loại mã:
-  - `PO` nếu mã có dạng `PO` + 10 ký tự chữ/số.
+  - `PO` nếu mã có đúng 10 chữ số và bắt đầu bằng `450`.
   - `Thi Công` nếu mã có đúng 5 ký tự có cả chữ và số.
 - Backend đọc config theo key cố định:
   - PO: `api.settings.po_verify`.
   - Thi Công: `api.settings.thi_cong_verify`.
-- Config không được hardcode endpoint hoặc credential trong source. Giá trị request cố định nên nằm trong `payload`, `payload_defaults` hoặc `payloadDefaults` của `app_configs`.
+- Config không được hardcode endpoint hoặc credential trong source. Giá trị request cố định nên nằm trong `payload`, `payload_defaults` hoặc `payloadDefaults` của `app_configs`, riêng PO hiện backend luôn ép `BUKRS = VN01` và `EBELN = <mã PO tài xế nhập>`.
 - Auth lấy từ `value.auth.header` trong `app_configs`.
 - Backend log response thật của API bên thứ 3 để đối chiếu trong giai đoạn tích hợp.
 - Backend không trả raw response của bên thứ 3 xuống frontend; frontend chỉ nhận dữ liệu đã chuẩn hóa.
@@ -165,9 +165,11 @@ Endpoint verify:
 PO normalization:
 
 - `WERKS` map sang `BusinessLocation.code`: `1001 -> PVT`, `1002 -> SALA`, `1003 -> PHI`, `2001 -> THT`.
-- Unit PO match `unit_configs.unit = EMART` sau khi normalize.
+- Unit PO hiện match biến cấu hình nội bộ `EMART` với `unit_configs.unit` sau khi normalize để dễ mở rộng unit khác về sau.
 - `EINDT` dạng `yyyyMMdd` được đổi thành `deliveryDate`.
-- Nếu response PO đang thiếu field placeholder nhưng HTTP 200 có body, backend dùng dữ liệu demo tối thiểu để frontend vẫn chạy được và tiếp tục log response thật ở server.
+- Backend lấy dòng đầu tiên trong `ITEMS`; `LIFNR` điền `vendorCode`, `VENDORNA` điền `vendorName` nếu có.
+- `FRESH` từ SAP là string `"true"`/`"false"` nên backend normalize hoa/thường rồi đổi sang boolean: `true` thành `FRESH_FOOD`, `false` thành `GENERAL_GOODS`.
+- Nếu response PO HTTP 200 nhưng không có dòng đầu tiên trong `ITEMS`, backend trả lỗi cấu trúc dữ liệu để tránh đăng ký sai khu vực/ngày.
 
 Thi Công normalization:
 

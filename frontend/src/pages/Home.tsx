@@ -107,7 +107,7 @@ export default function Home() {
 
   const normalizedCode = useMemo(() => normalizeOrderCode(orderCode), [orderCode]);
   const constructionCodeLooksSupported = /^[A-Za-z0-9]{5}$/.test(normalizedCode) && /[A-Za-z]/.test(normalizedCode) && /\d/.test(normalizedCode);
-  const codeLooksSupported = /^PO[A-Za-z0-9]{10}$/.test(normalizedCode) || constructionCodeLooksSupported;
+  const codeLooksSupported = /^450\d{7}$/.test(normalizedCode) || constructionCodeLooksSupported;
   const staffHomePath = user?.role === 'CHECKIN' ? '/check-in' : '/dashboard';
   const needsCalendar = verified?.kind === 'CONSTRUCTION';
   const effectiveGoodsType = needsCalendar ? form.goodsType : (verified?.goodsType ?? '');
@@ -214,7 +214,7 @@ export default function Home() {
       return;
     }
     if (!codeLooksSupported) {
-      toast.error('Mã PO cần có dạng PO + 10 ký tự chữ/số, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
+      toast.error('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
       return;
     }
 
@@ -415,9 +415,9 @@ export default function Home() {
                         type="text"
                         value={orderCode}
                         onChange={(event) => setOrderCode(event.target.value.replace(/\s/g, ''))}
-                        placeholder="VD: PO4500771142 hoặc A1B2C"
+                        placeholder="VD: 4500771144 hoặc A1B2C"
                         autoComplete="off"
-                        autoCapitalize="characters"
+                        autoCapitalize="none"
                         className="input h-12 pr-12 font-mono text-base tracking-wide"
                         style={{ fontSize: '16px' }}
                       />

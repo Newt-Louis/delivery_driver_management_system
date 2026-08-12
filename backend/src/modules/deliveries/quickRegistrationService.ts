@@ -56,6 +56,9 @@ const DEFAULT_SITE_LOCATION_MAP: Record<string, string> = {
 
 const PO_CONFIG_KEY = 'api.settings.po_verify';
 const CONSTRUCTION_CONFIG_KEY = 'api.settings.thi_cong_verify';
+const PO_CODE_KEY = 'EBELN';
+const PO_DEFAULT_BUKRS = 'VN01';
+const PO_UNIT_CODE = 'EMART';
 
 const EMPTY_200_MESSAGE = 'Đã có lỗi trong quá trình kiểm tra, vui lòng liên hệ bộ phận phát triển';
 const CONNECTIVITY_MESSAGE = 'Có lỗi kết nối với bên kiểm tra, vui lòng thông báo cho bộ phận liên quan';
@@ -83,19 +86,18 @@ function stripCodeWhitespace(value: string): string {
 }
 
 function normalizePoCode(value: string): string {
-  return stripCodeWhitespace(value).replace(/[^A-Za-z0-9]/g, '');
+  return stripCodeWhitespace(value).replace(/\D/g, '');
 }
 
 function normalizePoForPayload(value: string): string {
-  const normalized = normalizePoCode(value);
-  return normalized.startsWith('PO') ? normalized.slice(2) : normalized;
+  return normalizePoCode(value);
 }
 
 function classifyCode(code: string): QuickRegistrationKind {
   const cleaned = stripCodeWhitespace(code);
-  if (/^PO[A-Za-z0-9]{10}$/.test(cleaned)) return 'PO';
+  if (/^450\d{7}$/.test(cleaned)) return 'PO';
   if (/^[A-Za-z0-9]{5}$/.test(cleaned) && /[A-Za-z]/.test(cleaned) && /\d/.test(cleaned)) return 'CONSTRUCTION';
-  throw domainError.badRequest('Mã PO cần có dạng PO + 10 ký tự chữ/số, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
+  throw domainError.badRequest('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
 }
 
 function isEmptyObject(value: unknown): boolean {
@@ -157,8 +159,8 @@ function replaceTemplateValues(value: unknown, code: string): unknown {
 }
 
 function resolveCodeKey(config: ApiConfig, kind: QuickRegistrationKind): string {
+  if (kind === 'PO') return PO_CODE_KEY;
   if (config.codeKey) return config.codeKey;
-  if (kind === 'PO' && config.payloadKeys.includes('EBELN')) return 'EBELN';
   const preferred = ['code', 'CODE', 'REG_CODE', 'registrationCode', 'constructionCode'];
   const found = preferred.find((key) => config.payloadKeys.includes(key));
   return found ?? config.payloadKeys[config.payloadKeys.length - 1] ?? 'code';
@@ -176,6 +178,10 @@ function buildPayload(config: ApiConfig, kind: QuickRegistrationKind, code: stri
   }
   if (payload[codeKey] === undefined) {
     payload[codeKey] = requestCode;
+  }
+  if (kind === 'PO') {
+    payload.BUKRS = PO_DEFAULT_BUKRS;
+    payload[PO_CODE_KEY] = requestCode;
   }
 
   return payload;
@@ -278,11 +284,6 @@ function parsePoItem(body: unknown): Record<string, unknown> {
   return asRecord(items[0] ?? {});
 }
 
-function todayYyyyMmDd(): string {
-  const now = new Date();
-  return `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-}
-
 function parseYyyyMmDd(value: unknown): string | undefined {
   const raw = asString(value);
   if (!raw || !/^\d{8}$/.test(raw)) return undefined;
@@ -297,6 +298,22 @@ function mapGoodsType(value: unknown, fallback: GoodsType): GoodsType {
   if (normalized.includes('THICONG') || normalized.includes('CONSTRUCTION') || normalized.includes('FITOUT')) return GoodsType.THI_CONG;
   if (normalized.includes('GENERAL') || normalized.includes('NORMAL') || normalized.includes('HANGHOATHONGTHUONG')) return GoodsType.GENERAL_GOODS;
   return fallback;
+}
+
+function parseBooleanLike(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === 'true') return true;
+  if (normalized === 'false') return false;
+  return undefined;
+}
+
+function mapPoGoodsType(item: Record<string, unknown>): GoodsType {
+  const fresh = parseBooleanLike(item.FRESH);
+  if (fresh === true) return GoodsType.FRESH_FOOD;
+  if (fresh === false) return GoodsType.GENERAL_GOODS;
+  return mapGoodsType(item.PLACEHOLDER_TYPE, GoodsType.FRESH_FOOD);
 }
 
 async function findBusinessLocationByCode(code: string) {
@@ -374,12 +391,10 @@ function withToken(data: Omit<NormalizedQuickRegistration, 'verificationToken'>)
 async function normalizePo(code: string, body: unknown): Promise<NormalizedQuickRegistration> {
   const config = await readApiConfig(PO_CONFIG_KEY);
   const responseItem = parsePoItem(body);
-  const item: Record<string, unknown> = {
-    WERKS: '1002',
-    EINDT: todayYyyyMmDd(),
-    PLACEHOLDER_TYPE: 'FRESH_FOOD',
-    ...responseItem,
-  };
+  if (isEmptyObject(responseItem)) {
+    throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoItemsMissing');
+  }
+  const item: Record<string, unknown> = responseItem;
   const siteCode = asString(item.WERKS);
   const locationCode = siteCode ? config.siteLocationMap[siteCode] : undefined;
   if (!locationCode) {
@@ -389,8 +404,8 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
   const location = await findBusinessLocationByCode(locationCode);
   const unitConfig = await findUnitConfig({
     businessLocationId: location.id,
-    unitMatcher: (unit) => normalizeText(unit) === 'EMART',
-    missingMessage: `Không tìm thấy unit EMART tại khu vực ${location.code}.`,
+    unitMatcher: (unit) => normalizeText(unit) === normalizeText(PO_UNIT_CODE),
+    missingMessage: `Không tìm thấy unit ${PO_UNIT_CODE} tại khu vực ${location.code}.`,
   });
   const deliveryDate = parseYyyyMmDd(item.EINDT);
   if (!deliveryDate) {
@@ -399,7 +414,7 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
 
   return withToken({
     kind: 'PO',
-    orderCode: normalizePoCode(code).startsWith('PO') ? normalizePoCode(code) : `PO${normalizePoCode(code)}`,
+    orderCode: normalizePoCode(code),
     businessLocationId: location.id,
     businessLocationCode: location.code,
     businessLocationName: location.locationName,
@@ -408,11 +423,11 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
     unitDisplayName: unitConfig.displayName || unitConfig.shortName || unitConfig.unit,
     unitIcon: unitConfig.icon,
     unitLogoUrl: unitConfig.logoUrl,
-    goodsType: mapGoodsType(item.PLACEHOLDER_TYPE, GoodsType.FRESH_FOOD),
+    goodsType: mapPoGoodsType(item),
     vehicleType: VehicleType.TRUCK,
     deliveryDate,
     vendorCode: asString(item.LIFNR),
-    vendorName: asString(item.PLACEHOLDER_VENDOR_NAME),
+    vendorName: asString(item.VENDORNA) ?? asString(item.PLACEHOLDER_VENDOR_NAME),
     externalMessage: asString(asRecord(body).LOG),
   });
 }
