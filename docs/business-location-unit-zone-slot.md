@@ -19,6 +19,7 @@ Models:
 
 - `BusinessLocation`
   - `code`, `locationName`, `address`, `avatarUrl`, `logoUrl`, `isActive`.
+  - `avatarUrl`/`logoUrl` là URL ảnh đang được location sử dụng; file vật lý và metadata upload nằm trong `datafile`/`uploaded_files`.
 - `UnitConfig`
   - `businessLocationId`, `unit`, `isActive`.
   - Cấu hình loại hàng: `freshFoodEnabled`, `generalGoodsEnabled`, `thiCongEnabled`.
@@ -26,6 +27,10 @@ Models:
   - Cấu hình capacity ngày và slot: `truckSlotMinutes`, `motorbikeSlotMinutes`, `truckMaxPerSlot`, `motorbikeMaxPerSlot`.
   - Cấu hình auto-cancel xe đã gọi không vào: `autoCancelCalledEnabled`, `autoCancelCalledAfterMinutes`.
   - Branding và API vendor/PO.
+  - `logoUrl` là URL ảnh đang được đơn vị sử dụng; file vật lý và metadata upload nằm trong `datafile`/`uploaded_files`.
+- `UploadedFile`
+  - Metadata file upload, scope theo `BusinessLocation` hoặc `UnitConfig`.
+  - File vật lý nằm dưới `DATAFILE_ROOT/uploads/<locationCode>/<unitCode?>/<yyyy>/<mm>/<dd>/`.
 - `Zone`
   - `unitConfigId`, `code`, `name`.
   - Unique theo `[unitConfigId, code]`.
@@ -100,6 +105,11 @@ Superadmin master data:
 - `GET/POST/PATCH/DELETE /api/superadmin/auto-warehouse-vendors`
 - `GET/POST/PATCH/DELETE /api/superadmin/devices`
 - `GET/POST/PATCH/DELETE /api/superadmin/receiving-time-configs`
+
+File storage:
+
+- `POST /api/files/upload`
+- Static public path `/datafile/uploads/*` phục vụ file đã upload.
 
 Module backend:
 

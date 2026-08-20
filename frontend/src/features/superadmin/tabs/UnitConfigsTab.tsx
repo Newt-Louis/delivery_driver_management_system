@@ -3,6 +3,8 @@ import type { UnitConfig } from '../../../lib/types';
 import { superadminApi } from '../api';
 import type { BusinessLocation } from '../types';
 import { EmptyState, StatusBadge, TableShell } from './shared';
+import DatafileImageUpload, { type DatafileImageValue } from '../../../components/DatafileImageUpload';
+import { hasPendingUploadFile, uploadDatafileAsset } from '../../../lib/datafileUpload';
 
 type UnitFormState = {
   businessLocationId: string;
@@ -12,6 +14,8 @@ type UnitFormState = {
   description: string;
   icon: string;
   logoUrl: string;
+  logoOriginalName?: string;
+  logoFile?: File;
   primaryColor: string;
   isActive: boolean;
   freshFoodEnabled: boolean;
@@ -37,6 +41,7 @@ function formFromUnit(unit: UnitConfig | null, businessLocationId: string): Unit
     description: unit?.description || '',
     icon: unit?.icon || '',
     logoUrl: unit?.logoUrl || '',
+    logoOriginalName: undefined,
     primaryColor: unit?.primaryColor || '#1C1C1C',
     isActive: unit?.isActive ?? true,
     freshFoodEnabled: unit?.freshFoodEnabled ?? true,
@@ -55,8 +60,11 @@ function formFromUnit(unit: UnitConfig | null, businessLocationId: string): Unit
 }
 
 function unitPayload(form: UnitFormState) {
+  const { logoOriginalName: _logoOriginalName, logoFile: _logoFile, ...rest } = form;
+  void _logoOriginalName;
+  void _logoFile;
   return {
-    ...form,
+    ...rest,
     unit: form.unit.toUpperCase().trim(),
     icon: form.icon || null,
     logoUrl: form.logoUrl || null,
@@ -104,9 +112,17 @@ function UnitForm({
     e.preventDefault();
     setError('');
     try {
-      await superadminApi.createUnit(unitPayload(form));
+      const createPayload = {
+        ...unitPayload(form),
+        logoUrl: hasPendingUploadFile(form.logoFile) ? null : form.logoUrl || null,
+      };
+      const created = (await superadminApi.createUnit(createPayload)).data as UnitConfig;
+      const logoUrl = await uploadUnitLogoIfNeeded(created.id, form.logoUrl, form.logoOriginalName, form.logoFile);
+      if (logoUrl !== createPayload.logoUrl) {
+        await superadminApi.updateUnit(created.id, { logoUrl });
+      }
       onDone();
-      setForm({ ...form, unit: '', displayName: '', shortName: '', description: '', icon: '', logoUrl: '', vendorApiKey: '', poApiKey: '' });
+      setForm({ ...form, unit: '', displayName: '', shortName: '', description: '', icon: '', logoUrl: '', logoOriginalName: undefined, logoFile: undefined, vendorApiKey: '', poApiKey: '' });
     } catch (err) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không tạo được unit.');
     }
@@ -122,6 +138,14 @@ function UnitForm({
       <input className="input" placeholder="Tên ngắn" value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value })} />
       <input className="input" placeholder="Icon" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
       <button className="btn btn-primary" type="submit">Tạo unit</button>
+      <div className="md:col-span-8">
+        <DatafileImageUpload
+          label="Logo đơn vị"
+          value={{ url: form.logoUrl || null, originalName: form.logoOriginalName }}
+          onChange={(v: DatafileImageValue) => setForm({ ...form, logoUrl: v.url || '', logoOriginalName: v.originalName, logoFile: v.file })}
+          buttonLabel="Tải lên logo"
+        />
+      </div>
       {error && <div className="md:col-span-8 text-sm text-red-600">{error}</div>}
     </form>
   );
@@ -152,7 +176,8 @@ function UnitEditModal({
     setSaving(true);
     setError('');
     try {
-      const { businessLocationId: _businessLocationId, ...payload } = unitPayload(form);
+      const logoUrl = await uploadUnitLogoIfNeeded(unit.id, form.logoUrl, form.logoOriginalName, form.logoFile);
+      const { businessLocationId: _businessLocationId, ...payload } = { ...unitPayload(form), logoUrl };
       void _businessLocationId;
       await superadminApi.updateUnit(unit.id, payload);
       onDone();
@@ -210,8 +235,16 @@ function UnitEditModal({
               <input className="input font-mono" value={form.primaryColor} onChange={(e) => set('primaryColor', e.target.value)} />
             </div>
             <div className="md:col-span-2">
-              <label className="label">Logo URL</label>
-              <input className="input" value={form.logoUrl} onChange={(e) => set('logoUrl', e.target.value)} />
+              <DatafileImageUpload
+                label="Logo đơn vị"
+                value={{ url: form.logoUrl || null, originalName: form.logoOriginalName }}
+                onChange={(v: DatafileImageValue) => {
+                  set('logoUrl', (v.url || '') as UnitFormState['logoUrl']);
+                  set('logoOriginalName', v.originalName as UnitFormState['logoOriginalName']);
+                  set('logoFile', v.file as UnitFormState['logoFile']);
+                }}
+                buttonLabel="Tải lên logo"
+              />
             </div>
             <div className="md:col-span-4">
               <label className="label">Mô tả</label>
@@ -277,6 +310,18 @@ function UnitEditModal({
   );
 }
 
+async function uploadUnitLogoIfNeeded(unitConfigId: string, value: string | null | undefined, originalName: string | undefined, file?: File) {
+  if (!hasPendingUploadFile(file)) return value || null;
+  const uploaded = await uploadDatafileAsset({
+    scope: 'UNIT_CONFIG',
+    category: 'LOGO',
+    unitConfigId,
+    originalName: originalName ?? 'unit-logo.png',
+    file,
+  });
+  return uploaded.publicUrl;
+}
+
 export default function UnitConfigsTab({
   locations,
   units,
@@ -332,7 +377,12 @@ export default function UnitConfigsTab({
               {visibleUnits.map((unit) => (
                 <tr key={unit.id} className="border-t border-thiso-100">
                   <td className="p-3 font-mono">{unit.unit}</td>
-                  <td className="p-3">{unit.icon} {unit.displayName}</td>
+                  <td className="p-3">
+                    <span className="inline-flex items-center gap-2">
+                      {unit.logoUrl ? <img src={unit.logoUrl} alt="" className="h-7 w-7 rounded object-contain" /> : <span>{unit.icon}</span>}
+                      {unit.displayName}
+                    </span>
+                  </td>
                   <td className="p-3 font-mono text-xs">{unit.businessLocationId}</td>
                   <td className="p-3 text-thiso-500">Tải {unit.truckSlotMinutes}p/{unit.truckMaxPerSlot} · Máy {unit.motorbikeSlotMinutes}p/{unit.motorbikeMaxPerSlot}</td>
                   <td className="p-3"><StatusBadge active={unit.isActive ?? true} /></td>

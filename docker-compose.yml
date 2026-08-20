@@ -55,8 +55,13 @@ services:
   #     PORT: 4000
   #     NODE_ENV: production
   #     TZ: Asia/Ho_Chi_Minh
+  #     DATAFILE_ROOT: /app/datafile
+  #     DATAFILE_MAX_UPLOAD_BYTES: 104857600
+  #     JSON_BODY_LIMIT: 15mb
   #   ports:
   #     - "4000:4000"
+  #   volumes:
+  #     - ./datafile:/app/datafile
   #   depends_on:
   #     postgres:
   #       condition: service_healthy

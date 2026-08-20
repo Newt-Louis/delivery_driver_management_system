@@ -108,11 +108,25 @@ docker compose exec backend npx prisma studio
 cd backend
 cp .env.example .env
 # Sửa DATABASE_URL trỏ về PostgreSQL local
+# DATAFILE_ROOT mặc định có thể đặt ../datafile để lưu upload ngoài thư mục backend
 npm install
 npx prisma migrate dev
 npm run seed
 npm run dev
 ```
+
+## Datafile Storage
+
+Backend dùng `DATAFILE_ROOT` để lưu file upload nội bộ. Mặc định nên dùng thư mục `datafile` ở root repo:
+
+```text
+datafile/
+  tmp/
+  uploads/
+  templates/
+```
+
+Logo/avatar upload được lưu dưới `uploads/<locationCode>/<unitCode?>/<yyyy>/<mm>/<dd>/...`; database lưu metadata ở `uploaded_files`, còn `logoUrl/avatarUrl` trên location/unit vẫn là URL ảnh đang được sử dụng.
 
 ### Frontend
 

@@ -1,53 +1,10 @@
-import { useCallback, useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import api from '../../../lib/api';
 import { useBranding } from '../../../context/BrandingContext';
 import type { UnitConfig } from '../../../lib/types';
-
-function LogoUpload({ value, onChange, label, maxSizeKB = 500 }: {
-  value: string | null;
-  onChange: (v: string | null) => void;
-  label: string;
-  maxSizeKB?: number;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > maxSizeKB * 1000) { alert(`File quá lớn — tối đa ${maxSizeKB}KB`); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => onChange(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  }, [onChange, maxSizeKB]);
-
-  return (
-    <div>
-      <p className="label">{label}</p>
-      <div className="flex items-start gap-3">
-        <div className="rounded-xl border-2 border-thiso-200 bg-thiso-50 flex items-center justify-center overflow-hidden flex-shrink-0 w-16 h-16">
-          {value
-            ? <img src={value} alt="preview" className="w-full h-full object-contain p-1" />
-            : <span className="text-2xl text-thiso-300">🖼</span>}
-        </div>
-        <div className="flex flex-col gap-1.5 pt-1">
-          <button type="button" className="btn-secondary text-xs py-1.5 px-3" onClick={() => inputRef.current?.click()}>
-            {value ? 'Thay logo' : 'Tải lên logo'}
-          </button>
-          {value && (
-            <button type="button" className="text-xs text-red-500 hover:text-red-700 text-left" onClick={() => onChange(null)}>
-              Xóa
-            </button>
-          )}
-          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-        </div>
-        <div className="flex-1 min-w-0 pt-1">
-          <p className="text-[11px] text-thiso-400 leading-relaxed">PNG, JPG, SVG — tối đa {maxSizeKB}KB<br />Nền trong suốt (PNG) hiển thị tốt hơn</p>
-        </div>
-      </div>
-    </div>
-  );
-}
+import DatafileImageUpload, { type DatafileImageValue } from '../../../components/DatafileImageUpload';
+import { hasPendingUploadFile, uploadDatafileAsset } from '../../../lib/datafileUpload';
 
 function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => void }) {
   const [saving, setSaving] = useState(false);
@@ -58,17 +15,24 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
     description:  unit.description  || '',
     icon:         unit.icon         || '',
     logoUrl:      unit.logoUrl      ?? null as string | null,
+    logoOriginalName: undefined as string | undefined,
+    logoFile: undefined as File | undefined,
     primaryColor: unit.primaryColor || '#1C1C1C',
   });
 
-  function setField(field: keyof typeof form, value: string | null) {
+  function setField(field: keyof typeof form, value: string | null | undefined) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
   async function saveUnit() {
     setSaving(true);
     try {
-      await api.patch(`/api/units/${unit.unit}/config`, form);
+      const logoUrl = await uploadUnitLogoIfNeeded(unit.id, form.logoUrl, form.logoOriginalName, form.logoFile);
+      const { logoOriginalName: _logoOriginalName, logoFile: _logoFile, ...payload } = { ...form, logoUrl };
+      void _logoOriginalName;
+      void _logoFile;
+      await api.patch(`/api/units/${unit.unit}/config`, payload);
+      setForm((current) => ({ ...current, logoUrl, logoOriginalName: undefined, logoFile: undefined }));
       onSaved();
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -91,7 +55,12 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
         </div>
       </div>
 
-      <LogoUpload label="Logo đơn vị" value={form.logoUrl} onChange={(v) => setField('logoUrl', v)} maxSizeKB={5120} />
+      <DatafileImageUpload
+        label="Logo đơn vị"
+        value={{ url: form.logoUrl, originalName: form.logoOriginalName }}
+        onChange={(v: DatafileImageValue) => setForm((current) => ({ ...current, logoUrl: v.url, logoOriginalName: v.originalName, logoFile: v.file }))}
+        buttonLabel="Tải lên logo"
+      />
 
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -150,6 +119,18 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
       </div>
     </div>
   );
+}
+
+async function uploadUnitLogoIfNeeded(unitConfigId: string, value: string | null, originalName: string | undefined, file?: File) {
+  if (!hasPendingUploadFile(file)) return value ?? null;
+  const uploaded = await uploadDatafileAsset({
+    scope: 'UNIT_CONFIG',
+    category: 'LOGO',
+    unitConfigId,
+    originalName: originalName ?? 'unit-logo.png',
+    file,
+  });
+  return uploaded.publicUrl;
 }
 
 export default function BrandTab() {

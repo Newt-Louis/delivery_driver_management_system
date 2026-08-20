@@ -42,6 +42,7 @@ Tab và quyền:
 Các tab cấu hình theo đơn vị không tự dựng danh sách unit ở frontend. Danh sách unit hợp lệ luôn lấy từ `GET /api/units/configs`, đã được backend lọc theo `BusinessLocation` hiện tại và `UserUnitPermission` của tài khoản đăng nhập. Các tab đang theo quy ước này:
 
 - `BrandTab`: render card thương hiệu cho từng `UnitConfig`; lưu bằng `PATCH /api/units/:unit/config` để giữ contract cũ nhưng dữ liệu resolve trong scope hiện tại.
+  - Logo upload đi qua `POST /api/files/upload`, file nằm trong `DATAFILE_ROOT/uploads/<locationCode>/<unitCode>/<yyyy>/<mm>/<dd>/`, sau đó `UnitConfig.logoUrl` lưu `publicUrl` đang được dùng.
 - `UnitsTab`: render cấu hình hàng hóa, khung giờ, slot duration/capacity, auto-cancel no-show và API tích hợp theo từng `UnitConfig`.
 - `ZonesTab`: tạo/sửa zone bằng `unitConfigId`; nhãn đơn vị lấy từ `UnitConfig.displayName/shortName/unit`.
 - `SlotsTab`: filter hiển thị slot bằng `slot.zone.unitConfig.id`, không bằng text `assignedUnit`; `SlotModal` cho ADMIN_LOC sắp xếp thứ tự ưu tiên loại hàng bằng kéo thả.
@@ -130,6 +131,7 @@ Schema `AutoWarehouseVendor` giữ cột `unit` như snapshot tương thích, nh
 Trang `Superadmin` là master-data console, không phải dashboard vận hành. Các tab đang có:
 
 - Locations: tạo/sửa/deactivate `BusinessLocation`.
+  - Logo/avatar location upload đi qua `POST /api/files/upload`; file nằm trong `DATAFILE_ROOT/uploads/<locationCode>/<yyyy>/<mm>/<dd>/`, còn `BusinessLocation.logoUrl/avatarUrl` lưu `publicUrl` đang được dùng.
 - Unit configs: tạo/sửa/deactivate unit động trong từng location; response không trả `vendorApiKey`/`poApiKey`.
 - Zones và Slots: dữ liệu vận hành cụ thể thuộc Backoffice/ADMIN_LOC. `/superadmin` có thể đọc/audit system-wide khi cần, nhưng không phải bề mặt chính để ADMIN_LOC cấu hình zone/slot hằng ngày.
 - Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC` và `ADMIN_OPE` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.

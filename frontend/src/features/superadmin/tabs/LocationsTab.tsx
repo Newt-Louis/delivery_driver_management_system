@@ -1,47 +1,9 @@
-import { FormEvent, useCallback, useRef, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { superadminApi } from '../api';
 import type { BusinessLocation } from '../types';
 import { StatusBadge, TableShell } from './shared';
-
-function LogoUpload({ value, onChange, label, maxSizeKB = 500 }: {
-  value: string | null;
-  onChange: (v: string | null) => void;
-  label: string;
-  maxSizeKB?: number;
-}) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > maxSizeKB * 1000) { alert(`File quá lớn — tối đa ${maxSizeKB}KB`); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => onChange(ev.target?.result as string);
-    reader.readAsDataURL(file);
-  }, [onChange, maxSizeKB]);
-
-  return (
-    <div>
-      <p className="label">{label}</p>
-      <div className="flex items-start gap-3">
-        <div className="rounded-xl border-2 border-thiso-200 bg-thiso-50 flex items-center justify-center overflow-hidden flex-shrink-0 w-14 h-14">
-          {value
-            ? <img src={value} alt="preview" className="w-full h-full object-contain p-1" />
-            : <span className="text-xl text-thiso-300">🖼</span>}
-        </div>
-        <div className="flex flex-col gap-1.5 pt-1">
-          <button type="button" className="btn-secondary text-xs py-1.5 px-3" onClick={() => inputRef.current?.click()}>
-            {value ? 'Thay logo' : 'Tải lên'}
-          </button>
-          {value && (
-            <button type="button" className="text-xs text-red-500 hover:text-red-700 text-left" onClick={() => onChange(null)}>Xóa</button>
-          )}
-          <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
-        </div>
-        <p className="text-[11px] text-thiso-400 pt-1 leading-relaxed">PNG / SVG — tối đa {maxSizeKB}KB</p>
-      </div>
-    </div>
-  );
-}
+import DatafileImageUpload, { type DatafileImageValue } from '../../../components/DatafileImageUpload';
+import { hasPendingUploadFile, uploadDatafileAsset } from '../../../lib/datafileUpload';
 
 type LocationFormState = {
   code: string;
@@ -49,7 +11,11 @@ type LocationFormState = {
   address: string;
   tagline: string;
   logoUrl: string | null;
+  logoOriginalName?: string;
+  logoFile?: File;
   avatarUrl: string | null;
+  avatarOriginalName?: string;
+  avatarFile?: File;
   isActive: boolean;
 };
 
@@ -87,15 +53,38 @@ function LocationForm({ item, onDone, onCancel }: {
     setError('');
     setSaving(true);
     try {
-      const payload = {
+      const basePayload = {
         ...form,
         tagline:  form.tagline  || null,
         address:  form.address  || undefined,
-        logoUrl:  form.logoUrl  ?? null,
-        avatarUrl: form.avatarUrl ?? null,
+        logoOriginalName: undefined,
+        logoFile: undefined,
+        avatarOriginalName: undefined,
+        avatarFile: undefined,
       };
-      if (item) await superadminApi.updateLocation(item.id, payload);
-      else      await superadminApi.createLocation(payload);
+      const payload = {
+        ...basePayload,
+        logoUrl:  item && hasPendingUploadFile(form.logoFile) ? item.logoUrl ?? null : form.logoUrl ?? null,
+        avatarUrl: item && hasPendingUploadFile(form.avatarFile) ? item.avatarUrl ?? null : form.avatarUrl ?? null,
+      };
+
+      if (item) {
+        const logoUrl = await uploadLocationImageIfNeeded(item.id, form.logoUrl, form.logoOriginalName, 'LOGO', form.logoFile);
+        const avatarUrl = await uploadLocationImageIfNeeded(item.id, form.avatarUrl, form.avatarOriginalName, 'AVATAR', form.avatarFile);
+        await superadminApi.updateLocation(item.id, { ...payload, logoUrl, avatarUrl });
+      } else {
+        const createPayload = {
+          ...basePayload,
+          logoUrl:  hasPendingUploadFile(form.logoFile) ? null : form.logoUrl ?? null,
+          avatarUrl: hasPendingUploadFile(form.avatarFile) ? null : form.avatarUrl ?? null,
+        };
+        const created = (await superadminApi.createLocation(createPayload)).data as BusinessLocation;
+        const logoUrl = await uploadLocationImageIfNeeded(created.id, form.logoUrl, form.logoOriginalName, 'LOGO', form.logoFile);
+        const avatarUrl = await uploadLocationImageIfNeeded(created.id, form.avatarUrl, form.avatarOriginalName, 'AVATAR', form.avatarFile);
+        if (logoUrl !== createPayload.logoUrl || avatarUrl !== createPayload.avatarUrl) {
+          await superadminApi.updateLocation(created.id, { logoUrl, avatarUrl });
+        }
+      }
       onDone();
     } catch (err) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được location.');
@@ -141,8 +130,18 @@ function LocationForm({ item, onDone, onCancel }: {
       </div>
 
       <div className="grid grid-cols-2 gap-5">
-        <LogoUpload label="Logo chính (navbar, màn hình chờ)" value={form.logoUrl} onChange={(v) => set('logoUrl', v)} />
-        <LogoUpload label="Avatar (trang đăng ký, phiếu in)" value={form.avatarUrl} onChange={(v) => set('avatarUrl', v)} />
+        <DatafileImageUpload
+          label="Logo chính (navbar, màn hình chờ)"
+          value={{ url: form.logoUrl, originalName: form.logoOriginalName }}
+          onChange={(v: DatafileImageValue) => setForm((current) => ({ ...current, logoUrl: v.url, logoOriginalName: v.originalName, logoFile: v.file }))}
+          buttonLabel="Tải lên logo"
+        />
+        <DatafileImageUpload
+          label="Avatar (trang đăng ký, phiếu in)"
+          value={{ url: form.avatarUrl, originalName: form.avatarOriginalName }}
+          onChange={(v: DatafileImageValue) => setForm((current) => ({ ...current, avatarUrl: v.url, avatarOriginalName: v.originalName, avatarFile: v.file }))}
+          buttonLabel="Tải lên avatar"
+        />
       </div>
 
       <div className="flex items-center gap-5 pt-1">
@@ -162,6 +161,24 @@ function LocationForm({ item, onDone, onCancel }: {
       </div>
     </form>
   );
+}
+
+async function uploadLocationImageIfNeeded(
+  businessLocationId: string,
+  value: string | null,
+  originalName: string | undefined,
+  category: 'LOGO' | 'AVATAR',
+  file?: File,
+) {
+  if (!hasPendingUploadFile(file)) return value ?? null;
+  const uploaded = await uploadDatafileAsset({
+    scope: 'BUSINESS_LOCATION',
+    category,
+    businessLocationId,
+    originalName: originalName ?? `${category.toLowerCase()}.png`,
+    file,
+  });
+  return uploaded.publicUrl;
 }
 
 export default function LocationsTab({ locations, onRefresh }: { locations: BusinessLocation[]; onRefresh: () => void }) {

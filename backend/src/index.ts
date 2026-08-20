@@ -28,12 +28,21 @@ import auditLogRoutes from './routes/auditLogs';
 import historiesRoutes from './routes/histories';
 import superadminRoutes from './routes/superadmin';
 import configRoutes from './routes/config';
+import fileRoutes from './routes/files';
+import { ensureDatafileRoot, getUploadsDirectory } from './modules/files/fileStorageService';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
 
 app.use(cors({ origin: '*' }));
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT ?? '15mb' }));
+app.use('/datafile/uploads', express.static(getUploadsDirectory(), {
+  maxAge: '1h',
+  setHeaders(res) {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'");
+  },
+}));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/deliveries', deliveryRoutes);
@@ -53,6 +62,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/histories', historiesRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/files', fileRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/health/scheduler', (_req, res) => res.json({ status: 'ok', scheduler: getSchedulerStatus() }));
@@ -63,6 +73,8 @@ const server = createServer(app);
 initSocket(server);
 
 async function start() {
+  await ensureDatafileRoot();
+  console.log(`Datafile storage ready at ${getUploadsDirectory()}`);
   await prisma.$connect();
   console.log('Database connected');
   await getRedis();

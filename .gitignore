@@ -1,5 +1,6 @@
 #GENERAL
 data/
+datafile/
 
 # BACKEND
 backend/node_modules

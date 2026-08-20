@@ -6,6 +6,7 @@ import { recordAuditLog, userActor } from '../../services/auditLog';
 import { invalidateAppConfigCache } from '../../services/appConfig';
 import { refreshAuthUserCache, revokeUserSessions } from '../../services/authSession';
 import { invalidateUserUnitPermissionCache } from '../../services/unitPermission';
+import { ensureLocationUploadDirectory, ensureUnitUploadDirectory } from '../files/fileStorageService';
 import { domainError } from '../shared/domainError';
 import type { SuperadminFormRequest } from './superadminFormRequest';
 
@@ -113,6 +114,7 @@ export function listBusinessLocations() {
 
 export async function createBusinessLocation(body: BusinessLocationCreate, actor: AuthUser | undefined) {
   const location = await prisma.businessLocation.create({ data: body });
+  await ensureLocationUploadDirectory(location.code);
   await recordAuditLog({
     ...userActor(actor),
     action: 'business_location.create',
@@ -196,6 +198,7 @@ export async function createUnitConfig(body: UnitConfigCreate, actor: AuthUser |
   if (!location) throw domainError.badRequest('BusinessLocation không tồn tại.');
 
   const unit = await prisma.unitConfig.create({ data: body });
+  await ensureUnitUploadDirectory(location.code, unit.unit);
   await recordAuditLog({
     ...userActor(actor),
     action: 'unit_config.create',
