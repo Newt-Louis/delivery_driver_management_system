@@ -42,7 +42,7 @@ Homepage `/` hiện có:
 
 - Lời chào `Hệ thống điều phối giao hàng THISO`.
 - Ô nhập mã PO/Thi Công.
-- Nút camera trong input mở scanner thật để quét QR/barcode, tách mã PO/Thi Công từ nội dung quét và tự điền vào ô nhập mã.
+- Nút lớn `Quét QR hoặc Barcode tại đây` mở scanner thật; trong dialog quét có thêm nút chọn ảnh mã QR từ thư viện. Cả hai cách đều tách mã PO/Thi Công từ nội dung quét và tự điền vào ô nhập mã, không tự submit.
 - Validate format cơ bản phía client:
   - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
   - Thi Công: đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số, không có khoảng trắng.

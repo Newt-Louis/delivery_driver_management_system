@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -173,7 +173,9 @@ export default function Home() {
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState('');
+  const [orderCodeNotFound, setOrderCodeNotFound] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
   const scanHandledRef = useRef(false);
 
@@ -286,6 +288,52 @@ export default function Home() {
     if (videoRef.current) videoRef.current.srcObject = null;
   }
 
+  function applyScannedCode(raw: string, successMessage: string) {
+    const scannedCode = extractScannedOrderCode(raw);
+    if (!scannedCode) {
+      setScannerStatus('Không đọc được mã.');
+      return;
+    }
+
+    setOrderCode(scannedCode);
+    setOrderCodeNotFound(false);
+    setVerified(null);
+    setDailyStats([]);
+    setDailyStatsMsg('');
+    setUnitConfig(null);
+    setUnitConfigMsg('');
+    setStep(1);
+    toast.success(`${successMessage}: ${scannedCode}`);
+    stopScanner();
+    setScannerOpen(false);
+  }
+
+  async function handleImageCodeFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    const imageUrl = URL.createObjectURL(file);
+    setScannerStatus('Đang đọc mã trong ảnh...');
+
+    try {
+      const [browser, library] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+      const reader = new browser.BrowserMultiFormatReader(createScanHints(library), {
+        delayBetweenScanAttempts: 250,
+        delayBetweenScanSuccess: 500,
+        tryPlayVideoTimeout: 5000,
+      });
+      const result = await reader.decodeFromImageUrl(imageUrl);
+      applyScannedCode(result.getText(), 'Đã đọc mã từ ảnh');
+    } catch {
+      const message = 'Không tìm thấy QR hoặc Barcode rõ ràng trong ảnh. Vui lòng chọn ảnh khác hoặc quét trực tiếp.';
+      setScannerStatus(message);
+      toast.error(message);
+    } finally {
+      URL.revokeObjectURL(imageUrl);
+    }
+  }
+
   useEffect(() => {
     if (!scannerOpen) return;
 
@@ -324,23 +372,8 @@ export default function Home() {
             scannerControlsRef.current = controls;
 
             if (!result) return;
-            const scannedCode = extractScannedOrderCode(result.getText());
-            if (!scannedCode) {
-              setScannerStatus('Không đọc được mã.');
-              return;
-            }
-
             scanHandledRef.current = true;
-            setOrderCode(scannedCode);
-            setVerified(null);
-            setDailyStats([]);
-            setDailyStatsMsg('');
-            setUnitConfig(null);
-            setUnitConfigMsg('');
-            setStep(1);
-            toast.success(`Đã quét mã: ${scannedCode}`);
-            stopScanner();
-            setScannerOpen(false);
+            applyScannedCode(result.getText(), 'Đã quét mã');
           },
         );
       })
@@ -370,13 +403,20 @@ export default function Home() {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
+  function handleOrderCodeChange(value: string) {
+    setOrderCode(value.replace(/\s/g, ''));
+    setOrderCodeNotFound(false);
+  }
+
   async function handleVerify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!normalizedCode) {
+      setOrderCodeNotFound(false);
       toast.error('Vui lòng nhập mã PO hoặc mã Thi Công.');
       return;
     }
     if (!codeLooksSupported) {
+      setOrderCodeNotFound(false);
       toast.error('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự chữ/số và không được toàn số.');
       return;
     }
@@ -384,6 +424,7 @@ export default function Home() {
     setVerifying(true);
     try {
       const data = await quickVerifyOrderCode(normalizedCode);
+      setOrderCodeNotFound(false);
       setVerified(data);
       setForm({
         ...emptyForm(),
@@ -400,7 +441,9 @@ export default function Home() {
       toast.success(data.kind === 'PO' ? 'Mã PO hợp lệ.' : 'Mã Thi Công hợp lệ.');
     } catch (err) {
       setVerified(null);
-      toast.error(errorMessage(err, 'Không thể kiểm tra mã lúc này. Vui lòng thử lại.'));
+      const message = errorMessage(err, 'Không thể kiểm tra mã lúc này. Vui lòng thử lại.');
+      setOrderCodeNotFound(/không tồn tại/i.test(message));
+      toast.error(message);
     } finally {
       setVerifying(false);
     }
@@ -490,6 +533,7 @@ export default function Home() {
   function resetFlow() {
     setStep(1);
     setOrderCode('');
+    setOrderCodeNotFound(false);
     setVerified(null);
     setForm(emptyForm());
     setDailyStats([]);
@@ -571,39 +615,41 @@ export default function Home() {
                   <label htmlFor="home-order-code" className="label">
                     Mã PO / Thi Công
                   </label>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <div className="relative min-w-0 flex-1">
+                  <div className="space-y-3">
+                    <div className="flex flex-col gap-2 sm:flex-row">
                       <input
                         id="home-order-code"
                         type="text"
                         value={orderCode}
-                        onChange={(event) => setOrderCode(event.target.value.replace(/\s/g, ''))}
+                        onChange={(event) => handleOrderCodeChange(event.target.value)}
                         placeholder="VD: 4500771144 hoặc AbCdE"
                         autoComplete="off"
                         autoCapitalize="none"
-                        className="input h-12 pr-12 font-mono text-base tracking-wide"
+                        className={`input h-12 min-w-0 flex-1 font-mono text-base tracking-wide ${orderCodeNotFound ? 'border-red-400 ring-1 ring-red-400' : ''}`}
                         style={{ fontSize: '16px' }}
                       />
                       <button
-                        type="button"
-                        onClick={() => setScannerOpen(true)}
-                        className="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-thiso-500 transition-colors hover:bg-thiso-100 hover:text-thiso-900"
-                        aria-label="Quét mã bằng camera"
-                        title="Quét mã bằng camera"
+                        type="submit"
+                        className="btn btn-primary h-12 w-full shrink-0 justify-center gap-2 px-4 sm:w-auto"
+                        disabled={verifying}
                       >
-                        <CameraIcon />
+                        <span>{verifying ? 'Đang kiểm tra...' : 'Kiểm tra'}</span>
+                        <ArrowRightIcon />
                       </button>
                     </div>
-                    <button type="submit" className="btn btn-primary h-12 w-full shrink-0 justify-center gap-2 px-4 sm:w-auto" disabled={verifying}>
-                      <span>{verifying ? 'Đang kiểm tra...' : 'Kiểm tra'}</span>
-                      <ArrowRightIcon />
+                    <button
+                      type="button"
+                      onClick={() => setScannerOpen(true)}
+                      className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-black text-gray-700 shadow-[2px_3px_6px_rgba(15,23,42,0.16),4px_6px_16px_rgba(15,23,42,0.08)] transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 hover:shadow-[3px_4px_8px_rgba(15,23,42,0.18),5px_8px_18px_rgba(15,23,42,0.09)] active:translate-x-0.5 active:translate-y-0.5 active:bg-gray-100 active:shadow-[1px_1px_4px_rgba(15,23,42,0.10)]"
+                    >
+                      <span className="flex h-8 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-200 group-hover:text-gray-900">
+                        <CameraIcon />
+                      </span>
+                      <span className="truncate leading-tight">
+                        Quét QR hoặc Barcode tại đây
+                      </span>
                     </button>
                   </div>
-                  {normalizedCode && (
-                    <p className={`mt-2 text-xs font-semibold ${codeLooksSupported ? 'text-sky-700' : 'text-amber-600'}`}>
-                      Mã chuẩn hóa: <span className="font-mono">{normalizedCode}</span>
-                    </p>
-                  )}
                 </div>
               </form>
             )}
@@ -812,6 +858,22 @@ export default function Home() {
                 autoPlay
               />
               <div className="pointer-events-none absolute inset-10 rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.22)]" />
+            </div>
+            <div className="border-t border-thiso-100 bg-white px-4 py-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageCodeFile}
+              />
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-thiso-200 bg-thiso-50 px-4 py-3 text-sm font-black text-thiso-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Hoặc chọn ảnh mã QR
+              </button>
             </div>
           </div>
         </div>
