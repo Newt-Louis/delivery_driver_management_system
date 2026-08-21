@@ -1,18 +1,29 @@
 import { useState } from 'react';
 import GoodsBadge from '../../../components/GoodsBadge';
-import type { DeliveryRegistration } from '../../../lib/types';
+import type { DeliveryRegistration, UnitDispatch } from '../../../lib/types';
 import { VEHICLE_LABEL } from '../constants';
 import type { UnitKey } from '../types';
 import { getUnitMeta } from '../utils';
+import UnitBrandMark from './UnitBrandMark';
 
 function localDateKey(value: Date) {
   return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
 }
 
-export default function UpcomingSection({ deliveries, unit }: { deliveries: DeliveryRegistration[]; unit?: UnitKey }) {
+export default function UpcomingSection({
+  deliveries,
+  unit,
+  unitConfig,
+  unitConfigsByUnit,
+}: {
+  deliveries: DeliveryRegistration[];
+  unit?: UnitKey;
+  unitConfig?: UnitDispatch['unitConfig'];
+  unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>;
+}) {
   const [open, setOpen] = useState(true);
   if (deliveries.length === 0) return null;
-  const meta = unit ? getUnitMeta(unit) : null;
+  const meta = unit ? getUnitMeta(unit, unitConfig) : null;
 
   return (
     <div className="mt-5">
@@ -23,7 +34,10 @@ export default function UpcomingSection({ deliveries, unit }: { deliveries: Deli
       >
         <span>{open ? '▼' : '▶'}</span>
         <span>📋 Đã đặt — chưa check-in</span>
-        <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta ? meta.badge : 'bg-gray-200 text-gray-600'}`}>
+        <span
+          className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta ? '' : 'bg-gray-200 text-gray-600'}`}
+          style={meta ? meta.badgeStyle : undefined}
+        >
           {deliveries.length}
         </span>
       </button>
@@ -43,7 +57,11 @@ export default function UpcomingSection({ deliveries, unit }: { deliveries: Deli
             </thead>
             <tbody>
               {deliveries.map((delivery) => {
-                const deliveryMeta = getUnitMeta(delivery.receivingUnit);
+                const deliveryUnitConfig = delivery.unitConfig
+                  ?? delivery.assignedSlot?.zone?.unitConfig
+                  ?? unitConfig
+                  ?? unitConfigsByUnit?.[delivery.receivingUnit];
+                const deliveryMeta = getUnitMeta(delivery.receivingUnit, deliveryUnitConfig);
                 const dateLabel = delivery.requestedTime
                   ? new Date(delivery.requestedTime).toLocaleDateString('vi-VN')
                   : '—';
@@ -57,8 +75,13 @@ export default function UpcomingSection({ deliveries, unit }: { deliveries: Deli
                     <td className="px-4 py-2.5 font-mono font-black text-thiso-800">{delivery.vehiclePlate}</td>
                     {!unit && (
                       <td className="px-4 py-2.5">
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${deliveryMeta.badge}`}>
-                          {deliveryMeta.icon} {deliveryMeta.label}
+                        <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold" style={deliveryMeta.badgeStyle}>
+                          <UnitBrandMark
+                            meta={deliveryMeta}
+                            className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded bg-white/70"
+                            iconClassName="text-sm leading-none"
+                          />
+                          {deliveryMeta.label}
                         </span>
                       </td>
                     )}

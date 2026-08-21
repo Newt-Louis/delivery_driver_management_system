@@ -1,7 +1,6 @@
 import type { DeliveryRegistration, DispatchData, UnitDispatch } from '../../lib/types';
 import { minutesSince } from '../../lib/utils';
 import {
-  deliveryUnitPresentation,
   formatTicketCode as formatDynamicTicketCode,
   unitFallbackColor,
   unitPresentation,
@@ -17,13 +16,57 @@ import {
 } from './constants';
 import type { StatusFilter, TabKey, UnitKey, UnitMeta, VehicleTypeFilter } from './types';
 
-export function getTicketCode(delivery: DeliveryRegistration): string | null {
+function hexToRgb(color: string): { r: number; g: number; b: number } | null {
+  const normalized = color.trim();
+  const full = /^#([0-9a-fA-F]{6})$/.exec(normalized);
+  if (full) {
+    const value = full[1];
+    return {
+      r: parseInt(value.slice(0, 2), 16),
+      g: parseInt(value.slice(2, 4), 16),
+      b: parseInt(value.slice(4, 6), 16),
+    };
+  }
+
+  const short = /^#([0-9a-fA-F]{3})$/.exec(normalized);
+  if (short) {
+    const value = short[1];
+    return {
+      r: parseInt(value[0] + value[0], 16),
+      g: parseInt(value[1] + value[1], 16),
+      b: parseInt(value[2] + value[2], 16),
+    };
+  }
+
+  return null;
+}
+
+function colorWithAlpha(color: string, alpha: number): string {
+  const rgb = hexToRgb(color);
+  if (!rgb) return color;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function mixWithBlack(color: string, amount: number): string {
+  const rgb = hexToRgb(color);
+  if (!rgb) return color;
+  const mix = (value: number) => Math.round(value * (1 - amount));
+  return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
+}
+
+export function getTicketCode(
+  delivery: DeliveryRegistration,
+  unitConfig?: UnitDispatch['unitConfig'] | null,
+): string | null {
+  const ticketUnitConfig = unitConfig
+    ?? delivery.unitConfig
+    ?? delivery.assignedSlot?.zone?.unitConfig;
   return delivery.ticketNumber
     ? formatDynamicTicketCode(
       delivery.receivingUnit,
       delivery.vehicleType,
       delivery.ticketNumber,
-      delivery.unitConfig ?? delivery.assignedSlot?.zone?.unitConfig,
+      ticketUnitConfig,
     )
     : null;
 }
@@ -34,14 +77,24 @@ export function getUnitMeta(unit: string, unitConfig?: UnitDispatch['unitConfig'
   return {
     label: brand.label,
     icon: brand.icon,
+    logoUrl: brand.logoUrl,
     prefix: brand.prefix,
     color,
-    lightBg: 'bg-thiso-50',
-    border: 'border-thiso-200',
-    headerBg: 'from-thiso-800 to-thiso-600',
-    badge: 'bg-thiso-100 text-thiso-700',
-    tabActive: 'border-thiso-400 text-thiso-800 bg-thiso-50',
-    rowBorder: 'border-l-thiso-500',
+    headerStyle: {
+      background: `linear-gradient(135deg, ${color}, ${mixWithBlack(color, 0.22)})`,
+    },
+    badgeStyle: {
+      backgroundColor: colorWithAlpha(color, 0.12),
+      color,
+    },
+    tabActiveStyle: {
+      backgroundColor: colorWithAlpha(color, 0.08),
+      borderColor: colorWithAlpha(color, 0.35),
+      color,
+    },
+    rowBorderStyle: {
+      borderLeftColor: color,
+    },
   };
 }
 
@@ -136,21 +189,30 @@ export function filterDispatchDeliveries(
     });
 }
 
-export function buildDispatchCsvRows(deliveries: DeliveryRegistration[]) {
-  return deliveries.map((delivery) => [
-    getTicketCode(delivery) ?? '',
-    delivery.registrationCode,
-    delivery.vehiclePlate,
-    delivery.driverName,
-    delivery.vendorName,
-    deliveryUnitPresentation(delivery).label,
-    GOODS_CSV_LABEL[delivery.goodsType] ?? delivery.goodsType,
-    VEHICLE_LABEL[delivery.vehicleType] ?? delivery.vehicleType,
-    delivery.assignedSlot?.code ?? '',
-    STATUS_CSV_LABEL[delivery.status] ?? delivery.status,
-    delivery.checkinTime ? new Date(delivery.checkinTime).toLocaleString('vi-VN') : '',
-    delivery.checkinTime ? Math.round((Date.now() - new Date(delivery.checkinTime).getTime()) / 60000) : '',
-  ]);
+export function buildDispatchCsvRows(
+  deliveries: DeliveryRegistration[],
+  unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>,
+) {
+  return deliveries.map((delivery) => {
+    const unitConfig = delivery.unitConfig
+      ?? delivery.assignedSlot?.zone?.unitConfig
+      ?? unitConfigsByUnit?.[delivery.receivingUnit];
+    const unitBrand = unitPresentation(delivery.receivingUnit, unitConfig);
+    return [
+      getTicketCode(delivery, unitConfig) ?? '',
+      delivery.registrationCode,
+      delivery.vehiclePlate,
+      delivery.driverName,
+      delivery.vendorName,
+      unitBrand.label,
+      GOODS_CSV_LABEL[delivery.goodsType] ?? delivery.goodsType,
+      VEHICLE_LABEL[delivery.vehicleType] ?? delivery.vehicleType,
+      delivery.assignedSlot?.code ?? '',
+      STATUS_CSV_LABEL[delivery.status] ?? delivery.status,
+      delivery.checkinTime ? new Date(delivery.checkinTime).toLocaleString('vi-VN') : '',
+      delivery.checkinTime ? Math.round((Date.now() - new Date(delivery.checkinTime).getTime()) / 60000) : '',
+    ];
+  });
 }
 
 export function getAllActiveDeliveries(dispatch: DispatchData): DeliveryRegistration[] {

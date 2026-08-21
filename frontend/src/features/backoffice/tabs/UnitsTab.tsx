@@ -263,6 +263,25 @@ function TimeWindowEditor({
 //   );
 // }
 
+function UnitConfigMark({ config }: { config: UnitConfig }) {
+  const logoUrl = config.logoUrl?.trim();
+  const icon = config.icon?.trim() || '🏬';
+  const [failedLogoUrl, setFailedLogoUrl] = useState<string | null>(null);
+
+  if (logoUrl && failedLogoUrl !== logoUrl) {
+    return (
+      <img
+        src={logoUrl}
+        alt={config.displayName || config.unit}
+        className="h-full w-full object-contain p-1"
+        onError={() => setFailedLogoUrl(logoUrl)}
+      />
+    );
+  }
+
+  return <span className="text-2xl leading-none">{icon}</span>;
+}
+
 function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () => void }) {
   const unit = config.unit;
   const [editing, setEditing] = useState(false);
@@ -351,7 +370,9 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
     <div className="bg-white border border-thiso-100 rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <span className="text-2xl">{config.icon || '🏬'}</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-thiso-100 bg-thiso-50">
+            <UnitConfigMark config={config} />
+          </div>
           <div>
             <h3 className="font-bold text-thiso-800">{config.displayName || config.unit}</h3>
             <span className="text-xs text-thiso-400 font-mono">{config.unit}</span>

@@ -28,6 +28,7 @@ export default function UnitTabView({
   if (!unitDispatch) {
     return <div className="py-8 text-center text-gray-400">Không có dữ liệu</div>;
   }
+  const meta = getUnitMeta(unit, unitDispatch.unitConfig);
 
   return (
     <div>
@@ -37,7 +38,7 @@ export default function UnitTabView({
         <h3 className="text-sm font-black text-thiso-500 uppercase tracking-wider flex items-center gap-2">
           Đang điều phối
           {unitDispatch.active.length > 0 && (
-            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${getUnitMeta(unit, unitDispatch.unitConfig).badge}`}>
+            <span className="text-xs px-2 py-0.5 rounded-full font-bold" style={meta.badgeStyle}>
               {unitDispatch.active.length}
             </span>
           )}
@@ -46,12 +47,13 @@ export default function UnitTabView({
       <QueueTable
         deliveries={unitDispatch.active}
         unit={unit}
+        unitConfig={unitDispatch.unitConfig}
         onCall={onCall}
         onAction={onAction}
         onView={onView}
         actionLoading={actionLoading}
       />
-      <UpcomingSection deliveries={unitDispatch.upcoming} unit={unit} />
+      <UpcomingSection deliveries={unitDispatch.upcoming} unit={unit} unitConfig={unitDispatch.unitConfig} />
     </div>
   );
 }

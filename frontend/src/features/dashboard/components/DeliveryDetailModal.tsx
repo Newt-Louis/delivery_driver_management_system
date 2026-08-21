@@ -7,6 +7,7 @@ import { GOODS_LABEL, VEHICLE_FULL } from '../constants';
 import type { DeliveryLifecycleAction } from '../types';
 import { formatDateOnly, formatDateTime, getDeliveryTimeline, getTicketCode, getUnitMeta } from '../utils';
 import DetailRow from './DetailRow';
+import UnitBrandMark from './UnitBrandMark';
 
 interface DeliveryDetailModalProps {
   id: string;
@@ -22,16 +23,30 @@ export default function DeliveryDetailModal({ id, onClose, onCall, onAction }: D
     staleTime: 5_000,
   });
 
-  const meta = delivery ? getUnitMeta(delivery.receivingUnit) : null;
-  const ticket = delivery ? getTicketCode(delivery) : null;
+  const deliveryUnitConfig = delivery?.unitConfig ?? delivery?.assignedSlot?.zone?.unitConfig ?? undefined;
+  const meta = delivery ? getUnitMeta(delivery.receivingUnit, deliveryUnitConfig) : null;
+  const ticket = delivery ? getTicketCode(delivery, deliveryUnitConfig) : null;
   const timeline = delivery ? getDeliveryTimeline(delivery) : [];
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
-        <div className={`bg-gradient-to-r ${meta?.headerBg ?? 'from-thiso-700 to-thiso-500'} p-5 rounded-t-2xl shrink-0`}>
+        <div
+          className="p-5 rounded-t-2xl shrink-0"
+          style={meta?.headerStyle ?? { background: 'linear-gradient(135deg, #334155, #1f2937)' }}
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
+              {meta && (
+                <div className="mb-2 flex items-center gap-2 text-sm text-white/80">
+                  <UnitBrandMark
+                    meta={meta}
+                    className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15"
+                    iconClassName="text-base leading-none"
+                  />
+                  {meta.label}
+                </div>
+              )}
               {ticket && (
                 <div className="text-white/70 text-xs font-mono font-black tracking-widest mb-1">🎫 {ticket}</div>
               )}
@@ -58,7 +73,16 @@ export default function DeliveryDetailModal({ id, onClose, onCall, onAction }: D
               <DetailRow label="Biển số xe" value={<span className="font-mono font-black text-thiso-900">{delivery.vehiclePlate}</span>} />
               <DetailRow label="Loại xe" value={VEHICLE_FULL[delivery.vehicleType]} />
               <DetailRow label="Đơn vị nhận" value={
-                <span className={`text-xs font-bold px-2 py-1 rounded-full ${meta?.badge}`}>{meta?.icon} {meta?.label}</span>
+                meta ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-bold" style={meta.badgeStyle}>
+                    <UnitBrandMark
+                      meta={meta}
+                      className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded bg-white/70"
+                      iconClassName="text-sm leading-none"
+                    />
+                    {meta.label}
+                  </span>
+                ) : null
               } />
               <DetailRow label="Loại hàng" value={GOODS_LABEL[delivery.goodsType]} />
               {delivery.poNumber && <DetailRow label="Số PO" value={<span className="font-mono">{delivery.poNumber}</span>} />}

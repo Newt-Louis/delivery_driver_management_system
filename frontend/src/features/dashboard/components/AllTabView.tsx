@@ -2,6 +2,7 @@ import type { DeliveryRegistration, DispatchData } from '../../../lib/types';
 import type { DeliveryLifecycleAction } from '../types';
 import { getAllActiveDeliveries, getAllUpcomingDeliveries, getUnitMeta } from '../utils';
 import QueueTable from './QueueTable';
+import UnitBrandMark from './UnitBrandMark';
 import UpcomingSection from './UpcomingSection';
 
 interface AllTabViewProps {
@@ -16,6 +17,9 @@ export default function AllTabView({ dispatch, onCall, onAction, onView, actionL
   const units = Object.keys(dispatch);
   const allActive = getAllActiveDeliveries(dispatch);
   const allUpcoming = getAllUpcomingDeliveries(dispatch);
+  const unitConfigsByUnit = Object.fromEntries(
+    Object.entries(dispatch).map(([unit, unitDispatch]) => [unit, unitDispatch.unitConfig]),
+  );
 
   return (
     <>
@@ -25,10 +29,10 @@ export default function AllTabView({ dispatch, onCall, onAction, onView, actionL
           const meta = getUnitMeta(unit, unitDispatch?.unitConfig);
           const stats = unitDispatch?.insights.stats;
           return (
-            <div key={unit} className={`bg-gradient-to-br ${meta.headerBg} rounded-2xl p-4 text-white shadow-md`}>
+            <div key={unit} className="rounded-2xl p-4 text-white shadow-md" style={meta.headerStyle}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">{meta.icon}</span>
+                  <UnitBrandMark meta={meta} className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15" />
                   <span className="font-black text-sm tracking-wide">{meta.label.toUpperCase()}</span>
                 </div>
               </div>
@@ -61,8 +65,8 @@ export default function AllTabView({ dispatch, onCall, onAction, onView, actionL
           )}
         </h3>
       </div>
-      <QueueTable deliveries={allActive} onCall={onCall} onAction={onAction} onView={onView} actionLoading={actionLoading} />
-      <UpcomingSection deliveries={allUpcoming} />
+      <QueueTable deliveries={allActive} unitConfigsByUnit={unitConfigsByUnit} onCall={onCall} onAction={onAction} onView={onView} actionLoading={actionLoading} />
+      <UpcomingSection deliveries={allUpcoming} unitConfigsByUnit={unitConfigsByUnit} />
     </>
   );
 }

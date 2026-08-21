@@ -138,7 +138,13 @@ function parseMultipartUpload(req: Request) {
 }
 
 router.post('/upload', asyncHandler(async (req, res) => {
-  const body = await parseMultipartUpload(req);
+  let body: Awaited<ReturnType<typeof parseMultipartUpload>>;
+  try {
+    body = await parseMultipartUpload(req);
+  } catch (error) {
+    if (sendDomainError(res, error)) return;
+    throw error;
+  }
   try {
     await respond(res, fileStorageService.uploadFile(body, req.user), 201);
   } catch (error) {

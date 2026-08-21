@@ -1,22 +1,25 @@
 import { useState } from 'react';
 import GoodsBadge from '../../../components/GoodsBadge';
-import type { DeliveryRegistration, Slot } from '../../../lib/types';
+import type { DeliveryRegistration, Slot, UnitDispatch } from '../../../lib/types';
 import { VEHICLE_LABEL } from '../constants';
 import { getTicketCode, getUnitMeta } from '../utils';
+import UnitBrandMark from './UnitBrandMark';
 
 interface CallModalProps {
   delivery: DeliveryRegistration;
   slots: Slot[];
   preselectedSlotId?: string;
+  unitConfig?: UnitDispatch['unitConfig'];
   onClose: () => void;
   onCall: (slotId: string) => void;
   loading: boolean;
 }
 
-export default function CallModal({ delivery, slots, preselectedSlotId, onClose, onCall, loading }: CallModalProps) {
+export default function CallModal({ delivery, slots, preselectedSlotId, unitConfig, onClose, onCall, loading }: CallModalProps) {
   const [selectedSlot, setSelectedSlot] = useState(preselectedSlotId ?? '');
-  const meta = getUnitMeta(delivery.receivingUnit);
-  const ticket = getTicketCode(delivery);
+  const deliveryUnitConfig = delivery.unitConfig ?? delivery.assignedSlot?.zone?.unitConfig ?? unitConfig;
+  const meta = getUnitMeta(delivery.receivingUnit, deliveryUnitConfig);
+  const ticket = getTicketCode(delivery, deliveryUnitConfig);
   const available = slots.filter((slot) => slot.status === 'AVAILABLE');
   const tier1 = available.filter((slot) => slot.assignedUnit === delivery.receivingUnit && slot.vehicleType === delivery.vehicleType);
   const tier2 = available.filter((slot) => slot.assignedUnit !== delivery.receivingUnit && slot.vehicleType === delivery.vehicleType);
@@ -47,10 +50,17 @@ export default function CallModal({ delivery, slots, preselectedSlotId, onClose,
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className={`bg-gradient-to-r ${meta.headerBg} p-5 rounded-t-2xl`}>
+        <div className="p-5 rounded-t-2xl" style={meta.headerStyle}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-white/70 text-sm">{meta.icon} {meta.label}</div>
+              <div className="flex items-center gap-2 text-white/80 text-sm">
+                <UnitBrandMark
+                  meta={meta}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15"
+                  iconClassName="text-base leading-none"
+                />
+                {meta.label}
+              </div>
               {ticket && (
                 <div className="text-white/60 text-xs font-mono font-black tracking-widest mt-0.5">🎫 {ticket}</div>
               )}
@@ -101,7 +111,8 @@ export default function CallModal({ delivery, slots, preselectedSlotId, onClose,
               className={`flex-1 font-bold py-2.5 rounded-xl text-white transition-colors disabled:opacity-50
                 ${selectedObject?.vehicleType !== delivery.vehicleType ? 'bg-red-500 hover:bg-red-600'
                   : selectedObject?.assignedUnit !== delivery.receivingUnit ? 'bg-emart-500 hover:bg-emart-600'
-                    : 'bg-sky-600 hover:bg-sky-700'}`}
+                    : ''}`}
+              style={selectedObject?.vehicleType === delivery.vehicleType && selectedObject?.assignedUnit === delivery.receivingUnit ? { backgroundColor: meta.color } : undefined}
               disabled={!selectedSlot || loading}
               onClick={() => onCall(selectedSlot)}
             >

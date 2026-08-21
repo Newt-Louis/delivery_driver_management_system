@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import GoodsBadge from '../../../components/GoodsBadge';
 import StatusBadge from '../../../components/StatusBadge';
-import type { DeliveryRegistration } from '../../../lib/types';
+import type { DeliveryRegistration, UnitDispatch } from '../../../lib/types';
 import { downloadCsv } from '../../../lib/export';
 import { formatWait } from '../../../lib/utils';
 import { DISPATCH_CSV_HEADERS, VEHICLE_LABEL } from '../constants';
@@ -14,17 +14,29 @@ import {
   getUnitMeta,
 } from '../utils';
 import FilterBar from './FilterBar';
+import UnitBrandMark from './UnitBrandMark';
 
 interface QueueTableProps {
   deliveries: DeliveryRegistration[];
   unit?: UnitKey;
+  unitConfig?: UnitDispatch['unitConfig'];
+  unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>;
   onCall: (delivery: DeliveryRegistration, slotId?: string) => void;
   onAction: (id: string, action: DeliveryLifecycleAction) => void;
   onView: (id: string) => void;
   actionLoading: string | null;
 }
 
-export default function QueueTable({ deliveries, unit, onCall, onAction, onView, actionLoading }: QueueTableProps) {
+export default function QueueTable({
+  deliveries,
+  unit,
+  unitConfig,
+  unitConfigsByUnit,
+  onCall,
+  onAction,
+  onView,
+  actionLoading,
+}: QueueTableProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [vehicleFilter, setVehicleFilter] = useState<VehicleTypeFilter>('ALL');
@@ -35,7 +47,8 @@ export default function QueueTable({ deliveries, unit, onCall, onAction, onView,
   );
 
   function handleExport() {
-    downloadCsv('dieu-phoi-hang-cho', DISPATCH_CSV_HEADERS, buildDispatchCsvRows(filtered));
+    const exportUnitConfigs = unitConfigsByUnit ?? (unitConfig ? { [unit ?? '']: unitConfig } : undefined);
+    downloadCsv('dieu-phoi-hang-cho', DISPATCH_CSV_HEADERS, buildDispatchCsvRows(filtered, exportUnitConfigs));
   }
 
   return (
@@ -78,8 +91,12 @@ export default function QueueTable({ deliveries, unit, onCall, onAction, onView,
               </thead>
               <tbody>
                 {filtered.map((delivery) => {
-                  const meta = getUnitMeta(delivery.receivingUnit);
-                  const ticket = getTicketCode(delivery);
+                  const deliveryUnitConfig = delivery.unitConfig
+                    ?? delivery.assignedSlot?.zone?.unitConfig
+                    ?? unitConfig
+                    ?? unitConfigsByUnit?.[delivery.receivingUnit];
+                  const meta = getUnitMeta(delivery.receivingUnit, deliveryUnitConfig);
+                  const ticket = getTicketCode(delivery, deliveryUnitConfig);
                   const { calledMin, isCritical, isWarning } = getDeliveryWaitState(delivery);
 
                   return (
@@ -88,7 +105,8 @@ export default function QueueTable({ deliveries, unit, onCall, onAction, onView,
                       className={`border-b border-thiso-50 last:border-0 transition-colors border-l-4
                         ${isCritical ? 'bg-red-50 border-l-red-500'
                         : isWarning ? 'bg-amber-50 border-l-amber-400'
-                          : `hover:bg-thiso-50/60 ${meta.rowBorder}`}`}
+                          : 'hover:bg-thiso-50/60'}`}
+                      style={!isCritical && !isWarning ? meta.rowBorderStyle : undefined}
                     >
                       <td className="px-3 py-3">
                         {ticket ? (
@@ -114,8 +132,13 @@ export default function QueueTable({ deliveries, unit, onCall, onAction, onView,
 
                       {!unit && (
                         <td className="px-3 py-3">
-                          <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap ${meta.badge}`}>
-                            {meta.icon} {meta.label}
+                          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap" style={meta.badgeStyle}>
+                            <UnitBrandMark
+                              meta={meta}
+                              className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded bg-white/70"
+                              iconClassName="text-sm leading-none"
+                            />
+                            {meta.label}
                           </span>
                         </td>
                       )}

@@ -42,6 +42,16 @@ export default function Dashboard() {
   const activeUnitDispatch = activeTab !== 'ALL' && dispatch
     ? dispatch[activeTab] as UnitDispatch | undefined
     : undefined;
+  const unitConfigsByUnit = dispatch
+    ? Object.fromEntries(
+      Object.entries(dispatch).map(([unit, unitDispatch]) => [unit, (unitDispatch as UnitDispatch).unitConfig]),
+    )
+    : {};
+  const callTargetUnitConfig = callTarget
+    ? callTarget.unitConfig
+      ?? callTarget.assignedSlot?.zone?.unitConfig
+      ?? unitConfigsByUnit[callTarget.receivingUnit]
+    : undefined;
 
   return (
     <div className="max-w-screen-xl mx-auto py-5 px-4">
@@ -50,6 +60,7 @@ export default function Dashboard() {
           delivery={callTarget}
           slots={allSlots}
           preselectedSlotId={callPreSlot}
+          unitConfig={callTargetUnitConfig}
           onClose={closeCallModal}
           onCall={doCall}
           loading={callLoading}

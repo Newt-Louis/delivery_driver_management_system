@@ -1,16 +1,21 @@
 import type { UnitDispatch } from '../../../lib/types';
 import type { UnitKey } from '../types';
 import { getUnitMeta } from '../utils';
+import UnitBrandMark from './UnitBrandMark';
 
 export default function UnitHeader({ unit, unitDispatch }: { unit: UnitKey; unitDispatch: UnitDispatch }) {
   const meta = getUnitMeta(unit, unitDispatch.unitConfig);
   const stats = unitDispatch.insights.stats;
 
   return (
-    <div className={`bg-gradient-to-r ${meta.headerBg} rounded-2xl p-5 mb-4 text-white shadow-lg`}>
+    <div className="rounded-2xl p-5 mb-4 text-white shadow-lg" style={meta.headerStyle}>
       <div className="flex items-start justify-between mb-4 gap-4">
         <div className="flex items-center gap-3">
-          <span className="text-3xl">{meta.icon}</span>
+          <UnitBrandMark
+            meta={meta}
+            className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white/15"
+            iconClassName="text-3xl leading-none"
+          />
           <div>
             <div className="font-black text-2xl tracking-wide">{meta.label.toUpperCase()}</div>
             {stats.avgWaitMinutes !== null && (

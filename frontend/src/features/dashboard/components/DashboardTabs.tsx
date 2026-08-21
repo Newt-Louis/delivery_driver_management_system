@@ -1,6 +1,7 @@
 import type { DispatchData, UnitDispatch } from '../../../lib/types';
 import type { TabKey } from '../types';
 import { getUnitMeta } from '../utils';
+import UnitBrandMark from './UnitBrandMark';
 
 interface DashboardTab {
   key: TabKey;
@@ -34,12 +35,23 @@ export default function DashboardTabs({ tabs, activeTab, dispatch, totalWaiting,
             onClick={() => onChange(tab.key)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-xl transition-all -mb-px border border-b-0 whitespace-nowrap
               ${isActive
-                ? (meta ? `${meta.tabActive} border-gray-200` : 'border-gray-200 bg-white text-gray-700')
+                ? (meta ? 'border-gray-200 bg-white' : 'border-gray-200 bg-white text-gray-700')
                 : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+            style={isActive && meta ? meta.tabActiveStyle : undefined}
           >
-            {tab.icon} {tab.label}
+            {meta ? (
+              <UnitBrandMark
+                meta={meta}
+                className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-md bg-white/70"
+                iconClassName="text-base leading-none"
+              />
+            ) : tab.icon}
+            {tab.label}
             {waiting > 0 && (
-              <span className={`text-xs px-1.5 py-0.5 rounded-full font-black ${meta ? meta.badge : 'bg-gray-200 text-gray-700'}`}>
+              <span
+                className={`text-xs px-1.5 py-0.5 rounded-full font-black ${meta ? '' : 'bg-gray-200 text-gray-700'}`}
+                style={meta ? meta.badgeStyle : undefined}
+              >
                 {waiting}
               </span>
             )}
