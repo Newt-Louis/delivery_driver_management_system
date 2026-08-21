@@ -1,4 +1,4 @@
-import type { DailyRegistrationStat, OrderCodeOption } from '../api';
+import type { DailyRegistrationStat } from '../api';
 import DeliveryDateCalendar from '../components/DeliveryDateCalendar';
 import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
@@ -12,8 +12,6 @@ type ScheduleStepProps = {
   dailyStats: DailyRegistrationStat[];
   dailyStatsMsg: string;
   dailyStatsLoading: boolean;
-  orderCodes: OrderCodeOption[];
-  orderCodesLoading: boolean;
   sundayFreshFoodBlocked: boolean;
   sundayFreshFoodOnly: boolean;
   set: SetFormField;
@@ -26,8 +24,6 @@ export default function ScheduleStep({
   dailyStats,
   dailyStatsMsg,
   dailyStatsLoading,
-  orderCodes,
-  orderCodesLoading,
   sundayFreshFoodBlocked,
   sundayFreshFoodOnly,
   set,
@@ -84,26 +80,18 @@ export default function ScheduleStep({
       </FieldFrame>
 
       <FieldFrame field="poNumber" highlightedField={highlightedField}>
-        <label className="label">Số PO / Mã số thi công <span className="text-red-400">*</span></label>
+        <label className="label">
+          Số PO / Mã số thi công <span className="text-thiso-300 font-normal normal-case">(Không bắt buộc)</span>
+        </label>
         <input
           type="text"
           value={form.poNumber}
-          onChange={e => set('poNumber', e.target.value.toUpperCase().replace(/\s/g, ''))}
-          placeholder="VD: PO0123456789 hoặc TC0123456789"
-          list="register-order-codes"
+          onChange={e => set('poNumber', e.target.value)}
+          placeholder="Nhập theo phiếu/bản giấy nếu có"
           autoComplete="off"
-          className={`input py-3 ${fieldErrors.poNumber ? 'border-red-400 ring-1 ring-red-400' : ''}`}
+          className="input py-3"
           style={{ fontSize: '16px' }}
         />
-        <datalist id="register-order-codes">
-          {orderCodes.map((item) => (
-            <option key={item.code} value={item.code}>
-              {item.kind === 'PO' ? 'PO' : 'Thi công'}
-            </option>
-          ))}
-        </datalist>
-        <FieldHint text={orderCodesLoading ? 'Đang tải danh sách mã đối chiếu...' : 'Bắt buộc — sẽ được đối chiếu với hệ thống của đơn vị nhận hàng'} />
-        {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
       </FieldFrame>
     </div>
   );

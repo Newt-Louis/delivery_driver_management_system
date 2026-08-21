@@ -60,7 +60,7 @@ function isPoCode(value: string) {
 }
 
 function isConstructionCode(value: string) {
-  return /^[A-Za-z0-9]{5}$/.test(value) && /[A-Za-z]/.test(value) && /\d/.test(value);
+  return /^[A-Za-z0-9]{5}$/.test(value) && /[A-Za-z]/.test(value);
 }
 
 function extractScannedOrderCode(raw: string) {
@@ -377,7 +377,7 @@ export default function Home() {
       return;
     }
     if (!codeLooksSupported) {
-      toast.error('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
+      toast.error('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự chữ/số và không được toàn số.');
       return;
     }
 
@@ -578,7 +578,7 @@ export default function Home() {
                         type="text"
                         value={orderCode}
                         onChange={(event) => setOrderCode(event.target.value.replace(/\s/g, ''))}
-                        placeholder="VD: 4500771144 hoặc A1B2C"
+                        placeholder="VD: 4500771144 hoặc AbCdE"
                         autoComplete="off"
                         autoCapitalize="none"
                         className="input h-12 pr-12 font-mono text-base tracking-wide"
@@ -759,7 +759,7 @@ export default function Home() {
             )}
           </div>
 
-          <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
+          {/* <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
             <Link to="/register" className="rounded-lg border border-thiso-200 bg-white p-4 shadow-card transition-all hover:border-thiso-400 hover:shadow-card-md">
               <p className="text-sm font-black text-thiso-900">Đăng ký thủ công</p>
               <p className="mt-1 text-sm leading-6 text-thiso-500">Dùng khi mã chưa có dữ liệu hoặc hệ thống xác thực online gặp sự cố.</p>
@@ -768,7 +768,7 @@ export default function Home() {
               <p className="text-sm font-black text-thiso-900">Theo dõi đơn</p>
               <p className="mt-1 text-sm leading-6 text-thiso-500">Tra cứu trạng thái bằng mã đăng ký hoặc biển số xe sau khi đăng ký.</p>
             </Link>
-          </div>
+          </div> */}
         </div>
       </section>
 

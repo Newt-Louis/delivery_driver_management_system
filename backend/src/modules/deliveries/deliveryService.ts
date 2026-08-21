@@ -19,7 +19,6 @@ import { archiveDelivery } from '../history/archiveService';
 import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/historyRepository';
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
-import { isKnownMockOrderCode } from '../units/orderCodeMock';
 import { verifyQuickRegistrationToken } from './quickRegistrationService';
 import type { CheckInLookupPayload, PublicCancelPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
@@ -204,7 +203,8 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   }
 
   const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
-  const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
+  const poNumber = body.poNumber?.trim() ?? '';
+  const normalizedOrderCode = deliveryRepository.normalizeOrderCode(poNumber);
   const quickVerification = verifyQuickRegistrationToken(body.quickVerificationToken);
   if (!driverPhone || driverPhone.length < 9) {
     throw domainError.badRequest('Số điện thoại không hợp lệ');
@@ -212,8 +212,8 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   const quickVerifiedOrderCode = quickVerification
     ? deliveryRepository.normalizeOrderCode(quickVerification.orderCode)
     : undefined;
-  if (!poNumber || (!isKnownMockOrderCode(poNumber) && quickVerifiedOrderCode !== poNumber)) {
-    throw domainError.badRequest('Mã PO/Thi Công không hợp lệ');
+  if (quickVerification && quickVerifiedOrderCode !== normalizedOrderCode) {
+    throw domainError.badRequest('Thông tin đăng ký không khớp với lượt kiểm tra mã. Vui lòng kiểm tra lại mã.');
   }
 
   const requestedTime = parseRequestedTime(body.requestedTime, body.deliveryDate);
@@ -237,14 +237,16 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
   }
 
-  const duplicate = await deliveryRepository.findDuplicateRegistration({
-    vehiclePlate,
-    driverPhone,
-    poNumber,
-    unitConfigId: unitConfig.id,
-    requestedTime,
-    deliveryDate: body.deliveryDate,
-  });
+  const duplicate = normalizedOrderCode
+    ? await deliveryRepository.findDuplicateRegistration({
+        vehiclePlate,
+        driverPhone,
+        poNumber,
+        unitConfigId: unitConfig.id,
+        requestedTime,
+        deliveryDate: body.deliveryDate,
+      })
+    : null;
   if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
 
   let resolvedGoodsType = body.goodsType;
@@ -280,26 +282,28 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
 
   try {
     const delivery = await deliveryRepository.prisma.$transaction(async (tx) => {
-      const duplicateLockKey = duplicateRegistrationLockKey({
-        unitConfigId: unitConfig.id,
-        vehiclePlate,
-        driverPhone,
-        poNumber,
-        requestedTime,
-        deliveryDate: body.deliveryDate,
-      });
-      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
+      if (normalizedOrderCode) {
+        const duplicateLockKey = duplicateRegistrationLockKey({
+          unitConfigId: unitConfig.id,
+          vehiclePlate,
+          driverPhone,
+          poNumber,
+          requestedTime,
+          deliveryDate: body.deliveryDate,
+        });
+        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
 
-      const duplicateInTransaction = await deliveryRepository.findDuplicateRegistration({
-        vehiclePlate,
-        driverPhone,
-        poNumber,
-        unitConfigId: unitConfig.id,
-        requestedTime,
-        deliveryDate: body.deliveryDate,
-        client: tx,
-      });
-      if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
+        const duplicateInTransaction = await deliveryRepository.findDuplicateRegistration({
+          vehiclePlate,
+          driverPhone,
+          poNumber,
+          unitConfigId: unitConfig.id,
+          requestedTime,
+          deliveryDate: body.deliveryDate,
+          client: tx,
+        });
+        if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
+      }
 
       if (requestedTime) {
         await ensureRegistrationDailyCapacity(tx, {
@@ -325,7 +329,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           unitConfigId: unitConfig.id,
           goodsType: resolvedGoodsType,
           unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
-          poNumber,
+          poNumber: poNumber || null,
           vendorCode: resolvedVendorCode,
           requestedTime,
           autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
@@ -351,15 +355,17 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
 
     if (deliveryRepository.isUniqueConstraintError(error)) {
-      const activeDuplicate = await deliveryRepository.findDuplicateRegistration({
-        vehiclePlate,
-        driverPhone,
-        poNumber,
-        unitConfigId: unitConfig.id,
-        requestedTime,
-        deliveryDate: body.deliveryDate,
-      });
-      if (activeDuplicate) return duplicateRegistration(vehiclePlate, activeDuplicate);
+      if (normalizedOrderCode) {
+        const activeDuplicate = await deliveryRepository.findDuplicateRegistration({
+          vehiclePlate,
+          driverPhone,
+          poNumber,
+          unitConfigId: unitConfig.id,
+          requestedTime,
+          deliveryDate: body.deliveryDate,
+        });
+        if (activeDuplicate) return duplicateRegistration(vehiclePlate, activeDuplicate);
+      }
     }
     throw error;
   }

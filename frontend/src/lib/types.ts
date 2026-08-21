@@ -68,7 +68,7 @@ export interface Zone {
   code: string;
   name: string;
   unitConfigId: string;
-  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'businessLocationId'>;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'>;
   slots?: Slot[];
   _count?: { slots: number };
 }

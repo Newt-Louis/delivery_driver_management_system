@@ -73,7 +73,7 @@ Mock order code public:
 
 - `GET /api/units/order-codes`
   - Tạm trả 20 mã `PO##########` và 20 mã `TC##########` trong lúc chưa có API thật từ hệ thống ngoài.
-  - Frontend `/register` dùng để gợi ý/đối chiếu Số PO hoặc Mã số thi công.
+  - Endpoint cũ vẫn tồn tại để tương thích, nhưng luồng thủ công `/register` hiện không còn dùng danh sách này để gợi ý hoặc đối chiếu Số PO/Mã số thi công.
 
 Zones:
 

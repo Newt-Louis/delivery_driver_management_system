@@ -34,8 +34,6 @@ export default function Register() {
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
-    orderCodes,
-    orderCodesLoading,
     sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
@@ -120,8 +118,6 @@ export default function Register() {
             dailyStats={dailyStats}
             dailyStatsMsg={dailyStatsMsg}
             dailyStatsLoading={dailyStatsLoading}
-            orderCodes={orderCodes}
-            orderCodesLoading={orderCodesLoading}
             sundayFreshFoodBlocked={sundayFreshFoodBlocked}
             sundayFreshFoodOnly={Boolean(unitConfig?.sundayFreshFoodOnly)}
             set={set}

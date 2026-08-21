@@ -7,6 +7,46 @@ function unitConfigLabel(unit?: { unit?: string; displayName?: string; shortName
   return unit?.displayName || unit?.shortName || unit?.unit || 'Không rõ đơn vị';
 }
 
+function hexToRgb(color: string): { r: number; g: number; b: number } | null {
+  const value = color.trim();
+  const full = /^#([0-9a-fA-F]{6})$/.exec(value);
+  if (full) {
+    return {
+      r: parseInt(full[1].slice(0, 2), 16),
+      g: parseInt(full[1].slice(2, 4), 16),
+      b: parseInt(full[1].slice(4, 6), 16),
+    };
+  }
+
+  const short = /^#([0-9a-fA-F]{3})$/.exec(value);
+  if (!short) return null;
+  return {
+    r: parseInt(short[1][0] + short[1][0], 16),
+    g: parseInt(short[1][1] + short[1][1], 16),
+    b: parseInt(short[1][2] + short[1][2], 16),
+  };
+}
+
+function mixRgb(color: string, target: 0 | 255, amount: number): string {
+  const rgb = hexToRgb(color);
+  if (!rgb) return color;
+  const mix = (value: number) => Math.round(value + (target - value) * amount);
+  return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
+}
+
+function colorWithAlpha(color: string, alpha: number): string {
+  const rgb = hexToRgb(color);
+  if (!rgb) return color;
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+function zoneGradientStyle(color: string | null | undefined) {
+  const baseColor = color?.trim() || '#1C1C1C';
+  return {
+    background: `linear-gradient(90deg, ${mixRgb(baseColor, 0, 0.14)}, ${mixRgb(baseColor, 255, 0.18)})`,
+  };
+}
+
 export default function ZonesTab() {
   const queryClient = useQueryClient();
   const { data: zones = [], isLoading } = useQuery<Zone[]>({
@@ -57,8 +97,6 @@ export default function ZonesTab() {
     }
   }
 
-  const ZONE_COLORS = ['from-sky-700 to-sky-500', 'from-emart-600 to-emart-400', 'from-thiso-700 to-thiso-500', 'from-sky-500 to-sky-400', 'from-thiso-500 to-thiso-400'];
-
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -101,15 +139,16 @@ export default function ZonesTab() {
       {isLoading && <div className="py-8 text-center text-thiso-400">Đang tải...</div>}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {zones.map((z, idx) => {
+        {zones.map((z) => {
           const slotList = z.slots ?? [];
           const trucks = slotList.filter((s) => s.vehicleType === 'TRUCK');
           const motorbikes = slotList.filter((s) => s.vehicleType === 'MOTORBIKE');
-          const gradient = ZONE_COLORS[idx % ZONE_COLORS.length];
+          const zoneUnitConfig = z.unitConfig ?? unitConfigs.find((cfg) => cfg.id === z.unitConfigId);
+          const zoneColor = zoneUnitConfig?.primaryColor;
 
           return (
             <div key={z.id} className="bg-white border border-thiso-100 rounded-2xl overflow-hidden shadow-card">
-              <div className={`bg-gradient-to-r ${gradient} px-4 py-3 text-white flex items-center justify-between`}>
+              <div className="px-4 py-3 text-white flex items-center justify-between" style={zoneGradientStyle(zoneColor)}>
                 <div>
                   <div className="font-black text-xl tracking-widest">{z.code}</div>
                   <div className="text-white/80 text-sm">{z.name}</div>
@@ -123,9 +162,15 @@ export default function ZonesTab() {
               <div className="p-4">
                 {/* Unit badges */}
                 <div className="flex flex-wrap gap-1.5 mb-3">
-                  {z.unitConfig ? (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-thiso-100 text-thiso-600">
-                      {unitConfigLabel(z.unitConfig)}
+                  {zoneUnitConfig ? (
+                    <span
+                      className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                      style={{
+                        backgroundColor: colorWithAlpha(zoneColor || '#1C1C1C', 0.12),
+                        color: zoneColor || '#1C1C1C',
+                      }}
+                    >
+                      {unitConfigLabel(zoneUnitConfig)}
                     </span>
                   ) : (
                     <span className="text-xs text-gray-400 italic">Chưa xác định đơn vị</span>

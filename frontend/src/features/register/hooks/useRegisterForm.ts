@@ -5,14 +5,12 @@ import {
   getDailyRegistrationStats,
   getPublicBusinessLocations,
   getPublicUnitConfigs,
-  getOrderCodes,
   getUnitConfig,
   // getUnitGoodsTypes, ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa
   getVehicleAvailability,
   registerDelivery,
   type DailyRegistrationStat,
   type DailyRegistrationStatsParams,
-  type OrderCodeOption,
   type VehicleAvailabilityOption,
 } from '../api';
 import { LS_KEY } from '../constants';
@@ -21,8 +19,8 @@ import { isSundayDate, todayDate } from '../utils/date';
 
 const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
   1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
-  2: ['deliveryDate', 'vendorName', 'poNumber'],
-   3: ['vehiclePlate', 'driverPhone'],
+  2: ['deliveryDate', 'vendorName'],
+  3: ['vehiclePlate', 'driverPhone'],
   4: [],
 };
 
@@ -70,8 +68,6 @@ export function useRegisterForm() {
   const [dailyStats, setDailyStats] = useState<DailyRegistrationStat[]>([]);
   const [dailyStatsMsg, setDailyStatsMsg] = useState('');
   const [dailyStatsLoading, setDailyStatsLoading] = useState(false);
-  const [orderCodes, setOrderCodes] = useState<OrderCodeOption[]>([]);
-  const [orderCodesLoading, setOrderCodesLoading] = useState(false);
   const [vehicleAvailability, setVehicleAvailability] = useState<VehicleAvailabilityOption[]>([]);
   const [vehicleAvailabilityMsg, setVehicleAvailabilityMsg] = useState('');
   const [vehicleAvailabilityLoading, setVehicleAvailabilityLoading] = useState(false);
@@ -87,14 +83,9 @@ export function useRegisterForm() {
       && form.goodsType !== 'FRESH_FOOD',
   );
 
-  const validOrderCodes = new Set(orderCodes.map((item) => item.code));
   const selectedUnitScope = form.businessLocationId && form.unitConfigId
     ? { businessLocationId: form.businessLocationId, unitConfigId: form.unitConfigId }
     : undefined;
-
-  function normalizeOrderCode(value: string) {
-    return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-  }
 
   const set = useCallback((key: keyof FormState, val: string) => {
     setForm(f => ({ ...f, [key]: val }));
@@ -177,14 +168,6 @@ export function useRegisterForm() {
     // getUnitGoodsTypes(form.receivingUnit, selectedUnitScope).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
     setCustomGoodsTypes([]);
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId]);
-
-  useEffect(() => {
-    setOrderCodesLoading(true);
-    getOrderCodes()
-      .then(setOrderCodes)
-      .catch(() => setOrderCodes([]))
-      .finally(() => setOrderCodesLoading(false));
-  }, []);
 
   useEffect(() => {
     if (!form.receivingUnit || !form.goodsType || !selectedUnitScope) {
@@ -294,11 +277,6 @@ export function useRegisterForm() {
         errs.deliveryDate = selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký';
       }
       if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
-      const orderCode = normalizeOrderCode(form.poNumber);
-      if (!orderCode) errs.poNumber = 'Vui lòng nhập Số PO hoặc Mã số thi công';
-      else if (validOrderCodes.size > 0 && !validOrderCodes.has(orderCode)) {
-        errs.poNumber = 'Mã PO/Thi Công không hợp lệ';
-      }
     }
     if (step === 3) {
       if (!form.vehiclePlate.trim()) errs.vehiclePlate = 'Vui lòng nhập biển số xe';
@@ -350,7 +328,7 @@ export function useRegisterForm() {
     setSubmitError('');
     try {
       const plate = form.vehiclePlate.toUpperCase().replace(/\s+/g, '');
-      const poNumber = normalizeOrderCode(form.poNumber);
+      const poNumber = form.poNumber.trim();
       const selectedCustomType = customGoodsTypes.find(ct => ct.id === form.unitGoodsTypeId);
       const res = await registerDelivery({
         businessLocationId: form.businessLocationId,
@@ -443,8 +421,6 @@ export function useRegisterForm() {
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
-    orderCodes,
-    orderCodesLoading,
     sundayFreshFoodBlocked,
     awStatus,
     awVendorName,

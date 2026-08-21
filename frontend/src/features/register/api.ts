@@ -26,7 +26,7 @@ export type RegisterDeliveryPayload = {
   receivingUnit: ReceivingUnit | '';
   goodsType: GoodsType | '';
   unitGoodsTypeId?: string;
-  poNumber: string;
+  poNumber?: string;
   vendorCode?: string;
   requestedTime?: string;
   deliveryDate?: string;
@@ -42,11 +42,6 @@ export type VehicleAvailabilityOption = {
   vehicleType: VehicleType;
   slotCount: number;
   capacity: number;
-};
-
-export type OrderCodeOption = {
-  code: string;
-  kind: 'PO' | 'TC';
 };
 
 export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
@@ -133,13 +128,6 @@ export async function getVehicleAvailability(
 ): Promise<{ vehicles: VehicleAvailabilityOption[]; reason?: string }> {
   const res = await api.get(`/api/units/${unit}/vehicle-availability`, { params: { ...params, ...scope } });
   return res.data;
-}
-
-export async function getOrderCodes(search?: string): Promise<OrderCodeOption[]> {
-  const res = await api.get('/api/units/order-codes', {
-    params: search ? { search } : undefined,
-  });
-  return res.data.items ?? [];
 }
 
 export async function checkAutoWarehouseVendor(code: string, unit: ReceivingUnit, scope?: PublicUnitScope) {

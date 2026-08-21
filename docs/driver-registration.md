@@ -45,7 +45,7 @@ Homepage `/` hiện có:
 - Nút camera trong input mở scanner thật để quét QR/barcode, tách mã PO/Thi Công từ nội dung quét và tự điền vào ô nhập mã.
 - Validate format cơ bản phía client:
   - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
-  - Thi Công: đúng 5 ký tự có cả chữ và số, không có khoảng trắng.
+  - Thi Công: đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số, không có khoảng trắng.
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
 - Step 2 PO nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO; chỉ số điện thoại và biển số xe là bắt buộc.
 - Step 2 Thi Công nhập thông tin tài xế/xe/NCC và chọn ngày giao bằng calendar tháng hiện tại; chỉ số điện thoại và biển số xe là bắt buộc.
@@ -56,7 +56,7 @@ Homepage `/` hiện có:
 Wizard thủ công `/register`:
 
 1. Chọn `BusinessLocation`, đơn vị nhận hàng, loại hàng, loại xe.
-2. Chọn ngày giao hàng bằng calendar tháng hiện tại, xem mật độ đăng ký theo ngày, nhập thông tin nhà cung cấp/PO.
+2. Chọn ngày giao hàng bằng calendar tháng hiện tại, xem mật độ đăng ký theo ngày, nhập thông tin nhà cung cấp và có thể nhập tự do Số PO/Mã thi công nếu bản giấy có.
 3. Nhập thông tin tài xế/xe/nhà cung cấp.
 4. Review và hoàn tất đăng ký.
 
@@ -97,7 +97,7 @@ Module backend:
 - `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint đăng ký và lifecycle delivery.
 - `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, public cancel, check-in lookup, call/cancel và query list.
 - `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, resolve `UnitConfig`, capacity ước lượng theo ngày, duplicate theo ngày giao và auto-warehouse vendor.
-- `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao, public cancel, capacity lock theo ngày, Sunday fresh-food-only, history event và response.
+- `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao khi có mã PO/Thi Công, public cancel, capacity lock theo ngày, Sunday fresh-food-only, history event và response.
 - `backend/src/modules/deliveries/quickRegistrationService.ts`: đọc API Config, gọi API PO/Thi Công bên thứ 3, log response thật, chuẩn hóa location/unit/goods/date và phát token xác thực ngắn hạn cho submit cuối.
 - `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
@@ -124,13 +124,13 @@ Service:
 
 - Biển số xe được normalize uppercase và bỏ khoảng trắng.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
-- Số PO/Mã thi công khi lưu/so sánh trong đăng ký được normalize uppercase và bỏ ký tự phân cách; riêng bước quick verify mã Thi Công giữ nguyên hoa/thường khi gọi API bên thứ 3.
-- Luồng thủ công vẫn dùng `GET /api/units/order-codes` trả mock 20 mã `PO##########` và 20 mã `TC##########`; backend register vẫn validate lại mã này.
+- Số PO/Mã thi công trong luồng thủ công `/register` không bắt buộc, không đối chiếu mock/backend và được lưu theo giá trị người vận hành nhập sau khi trim đầu/cuối.
+- Duplicate registration của luồng thủ công chỉ dùng `poNumber` khi người vận hành có nhập mã; nếu bỏ trống mã PO/Thi Công thì backend không chặn duplicate theo mã rỗng.
 - Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
 - `BusinessLocation` public là bước đầu của luồng thủ công `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
-- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`.
-- Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/PO/TC.
+- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId` và mã PO/Thi Công có được nhập.
+- Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/PO/TC; nếu đăng ký thủ công bỏ trống PO/TC thì người vận hành tự quyết định theo thực tế.
 - Tài xế chỉ có thể tự hủy chuyến tại `/cancelled` trước khi check-in, tức delivery còn `REGISTERED`; endpoint public đối chiếu đúng 5 trường `vehiclePlate`, `driverPhone`, `poNumber`, `registrationCode`, `deliveryDate` theo ngày giao, sau đó archive lịch sử với lý do `Tài xế thao tác hủy` và xóa row operational. Endpoint vẫn nhận `requestedTime` từ client cũ và quy đổi về ngày giao để tương thích.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale.
@@ -153,7 +153,7 @@ Endpoint verify:
 - Body: `{ "code": "..." }`
 - Backend tự phân loại mã:
   - `PO` nếu mã có đúng 10 chữ số và bắt đầu bằng `450`.
-  - `Thi Công` nếu mã có đúng 5 ký tự có cả chữ và số.
+  - `Thi Công` nếu mã có đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số.
 - Backend đọc config theo key cố định:
   - PO: `api.settings.po_verify`.
   - Thi Công: `api.settings.thi_cong_verify`.

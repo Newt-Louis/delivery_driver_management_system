@@ -10,7 +10,18 @@ export function listZones(scope?: SocketScope) {
     },
     orderBy: { code: 'asc' },
     include: {
-      unitConfig: { select: { id: true, unit: true, displayName: true, businessLocationId: true } },
+      unitConfig: {
+        select: {
+          id: true,
+          unit: true,
+          displayName: true,
+          shortName: true,
+          icon: true,
+          logoUrl: true,
+          primaryColor: true,
+          businessLocationId: true,
+        },
+      },
       _count: { select: { slots: true } },
       slots: {
         where: { isActive: true },

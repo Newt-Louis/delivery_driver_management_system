@@ -13,7 +13,7 @@ const registerSchema = z.object({
   unitConfigId: z.string().min(1).optional(),
   goodsType: z.nativeEnum(GoodsType),
   unitGoodsTypeId: z.string().optional(),
-  poNumber: z.string().min(1, 'Vui lòng nhập Số PO hoặc Mã số thi công'),
+  poNumber: z.string().optional().default(''),
   vendorCode: z.string().optional(),
   requestedTime: z.string().optional(),
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),

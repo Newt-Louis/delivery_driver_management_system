@@ -96,8 +96,8 @@ function normalizePoForPayload(value: string): string {
 function classifyCode(code: string): QuickRegistrationKind {
   const cleaned = stripCodeWhitespace(code);
   if (/^450\d{7}$/.test(cleaned)) return 'PO';
-  if (/^[A-Za-z0-9]{5}$/.test(cleaned) && /[A-Za-z]/.test(cleaned) && /\d/.test(cleaned)) return 'CONSTRUCTION';
-  throw domainError.badRequest('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự có cả chữ và số.');
+  if (/^[A-Za-z0-9]{5}$/.test(cleaned) && /[A-Za-z]/.test(cleaned)) return 'CONSTRUCTION';
+  throw domainError.badRequest('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự chữ/số và không được toàn số.');
 }
 
 function isEmptyObject(value: unknown): boolean {
