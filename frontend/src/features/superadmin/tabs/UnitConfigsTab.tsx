@@ -129,24 +129,63 @@ function UnitForm({
   }
 
   return (
-    <form onSubmit={submit} className="grid md:grid-cols-8 gap-3 items-end">
-      <select className="input md:col-span-2" value={form.businessLocationId} onChange={(e) => setBusinessLocation(e.target.value)} required>
-        {locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
-      </select>
-      <input className="input" placeholder="UNIT_CODE" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required />
-      <input className="input md:col-span-2" placeholder="Tên hiển thị" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required />
-      <input className="input" placeholder="Tên ngắn" value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value })} />
-      <input className="input" placeholder="Icon" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
-      <button className="btn btn-primary" type="submit">Tạo unit</button>
-      <div className="md:col-span-8">
-        <DatafileImageUpload
-          label="Logo đơn vị"
-          value={{ url: form.logoUrl || null, originalName: form.logoOriginalName }}
-          onChange={(v: DatafileImageValue) => setForm({ ...form, logoUrl: v.url || '', logoOriginalName: v.originalName, logoFile: v.file })}
-          buttonLabel="Tải lên logo"
-        />
+    <form onSubmit={submit} className="border border-thiso-200 rounded-2xl p-5 bg-white space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="font-bold text-thiso-800">Tạo unit mới</h4>
       </div>
-      {error && <div className="md:col-span-8 text-sm text-red-600">{error}</div>}
+
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label">Location *</label>
+          <select className="input" value={form.businessLocationId} onChange={(e) => setBusinessLocation(e.target.value)} required>
+            {locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="label">UNIT_CODE *</label>
+          <input className="input font-mono" placeholder="UNIT_CODE" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} required />
+          <p className="text-[11px] text-thiso-400 leading-relaxed mt-1">
+            Hệ thống hiện tại chỉ hỗ trợ các code sau: EMART, E-MART, E MART, THISKY, THISKYHALL, THISOMALL, THISO MALL, MALL. Nếu nhập sai hệ thống sẽ không thể xác thực đơn vị thành công
+          </p>
+        </div>
+        <div>
+          <label className="label">Tên hiển thị *</label>
+          <input className="input" placeholder="Tên hiển thị" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })} required />
+        </div>
+        <div>
+          <label className="label">Tên ngắn</label>
+          <input className="input" placeholder="Tên ngắn" value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value })} />
+        </div>
+        <div>
+          <label className="label">Icon</label>
+          <input className="input" placeholder="Icon" value={form.icon} onChange={(e) => setForm({ ...form, icon: e.target.value })} />
+        </div>
+        <div>
+          <label className="label">Màu chính</label>
+          <input className="input font-mono" placeholder="#1C1C1C" value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} />
+        </div>
+        <div className="col-span-2">
+          <label className="label">Mô tả</label>
+          <input className="input" placeholder="Mô tả ngắn về đơn vị nhận hàng" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+        </div>
+        <div className="col-span-2">
+          <DatafileImageUpload
+            label="Logo đơn vị"
+            value={{ url: form.logoUrl || null, originalName: form.logoOriginalName }}
+            onChange={(v: DatafileImageValue) => setForm({ ...form, logoUrl: v.url || '', logoOriginalName: v.originalName, logoFile: v.file })}
+            buttonLabel="Tải lên logo"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-5 pt-1">
+        <label className="flex items-center gap-2 text-sm text-thiso-600 cursor-pointer">
+          <input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.currentTarget.checked })} />
+          Active
+        </label>
+        {error && <span className="text-sm text-red-600 flex-1">{error}</span>}
+        <button className="btn btn-primary ml-auto" type="submit">Tạo unit</button>
+      </div>
     </form>
   );
 }

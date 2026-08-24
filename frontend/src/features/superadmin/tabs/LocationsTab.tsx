@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { Fragment, FormEvent, useState } from 'react';
 import { superadminApi } from '../api';
 import type { BusinessLocation } from '../types';
 import { StatusBadge, TableShell } from './shared';
@@ -107,18 +107,18 @@ function LocationForm({ item, onDone, onCancel }: {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Code *</label>
-          <input className="input" placeholder="VD: EMART_Q7" value={form.code}
+          <input className="input" placeholder="VD: THT or PVT or SALA" value={form.code}
                  onChange={(e) => set('code', e.target.value)} required disabled={isEdit} />
           {isEdit && <p className="text-[11px] text-thiso-400 mt-1">Code không thể thay đổi sau khi tạo.</p>}
         </div>
         <div>
           <label className="label">Tên location *</label>
-          <input className="input" placeholder="Emart Quận 7" value={form.locationName}
+          <input className="input" placeholder="Tên khu vực" value={form.locationName}
                  onChange={(e) => set('locationName', e.target.value)} required />
         </div>
         <div className="col-span-2">
           <label className="label">Địa chỉ</label>
-          <input className="input" placeholder="Số 10 Nguyễn Văn Linh, Q.7" value={form.address}
+          <input className="input" placeholder="Địa chỉ cụ thể của khu vực" value={form.address}
                  onChange={(e) => set('address', e.target.value)} />
         </div>
         <div className="col-span-2">
@@ -216,7 +216,7 @@ export default function LocationsTab({ locations, onRefresh }: { locations: Busi
           </thead>
           <tbody>
             {locations.map((location) => (
-              <>
+              <Fragment key={location.id}>
                 <tr key={location.id} className="border-t border-thiso-100">
                   <td className="p-3">
                     {location.logoUrl
@@ -246,7 +246,7 @@ export default function LocationsTab({ locations, onRefresh }: { locations: Busi
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
