@@ -276,7 +276,8 @@ export async function getFullQueue(scope?: SocketScope) {
   const deliveries = await prisma.deliveryRegistration.findMany({
     where: await queueWhereForScope(scope),
     include: {
-      assignedSlot: { include: { zone: { include: { unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } } } },
+      unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT },
+      assignedSlot: { include: { zone: { include: { unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } } } },
     },
     orderBy: [{ checkinTime: 'asc' }],
   });

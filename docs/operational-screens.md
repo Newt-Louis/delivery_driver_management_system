@@ -19,11 +19,13 @@ Route:
   - `?businessLocationId=<id>` để TV hiển thị một khu vực kinh doanh cụ thể.
   - `?unitConfigId=<id>` nếu muốn giới hạn vào một unit cụ thể.
 - Nếu URL không truyền scope, `SocketContext` resolve default public brand/location rồi join realtime room theo `businessLocationId` đó.
+- Header Waiting Screen có selector public lấy danh sách `BusinessLocation` active từ `GET /api/units/public/business-locations`. Khi đổi khu vực, frontend cập nhật query `businessLocationId`, bỏ `unitConfigId`, rồi `SocketContext` join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
 
 Backend/API:
 
 - `GET /api/deliveries/queue`
 - `GET /api/brand`
+- `GET /api/units/public/business-locations`
 
 Realtime:
 

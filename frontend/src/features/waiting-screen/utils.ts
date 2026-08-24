@@ -1,4 +1,4 @@
-import { formatTicketCode as formatDynamicTicketCode, unitPresentation } from '../../lib/unitPresentation';
+import { formatTicketCode as formatDynamicTicketCode, unitPresentation, type UnitBrandSource } from '../../lib/unitPresentation';
 import type { DeliveryRegistration } from '../../lib/types';
 import type { BrandConfig } from './types';
 
@@ -12,15 +12,17 @@ export function fallbackUnitDef(unit: string | null | undefined) {
   return unitPresentation(unit || 'UNIT');
 }
 
-export function getUnitBrand(brand: BrandConfig | null, unit: string | null | undefined) {
-  const def = fallbackUnitDef(unit);
-  const cfg = unit ? brand?.units[unit] : null;
+export function getUnitBrand(brand: BrandConfig | null, unit: string | null | undefined, unitConfig?: Partial<UnitBrandSource> | null) {
+  const code = unit || unitConfig?.unit || 'UNIT';
+  const def = unitPresentation(code, unitConfig);
+  const cfg = brand?.units[code] ?? (unitConfig?.unit ? brand?.units[unitConfig.unit] : null);
   return {
     ...def,
+    ...unitConfig,
     ...cfg,
-    icon: cfg?.icon || def.icon,
-    logoUrl: cfg?.logoUrl ?? null,
-    primaryColor: cfg?.primaryColor || def.primaryColor,
+    icon: cfg?.icon || unitConfig?.icon || def.icon,
+    logoUrl: cfg?.logoUrl ?? unitConfig?.logoUrl ?? null,
+    primaryColor: cfg?.primaryColor || unitConfig?.primaryColor || def.primaryColor,
   };
 }
 

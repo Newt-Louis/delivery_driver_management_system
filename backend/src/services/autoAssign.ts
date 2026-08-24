@@ -23,6 +23,17 @@ type AssignResult = {
   activeCount: number;
 };
 
+const UNIT_CONFIG_SELECT = {
+  id: true,
+  unit: true,
+  businessLocationId: true,
+  displayName: true,
+  shortName: true,
+  icon: true,
+  logoUrl: true,
+  primaryColor: true,
+} as const;
+
 const DEFAULT_NORMAL_GOODS_PRIORITY: GoodsType[] = [
   GoodsType.FRESH_FOOD,
   GoodsType.GENERAL_GOODS,
@@ -72,7 +83,8 @@ async function getFullQueue(scope?: SocketScope) {
   return prisma.deliveryRegistration.findMany({
     where: await queueWhereForScope(scope),
     include: {
-      assignedSlot: { include: { zone: { include: { unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } } } },
+      unitConfig: { select: UNIT_CONFIG_SELECT },
+      assignedSlot: { include: { zone: { include: { unitConfig: { select: UNIT_CONFIG_SELECT } } } } },
     },
     orderBy: [{ checkinTime: 'asc' }],
   });
