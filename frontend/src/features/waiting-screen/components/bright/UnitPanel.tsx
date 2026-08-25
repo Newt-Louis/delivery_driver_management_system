@@ -1,6 +1,6 @@
 import type { DeliveryRegistration } from '../../../../lib/types';
 import UnitLogo from '../UnitLogo';
-import { getUnitBrand } from '../../utils';
+import { compareWaitingScreenQueueOrder, getUnitBrand } from '../../utils';
 import type { BrandConfig, UnitKey } from '../../types';
 import BrightVehicleSection from './VehicleSection';
 
@@ -13,13 +13,15 @@ export default function BrightUnitPanel({ unitKey, deliveries, highlightId, bran
   const trucks     = deliveries.filter((d) => d.vehicleType !== 'MOTORBIKE');
   const motorbikes = deliveries.filter((d) => d.vehicleType === 'MOTORBIKE');
 
-  const truckCalled    = [...trucks.filter((d) => d.status === 'CALLED')].sort((a, b) => (a.ticketNumber ?? 0) - (b.ticketNumber ?? 0));
-  const truckWaiting   = [...trucks.filter((d) => d.status === 'WAITING')].sort((a, b) => (a.ticketNumber ?? 9999) - (b.ticketNumber ?? 9999));
-  const mbCalled       = [...motorbikes.filter((d) => d.status === 'CALLED')].sort((a, b) => (a.ticketNumber ?? 0) - (b.ticketNumber ?? 0));
-  const mbWaiting      = [...motorbikes.filter((d) => d.status === 'WAITING')].sort((a, b) => (a.ticketNumber ?? 9999) - (b.ticketNumber ?? 9999));
+  const truckCalled  = [...trucks.filter((d) => d.status === 'CALLED')].sort(compareWaitingScreenQueueOrder);
+  const truckWaiting = [...trucks.filter((d) => d.status === 'WAITING')].sort(compareWaitingScreenQueueOrder);
+  const mbCalled     = [...motorbikes.filter((d) => d.status === 'CALLED')].sort(compareWaitingScreenQueueOrder);
+  const mbWaiting    = [...motorbikes.filter((d) => d.status === 'WAITING')].sort(compareWaitingScreenQueueOrder);
 
   const calledCount  = deliveries.filter((d) => d.status === 'CALLED').length;
   const activeCount  = deliveries.filter((d) => ['CALLED', 'WAITING'].includes(d.status)).length;
+  const truckCount = truckCalled.length + truckWaiting.length;
+  const motorbikeCount = mbCalled.length + mbWaiting.length;
 
   return (
     <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm overflow-hidden border-2"
@@ -50,21 +52,21 @@ export default function BrightUnitPanel({ unitKey, deliveries, highlightId, bran
             <div className="flex items-center justify-center gap-3 py-3 bg-gray-100 border-b-2 border-gray-300">
               <span className="text-2xl leading-none">🚛</span>
               <span className="text-base font-black text-gray-700 uppercase tracking-widest">Xe Tải</span>
-              <span className="text-sm font-bold text-gray-400 tabular-nums">({truckCalled.length + truckWaiting.length})</span>
+              <span className="text-sm font-bold text-gray-400 tabular-nums">({truckCount})</span>
             </div>
             <BrightVehicleSection items={truckCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled compact />
             <BrightVehicleSection items={truckWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} compact />
-            {truckCalled.length === 0 && truckWaiting.length === 0 && (
+            {truckCount === 0 && (
               <div className="flex items-center justify-center py-6 text-gray-300 text-sm border-b border-gray-100">—</div>
             )}
             <div className="flex items-center justify-center gap-3 py-3 bg-gray-100 border-y-2 border-gray-300">
               <span className="text-2xl leading-none">🛵</span>
               <span className="text-base font-black text-gray-700 uppercase tracking-widest">Xe Máy</span>
-              <span className="text-sm font-bold text-gray-400 tabular-nums">({mbCalled.length + mbWaiting.length})</span>
+              <span className="text-sm font-bold text-gray-400 tabular-nums">({motorbikeCount})</span>
             </div>
             <BrightVehicleSection items={mbCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled compact />
             <BrightVehicleSection items={mbWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} compact />
-            {mbCalled.length === 0 && mbWaiting.length === 0 && (
+            {motorbikeCount === 0 && (
               <div className="flex items-center justify-center py-6 text-gray-300 text-sm">—</div>
             )}
           </div>
@@ -74,26 +76,26 @@ export default function BrightUnitPanel({ unitKey, deliveries, highlightId, bran
               <div className="flex items-center justify-center gap-2.5 px-3 py-2.5 border-r border-gray-300">
                 <span className="text-xl leading-none">🚛</span>
                 <span className="text-sm font-black text-gray-700 uppercase tracking-widest">Xe Tải</span>
-                <span className="text-sm font-bold text-gray-400">({truckCalled.length + truckWaiting.length})</span>
+                <span className="text-sm font-bold text-gray-400">({truckCount})</span>
               </div>
               <div className="flex items-center justify-center gap-2.5 px-3 py-2.5">
                 <span className="text-xl leading-none">🛵</span>
                 <span className="text-sm font-black text-gray-700 uppercase tracking-widest">Xe Máy</span>
-                <span className="text-sm font-bold text-gray-400">({mbCalled.length + mbWaiting.length})</span>
+                <span className="text-sm font-bold text-gray-400">({motorbikeCount})</span>
               </div>
             </div>
             <div className="grid grid-cols-2 divide-x divide-gray-200">
               <div>
                 <BrightVehicleSection items={truckCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled />
                 <BrightVehicleSection items={truckWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} />
-                {truckCalled.length === 0 && truckWaiting.length === 0 && (
+                {truckCount === 0 && (
                   <div className="flex items-center justify-center py-8 text-gray-300 text-xs">—</div>
                 )}
               </div>
               <div>
                 <BrightVehicleSection items={mbCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled />
                 <BrightVehicleSection items={mbWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} />
-                {mbCalled.length === 0 && mbWaiting.length === 0 && (
+                {motorbikeCount === 0 && (
                   <div className="flex items-center justify-center py-8 text-gray-300 text-xs">—</div>
                 )}
               </div>

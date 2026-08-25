@@ -9,7 +9,7 @@ export default function TrackHeader({ delivery, unitMeta, isUrgentQueue }: {
   isUrgentQueue: boolean;
 }) {
   return (
-    <div className={`bg-white border-b border-thiso-100 px-4 py-3 sticky top-0 z-10 flex items-center justify-between ${isUrgentQueue ? 'ring-2 ring-amber-400' : ''}`}>
+    <div className={`bg-white border-b border-thiso-100 px-4 py-4 sticky top-0 z-10 flex items-center justify-between ${isUrgentQueue ? 'ring-2 ring-amber-400' : ''}`}>
       <div>
         <p className="text-[11px] text-thiso-400 leading-none mb-1">Theo dõi giao hàng</p>
         <p className="font-mono font-black text-thiso-800 tracking-widest text-base leading-none">

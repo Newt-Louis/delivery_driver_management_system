@@ -1,10 +1,7 @@
 import { useState } from 'react';
 import type { useWaitingScreen } from '../hooks/useWaitingScreen';
 import UnitLogo from '../components/UnitLogo';
-import ThemeToggle from '../components/ThemeToggle';
 import NoUnitsState from '../components/NoUnitsState';
-import DarkCalledOverlay from '../components/dark/CalledOverlay';
-import DarkUnitPanel from '../components/dark/UnitPanel';
 import BrightCalledOverlay from '../components/bright/CalledOverlay';
 import BrightUnitPanel from '../components/bright/UnitPanel';
 import { getUnitBrand, getDeliveryUnitKey } from '../utils';
@@ -14,12 +11,12 @@ type Hook = ReturnType<typeof useWaitingScreen>;
 export default function MobileLayout(hook: Hook) {
   const {
     deliveries, calledEvt, highlightId, now, brand,
-    activeTab, setActiveTab, view, toggleView, dismissAlert,
+    activeTab, setActiveTab, dismissAlert,
     unitKeys, mallName, mallLogo, totalWaiting, totalCalled,
     locations, selectedBusinessLocationId, changeBusinessLocation,
   } = hook;
 
-  const isBright = view === 'bright';
+  const isBright = true;
   const [locationMenuOpen, setLocationMenuOpen] = useState(false);
   const selectedLocation = locations.find((item) => item.id === selectedBusinessLocationId);
   const locationLabel = selectedLocation?.locationName ?? mallName;
@@ -28,10 +25,7 @@ export default function MobileLayout(hook: Hook) {
 
   return (
     <div className={`min-h-screen flex flex-col ${isBright ? 'bg-gray-100' : 'bg-thiso-50'}`}>
-      {calledEvt && (isBright
-        ? <BrightCalledOverlay evt={calledEvt} brand={brand} onDismiss={dismissAlert} />
-        : <DarkCalledOverlay   evt={calledEvt} brand={brand} onDismiss={dismissAlert} />
-      )}
+      {calledEvt && <BrightCalledOverlay evt={calledEvt} brand={brand} onDismiss={dismissAlert} />}
       {calledEvt && (
         <div className="fixed inset-0 z-40 pointer-events-none animate-pulse"
              style={{ boxShadow: 'inset 0 0 0 10px rgba(56,189,248,0.75)' }} />
@@ -39,22 +33,27 @@ export default function MobileLayout(hook: Hook) {
 
       {/* Header */}
       <div className={`px-4 py-3 sticky top-0 z-10 flex items-center justify-between ${isBright ? 'bg-white border-b border-gray-200 shadow-sm' : 'bg-thiso-900'}`}>
-        <div className="relative min-w-0">
+        <div className="relative min-w-0 flex-1 mr-3">
           <button
             type="button"
-            className={`flex min-w-0 items-center gap-2.5 rounded-xl pr-2 transition-colors ${isBright ? 'hover:bg-gray-50' : 'hover:bg-white/5'}`}
+            className={`flex max-w-full min-w-0 items-center gap-2.5 rounded-xl py-1 transition-colors ${isBright ? 'hover:bg-gray-50' : 'hover:bg-white/5'}`}
             onClick={() => setLocationMenuOpen((open) => !open)}
           >
             {locationLogo ? (
-              <img src={locationLogo} alt="" className="h-7 object-contain rounded" />
+              <img src={locationLogo} alt="" className="h-8 object-contain rounded" />
             ) : (
-              <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${isBright ? 'bg-thiso-800' : 'bg-white/10'}`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isBright ? 'bg-thiso-800' : 'bg-white/10'}`}>
                 <span className="text-white font-black text-xs">T</span>
               </div>
             )}
             <div className="min-w-0 text-left">
-              <div className={`truncate font-black text-xs tracking-widest leading-none ${isBright ? 'text-gray-800' : 'text-white'}`}>{locationLabel}</div>
-              <div className={`truncate text-[9px] ${isBright ? 'text-gray-400' : 'text-thiso-400'}`}>
+              <div
+                className={`max-w-full overflow-hidden text-ellipsis whitespace-nowrap py-[2px] font-black text-[10.5px] tracking-wide leading-[1.55] ${isBright ? 'text-gray-800' : 'text-white'}`}
+                title={locationLabel}
+              >
+                <span className="inline-block align-middle">{locationLabel}</span>
+              </div>
+              <div className={`truncate text-[9px] leading-tight ${isBright ? 'text-gray-400' : 'text-thiso-400'}`}>
                 {locationCode ? `${locationCode} · ` : ''}Màn hình theo dõi
               </div>
             </div>
@@ -111,7 +110,6 @@ export default function MobileLayout(hook: Hook) {
           <div className={`font-mono font-black text-sm leading-none ml-1 ${isBright ? 'text-gray-700' : 'text-white'}`}>
             {now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
           </div>
-          <ThemeToggle view={view} onToggle={toggleView} />
         </div>
       </div>
 
@@ -120,7 +118,7 @@ export default function MobileLayout(hook: Hook) {
         {unitKeys.map((u) => {
           const cfg = getUnitBrand(brand, u);
           const cnt = deliveries.filter((d) =>
-            getDeliveryUnitKey(d) === u && ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status),
+            getDeliveryUnitKey(d) === u && ['WAITING', 'CALLED'].includes(d.status),
           ).length;
           const calledCnt = deliveries.filter((d) => getDeliveryUnitKey(d) === u && d.status === 'CALLED').length;
           const isActive  = activeTab === u;
@@ -142,14 +140,8 @@ export default function MobileLayout(hook: Hook) {
       <div className="flex-1 min-h-0 overflow-hidden p-3" style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom, 16px))' }}>
         {unitKeys.length === 0 ? (
           <NoUnitsState dark={!isBright} />
-        ) : isBright ? (
-          <BrightUnitPanel
-            key={activeTab} unitKey={activeTab}
-            deliveries={deliveries.filter((d) => getDeliveryUnitKey(d) === activeTab)}
-            highlightId={highlightId} brand={brand} compact
-          />
         ) : (
-          <DarkUnitPanel
+          <BrightUnitPanel
             key={activeTab} unitKey={activeTab}
             deliveries={deliveries.filter((d) => getDeliveryUnitKey(d) === activeTab)}
             highlightId={highlightId} brand={brand} compact

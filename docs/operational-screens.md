@@ -38,6 +38,7 @@ Realtime:
 Mục đích:
 
 - TV/khu chờ hiển thị xe đang chờ, xe được gọi, thông tin ticket/slot.
+- Waiting screen chỉ hiển thị `CALLED` trước rồi `WAITING` sau; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không còn hiển thị trên màn hình chờ vì tài xế đã vào khu nhận hàng.
 - Có chime khi xe được gọi.
 
 Quy ước dữ liệu:

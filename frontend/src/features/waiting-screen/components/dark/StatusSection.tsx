@@ -1,80 +1,92 @@
 import type { DeliveryRegistration } from '../../../../lib/types';
-import { VTYPE } from '../../constants';
 import { formatTicketForDelivery } from '../../utils';
-import { CalledCard, WaitingCard, ReceivingCard, VTypeColumn } from './Cards';
 
-export default function DarkStatusSection({ deliveries, highlightId, primaryColor, status }: {
-  deliveries: DeliveryRegistration[]; highlightId: string | null; primaryColor: string;
-  status: 'called' | 'waiting' | 'receiving';
+type SectionStatus = 'called' | 'waiting' | 'receiving';
+
+export default function DarkVehicleSection({ items, primaryColor, highlightId, isCalled, status, compact = false }: {
+  items: DeliveryRegistration[]; primaryColor: string; highlightId: string | null;
+  isCalled?: boolean; status?: SectionStatus; compact?: boolean;
 }) {
-  if (deliveries.length === 0) return null;
-  const trucks    = deliveries.filter((d) => d.vehicleType === 'TRUCK');
-  const motorbikes = deliveries.filter((d) => d.vehicleType === 'MOTORBIKE');
-  const others    = deliveries.filter((d) => !['TRUCK', 'MOTORBIKE'].includes(d.vehicleType));
-  const hasBoth   = trucks.length > 0 && motorbikes.length > 0;
+  if (items.length === 0) return null;
 
-  const headerCfg = {
-    called:    { dot: <span className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ background: primaryColor }} />, label: 'Mời vào Vị trí nhận hàng', color: primaryColor },
-    waiting:   { dot: <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />, label: `Đang chờ (${deliveries.length})`, color: '#F59E0B' },
-    receiving: { dot: <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />, label: `Đang nhận hàng (${deliveries.length})`, color: '#22C55E' },
-  }[status];
+  const sectionStatus = status ?? (isCalled ? 'called' : 'waiting');
+  const showsSlot = sectionStatus === 'called' || sectionStatus === 'receiving';
+  const isWaiting = sectionStatus === 'waiting';
+  const statusColor = sectionStatus === 'receiving' ? '#4ADE80' : sectionStatus === 'waiting' ? '#FBBF24' : primaryColor;
+  const sectionLabel = {
+    called: `Mời vào (${items.length})`,
+    waiting: `Đang chờ (${items.length})`,
+    receiving: `Đang nhận hàng (${items.length})`,
+  }[sectionStatus];
+
+  const deskCols = showsSlot ? '6rem 1fr 3.5rem' : '6rem 1fr';
+  const mobCols  = showsSlot ? '7.5rem 1fr 4rem' : '7.5rem 1fr';
+  const cols     = compact ? mobCols : deskCols;
+  const colGap   = compact ? '1rem' : '0.75rem';
+  const sectionBg = sectionStatus === 'called' ? `${primaryColor}24` : sectionStatus === 'receiving' ? 'rgba(22,163,74,0.16)' : 'rgba(245,158,11,0.18)';
+  const sectionBdr = sectionStatus === 'called' ? `${primaryColor}45` : sectionStatus === 'receiving' ? 'rgba(74,222,128,0.32)' : 'rgba(251,191,36,0.34)';
 
   return (
-    <div className="rounded-xl overflow-hidden border border-thiso-200/60 bg-white/40">
-      <div className="px-3 py-2 flex items-center gap-2" style={{ background: `${headerCfg.color}18` }}>
-        {headerCfg.dot}
-        <span className="text-xs font-black tracking-widest uppercase leading-none" style={{ color: headerCfg.color }}>
-          {headerCfg.label}
+    <div>
+      <div className="flex items-center gap-2 px-4 border-b"
+           style={{ background: sectionBg, borderColor: sectionBdr, paddingTop: compact ? '0.6rem' : '0.5rem', paddingBottom: compact ? '0.6rem' : '0.5rem' }}>
+        <span className="rounded-full shrink-0 animate-pulse"
+              style={{ width: compact ? 8 : 7, height: compact ? 8 : 7, background: statusColor,
+                       animationPlayState: sectionStatus === 'called' ? 'running' : 'paused' }} />
+        <span className="font-black uppercase tracking-widest"
+              style={{ fontSize: compact ? '0.75rem' : '0.78rem', color: sectionStatus === 'waiting' ? '#FBBF24' : statusColor }}>
+          {sectionLabel}
         </span>
       </div>
-      <div className="p-2">
-        {hasBoth ? (
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <div className="flex items-center justify-center gap-1 mb-2 py-1 rounded-lg bg-thiso-100">
-                <span className="text-sm leading-none">{VTYPE.TRUCK.icon}</span>
-                <span className="text-[10px] font-black tracking-widest text-thiso-600">{VTYPE.TRUCK.label}</span>
-                <span className="text-[10px] text-thiso-400">({trucks.length})</span>
-              </div>
-              <VTypeColumn items={trucks} highlightId={highlightId} primaryColor={primaryColor} cardType={status} />
-            </div>
-            <div>
-              <div className="flex items-center justify-center gap-1 mb-2 py-1 rounded-lg bg-thiso-100">
-                <span className="text-sm leading-none">{VTYPE.MOTORBIKE.icon}</span>
-                <span className="text-[10px] font-black tracking-widest text-thiso-600">{VTYPE.MOTORBIKE.label}</span>
-                <span className="text-[10px] text-thiso-400">({motorbikes.length})</span>
-              </div>
-              <VTypeColumn items={motorbikes} highlightId={highlightId} primaryColor={primaryColor} cardType={status} />
-            </div>
-          </div>
-        ) : (
-          <div>
-            {trucks.length > 0 && (
-              <div className="flex items-center gap-1 mb-2">
-                <span className="text-sm">{VTYPE.TRUCK.icon}</span>
-                <span className="text-[10px] font-black tracking-widest text-thiso-600">{VTYPE.TRUCK.label}</span>
-              </div>
-            )}
-            {motorbikes.length > 0 && (
-              <div className="flex items-center gap-1 mb-2">
-                <span className="text-sm">{VTYPE.MOTORBIKE.icon}</span>
-                <span className="text-[10px] font-black tracking-widest text-thiso-600">{VTYPE.MOTORBIKE.label}</span>
-              </div>
-            )}
-            <div className="grid grid-cols-2 gap-2">
-              {[...trucks, ...motorbikes, ...others].sort((a, b) =>
-                status === 'waiting' ? (a.ticketNumber ?? 9999) - (b.ticketNumber ?? 9999) : (b.ticketNumber ?? 0) - (a.ticketNumber ?? 0),
-              ).map((d, i) => {
-                const ticket = formatTicketForDelivery(d) ?? `#${i + 1}`;
-                const isHighlight = d.id === highlightId;
-                if (status === 'called') return <CalledCard key={d.id} d={d} stt={ticket} highlight={isHighlight} primaryColor={primaryColor} />;
-                if (status === 'waiting') return <WaitingCard key={d.id} d={d} stt={ticket} highlight={isHighlight} isNext={i === 0} />;
-                return <ReceivingCard key={d.id} d={d} stt={ticket} highlight={isHighlight} />;
-              })}
-            </div>
-          </div>
-        )}
+
+      <div className="grid items-center px-4 bg-thiso-900/95 border-b border-thiso-700"
+           style={{ gridTemplateColumns: cols, columnGap: colGap, paddingTop: compact ? '0.45rem' : '0.4rem', paddingBottom: compact ? '0.45rem' : '0.4rem' }}>
+        <span className="font-black text-thiso-500 uppercase tracking-wide" style={{ fontSize: compact ? '0.68rem' : '0.72rem' }}>Số thẻ</span>
+        <span className="font-black text-thiso-500 uppercase tracking-wide" style={{ fontSize: compact ? '0.68rem' : '0.72rem' }}>Biển số</span>
+        {showsSlot && <span className="font-black text-thiso-500 uppercase tracking-wide text-right" style={{ fontSize: compact ? '0.68rem' : '0.72rem' }}>Vị trí</span>}
       </div>
+
+      {items.map((d, i) => {
+        const ticket = formatTicketForDelivery(d) ?? `#${i + 1}`;
+        const isHl   = d.id === highlightId;
+        const isNext = isWaiting && i === 0;
+        return (
+          <div key={d.id}
+               className="grid items-center px-4 border-b border-thiso-800 last:border-0"
+               style={{
+                 gridTemplateColumns: cols, columnGap: colGap,
+                 paddingTop:    compact ? '0.85rem' : '0.7rem',
+                 paddingBottom: compact ? '0.85rem' : '0.7rem',
+                 background: isHl
+                   ? (sectionStatus === 'called' ? `${primaryColor}30` : sectionStatus === 'receiving' ? 'rgba(34,197,94,0.22)' : 'rgba(251,191,36,0.22)')
+                   : isNext ? 'rgba(245,158,11,0.16)'
+                   : sectionStatus === 'called' ? `${primaryColor}12`
+                   : sectionStatus === 'receiving' ? 'rgba(22,163,74,0.10)'
+                   : '#111827',
+               }}>
+            <div className="flex items-center gap-1 min-w-0">
+              {isNext && (
+                <span className="font-black bg-amber-400 text-thiso-950 rounded shrink-0"
+                      style={{ fontSize: compact ? '0.6rem' : '0.55rem', padding: '2px 4px' }}>▶</span>
+              )}
+              <span className="font-mono font-bold leading-none"
+                    style={{ fontSize: compact ? '0.8rem' : '0.88rem', color: sectionStatus === 'waiting' ? '#FBBF24' : statusColor, whiteSpace: 'nowrap' }}>
+                {ticket}
+              </span>
+            </div>
+            <span className="font-black tracking-wider text-white leading-none truncate"
+                  style={{ fontSize: compact ? '1.15rem' : 'clamp(1.15rem, 2vw, 1.55rem)' }}>
+              {d.vehiclePlate}
+            </span>
+            {showsSlot && (
+              <span className="font-black text-right leading-none"
+                    style={{ color: statusColor, fontSize: compact ? '1.1rem' : 'clamp(1.1rem, 1.9vw, 1.45rem)' }}>
+                {d.assignedSlot?.code ?? '?'}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

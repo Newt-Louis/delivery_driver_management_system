@@ -4,7 +4,7 @@ import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
 import api from '../../../lib/api';
 import type { BusinessLocation, DeliveryRegistration } from '../../../lib/types';
 import { playChime } from '../../../lib/chime';
-import { formatTicketForDelivery, getDeliveryUnitKey } from '../utils';
+import { formatTicketForDelivery, getDeliveryUnitKey, normalizeWaitingScreenDeliveries } from '../utils';
 import type { BrandConfig, CalledAlert, UnitKey } from '../types';
 
 function enrichCalledAlert(alert: CalledAlert, queue: DeliveryRegistration[]): CalledAlert {
@@ -77,7 +77,8 @@ export function useWaitingScreen() {
   const fetchQueue = useCallback(async () => {
     if (!realtimeScope.businessLocationId && !realtimeScope.unitConfigId) return;
     try {
-      setDeliveries((await api.get('/api/deliveries/queue', { params: realtimeScope })).data);
+      const response = await api.get<DeliveryRegistration[]>('/api/deliveries/queue', { params: realtimeScope });
+      setDeliveries(normalizeWaitingScreenDeliveries(response.data));
     } catch { /* silent */ }
   }, [realtimeScope]);
 
@@ -85,8 +86,16 @@ export function useWaitingScreen() {
 
   useEffect(() => {
     socket.on('queue_updated', (data: DeliveryRegistration[]) => {
-      setDeliveries(data);
-      setCalledEvt((current) => current ? enrichCalledAlert(current, data) : current);
+      const normalized = normalizeWaitingScreenDeliveries(data);
+      setDeliveries(normalized);
+      setCalledEvt((current) => {
+        if (!current) return current;
+        return normalized.some((item) => item.id === current.id) ? enrichCalledAlert(current, normalized) : null;
+      });
+      setHighlightId((current) => {
+        if (!current) return current;
+        return normalized.some((item) => item.id === current) ? current : null;
+      });
     });
     socket.on('delivery_called', (data: CalledAlert & { id: string }) => {
       playChime();
@@ -149,7 +158,7 @@ export function useWaitingScreen() {
 
   const totalWaiting   = deliveries.filter((d) => d.status === 'WAITING').length;
   const totalCalled    = deliveries.filter((d) => d.status === 'CALLED').length;
-  const totalReceiving = deliveries.filter((d) => ['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status)).length;
+  const totalReceiving = 0;
 
   const desktopGridStyle = {
     gridTemplateColumns: `repeat(${Math.min(Math.max(unitKeys.length, 1), 3)}, minmax(0, 1fr))`,

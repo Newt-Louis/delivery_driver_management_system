@@ -15,12 +15,11 @@ export default function DarkCalledOverlay({ evt, brand, onDismiss }: {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col items-center justify-center cursor-pointer select-none overflow-hidden bg-thiso-950"
-      style={{ boxShadow: `inset 0 0 0 10px ${cfg.primaryColor}55` }}
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center cursor-pointer select-none overflow-hidden"
+      style={{ background: '#0F172A' }}
       onClick={onDismiss}
     >
-      <div className="absolute inset-0 animate-ping opacity-[0.08] pointer-events-none" style={{ background: cfg.primaryColor }} />
-      <div className="absolute inset-0 bg-black/45 pointer-events-none" />
+      <div className="absolute inset-0 animate-ping opacity-[0.08] bg-white pointer-events-none" />
       <div className="relative z-10 text-center px-8 w-full max-w-5xl mx-auto">
         <div className="flex items-center justify-center gap-3 mb-8">
           <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={38} />
@@ -28,11 +27,11 @@ export default function DarkCalledOverlay({ evt, brand, onDismiss }: {
             <p className="text-white font-black text-xl uppercase tracking-[0.18em]">
               {cfg.displayName}
             </p>
-            <p className="font-black text-base uppercase tracking-[0.25em]" style={{ color: cfg.primaryColor }}>
+            <p className="text-white/70 font-black text-base uppercase tracking-[0.25em]">
               📣 Mời xe di chuyển vào vị trí nhận hàng
             </p>
             {callCount > 1 && (
-              <p className="text-white/45 text-sm mt-1 font-semibold">Lần gọi thứ {callCount}</p>
+              <p className="text-white/40 text-sm mt-1 font-semibold">Lần gọi thứ {callCount}</p>
             )}
           </div>
         </div>
@@ -46,16 +45,11 @@ export default function DarkCalledOverlay({ evt, brand, onDismiss }: {
           {vehiclePlate}
         </p>
         <p className="text-white/50 text-2xl font-medium mb-6">di chuyển vào</p>
-        <div className="inline-block border-4 rounded-3xl px-14 py-5 font-black tracking-[0.15em] backdrop-blur-sm"
-             style={{
-               fontSize: 'clamp(3rem, 10vw, 6rem)',
-               background: `${cfg.primaryColor}22`,
-               borderColor: `${cfg.primaryColor}66`,
-               color: cfg.primaryColor,
-             }}>
+        <div className="inline-block bg-white/10 border-4 border-white/20 rounded-3xl px-14 py-5 font-black text-white tracking-[0.15em] backdrop-blur-sm"
+             style={{ fontSize: 'clamp(3rem, 10vw, 6rem)' }}>
           {slotCode}
         </div>
-        <p className="text-white/65 text-xl font-semibold mt-5">{slotName}</p>
+        <p className="text-white/60 text-xl font-semibold mt-5">{slotName}</p>
         <p className="text-white/25 text-sm mt-10">Chạm để đóng</p>
       </div>
     </div>
