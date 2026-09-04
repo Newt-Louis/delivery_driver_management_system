@@ -1,6 +1,5 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
 
-import { prisma } from '../../lib/prisma';
 import type { ReportScope } from './reportTypes';
 
 type ReportScopeUser = {
@@ -23,12 +22,7 @@ export async function resolveReportScope(
   requestedUnit?: ReceivingUnitCode,
 ): Promise<ReportScope> {
   if (user?.businessLocationId) {
-    const operationUnits = user.operationUnits?.length
-      ? user.operationUnits
-      : await prisma.unitConfig.findMany({
-        where: { businessLocationId: user.businessLocationId, isActive: true },
-        select: { id: true, unit: true, displayName: true, shortName: true, icon: true, logoUrl: true, primaryColor: true },
-      });
+    const operationUnits = user.operationUnits ?? [];
 
     const normalizedUnits = operationUnits.map((config) => ({
       ...config,

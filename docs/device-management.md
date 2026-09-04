@@ -35,7 +35,7 @@ API:
 
 Quyền:
 
-- `SUPERADMIN`: được quản lý thiết bị toàn hệ thống, có thể dùng query scope khi cần.
+- `SUPERADMIN`: `/api/devices` quản lý trong selected operational context; quản lý thiết bị toàn hệ thống dùng route riêng dưới `/api/superadmin/devices`.
 - `ADMIN_LOC`: chỉ được quản lý thiết bị trong `businessLocationId` của chính tài khoản.
 
 Nguyên tắc bảo mật:

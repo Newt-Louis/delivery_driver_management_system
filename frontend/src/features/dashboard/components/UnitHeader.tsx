@@ -8,7 +8,7 @@ export default function UnitHeader({ unit, unitDispatch }: { unit: UnitKey; unit
   const stats = unitDispatch.insights.stats;
 
   return (
-    <div className="rounded-2xl p-5 mb-4 text-white shadow-lg" style={meta.headerStyle}>
+    <div className="rounded-2xl p-5 mb-4 text-white shadow-card" style={meta.headerStyle}>
       <div className="flex items-start justify-between mb-4 gap-4">
         <div className="flex items-center gap-3">
           <UnitBrandMark

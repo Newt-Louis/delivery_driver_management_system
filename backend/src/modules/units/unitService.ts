@@ -47,11 +47,15 @@ interface UnitConfigAuditSnapshot {
 }
 
 async function resolveLocationId(user: AuthUser | undefined, scope?: ScopeInput): Promise<string> {
-  if (user?.role === 'SUPERADMIN') {
-    return scope?.businessLocationId ?? user.businessLocationId ?? (await unitRepository.getDefaultBusinessLocation()).id;
-  }
   if (!user?.businessLocationId) {
-    throw domainError.forbidden('Tài khoản chưa được gán khu vực hoạt động.');
+    throw domainError.forbidden(
+      user?.role === 'SUPERADMIN'
+        ? 'SUPERADMIN chưa chọn khu vực vận hành.'
+        : 'Tài khoản chưa được gán khu vực hoạt động.',
+    );
+  }
+  if (scope?.businessLocationId && scope.businessLocationId !== user.businessLocationId) {
+    throw domainError.forbidden('Khu vực yêu cầu không khớp khu vực vận hành hiện tại.');
   }
   return user.businessLocationId;
 }

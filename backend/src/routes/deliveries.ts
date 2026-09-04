@@ -19,13 +19,13 @@ async function respond(res: Response, action: Promise<unknown>, successStatus = 
 }
 
 // POST /api/deliveries/auto-dispatch/:unit  — manually trigger auto-assign for a unit
-router.post('/auto-dispatch/:unit', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req, res) => {
+router.post('/auto-dispatch/:unit', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req, res) => {
   const unit = DeliveryFormRequest.parseAutoDispatchUnit(req.params.unit);
   if (!unit) {
     res.status(400).json({ error: 'Đơn vị không hợp lệ' });
     return;
   }
-  await respond(res, deliveryService.autoDispatch(unit, req.user));
+  await respond(res, deliveryService.autoDispatch(unit, req.user, req.scope));
 }));
 
 // POST /api/deliveries/register

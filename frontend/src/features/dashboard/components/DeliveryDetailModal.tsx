@@ -33,7 +33,7 @@ export default function DeliveryDetailModal({ id, onClose, onCall, onAction }: D
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden">
         <div
           className="p-5 rounded-t-2xl shrink-0"
-          style={meta?.headerStyle ?? { background: 'linear-gradient(135deg, #334155, #1f2937)' }}
+          style={meta?.headerStyle ?? { background: '#1C1C1C' }}
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -67,9 +67,9 @@ export default function DeliveryDetailModal({ id, onClose, onCall, onAction }: D
           <div className="flex-1 overflow-y-auto">
             <div className="p-5 grid grid-cols-2 gap-4 border-b border-thiso-100">
               <DetailRow label="Nhà cung cấp" value={delivery.vendorName} />
-              <DetailRow label="Mã đăng ký" value={<span className="font-mono text-sky-700 font-black text-sm">{delivery.registrationCode}</span>} />
+              <DetailRow label="Mã đăng ký" value={<span className="font-mono text-thiso-700 font-black text-sm">{delivery.registrationCode}</span>} />
               <DetailRow label="Tài xế" value={delivery.driverName} />
-              <DetailRow label="Điện thoại" value={<a href={`tel:${delivery.driverPhone}`} className="text-sky-600 underline">{delivery.driverPhone}</a>} />
+              <DetailRow label="Điện thoại" value={<a href={`tel:${delivery.driverPhone}`} className="text-thiso-700 underline">{delivery.driverPhone}</a>} />
               <DetailRow label="Biển số xe" value={<span className="font-mono font-black text-thiso-900">{delivery.vehiclePlate}</span>} />
               <DetailRow label="Loại xe" value={VEHICLE_FULL[delivery.vehicleType]} />
               <DetailRow label="Đơn vị nhận" value={
@@ -133,7 +133,7 @@ export default function DeliveryDetailModal({ id, onClose, onCall, onAction }: D
             )}
             {delivery.status === 'CALLED' && (
               <>
-                <button type="button" className="btn-warning text-sm px-4 py-2" onClick={() => { onAction(delivery.id, 'start-receiving'); onClose(); }}>📦 Bắt đầu nhận</button>
+                <button type="button" className="btn-primary text-sm px-4 py-2" onClick={() => { onAction(delivery.id, 'start-receiving'); onClose(); }}>📦 Bắt đầu nhận</button>
                 <button type="button" className="btn-secondary text-sm px-3 py-2" onClick={() => { onCall(delivery); onClose(); }}>🔁 Gọi lại</button>
               </>
             )}

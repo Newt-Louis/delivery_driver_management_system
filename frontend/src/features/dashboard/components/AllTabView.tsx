@@ -29,7 +29,7 @@ export default function AllTabView({ dispatch, onCall, onAction, onView, actionL
           const meta = getUnitMeta(unit, unitDispatch?.unitConfig);
           const stats = unitDispatch?.insights.stats;
           return (
-            <div key={unit} className="rounded-2xl p-4 text-white shadow-md" style={meta.headerStyle}>
+            <div key={unit} className="rounded-2xl p-4 text-white shadow-card" style={meta.headerStyle}>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
                   <UnitBrandMark meta={meta} className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white/15" />
@@ -48,7 +48,7 @@ export default function AllTabView({ dispatch, onCall, onAction, onView, actionL
                   </div>
                 ))}
               </div>
-              <div className="flex justify-between text-xs text-white/60">
+              <div className="flex justify-between text-xs text-white/70">
                 <span>🚛 {stats?.truckSlotsAvailable ?? stats?.truckDocksAvailable ?? 0} slot tải</span>
                 <span>🛵 {stats?.mbSlotsAvailable ?? stats?.mbDocksAvailable ?? 0} slot máy</span>
               </div>

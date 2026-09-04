@@ -564,6 +564,9 @@ export default function Home() {
           </Link>
 
           <div className="flex items-center gap-2">
+            <Link to="/cancelled" className="btn btn-ghost h-10 px-3">
+              Hủy chuyến
+            </Link>
             <Link to="/track" className="btn btn-ghost h-10 px-3">
               Theo dõi
             </Link>

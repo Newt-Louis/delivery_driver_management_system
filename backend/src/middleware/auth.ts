@@ -69,9 +69,9 @@ export function requireRole(...roles: string[]) {
 }
 
 /**
- * Enforce businessLocationId scope for non-SUPERADMIN roles.
- * - SUPERADMIN: scope from query params or the selected operational location stored in session
- * - Non-SUPERADMIN: forced scope from user.businessLocationId (query params ignored for businessLocationId)
+ * Enforce the operational BusinessLocation stored on the authenticated profile.
+ * For SUPERADMIN this value comes from the selected location in the Redis session;
+ * for other roles it is their assigned location.
  *
  * Sets req.scope = { businessLocationId?, unitConfigId? }
  */
@@ -81,30 +81,41 @@ export function enforceScope(req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  const queryUnitConfigId = typeof req.query.unitConfigId === 'string' ? req.query.unitConfigId : undefined;
+  const businessLocationId = req.user.businessLocationId ?? undefined;
+  const queryBusinessLocationId = typeof req.query.businessLocationId === 'string'
+    ? req.query.businessLocationId
+    : undefined;
+  const queryUnitConfigId = typeof req.query.unitConfigId === 'string'
+    ? req.query.unitConfigId
+    : undefined;
 
-  if (req.user.role === 'SUPERADMIN') {
-    const businessLocationId = typeof req.query.businessLocationId === 'string'
-      ? req.query.businessLocationId
-      : req.user.businessLocationId ?? undefined;
-    if (!businessLocationId) {
-      res.status(403).json({ error: 'SUPERADMIN chưa chọn khu vực vận hành.' });
-      return;
-    }
-    req.scope = {
-      businessLocationId,
-      unitConfigId: queryUnitConfigId,
-    };
-  } else {
-    if (!req.user.businessLocationId) {
-      res.status(403).json({ error: 'Tài khoản chưa được gán khu vực hoạt động.' });
-      return;
-    }
-    req.scope = {
-      businessLocationId: req.user.businessLocationId,
-      unitConfigId: queryUnitConfigId,
-    };
+  if (!businessLocationId) {
+    res.status(403).json({
+      error: req.user.role === 'SUPERADMIN'
+        ? 'SUPERADMIN chưa chọn khu vực vận hành.'
+        : 'Tài khoản chưa được gán khu vực hoạt động.',
+    });
+    return;
   }
+
+  if (queryBusinessLocationId && queryBusinessLocationId !== businessLocationId) {
+    res.status(403).json({ error: 'BusinessLocation yêu cầu không khớp khu vực vận hành hiện tại.' });
+    return;
+  }
+
+  if (queryUnitConfigId) {
+    const unitInScope = req.user.operationUnits.some((unit) => (
+      unit.isActive
+      && unit.id === queryUnitConfigId
+      && unit.businessLocationId === businessLocationId
+    ));
+    if (!unitInScope) {
+      res.status(403).json({ error: 'UnitConfig yêu cầu không thuộc khu vực vận hành hiện tại.' });
+      return;
+    }
+  }
+
+  req.scope = { businessLocationId, unitConfigId: queryUnitConfigId };
   next();
 }
 
@@ -126,8 +137,7 @@ export function resolvePublicScope(req: Request, _res: Response, next: NextFunct
 
 /**
  * Verify a resource belongs to the user's enforced scope.
- * For SUPERADMIN: always allowed (full system access).
- * For non-SUPERADMIN: resource's businessLocationId must match user's scope.
+ * Resource businessLocationId must match the current authenticated operational scope.
  *
  * @returns true if allowed, false if access denied (response already sent)
  */
@@ -140,7 +150,6 @@ export function enforceResourceScope(
     res.status(401).json({ error: 'Unauthorized' });
     return false;
   }
-  if (req.user.role === 'SUPERADMIN' && !req.user.businessLocationId) return true;
   if (!resourceBusinessLocationId) {
     res.status(403).json({ error: 'Không thể xác định khu vực của tài nguyên này.' });
     return false;

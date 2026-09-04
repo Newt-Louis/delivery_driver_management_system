@@ -9,8 +9,10 @@ export function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) 
     where: {
       ...(activeOnly ? { isActive: true } : {}),
       zone: {
-        ...(scope?.unitConfigIds?.length ? { unitConfigId: { in: scope.unitConfigIds } } : {}),
-        ...(scope?.unitConfigId && !scope?.unitConfigIds?.length ? { unitConfigId: scope.unitConfigId } : {}),
+        ...(scope?.unitConfigIds
+          ? { unitConfigId: scope.unitConfigIds.length > 0 ? { in: scope.unitConfigIds } : '__NO_UNIT_SCOPE__' }
+          : {}),
+        ...(scope?.unitConfigId && !scope?.unitConfigIds ? { unitConfigId: scope.unitConfigId } : {}),
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },

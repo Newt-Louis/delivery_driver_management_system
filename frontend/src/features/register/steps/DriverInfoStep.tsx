@@ -26,9 +26,9 @@ export default function DriverInfoStep({
   return (
     <div className="space-y-5">
       {(form.driverName || form.vehiclePlate) && (
-        <div className="flex items-center gap-2.5 bg-sky-50 border border-sky-200 rounded-xl p-3">
-          <span className="text-sky-500">💾</span>
-          <p className="text-xs text-sky-700">Đã điền sẵn thông tin từ lần trước. Kiểm tra lại và chỉnh nếu cần.</p>
+        <div className="flex items-center gap-2.5 bg-thisodominant-50 border border-thisodominant-200 rounded-xl p-3">
+          <span className="text-thisodominant-700">💾</span>
+          <p className="text-xs text-thiso-700">Đã điền sẵn thông tin từ lần trước. Kiểm tra lại và chỉnh nếu cần.</p>
         </div>
       )}
 
@@ -118,7 +118,7 @@ export default function DriverInfoStep({
       <label className="flex items-center gap-3 p-3.5 bg-thiso-50 rounded-xl cursor-pointer border border-thiso-100">
         <div
           onClick={() => setRememberInfo(v => !v)}
-          className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${rememberInfo ? 'bg-sky-500' : 'bg-thiso-200'}`}
+          className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 relative ${rememberInfo ? 'bg-thisodominant-500' : 'bg-thiso-200'}`}
         >
           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${rememberInfo ? 'left-5' : 'left-1'}`} />
         </div>

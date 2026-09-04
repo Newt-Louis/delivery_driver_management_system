@@ -69,19 +69,19 @@ export default function Navbar() {
   const sidebarContent = (
     <div className="flex flex-col h-full">
       {/* Brand */}
-      <div className="px-4 py-5 border-b border-white/10">
+      <div className="border-b border-thiso-200 px-4 py-5">
         <Link to="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
           {mall.logoUrl ? (
             <img src={mall.logoUrl} alt={mall.mallName}
-              className="w-9 h-9 rounded-xl object-contain bg-white/10 p-0.5 flex-shrink-0" />
+              className="w-9 h-9 object-contain flex-shrink-0" />
           ) : (
-            <div className="w-9 h-9 rounded-xl bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-sky-300 font-black text-lg leading-none">{mall.mallName.charAt(0)}</span>
+            <div className="w-9 h-9 rounded-xl bg-thisodominant-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-thiso-900 font-black text-lg leading-none">{mall.mallName.charAt(0)}</span>
             </div>
           )}
           <div className="min-w-0">
-            <div className="text-white font-black text-sm tracking-widest truncate">{mall.mallName}</div>
-            <div className="text-thiso-400 text-[10px] tracking-wider truncate">{mall.tagline ?? 'DELIVERY SYSTEM'}</div>
+            <div className="text-thiso-900 font-black text-sm tracking-widest truncate">{mall.mallName}</div>
+            <div className="text-thiso-600 text-[10px] tracking-wider truncate">{mall.tagline ?? 'DELIVERY SYSTEM'}</div>
           </div>
         </Link>
       </div>
@@ -100,17 +100,16 @@ export default function Navbar() {
                   key={l.to}
                   to={l.to}
                   onClick={() => setOpen(false)}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl mb-0.5 text-sm font-medium transition-all group ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl mb-0.5 text-sm font-medium transition-all duration-150 ease-out group hover:bg-thiso-100 hover:text-thiso-900 hover:shadow-sm active:translate-y-px active:scale-[0.98] ${
                     isActive
-                      ? 'bg-sky-500/20 text-sky-300'
-                      : 'text-thiso-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-thiso-200 text-thiso-900 shadow-inner'
+                      : 'text-thiso-700'
                   }`}
                 >
                   <span className={`text-base w-5 text-center transition-transform ${isActive ? '' : 'group-hover:scale-110'}`}>
                     {l.icon}
                   </span>
                   <span className="truncate">{l.label}</span>
-                  {isActive && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-sky-400 flex-shrink-0" />}
                 </Link>
               );
             })}
@@ -120,19 +119,19 @@ export default function Navbar() {
 
       {/* User section */}
       {user && (
-        <div className="px-3 py-4 border-t border-white/10">
+        <div className="px-3 py-4 border-t border-thiso-200">
           <div className="flex items-center gap-3 px-2 py-2 mb-2">
-            <div className="w-8 h-8 rounded-full bg-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-thisodominant-100 flex items-center justify-center text-xs font-black text-thiso-900 flex-shrink-0">
               {initials(user.name)}
             </div>
             <div className="min-w-0">
-              <div className="text-white text-sm font-semibold truncate leading-none">{user.name}</div>
-              <div className="text-thiso-400 text-[11px] mt-0.5">{ROLE_LABELS[user.role] ?? user.role}</div>
+              <div className="text-thiso-900 text-sm font-semibold truncate leading-none">{user.name}</div>
+              <div className="text-thiso-600 text-[11px] mt-0.5">{ROLE_LABELS[user.role] ?? user.role}</div>
             </div>
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-thiso-400 hover:text-red-300 hover:bg-red-500/10 transition-all"
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium text-thiso-700 transition-all duration-150 ease-out hover:bg-thiso-100 hover:text-thiso-900 active:translate-y-px active:scale-[0.98]"
           >
             <span className="text-base w-5 text-center">↩</span>
             <span>Đăng xuất</span>
@@ -145,15 +144,15 @@ export default function Navbar() {
   return (
     <>
       {/* ── Desktop sidebar (always visible ≥ md) ── */}
-      <aside className="hidden md:flex fixed top-0 left-0 bottom-0 w-56 bg-thiso-900 flex-col z-30 shadow-xl">
+      <aside className="hidden md:flex fixed top-0 left-0 bottom-0 w-56 bg-white border-r border-thiso-200 flex-col z-30 shadow-card-md">
         {sidebarContent}
       </aside>
 
       {/* ── Mobile top bar ── */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-thiso-900 flex items-center px-3 z-40 shadow-md">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-white border-b border-thiso-200 flex items-center px-3 z-40 shadow-card">
         <button
           onClick={() => setOpen(true)}
-          className="w-9 h-9 flex items-center justify-center rounded-xl text-thiso-300 hover:bg-white/10 transition-colors mr-2"
+          className="w-9 h-9 flex items-center justify-center rounded-xl text-thiso-800 hover:bg-thiso-100 active:translate-y-px active:scale-[0.98] transition-all duration-150 mr-2"
           aria-label="Mở menu"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -162,16 +161,16 @@ export default function Navbar() {
         </button>
         <Link to="/" className="flex items-center gap-2 flex-1 min-w-0">
           {mall.logoUrl ? (
-            <img src={mall.logoUrl} alt={mall.mallName} className="w-7 h-7 rounded-lg object-contain bg-white/10 p-0.5 flex-shrink-0" />
+            <img src={mall.logoUrl} alt={mall.mallName} className="w-7 h-7 rounded-lg border border-thiso-200 object-contain bg-white p-0.5 flex-shrink-0" />
           ) : (
-            <div className="w-7 h-7 rounded-lg bg-sky-500/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-sky-300 font-black text-sm leading-none">{mall.mallName.charAt(0)}</span>
+            <div className="w-7 h-7 rounded-lg bg-thisodominant-100 flex items-center justify-center flex-shrink-0">
+              <span className="text-thiso-900 font-black text-sm leading-none">{mall.mallName.charAt(0)}</span>
             </div>
           )}
-          <span className="text-white font-black text-sm tracking-widest truncate">{mall.mallName}</span>
+          <span className="text-thiso-900 font-black text-sm tracking-widest truncate">{mall.mallName}</span>
         </Link>
         {user && (
-          <div className="w-8 h-8 rounded-full bg-sky-500/30 flex items-center justify-center text-xs font-black text-sky-300 flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-thisodominant-100 flex items-center justify-center text-xs font-black text-thiso-900 flex-shrink-0">
             {initials(user.name)}
           </div>
         )}
@@ -180,12 +179,12 @@ export default function Navbar() {
       {/* ── Mobile overlay + slide-in drawer ── */}
       {open && (
         <div
-          className="md:hidden fixed inset-0 bg-black/60 z-40 transition-opacity"
+          className="md:hidden fixed inset-0 bg-thiso-900/30 z-40 transition-opacity"
           onClick={() => setOpen(false)}
         />
       )}
       <aside
-        className={`md:hidden fixed top-0 left-0 bottom-0 w-64 bg-thiso-900 z-50 flex flex-col shadow-2xl transition-transform duration-300 ${
+        className={`md:hidden fixed top-0 left-0 bottom-0 w-64 bg-white border-r border-thiso-200 z-50 flex flex-col shadow-card-lg transition-transform duration-300 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
@@ -193,7 +192,7 @@ export default function Navbar() {
         <div className="flex justify-end px-3 pt-3">
           <button
             onClick={() => setOpen(false)}
-            className="w-8 h-8 flex items-center justify-center rounded-xl text-thiso-400 hover:text-white hover:bg-white/10 transition-colors text-lg"
+            className="w-8 h-8 flex items-center justify-center rounded-xl text-thiso-800 hover:bg-thiso-100 active:translate-y-px active:scale-[0.98] transition-all duration-150 text-lg"
           >
             ×
           </button>

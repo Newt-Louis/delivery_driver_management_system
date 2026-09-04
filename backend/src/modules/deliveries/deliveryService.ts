@@ -1,6 +1,7 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
 import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, Prisma } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
+import { prisma } from '../../lib/prisma';
 import { formatVNDate, isScheduledForToday } from '../../lib/dateVN';
 import { emitDeliveryCalled, emitDeliveryCompleted, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, systemActor, userActor } from '../../services/auditLog';
@@ -10,6 +11,7 @@ import { cancelDelivery, completeDelivery } from '../../services/deliveryLifecyc
 import { manualCallDelivery, manualCallResultIsSuccess } from '../../services/manualCallDelivery';
 import { getScopeForDelivery } from '../../services/realtimeScope';
 import { roleHasUnitOperationScope } from '../../domain/permissions';
+import { assertCanAccessOperationalLocation, assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { reserveRegistrationCode } from '../../services/registrationSequence';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
 import { getUserUnitPermissions } from '../../services/unitPermission';
@@ -40,17 +42,6 @@ const DELIVERY_UNIT_CONFIG_SELECT = {
   logoUrl: true,
   primaryColor: true,
 } as const;
-
-function assertResourceAccess(user: AuthUser | undefined, businessLocationId: string | null | undefined) {
-  if (!user) throw domainError.unauthorized();
-  if (user.role === 'SUPERADMIN') return;
-  if (!businessLocationId) {
-    throw domainError.forbidden('Không thể xác định khu vực của tài nguyên này.');
-  }
-  if (businessLocationId !== user.businessLocationId) {
-    throw domainError.forbidden('Tài nguyên không thuộc khu vực của bạn.');
-  }
-}
 
 async function assertUnitPermission(
   user: AuthUser | undefined,
@@ -87,7 +78,7 @@ async function ensureDeliveryAccess(
   operation: 'checkin' | 'receiving',
 ) {
   const scope = await getScopeForDelivery(delivery);
-  assertResourceAccess(user, scope.businessLocationId);
+  assertCanAccessOperationalLocation(user, scope.businessLocationId);
   await assertUnitPermission(user, delivery, operation);
   return scope;
 }
@@ -186,10 +177,26 @@ function parseRequestedTime(value: string | undefined, deliveryDate?: string): D
   return requestedTime;
 }
 
-export async function autoDispatch(unit: ReceivingUnitCode, user: AuthUser | undefined) {
-  await assertUnitPermission(user, { receivingUnit: unit }, 'receiving');
+export async function autoDispatch(unit: ReceivingUnitCode, user: AuthUser | undefined, scope?: SocketScope) {
+  if (!user?.businessLocationId || scope?.businessLocationId !== user.businessLocationId) {
+    throw domainError.forbidden('Không thể xác định khu vực vận hành hiện tại.');
+  }
+  const unitConfig = await prisma.unitConfig.findFirst({
+    where: {
+      businessLocationId: user.businessLocationId,
+      unit,
+      isActive: true,
+      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+    },
+    select: { id: true },
+  });
+  if (!unitConfig) throw domainError.notFound('Đơn vị không thuộc khu vực vận hành hiện tại.');
+  await assertUnitPermission(user, { receivingUnit: unit, unitConfigId: unitConfig.id }, 'receiving');
 
-  const called = await triggerAutoAssign(unit);
+  const called = await triggerAutoAssign(unit, {
+    businessLocationId: user.businessLocationId,
+    unitConfigId: unitConfig.id,
+  });
   return {
     called,
     message: called > 0 ? `Đã điều phối ${called} xe vào vị trí` : 'Không có xe nào phù hợp để điều phối',
@@ -583,6 +590,25 @@ export async function checkInById(id: string, user: AuthUser | undefined) {
 }
 
 export async function callDelivery(id: string, slotId: string, user: AuthUser | undefined) {
+  const preDelivery = await deliveryRepository.findDeliveryForLifecycleScope(id);
+  if (!preDelivery) throw domainError.notFound('Not found');
+  await ensureDeliveryAccess(user, preDelivery, 'receiving');
+
+  const targetSlot = await prisma.slot.findUnique({
+    where: { id: slotId },
+    select: {
+      zone: {
+        select: {
+          unitConfigId: true,
+          unitConfig: { select: { businessLocationId: true } },
+        },
+      },
+    },
+  });
+  if (!targetSlot) throw domainError.notFound('Slot not found');
+  assertCanAccessOperationalLocation(user, targetSlot.zone.unitConfig.businessLocationId);
+  assertCanOperateUnit(user, targetSlot.zone.unitConfigId);
+
   const result = await manualCallDelivery({
     deliveryId: id,
     slotId,
@@ -593,10 +619,6 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
   if (result.outcome === 'delivery_not_found') throw domainError.notFound(result.message);
   if (result.outcome === 'slot_not_found') {
     throw domainError.notFound(result.message, { delivery: result.delivery });
-  }
-
-  if (result.delivery) {
-    await ensureDeliveryAccess(user, result.delivery, 'receiving');
   }
 
   if (!manualCallResultIsSuccess(result)) {

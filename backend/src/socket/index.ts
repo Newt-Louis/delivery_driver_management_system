@@ -1,5 +1,6 @@
 import { Server as HttpServer } from 'http';
 import { Server as SocketServer } from 'socket.io';
+import { roleHasUnitOperationScope } from '../domain/permissions';
 import { prisma } from '../lib/prisma';
 import { AuthSessionError, verifyAccessToken, type SafeAuthUser } from '../services/authSession';
 import { getRedis } from '../services/redis';
@@ -125,12 +126,15 @@ export function initSocket(server: HttpServer): SocketServer {
       ack?: (res: { ok: boolean; rooms?: string[]; error?: string }) => void,
     ) => {
       try {
+        let scope: SocketScope;
         if (payload.dashboard) {
           const user = await verifyProtectedSocketPayload(payload);
           socket.data = { ...socket.data, userId: user.id };
+          scope = resolveProtectedSocketScope(payload, user);
+        } else {
+          scope = await validateSocketScope(payload);
         }
-        const scope = await validateSocketScope(payload);
-        if (!scope.businessLocationId && !scope.unitConfigId) {
+        if (!scope.businessLocationId && !scope.unitConfigId && !scope.unitConfigIds?.length) {
           ack?.({ ok: false, error: 'missing_scope' });
           return;
         }
@@ -139,19 +143,17 @@ export function initSocket(server: HttpServer): SocketServer {
           dashboard: payload.dashboard,
           waitingScreen: payload.waitingScreen,
         });
+        leaveRealtimeRooms(socket);
         rooms.forEach((room) => socket.join(room));
+        socket.data = { ...socket.data, realtimeRooms: rooms };
         ack?.({ ok: true, rooms });
       } catch {
         ack?.({ ok: false, error: 'invalid_scope' });
       }
     });
 
-    socket.on('realtime:leave', (payload: JoinRealtimeScopePayload) => {
-      const rooms = scopedRooms(payload, {
-        dashboard: payload.dashboard,
-        waitingScreen: payload.waitingScreen,
-      });
-      rooms.forEach((room) => socket.leave(room));
+    socket.on('realtime:leave', () => {
+      leaveRealtimeRooms(socket);
     });
 
     socket.on('disconnect', () => {
@@ -171,6 +173,16 @@ export function initSocket(server: HttpServer): SocketServer {
 export function getIO(): SocketServer {
   if (!io) throw new Error('Socket.IO not initialized');
   return io;
+}
+
+export async function disconnectProtectedSocketsForUser(userId: string): Promise<void> {
+  if (!io) return;
+  const sockets = await io.fetchSockets();
+  for (const socket of sockets) {
+    if (socket.data?.userId !== userId) continue;
+    socket.emit('auth_scope_changed');
+    socket.disconnect(true);
+  }
 }
 
 async function validateSocketScope(payload: SocketScope): Promise<SocketScope> {
@@ -205,6 +217,40 @@ async function verifyProtectedSocketPayload(payload: JoinRealtimeScopePayload): 
   return result.user;
 }
 
+export function resolveProtectedSocketScope(payload: SocketScope, user: SafeAuthUser): SocketScope {
+  const businessLocationId = user.businessLocationId ?? undefined;
+  if (!businessLocationId) throw new Error('missing_operational_location');
+  if (payload.businessLocationId && payload.businessLocationId !== businessLocationId) {
+    throw new Error('scope_mismatch');
+  }
+
+  const allowedUnitIds = user.operationUnits
+    .filter((unit) => unit.isActive && unit.businessLocationId === businessLocationId)
+    .map((unit) => unit.id);
+
+  if (payload.unitConfigId) {
+    if (!allowedUnitIds.includes(payload.unitConfigId)) throw new Error('invalid_unit_scope');
+    return roleHasUnitOperationScope(user.role)
+      ? { unitConfigId: payload.unitConfigId }
+      : { businessLocationId, unitConfigId: payload.unitConfigId };
+  }
+
+  if (roleHasUnitOperationScope(user.role)) {
+    if (allowedUnitIds.length === 0) throw new Error('missing_unit_permissions');
+    return { unitConfigIds: allowedUnitIds };
+  }
+
+  return { businessLocationId };
+}
+
+function leaveRealtimeRooms(socket: { data: Record<string, unknown>; leave: (room: string) => unknown }): void {
+  const rooms = Array.isArray(socket.data.realtimeRooms)
+    ? socket.data.realtimeRooms.filter((room): room is string => typeof room === 'string')
+    : [];
+  rooms.forEach((room) => socket.leave(room));
+  socket.data = { ...socket.data, realtimeRooms: [] };
+}
+
 export function businessLocationRoomName(businessLocationId: string): string {
   return `business-location:${businessLocationId}`;
 }
@@ -226,6 +272,7 @@ function scopedRooms(scope: SocketScope, options: { dashboard?: boolean; waiting
   return uniq([
     businessLocationId ? businessLocationRoomName(businessLocationId) : null,
     scope.unitConfigId ? unitConfigRoomName(scope.unitConfigId) : null,
+    ...(scope.unitConfigIds?.map(unitConfigRoomName) ?? []),
     businessLocationId && options.dashboard ? dashboardRoomName(businessLocationId) : null,
     businessLocationId && options.waitingScreen ? waitingScreenRoomName(businessLocationId) : null,
   ]);
@@ -234,7 +281,7 @@ function scopedRooms(scope: SocketScope, options: { dashboard?: boolean; waiting
 function emitScoped(event: string, payload: unknown, scope?: SocketScope): void {
   const rooms = scopedRooms(scope ?? {});
   if (rooms.length === 0) {
-    getIO().emit(event, payload);
+    console.warn(`[socket] Skipped ${event}: missing BusinessLocation/UnitConfig scope`);
     return;
   }
   getIO().to(rooms).emit(event, payload);

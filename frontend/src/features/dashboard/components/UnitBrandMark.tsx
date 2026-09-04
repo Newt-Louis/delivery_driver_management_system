@@ -9,7 +9,7 @@ interface UnitBrandMarkProps {
 
 export default function UnitBrandMark({
   meta,
-  className = 'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/15',
+  className = 'flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-thiso-200 bg-white',
   iconClassName = 'text-xl leading-none',
 }: UnitBrandMarkProps) {
   const logoUrl = meta.logoUrl?.trim();
@@ -21,7 +21,7 @@ export default function UnitBrandMark({
         <img
           src={logoUrl}
           alt={meta.label}
-          className="h-full w-full object-contain p-1"
+          className="h-full w-full object-contain"
           onError={() => setFailedLogoUrl(logoUrl)}
         />
       ) : (

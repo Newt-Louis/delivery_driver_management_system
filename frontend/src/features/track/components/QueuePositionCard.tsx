@@ -10,11 +10,11 @@ export default function QueuePositionCard({ queueInfo }: { queueInfo: QueueInfo 
     : null;
 
   return (
-    <div className={`bg-white rounded-2xl overflow-hidden shadow-sm border-2 ${nearFront ? 'border-amber-400' : 'border-yellow-200'}`}>
+    <div className={`bg-white rounded-2xl overflow-hidden shadow-sm border-2 ${nearFront ? 'border-amber-400' : 'border-amber-200'}`}>
       {nearFront && <div className="h-1 bg-amber-400 animate-pulse" />}
-      <div className={`px-4 py-3 border-b flex items-center gap-2 ${nearFront ? 'bg-amber-50 border-amber-100' : 'bg-yellow-50 border-yellow-100'}`}>
+      <div className={`px-4 py-3 border-b flex items-center gap-2 ${nearFront ? 'bg-amber-50 border-amber-100' : 'bg-amber-50 border-amber-100'}`}>
         <span className={`text-lg ${nearFront ? 'animate-bounce' : ''}`}>{nearFront ? '⚡' : '🔢'}</span>
-        <span className={`font-bold text-sm ${nearFront ? 'text-amber-800' : 'text-yellow-800'}`}>
+        <span className={`font-bold text-sm ${nearFront ? 'text-amber-800' : 'text-amber-700'}`}>
           {nearFront ? 'Sắp đến lượt bạn!' : 'Vị trí hàng chờ'}
         </span>
         {isFront && (
@@ -25,11 +25,11 @@ export default function QueuePositionCard({ queueInfo }: { queueInfo: QueueInfo 
       </div>
       <div className="px-4 py-4 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="flex-1 text-center bg-yellow-50 rounded-2xl py-3">
-            <p className="text-4xl font-black text-yellow-700 leading-none">#{q.position}</p>
-            <p className="text-xs text-yellow-600 mt-1 font-medium">trong số {q.totalWaiting} xe chờ</p>
+          <div className="flex-1 text-center bg-amber-50 rounded-2xl py-3">
+            <p className="text-4xl font-black text-amber-700 leading-none">#{q.position}</p>
+            <p className="text-xs text-amber-600 mt-1 font-medium">trong số {q.totalWaiting} xe chờ</p>
           </div>
-          <div className="flex-1 text-center bg-sky-50 rounded-2xl py-3">
+          <div className="flex-1 text-center bg-thisodominant-50 rounded-2xl py-3">
             {q.estimatedWaitMinutes === 0 ? (
               <>
                 <p className="text-2xl font-black text-green-600 leading-none">Sắp gọi</p>
@@ -37,23 +37,23 @@ export default function QueuePositionCard({ queueInfo }: { queueInfo: QueueInfo 
               </>
             ) : (
               <>
-                <p className="text-2xl font-black text-sky-700 leading-none">
+                <p className="text-2xl font-black text-thisodominant-800 leading-none">
                   {q.estimatedWaitMinutes < 60
                     ? `~${Math.round(q.estimatedWaitMinutes)} phút`
                     : `~${Math.ceil(q.estimatedWaitMinutes / 60)} giờ`}
                 </p>
-                <p className="text-xs text-sky-500 mt-1 font-medium">thời gian chờ ước tính</p>
+                <p className="text-xs text-thisodominant-700 mt-1 font-medium">thời gian chờ ước tính</p>
               </>
             )}
           </div>
         </div>
 
         {callTimeStr && q.estimatedWaitMinutes > 0 && (
-          <div className="flex items-center gap-3 bg-indigo-50 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-3 bg-thisodominant-50 rounded-xl px-4 py-3">
             <span className="text-xl">🕐</span>
             <div>
-              <p className="text-xs text-indigo-500 font-medium">Dự kiến được gọi vào khoảng</p>
-              <p className="text-xl font-black text-indigo-700 leading-none">{callTimeStr}</p>
+              <p className="text-xs text-thisodominant-700 font-medium">Dự kiến được gọi vào khoảng</p>
+              <p className="text-xl font-black text-thisodominant-800 leading-none">{callTimeStr}</p>
             </div>
           </div>
         )}
@@ -75,7 +75,7 @@ export default function QueuePositionCard({ queueInfo }: { queueInfo: QueueInfo 
           <div className="flex items-center gap-2 mb-1">
             <div className="flex-1 h-2 bg-thiso-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-yellow-400 rounded-full transition-all duration-700"
+                className="h-full bg-amber-400 rounded-full transition-all duration-700"
                 style={{ width: `${Math.max(4, 100 - ((q.position - 1) / Math.max(q.totalWaiting, 1)) * 100)}%` }}
               />
             </div>

@@ -24,9 +24,7 @@ const querySchema = z.object({
 router.get('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   const query = querySchema.parse(req.query);
 
-  const forcedBusinessLocationId = req.user?.role !== 'SUPERADMIN'
-    ? req.user?.businessLocationId
-    : query.businessLocationId;
+  const forcedBusinessLocationId = req.scope?.businessLocationId;
 
   const where: Prisma.AuditLogWhereInput = {
     ...(forcedBusinessLocationId ? { businessLocationId: forcedBusinessLocationId } : {}),

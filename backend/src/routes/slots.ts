@@ -17,7 +17,7 @@ async function respond(res: Response, action: Promise<unknown>, successStatus = 
 }
 
 // GET /api/slots — active slots (Dashboard, SlotManagement, CallModal)
-router.get('/', authenticate, enforceScope, asyncHandler(async (req, res) => {
+router.get('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req, res) => {
   res.json(await slotService.listSlots(true, req.scope, req.user));
 }));
 
@@ -32,17 +32,17 @@ router.patch('/:id/status', authenticate, enforceScope, requireRole('SUPERADMIN'
   await respond(res, slotService.updateSlotStatus(req.params.id, status, req.user));
 }));
 
+// POST /api/slots/reconcile — admin maintenance endpoint for slots in the current operational scope.
+router.post('/reconcile', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
+  const activeOnly = SlotFormRequest.parseActiveOnly(req.query as Record<string, unknown>);
+  const force = SlotFormRequest.parseForce(req.query as Record<string, unknown>);
+  await respond(res, slotService.reconcileSlots(activeOnly, force, req.scope, req.user));
+}));
+
 // POST /api/slots/:id/reconcile — recompute AVAILABLE/OCCUPIED from active deliveries.
 router.post('/:id/reconcile', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req, res) => {
   const force = SlotFormRequest.parseForce(req.query as Record<string, unknown>);
   await respond(res, slotService.reconcileSlot(req.params.id, force, req.user));
-}));
-
-// POST /api/slots/reconcile — admin maintenance endpoint for all slots.
-router.post('/reconcile', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req, res) => {
-  const activeOnly = SlotFormRequest.parseActiveOnly(req.query as Record<string, unknown>);
-  const force = SlotFormRequest.parseForce(req.query as Record<string, unknown>);
-  await respond(res, slotService.reconcileSlots(activeOnly, force));
 }));
 
 // PATCH /api/slots/:id/assign

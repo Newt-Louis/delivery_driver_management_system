@@ -19,7 +19,6 @@ export default function Login() {
   const [error, setError] = useState('');
   const [hasActiveSessionConflict, setHasActiveSessionConflict] = useState(false);
   const [loading, setLoading] = useState(false);
-
   if (isLoading) return null;
   if (isAuthenticated) return <Navigate to={homePathForRole(user?.role)} replace />;
 
@@ -59,7 +58,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-thiso-800 flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4">
       {/* Background texture */}
       <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
         backgroundImage: 'radial-gradient(circle at 25% 25%, #fff 1px, transparent 1px), radial-gradient(circle at 75% 75%, #fff 1px, transparent 1px)',
@@ -69,25 +68,9 @@ export default function Login() {
       <div className="relative w-full max-w-sm">
         {/* Brand header */}
         <div className="text-center mb-8">
-          {mall.logoUrl ? (
-            <img src={mall.logoUrl} alt={mall.mallName} className="w-20 h-20 rounded-2xl object-contain bg-white/10 mx-auto mb-4 p-1" />
-          ) : (
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-white/10 mb-4">
-              <span className="text-3xl font-black text-white">{mall.mallName.charAt(0)}</span>
-            </div>
-          )}
-          <div className="text-white font-black text-2xl tracking-widest mb-1">{mall.mallName}</div>
-          <div className="text-thiso-400 text-sm tracking-wider uppercase">{mall.tagline ?? 'Delivery Management System'}</div>
-
-          <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-            {Object.entries(units).map(([code, unit]) => (
-              <div key={code} className="flex items-center gap-1.5 bg-white/10 rounded-lg px-2.5 py-1">
-                {unit.logoUrl ? (
-                  <img src={unit.logoUrl} alt={unit.shortName} className="w-4 h-4 rounded object-contain" />
-                ) : null}
-                <span className="text-[11px] font-bold text-white tracking-wider">{unit.shortName?.toUpperCase() || code}</span>
-              </div>
-            ))}
+          <div>
+            <img className="mx-auto h-16 w-auto" src='thiso_logo-full-color.jpg' alt="THISO" />
+            <h1 className="mt-2 text-xl font-bold sm:text-2xl">Delivery Management System</h1>
           </div>
         </div>
 

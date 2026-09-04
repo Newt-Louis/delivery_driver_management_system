@@ -87,7 +87,7 @@ function scopedSlotWhere(units: DashboardUnitConfig[], base: Record<string, unkn
 }
 
 // GET /api/dashboard/summary
-router.get('/summary', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
+router.get('/summary', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const units = await resolveDashboardUnits(req);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -130,7 +130,7 @@ router.get('/summary', authenticate, enforceScope, asyncHandler(async (req: Requ
 }));
 
 // GET /api/dashboard/dispatch
-router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Request, res: Response) => {
+router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const units = await resolveDashboardUnits(req);
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
@@ -314,8 +314,17 @@ router.get('/dispatch', authenticate, enforceScope, asyncHandler(async (req: Req
 }));
 
 // POST /api/dashboard/expire-stale  — manual trigger (admin)
-router.post('/expire-stale', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (_req: Request, res: Response) => {
-  const result = await closeDailyDeliveries({ trigger: SchedulerJobTrigger.MANUAL });
+router.post('/expire-stale', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const unitConfigIds = req.user && roleHasUnitOperationScope(req.user.role)
+    ? req.user.operationUnits
+        .filter((unit) => unit.isActive && unit.businessLocationId === req.scope?.businessLocationId)
+        .map((unit) => unit.id)
+    : undefined;
+  const result = await closeDailyDeliveries({
+    trigger: SchedulerJobTrigger.MANUAL,
+    businessLocationId: req.scope?.businessLocationId,
+    unitConfigIds,
+  });
   res.json({
     ...result,
     total: result.processed,

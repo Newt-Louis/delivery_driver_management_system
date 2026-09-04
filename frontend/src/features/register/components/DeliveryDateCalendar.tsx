@@ -17,10 +17,19 @@ function dateKey(date: Date): string {
 
 function dayClass(stat: DailyRegistrationStat | undefined, selected: boolean, disabled: boolean) {
   if (disabled) return 'border-thiso-100 bg-thiso-50 text-thiso-300 cursor-not-allowed opacity-60';
-  if (selected) return 'border-thiso-800 bg-thiso-800 text-white shadow-card-md';
-  if (stat?.level === 'high') return 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100';
-  if (stat?.level === 'medium') return 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100';
-  return 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100';
+  if (stat?.level === 'high') {
+    return selected
+      ? 'border-red-400 bg-red-200 text-red-900 translate-y-px shadow-[inset_0_2px_5px_rgba(15,15,15,0.18)]'
+      : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100';
+  }
+  if (stat?.level === 'medium') {
+    return selected
+      ? 'border-amber-400 bg-amber-200 text-amber-900 translate-y-px shadow-[inset_0_2px_5px_rgba(15,15,15,0.18)]'
+      : 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100';
+  }
+  return selected
+    ? 'border-green-400 bg-green-200 text-green-900 translate-y-px shadow-[inset_0_2px_5px_rgba(15,15,15,0.18)]'
+    : 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100';
 }
 
 export default function DeliveryDateCalendar({
@@ -75,14 +84,14 @@ export default function DeliveryDateCalendar({
               disabled={disabled}
               title={externalReason ?? stat?.reason}
               onClick={() => onChange(date)}
-              className={`aspect-square min-h-[64px] rounded-xl border-2 p-1.5 text-left transition-all ${dayClass(stat, selected, disabled)}`}
+              className={`aspect-square min-h-[64px] rounded-xl border-2 p-1.5 text-left transition-all duration-150 ease-out active:translate-y-px active:scale-[0.98] ${dayClass(stat, selected, disabled)}`}
             >
               <span className="block text-sm font-black leading-none">{day}</span>
-              <span className={`mt-1 block text-[9px] font-semibold leading-tight ${selected ? 'text-thiso-200' : ''}`}>
+              <span className="mt-1 block text-[9px] font-semibold leading-tight">
                 Đã có {stat?.registered ?? 0} xe đã đăng ký
               </span>
               {capacityText && (
-                <span className={`mt-0.5 block text-[9px] font-bold leading-tight ${selected ? 'text-thiso-300' : ''}`}>
+                <span className="mt-0.5 block text-[9px] font-bold leading-tight">
                   {capacityText}
                 </span>
               )}

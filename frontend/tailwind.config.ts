@@ -5,7 +5,6 @@ export default {
   theme: {
     extend: {
       colors: {
-        // THISO brand — charcoal / gray
         thiso: {
           50:  '#F6F6F6',
           100: '#EBEBEB',
@@ -18,8 +17,7 @@ export default {
           800: '#1C1C1C',
           900: '#0F0F0F',
         },
-        // Emart — orange-amber
-        emart: {
+        thisodominant: {
           50:  '#FFF6E6',
           100: '#FFE9BF',
           200: '#FFD591',
@@ -31,7 +29,7 @@ export default {
           800: '#9F5400',
           900: '#7E4000',
         },
-        // Thiskyhall — forest green
+        // forest green
         sky: {
           50:  '#E8F5EE',
           100: '#C3E6D2',

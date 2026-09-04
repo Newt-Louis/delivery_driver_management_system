@@ -10,6 +10,7 @@ import {
 } from '../../domain/permissionAssertions';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { invalidateAuthUserCache, refreshAuthUserCache, revokeUserSessions } from '../../services/authSession';
+import { disconnectProtectedSocketsForUser } from '../../socket';
 import {
   assertUnitConfigsInLocation,
   invalidateUserUnitPermissionCache,
@@ -293,7 +294,11 @@ export async function updateLocationStaff(id: string, body: LocationStaffUpdateP
   });
   await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
   await refreshAuthUserCache(updated.id);
-  if (body.isActive === false) await revokeUserSessions(updated.id);
+  const scopeChanged = body.role !== undefined || body.unit !== undefined || body.unitConfigIds !== undefined;
+  if (scopeChanged || body.isActive === false) {
+    await revokeUserSessions(updated.id);
+    await disconnectProtectedSocketsForUser(updated.id);
+  }
 
   const nextUser = await userRepository.findUser(updated.id);
   const before = serializeUser(existing);
@@ -342,6 +347,7 @@ export async function deleteLocationStaff(id: string, user: AuthUser | undefined
   await invalidateAuthUserCache(id);
   await invalidateUserUnitPermissionCache(id);
   await revokeUserSessions(id);
+  await disconnectProtectedSocketsForUser(id);
   await recordAuditLog({
     ...userActor(user),
     action: 'user.delete',
@@ -448,7 +454,14 @@ export async function updateUser(id: string, body: UpdateUserPayload, requester:
   });
   await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
   await refreshAuthUserCache(updated.id);
-  if (body.isActive === false) await revokeUserSessions(updated.id);
+  const scopeChanged = body.role !== undefined
+    || body.businessLocationId !== undefined
+    || body.unit !== undefined
+    || body.unitConfigIds !== undefined;
+  if (scopeChanged || body.isActive === false) {
+    await revokeUserSessions(updated.id);
+    await disconnectProtectedSocketsForUser(updated.id);
+  }
 
   const nextUser = await userRepository.findUser(updated.id);
   const before = serializeUser(existing);
@@ -500,6 +513,7 @@ export async function deleteUser(id: string, user: AuthUser | undefined) {
   await invalidateAuthUserCache(id);
   await invalidateUserUnitPermissionCache(id);
   await revokeUserSessions(id);
+  await disconnectProtectedSocketsForUser(id);
   await recordAuditLog({
     ...userActor(user),
     action: 'user.delete',

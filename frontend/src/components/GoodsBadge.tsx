@@ -1,10 +1,10 @@
 import type { GoodsType } from '../lib/types';
 
 const CONFIG: Record<GoodsType, { icon: string; label: string; bg: string; text: string }> = {
-  FRESH_FOOD:     { icon: '🥬', label: 'Tươi sống',    bg: 'bg-sky-50',     text: 'text-sky-700'    },
-  AUTO_WAREHOUSE: { icon: '🏭', label: 'Kho tự động',  bg: 'bg-blue-50',    text: 'text-blue-700'   },
+  FRESH_FOOD:     { icon: '🥬', label: 'Tươi sống',    bg: 'bg-thiso-100',  text: 'text-thiso-700'   },
+  AUTO_WAREHOUSE: { icon: '🏭', label: 'Kho tự động',  bg: 'bg-thiso-100',  text: 'text-thiso-700'   },
   GENERAL_GOODS:  { icon: '📦', label: 'Hàng thường',  bg: 'bg-thiso-100',  text: 'text-thiso-600'  },
-  THI_CONG:       { icon: '🔨', label: 'Thi công',     bg: 'bg-amber-50',   text: 'text-amber-700'  },
+  THI_CONG:       { icon: '🔨', label: 'Thi công',     bg: 'bg-thiso-100',  text: 'text-thiso-600'   },
 };
 
 export default function GoodsBadge({ type }: { type: GoodsType }) {

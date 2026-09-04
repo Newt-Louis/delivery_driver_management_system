@@ -1,6 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 import api from '../lib/api';
 import type { ReceivingUnit } from '../lib/types';
+import { useAuth } from './AuthContext';
 
 export interface UnitBranding {
   displayName: string;
@@ -64,15 +65,25 @@ const INITIAL: BrandingData = {
 const BrandingContext = createContext<BrandingData>(INITIAL);
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
+  const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
+  const businessLocationId = user?.businessLocationId ?? undefined;
   const [data, setData] = useState<Omit<BrandingData, 'refresh' | 'isLoaded'> & { isLoaded: boolean }>({
     mall: MALL_FALLBACK,
     units: INITIAL.units,
     isLoaded: false,
   });
 
-  async function load() {
+  const load = useCallback(async () => {
+    if (isAuthLoading) return;
+    if (isAuthenticated && !businessLocationId) {
+      setData({ mall: MALL_FALLBACK, units: {}, isLoaded: true });
+      return;
+    }
+
     try {
-      const res = await api.get('/api/brand');
+      const res = await api.get('/api/brand', {
+        params: businessLocationId ? { businessLocationId } : undefined,
+      });
       const { mall, units } = res.data as { mall: MallBranding; units: Record<ReceivingUnit, UnitBranding> };
       // Merge with fallbacks so empty strings fall back gracefully
       const mergedUnits = {} as Record<ReceivingUnit, UnitBranding>;
@@ -105,9 +116,9 @@ export function BrandingProvider({ children }: { children: ReactNode }) {
     } catch {
       setData(d => ({ ...d, isLoaded: true }));
     }
-  }
+  }, [businessLocationId, isAuthenticated, isAuthLoading]);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   return (
     <BrandingContext.Provider value={{ ...data, refresh: load }}>

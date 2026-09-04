@@ -17,8 +17,8 @@ async function respond(res: Response, action: Promise<unknown>, successStatus = 
 }
 
 // GET /api/zones — all zones with slot counts
-router.get('/', authenticate, enforceScope, asyncHandler(async (req, res) => {
-  res.json(await zoneService.listZones(req.scope));
+router.get('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
+  res.json(await zoneService.listZones(req.scope, req.user));
 }));
 
 // POST /api/zones — create zone (admin)

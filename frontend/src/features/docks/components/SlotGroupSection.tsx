@@ -13,11 +13,11 @@ export default function SlotGroupSection({ group, canEdit, onStatusChange }: Slo
 
   return (
     <div className="mb-10">
-      <h2 className="text-lg font-bold text-gray-700 mb-4 flex items-center gap-2">
-        <span className={`w-2 h-6 rounded-full ${group.colorClass} inline-block`} />
+      <h2 className="text-lg font-bold text-thiso-800 mb-4 flex items-center gap-2">
+        <span className="inline-block h-6 w-[26px] rounded-lg" style={{ backgroundColor: group.color }} />
         <span>{group.icon}</span>
         {group.label}
-        <span className="text-sm font-normal text-gray-400">({group.slots.length} slots)</span>
+        <span className="text-sm font-normal text-thiso-400">({group.slots.length} slots)</span>
       </h2>
 
       <SlotVehicleSection

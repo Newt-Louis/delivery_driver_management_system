@@ -1,23 +1,20 @@
 import type { AuthUser } from '../../middleware/auth';
 import type { SocketScope } from '../../socket';
 import { recordAuditLog, userActor } from '../../services/auditLog';
+import { roleHasUnitOperationScope } from '../../domain/permissions';
+import { assertCanAccessOperationalLocation, assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { domainError } from '../shared/domainError';
 import type { ZonePayload, ZoneUpdatePayload } from './zoneFormRequest';
 import * as zoneRepository from './zoneRepository';
 
-function assertResourceAccess(user: AuthUser | undefined, businessLocationId: string | null | undefined) {
-  if (!user) throw domainError.unauthorized();
-  if (user.role === 'SUPERADMIN') return;
-  if (!businessLocationId) {
-    throw domainError.forbidden('Không thể xác định khu vực của tài nguyên này.');
-  }
-  if (businessLocationId !== user.businessLocationId) {
-    throw domainError.forbidden('Tài nguyên không thuộc khu vực của bạn.');
-  }
-}
-
-export function listZones(scope?: SocketScope) {
-  return zoneRepository.listZones(scope);
+export function listZones(scope?: SocketScope, user?: AuthUser) {
+  const allowedUnitIds = user && roleHasUnitOperationScope(user.role)
+    ? user.operationUnits
+        .filter((unit) => unit.isActive && unit.businessLocationId === scope?.businessLocationId)
+        .map((unit) => unit.id)
+    : undefined;
+  if (allowedUnitIds && allowedUnitIds.length === 0) return Promise.resolve([]);
+  return zoneRepository.listZones({ ...scope, unitConfigIds: allowedUnitIds });
 }
 
 export async function createZone(body: ZonePayload, user: AuthUser | undefined) {
@@ -26,7 +23,8 @@ export async function createZone(body: ZonePayload, user: AuthUser | undefined) 
     throw domainError.badRequest('Unit config không tồn tại.');
   }
 
-  assertResourceAccess(user, unitConfig.businessLocationId);
+  assertCanAccessOperationalLocation(user, unitConfig.businessLocationId);
+  assertCanOperateUnit(user, unitConfig.id);
 
   const exists = await zoneRepository.findZoneByUnitAndCode(body.unitConfigId, body.code);
   if (exists) {
@@ -50,14 +48,16 @@ export async function updateZone(id: string, body: ZoneUpdatePayload, user: Auth
   const existing = await zoneRepository.findZoneForUpdate(id);
   if (!existing) throw domainError.notFound('Not found');
 
-  assertResourceAccess(user, existing.unitConfig.businessLocationId);
+  assertCanAccessOperationalLocation(user, existing.unitConfig.businessLocationId);
+  assertCanOperateUnit(user, existing.unitConfigId);
 
   if (body.unitConfigId) {
     const unitConfig = await zoneRepository.findUnitConfig(body.unitConfigId);
     if (!unitConfig) {
       throw domainError.badRequest('Unit config không tồn tại.');
     }
-    assertResourceAccess(user, unitConfig.businessLocationId);
+    assertCanAccessOperationalLocation(user, unitConfig.businessLocationId);
+    assertCanOperateUnit(user, unitConfig.id);
   }
 
   const zone = await zoneRepository.updateZone(id, body);
@@ -78,7 +78,8 @@ export async function deleteZone(id: string, user: AuthUser | undefined) {
   const zone = await zoneRepository.findZoneForDelete(id);
   if (!zone) throw domainError.notFound('Not found');
 
-  assertResourceAccess(user, zone.unitConfig.businessLocationId);
+  assertCanAccessOperationalLocation(user, zone.unitConfig.businessLocationId);
+  assertCanOperateUnit(user, zone.unitConfigId);
 
   if (zone._count.slots > 0) {
     throw domainError.badRequest(`Khu "${zone.code}" còn ${zone._count.slots} slot. Hãy chuyển slot sang khu khác trước khi xóa.`);

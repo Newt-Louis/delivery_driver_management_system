@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '../../../context/ToastContext';
-import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
+import { useAuth } from '../../../context/AuthContext';
+import { useSocket } from '../../../context/SocketContext';
 import type { DashboardSummary, DeliveryRegistration, DispatchData, UnitDispatch } from '../../../lib/types';
 import {
   callDelivery,
@@ -15,7 +16,7 @@ import { getDashboardTabs, getDispatchSlots, getTotalWaiting } from '../utils';
 export function useDashboard() {
   const queryClient = useQueryClient();
   const socket = useSocket();
-  const realtimeScope = useRealtimeScope();
+  const { user } = useAuth();
   const toast = useToast();
   const [activeTab, setActiveTab] = useState<TabKey>('ALL');
   const [callTarget, setCallTarget] = useState<DeliveryRegistration | null>(null);
@@ -37,14 +38,16 @@ export function useDashboard() {
   }, [queryClient]);
 
   const { data: summary } = useQuery<DashboardSummary>({
-    queryKey: ['dashboard', 'summary', realtimeScope],
-    queryFn: () => fetchDashboardSummary(realtimeScope),
+    queryKey: ['dashboard', 'summary', user?.businessLocationId],
+    queryFn: fetchDashboardSummary,
+    enabled: !!user?.businessLocationId,
     refetchInterval: 30_000,
   });
 
   const { data: dispatch, isLoading } = useQuery<DispatchData>({
-    queryKey: ['dashboard', 'dispatch', realtimeScope],
-    queryFn: () => fetchDashboardDispatch(realtimeScope),
+    queryKey: ['dashboard', 'dispatch', user?.businessLocationId],
+    queryFn: fetchDashboardDispatch,
+    enabled: !!user?.businessLocationId,
     refetchInterval: 15_000,
   });
 

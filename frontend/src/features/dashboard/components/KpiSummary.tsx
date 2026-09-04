@@ -21,7 +21,7 @@ export default function KpiSummary({ summary }: { summary?: DashboardSummary }) 
           key={item.label}
           className={`rounded-xl border p-2 text-center
             ${'expired' in item && item.expired && (item.value ?? 0) > 0
-              ? 'bg-purple-50 border-purple-200 text-purple-700'
+              ? 'bg-red-50 border-red-200 text-red-700'
               : 'dim' in item && item.dim
                 ? 'bg-thiso-50 border-thiso-100 text-thiso-400'
                 : 'bg-white border-thiso-100 text-thiso-700 shadow-sm'}`}

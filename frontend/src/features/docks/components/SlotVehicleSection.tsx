@@ -20,8 +20,8 @@ export default function SlotVehicleSection({
 
   return (
     <div className="mb-5">
-      <p className="text-xs font-bold text-gray-400 uppercase mb-2 flex items-center gap-1.5">
-        {title} <span className="font-normal text-gray-300">({count})</span>
+      <p className="text-xs font-bold text-thiso-500 uppercase mb-2 flex items-center gap-1.5">
+        {title} <span className="font-normal text-thiso-400">({count})</span>
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {slots.map((slot) => (

@@ -1,31 +1,19 @@
 import bcrypt from 'bcryptjs';
 import type { AuthUser } from '../../middleware/auth';
 import { recordAuditLog, userActor } from '../../services/auditLog';
+import { assertCanAccessOperationalLocation } from '../../domain/permissionAssertions';
 import { domainError } from '../shared/domainError';
 import type { CreateDevicePayload, UpdateDevicePayload } from './deviceFormRequest';
 import * as deviceRepository from './deviceRepository';
 
-function assertResourceAccess(user: AuthUser | undefined, businessLocationId: string | null | undefined) {
-  if (!user) throw domainError.unauthorized();
-  if (user.role === 'SUPERADMIN') return;
-  if (!businessLocationId) {
-    throw domainError.forbidden('Không thể xác định khu vực của tài nguyên này.');
-  }
-  if (businessLocationId !== user.businessLocationId) {
-    throw domainError.forbidden('Tài nguyên không thuộc khu vực của bạn.');
-  }
-}
-
 export function listDevices(user: AuthUser | undefined) {
-  const where: Record<string, unknown> = {};
-  if (user?.role !== 'SUPERADMIN' && user?.businessLocationId) {
-    where.businessLocationId = user.businessLocationId;
-  }
+  if (!user?.businessLocationId) throw domainError.forbidden('Tài khoản chưa có khu vực vận hành hiện tại.');
+  const where: Record<string, unknown> = { businessLocationId: user.businessLocationId };
   return deviceRepository.listDevices(where);
 }
 
 export async function createDevice(body: CreateDevicePayload, user: AuthUser | undefined) {
-  assertResourceAccess(user, body.businessLocationId);
+  assertCanAccessOperationalLocation(user, body.businessLocationId);
 
   const location = await deviceRepository.findBusinessLocation(body.businessLocationId);
   if (!location) {
@@ -61,7 +49,7 @@ export async function updateDevice(id: string, body: UpdateDevicePayload, user: 
     throw domainError.notFound('Device not found');
   }
 
-  assertResourceAccess(user, existing.businessLocationId);
+  assertCanAccessOperationalLocation(user, existing.businessLocationId);
 
   const deviceSecretHash = body.deviceSecret
     ? await bcrypt.hash(body.deviceSecret, 10)
@@ -96,7 +84,7 @@ export async function deactivateDevice(id: string, user: AuthUser | undefined) {
     throw domainError.notFound('Device not found');
   }
 
-  assertResourceAccess(user, existing.businessLocationId);
+  assertCanAccessOperationalLocation(user, existing.businessLocationId);
 
   const device = await deviceRepository.deactivateDevice(id);
   await recordAuditLog({

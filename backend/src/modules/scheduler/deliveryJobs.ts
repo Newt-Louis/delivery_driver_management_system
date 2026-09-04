@@ -29,6 +29,8 @@ export type SchedulerJobResult = {
 export async function closeDailyDeliveries(args: {
   businessDate?: string;
   trigger?: SchedulerJobTrigger;
+  businessLocationId?: string;
+  unitConfigIds?: string[];
 } = {}): Promise<SchedulerJobResult> {
   const businessDate = args.businessDate ?? getVNDateKey();
   const { start, end } = getVNDateRangeUtc(businessDate);
@@ -37,26 +39,46 @@ export async function closeDailyDeliveries(args: {
     jobName: 'close-daily-deliveries',
     businessDate,
     trigger: args.trigger ?? SchedulerJobTrigger.SCHEDULED,
-    metadata: { start: start.toISOString(), end: end.toISOString() },
+    metadata: {
+      start: start.toISOString(),
+      end: end.toISOString(),
+      businessLocationId: args.businessLocationId ?? null,
+      unitConfigIds: args.unitConfigIds ?? null,
+    },
   });
 
   const candidates = await prisma.deliveryRegistration.findMany({
     where: {
-      OR: [
+      AND: [
         {
-          status: DeliveryStatus.REGISTERED,
           OR: [
-            { requestedTime: { gte: start, lt: end } },
-            { requestedTime: null, createdAt: { gte: start, lt: end } },
+            {
+              status: DeliveryStatus.REGISTERED,
+              OR: [
+                { requestedTime: { gte: start, lt: end } },
+                { requestedTime: null, createdAt: { gte: start, lt: end } },
+              ],
+            },
+            {
+              status: { in: [DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
+              OR: [
+                { requestedTime: { gte: start, lt: end } },
+                { requestedTime: null, checkinTime: { gte: start, lt: end } },
+              ],
+            },
           ],
         },
-        {
-          status: { in: [DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
-          OR: [
-            { requestedTime: { gte: start, lt: end } },
-            { requestedTime: null, checkinTime: { gte: start, lt: end } },
-          ],
-        },
+        ...(args.businessLocationId
+          ? [{
+              OR: [
+                { unitConfig: { businessLocationId: args.businessLocationId } },
+                { assignedSlot: { zone: { unitConfig: { businessLocationId: args.businessLocationId } } } },
+              ],
+            }]
+          : []),
+        ...(args.unitConfigIds
+          ? [{ unitConfigId: args.unitConfigIds.length > 0 ? { in: args.unitConfigIds } : '__NO_UNIT_SCOPE__' }]
+          : []),
       ],
     },
     select: { id: true, status: true },

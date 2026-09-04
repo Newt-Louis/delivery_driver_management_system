@@ -45,6 +45,8 @@ Session Redis hiện không đặt TTL ở Redis. Nếu key session bị xóa do
 
 Redis không tự đồng bộ với PostgreSQL. Mọi thao tác ghi database phải chủ động refresh hoặc xóa key Redis tương ứng. Route quản trị user hiện refresh profile/unit permission sau create/update/reset password, và xóa cache + revoke session khi deactivate/delete. App config nên dùng helper `upsertAppConfigValue()` hoặc gọi `refreshAppConfigCache(key)` sau khi SUPERADMIN lưu thay đổi.
 
+Khi admin thay đổi `businessLocationId`, role, unit hoặc danh sách unit permission của một tài khoản đang hoạt động, backend revoke toàn bộ session và ngắt các protected socket của tài khoản đó. Client nhận `auth_scope_changed`, xóa trạng thái đăng nhập và yêu cầu đăng nhập lại; nhờ vậy socket cũ không tiếp tục nằm trong room của location/unit trước đó.
+
 Session của `SUPERADMIN` có thêm `selectedBusinessLocationId`. Đây là operational context của riêng phiên đăng nhập hiện tại, không ghi vào cột `users.business_location_id`. Khi `SUPERADMIN` chọn khu vực làm việc, backend overlay `req.user.businessLocationId`, `operationUnits`, `manageableUnits` và `unitPermissions` từ `UnitConfig` active của khu vực đó. Vì vậy các route vận hành có thể tiếp tục lấy scope từ auth profile hiện tại, còn `/superadmin` vẫn là bề mặt system-wide riêng.
 
 ## Cookie Web
@@ -242,9 +244,9 @@ Frontend protected routes:
 
 ## Scope Theo BusinessLocation
 
-- `SUPERADMIN`: ngoài `/superadmin`, scope lấy từ query `businessLocationId` nếu route cho phép hoặc từ selected operational context trong Redis session. Nếu chưa chọn context, các route có `enforceScope` trả `403`.
-- Non-`SUPERADMIN`: backend ép scope theo `req.user.businessLocationId`, không tin query `businessLocationId`.
-- `enforceResourceScope` dùng để kiểm tra resource thuộc đúng `businessLocationId` của user. Với `SUPERADMIN` đã chọn operational context, resource cũng phải thuộc context đó trên các route vận hành. Khi `SUPERADMIN` không có context, helper vẫn cho phép để các route system-wide riêng như `/superadmin` không bị khóa nhầm nếu chúng tự dùng helper này.
+- `SUPERADMIN`: ngoài bề mặt system-wide riêng `/superadmin`, scope luôn lấy từ selected operational context trong Redis session. Query `businessLocationId` không được phép ghi đè context; nếu khác context hiện tại hoặc chưa chọn context, `enforceScope` trả `403`.
+- Non-`SUPERADMIN`: backend ép scope theo `req.user.businessLocationId`; query khác location hiện tại bị từ chối.
+- `enforceResourceScope` dùng cho route vận hành và luôn yêu cầu resource thuộc đúng `businessLocationId` hiện tại, kể cả với `SUPERADMIN`. Các route system-wide dưới `/superadmin` tự áp dụng authorization riêng và không dùng helper operational này.
 
 ## Scope Theo UnitConfig
 
@@ -267,6 +269,6 @@ Socket không bắt toàn bộ connection phải có JWT vì hệ thống có re
 
 - `track:join`: public theo registration code.
 - Waiting screen/public display: public theo scope hiển thị.
-- Dashboard/docks realtime room: yêu cầu token hợp lệ trong payload `realtime:join`.
+- Dashboard/docks realtime room: yêu cầu token hợp lệ trong payload `realtime:join`; backend tự suy ra location và unit rooms từ auth session/permission thay vì tin scope do client gửi.
 
 REST API vẫn là lớp bảo vệ chính cho mọi thao tác thay đổi dữ liệu. Socket auth hiện dùng để giới hạn join room protected, không thay thế `authenticate` trên REST route.

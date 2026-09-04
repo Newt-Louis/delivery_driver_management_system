@@ -64,16 +64,16 @@ File:
 `SocketContext`:
 
 - Tạo socket singleton.
-- Resolve scope từ query `businessLocationId`, `locationId`, `unitConfigId`.
-- Nếu query không có scope, gọi `/api/brand` để lấy location mặc định.
+- Với dashboard/docks, lấy `businessLocationId` từ AuthContext (selected operational context của Superadmin hoặc location cố định của role khác); query không được ghi đè location này.
+- Với waiting screen public, resolve scope từ query `businessLocationId`, `locationId`, `unitConfigId`; nếu query không có scope mới gọi `/api/brand` để lấy location mặc định.
 - Join room theo route hiện tại.
-- Dashboard/docks gửi token hiện tại trong payload `realtime:join` và tự join lại sau reconnect.
+- Dashboard/docks gửi token hiện tại trong payload `realtime:join`, join lại sau reconnect và rejoin khi operational context thay đổi.
 
 ## Scope
 
-- Non-superadmin API vận hành được scope theo `businessLocationId` trong middleware.
-- Socket room cũng scope theo `BusinessLocation`/`UnitConfig`.
-- Nếu không suy ra được scope, backend còn fallback global để không làm hỏng flow cũ.
+- Mọi API vận hành được scope theo `businessLocationId` trong auth profile hiện tại, kể cả Superadmin.
+- Với socket dashboard/docks, backend xác thực token rồi suy ra BusinessLocation từ session. Role có unit permission chỉ join các `unit-config:{id}` được cấp, không join room toàn location.
+- Payload có BusinessLocation/UnitConfig khác auth scope bị từ chối. Event thiếu scope bị bỏ qua, không broadcast global.
 - Track room public chỉ theo `registrationCode`; dashboard/docks room yêu cầu token hợp lệ khi join.
 
 ## Lưu Ý

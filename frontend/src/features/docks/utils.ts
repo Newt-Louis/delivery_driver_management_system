@@ -1,6 +1,7 @@
 import type { Slot } from '../../lib/types';
-import { UNIT_COLORS } from './constants';
 import type { DockStats, SlotGroup } from './types';
+
+const DEFAULT_UNIT_COLOR = '#FF9500';
 
 export function buildDockStats(slots: Slot[]): DockStats {
   return {
@@ -29,7 +30,7 @@ export function groupSlotsByUnit(slots: Slot[]): SlotGroup[] {
       key,
       label: unitConfig?.displayName || unitConfig?.shortName || slot.assignedUnit,
       icon: unitConfig?.icon || '◆',
-      colorClass: UNIT_COLORS[groups.size % UNIT_COLORS.length],
+      color: unitConfig?.primaryColor?.trim() || DEFAULT_UNIT_COLOR,
       slots: [slot],
     });
   }

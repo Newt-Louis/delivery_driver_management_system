@@ -6,7 +6,7 @@ export type SlotGroup = {
   key: string;
   label: string;
   icon: string;
-  colorClass: string;
+  color: string;
   slots: Slot[];
 };
 

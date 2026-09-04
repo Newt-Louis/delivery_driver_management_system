@@ -26,7 +26,7 @@ export default function UnitTabView({
   onView,
 }: UnitTabViewProps) {
   if (!unitDispatch) {
-    return <div className="py-8 text-center text-gray-400">Không có dữ liệu</div>;
+    return <div className="py-8 text-center text-thiso-400">Không có dữ liệu</div>;
   }
   const meta = getUnitMeta(unit, unitDispatch.unitConfig);
 

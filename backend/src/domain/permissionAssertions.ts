@@ -50,3 +50,24 @@ export function assertCanOperateUnit(actor: AuthUser | undefined, unitConfigId: 
     throw domainError.forbidden('Bạn không có quyền thao tác trên đơn vị này.', { unitConfigId });
   }
 }
+
+/**
+ * Enforce the BusinessLocation currently attached to the authenticated request.
+ * For SUPERADMIN this is the selected operational context stored in the session;
+ * system-wide Superadmin routes must not use this operational assertion.
+ */
+export function assertCanAccessOperationalLocation(
+  actor: AuthUser | undefined,
+  targetBusinessLocationId: string | null | undefined,
+): void {
+  if (!actor) throw domainError.unauthorized();
+  if (!actor.businessLocationId) {
+    throw domainError.forbidden('Tài khoản chưa có khu vực vận hành hiện tại.');
+  }
+  if (!targetBusinessLocationId) {
+    throw domainError.forbidden('Không thể xác định khu vực của tài nguyên này.');
+  }
+  if (targetBusinessLocationId !== actor.businessLocationId) {
+    throw domainError.forbidden('Tài nguyên không thuộc khu vực vận hành hiện tại.');
+  }
+}

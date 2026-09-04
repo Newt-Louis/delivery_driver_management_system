@@ -92,7 +92,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     );
 
     cy += 12;
-    ctx.fillStyle = '#f0f4ff';
+    ctx.fillStyle = '#FFF6E6';
     ctx.fillRect(PAD, cy, W - PAD * 2, 50);
     ctx.fillStyle = '#1C1C1C';
     ctx.font = 'bold 26px monospace';
@@ -173,7 +173,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   h2{text-align:center;font-size:17px;margin:0 0 2px}
   .sub{text-align:center;font-size:11px;color:#818181;margin-bottom:12px}
   .code{text-align:center;font-size:30px;font-weight:900;letter-spacing:5px;font-family:monospace;
-        background:#f0f4ff;padding:10px;border-radius:8px;margin:10px 0}
+        background:#FFF6E6;padding:10px;border-radius:8px;margin:10px 0}
   .qr{text-align:center;margin:14px 0}.qr img{width:200px;height:200px}
   .row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #ebebeb}
   .lbl{color:#818181}.val{font-weight:700;text-align:right;max-width:60%}
@@ -205,7 +205,7 @@ ${locationRow}
   const unitIcon = info.unitIcon || unitBrand?.icon || unitFb?.icon || '';
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-screen bg-thiso-50 flex flex-col">
       <div className="bg-green-500 px-4 pt-10 pb-6 text-center">
         <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
           <span className="text-3xl">✅</span>
@@ -254,10 +254,10 @@ ${locationRow}
 
         <a
           href={trackPath}
-          className="h-13 flex items-center justify-center gap-2 w-full bg-thiso-800 text-white rounded-2xl font-bold text-base hover:bg-thiso-900 transition-colors py-3.5"
+          className="h-13 flex items-center justify-center gap-2 w-full rounded-2xl border border-thiso-200 bg-white text-thiso-800 font-bold text-base hover:bg-thiso-50 transition-colors py-3.5"
         >
           📱 Theo dõi hành trình
-          <span className="text-white/60 text-sm font-semibold">
+          <span className="text-thiso-500 text-sm font-semibold">
             {secondsToTrack > 0 ? `(${secondsToTrack}s)` : '...'}
           </span>
         </a>

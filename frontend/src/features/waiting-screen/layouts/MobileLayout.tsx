@@ -42,8 +42,8 @@ export default function MobileLayout(hook: Hook) {
             {locationLogo ? (
               <img src={locationLogo} alt="" className="h-8 object-contain rounded" />
             ) : (
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isBright ? 'bg-thiso-800' : 'bg-white/10'}`}>
-                <span className="text-white font-black text-xs">T</span>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${isBright ? 'bg-thisodominant-100' : 'bg-white/10'}`}>
+                <span className="text-thiso-900 font-black text-xs">T</span>
               </div>
             )}
             <div className="min-w-0 text-left">

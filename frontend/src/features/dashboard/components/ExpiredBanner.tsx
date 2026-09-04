@@ -20,20 +20,20 @@ export default function ExpiredBanner({ count, onDone }: { count: number; onDone
   }
 
   return (
-    <div className="bg-purple-50 border border-purple-200 text-purple-800 px-4 py-3 rounded-xl flex flex-wrap items-center gap-3">
+    <div className="bg-thiso-50 border border-thiso-200 text-thiso-800 px-4 py-3 rounded-xl flex flex-wrap items-center gap-3">
       <span className="text-xl shrink-0">🕓</span>
       <span className="font-semibold text-sm flex-1">
         <strong>{count}</strong> đăng ký quá ngày đã tự động lưu vào lịch sử (không check-in hoặc không nhận hàng).
         Tra cứu tại <span className="underline font-bold">Báo cáo → Lịch sử</span>, lọc trạng thái <em>Hết hạn</em>.
       </span>
       {message ? (
-        <span className="text-xs font-semibold text-purple-700">{message}</span>
+        <span className="text-xs font-semibold text-thiso-700">{message}</span>
       ) : (
         <button
           type="button"
           onClick={runExpire}
           disabled={loading}
-          className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition-colors disabled:opacity-50 shrink-0"
+          className="btn-primary text-xs px-3 py-1.5 shrink-0"
         >
           {loading ? 'Đang xử lý...' : 'Xử lý ngay'}
         </button>

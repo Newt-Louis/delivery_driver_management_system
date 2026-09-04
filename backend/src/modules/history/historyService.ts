@@ -14,7 +14,7 @@ type DeliveryForHistory = DeliveryRegistration & {
 
 async function resolveDeliveryScope(
   client: HistoryClient,
-  delivery: Pick<DeliveryRegistration, 'receivingUnit' | 'assignedSlotId'>,
+  delivery: Pick<DeliveryRegistration, 'unitConfigId' | 'assignedSlotId'>,
 ): Promise<HistoryScope & HistorySlotSnapshot> {
   if (delivery.assignedSlotId) {
     const slot = await client.slot.findUnique({
@@ -42,11 +42,12 @@ async function resolveDeliveryScope(
     }
   }
 
-  const unitConfig = await client.unitConfig.findFirst({
-    where: { unit: delivery.receivingUnit },
-    select: { id: true, businessLocationId: true },
-    orderBy: { createdAt: 'asc' },
-  });
+  const unitConfig = delivery.unitConfigId
+    ? await client.unitConfig.findUnique({
+        where: { id: delivery.unitConfigId },
+        select: { id: true, businessLocationId: true },
+      })
+    : null;
 
   return {
     businessLocationId: unitConfig?.businessLocationId ?? null,
@@ -69,7 +70,7 @@ export async function recordDeliveryEvent(
   client: HistoryClient = prisma,
 ) {
   const scope = await resolveDeliveryScope(client, {
-    receivingUnit: delivery.receivingUnit,
+    unitConfigId: delivery.unitConfigId,
     assignedSlotId: args.slot?.id ?? delivery.assignedSlotId,
   });
   const slotSnapshot = args.slot

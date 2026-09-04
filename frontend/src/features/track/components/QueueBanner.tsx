@@ -6,7 +6,7 @@ export default function QueueBanner({ queueBanner, onClose }: {
 }) {
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-[55] flex items-center gap-3 px-4 py-3.5 shadow-lg animate-in slide-in-from-top-3 duration-300 cursor-pointer ${queueBanner.isUrgent ? 'bg-amber-500' : 'bg-sky-600'}`}
+      className={`fixed top-0 left-0 right-0 z-[55] flex items-center gap-3 px-4 py-3.5 shadow-lg animate-in slide-in-from-top-3 duration-300 cursor-pointer ${queueBanner.isUrgent ? 'bg-amber-500' : 'bg-thisodominant-600'}`}
       onClick={onClose}
     >
       <span className={`text-2xl flex-shrink-0 ${queueBanner.isUrgent ? 'animate-bounce' : ''}`}>

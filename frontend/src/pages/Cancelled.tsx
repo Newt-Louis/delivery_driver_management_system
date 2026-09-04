@@ -82,7 +82,7 @@ export default function Cancelled() {
 
       <div className="flex-1 px-4 py-5 max-w-md mx-auto w-full">
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-thiso-100 shadow-sm p-5 space-y-4">
-          <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-3 text-sm text-amber-800">
+          <div className="rounded-xl bg-amber-100 border border-amber-100 px-3 py-3 text-sm">
             Chỉ có thể hủy trước khi check-in tại cổng. Nhập đúng 5 thông tin đã dùng khi đăng ký để hủy lượt giao hàng.
           </div>
 

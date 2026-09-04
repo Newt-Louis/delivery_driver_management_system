@@ -31,7 +31,7 @@ export default function FilterBar({
           value={search}
           onChange={(event) => onSearch(event.target.value)}
           placeholder="Tìm biển số, số thẻ, nhà CC..."
-          className="w-full pl-9 pr-3 py-2 text-sm border border-thiso-200 rounded-xl bg-white focus:outline-none focus:border-sky-400 transition-colors placeholder:text-thiso-300"
+          className="w-full pl-9 pr-3 py-2 text-sm border border-thiso-200 rounded-xl bg-white focus:outline-none focus:border-thiso-500 transition-colors placeholder:text-thiso-300"
         />
         {search && (
           <button
@@ -51,7 +51,7 @@ export default function FilterBar({
             type="button"
             onClick={() => onStatus(option.k)}
             className={`px-3 py-1 rounded-full text-xs font-bold transition-colors whitespace-nowrap
-              ${statusFilter === option.k ? `${option.color} ring-2 ring-offset-1 ring-sky-300` : 'bg-thiso-50 text-thiso-500 hover:bg-thiso-100'}`}
+              ${statusFilter === option.k ? `${option.color} ring-2 ring-offset-1 ring-thiso-300` : 'bg-thiso-50 text-thiso-500 hover:bg-thiso-100'}`}
           >
             {option.label}
           </button>
@@ -79,7 +79,7 @@ export default function FilterBar({
       <button
         type="button"
         onClick={onExport}
-        className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-colors shadow-sm"
+        className="btn-success ml-auto gap-1.5 px-3 py-1.5 text-xs"
       >
         ⬇ Xuất Excel
       </button>

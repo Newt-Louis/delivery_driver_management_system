@@ -33,9 +33,9 @@ export default function UpcomingSection({
         onClick={() => setOpen((current) => !current)}
       >
         <span>{open ? '▼' : '▶'}</span>
-        <span>📋 Đã đặt — chưa check-in</span>
+          <span>Đã đặt — chưa check-in</span>
         <span
-          className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta ? '' : 'bg-gray-200 text-gray-600'}`}
+          className={`text-xs px-2 py-0.5 rounded-full font-bold ${meta ? '' : 'bg-thiso-200 text-thiso-700'}`}
           style={meta ? meta.badgeStyle : undefined}
         >
           {deliveries.length}
@@ -69,8 +69,8 @@ export default function UpcomingSection({
                 return (
                   <tr key={delivery.id} className={`border-b border-thiso-50 last:border-0 ${isPast ? 'bg-amber-50' : 'hover:bg-thiso-50'}`}>
                     <td className="px-4 py-2.5">
-                      <span className={`font-mono font-bold ${isPast ? 'text-emart-600' : 'text-thiso-700'}`}>{dateLabel}</span>
-                      {isPast && <div className="text-xs text-emart-400">Quá ngày</div>}
+                      <span className={`font-mono font-bold ${isPast ? 'text-amber-700' : 'text-thiso-700'}`}>{dateLabel}</span>
+                      {isPast && <div className="text-xs text-amber-600">Quá ngày</div>}
                     </td>
                     <td className="px-4 py-2.5 font-mono font-black text-thiso-800">{delivery.vehiclePlate}</td>
                     {!unit && (

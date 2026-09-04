@@ -56,7 +56,7 @@ export default function Register() {
       <div className="sticky top-0 z-20 bg-white border-b border-thiso-100 shadow-sm">
         <div className="max-w-xl mx-auto">
           <div className="flex border-b border-thiso-100">
-            <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black text-sky-600 border-b-2 border-sky-500">
+            <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black text-thisodominant-700 border-b-2 border-thisodominant-500">
               <span>📝</span> Đăng ký mới
             </div>
             <a
@@ -76,7 +76,7 @@ export default function Register() {
             </div>
             <div className="h-1 bg-thiso-100 rounded-full overflow-hidden">
               <div
-                className="h-full bg-sky-500 rounded-full transition-all duration-500"
+                className="h-full bg-thisodominant-500 rounded-full transition-all duration-500"
                 style={{ width: `${(step / 4) * 100}%` }}
               />
             </div>
@@ -172,7 +172,7 @@ export default function Register() {
               type="button"
               onClick={next}
               disabled={step === 2 && sundayFreshFoodBlocked}
-              className="h-12 flex-1 rounded-xl bg-thiso-800 text-white font-bold text-base hover:bg-thiso-900 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-thiso-800"
+              className="h-12 flex-1 rounded-xl border border-thiso-200 bg-white text-thiso-800 font-bold text-base hover:bg-thiso-50 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
             >
               Tiếp theo →
             </button>

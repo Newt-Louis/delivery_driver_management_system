@@ -8,6 +8,8 @@ export default function TrackHeader({ delivery, unitMeta, isUrgentQueue }: {
   unitMeta: UnitMeta;
   isUrgentQueue: boolean;
 }) {
+  const unitColor = delivery.unitConfig?.primaryColor || delivery.assignedSlot?.zone?.unitConfig?.primaryColor || '#FF9500';
+
   return (
     <div className={`bg-white border-b border-thiso-100 px-4 py-4 sticky top-0 z-10 flex items-center justify-between ${isUrgentQueue ? 'ring-2 ring-amber-400' : ''}`}>
       <div>
@@ -18,7 +20,7 @@ export default function TrackHeader({ delivery, unitMeta, isUrgentQueue }: {
       </div>
       <span
         className="inline-flex items-center gap-1.5 text-xs font-semibold bg-thiso-100 text-thiso-600 px-2.5 py-1 rounded-full"
-        style={{ color: unitMeta.primaryColor }}
+        style={{ color: unitColor, backgroundColor: `${unitColor}14` }}
       >
         {unitMeta.logoUrl ? (
           <img src={unitMeta.logoUrl} alt="" className="w-4 h-4 object-contain rounded" />

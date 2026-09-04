@@ -126,7 +126,7 @@ export default function QueueTable({
                         <div className="text-xs text-thiso-500 mt-1 leading-none">{delivery.driverName}</div>
                         <div className="text-xs text-thiso-400 mt-0.5 font-mono">{delivery.driverPhone}</div>
                         {delivery.callCount && delivery.callCount > 0 && (
-                          <span className="text-[10px] text-emart-600 font-bold mt-0.5 block">📞 Gọi {delivery.callCount}x</span>
+                          <span className="text-[10px] text-amber-700 font-bold mt-0.5 block">Gọi {delivery.callCount}x</span>
                         )}
                       </td>
 
@@ -151,7 +151,7 @@ export default function QueueTable({
                       </td>
 
                       <td className="px-3 py-3">
-                        <span className="font-mono text-xs text-sky-700 font-bold bg-sky-50 px-2 py-1 rounded-lg whitespace-nowrap select-all">
+                        <span className="font-mono text-xs text-thiso-700 font-bold bg-thiso-50 px-2 py-1 rounded-lg whitespace-nowrap select-all">
                           {delivery.registrationCode}
                         </span>
                       </td>
@@ -164,7 +164,7 @@ export default function QueueTable({
                       <td className="px-3 py-3 text-xs whitespace-nowrap">
                         {delivery.status === 'WAITING' && delivery.checkinTime && (
                           <div>
-                            <span className={`font-black text-sm ${isCritical ? 'text-red-600' : isWarning ? 'text-orange-500' : 'text-thiso-600'}`}>
+                            <span className={`font-black text-sm ${isCritical ? 'text-red-600' : isWarning ? 'text-amber-700' : 'text-thiso-600'}`}>
                               {formatWait(delivery.checkinTime)}
                             </span>
                             <div className="text-thiso-400 text-[10px] mt-0.5">từ check-in</div>
@@ -172,7 +172,7 @@ export default function QueueTable({
                         )}
                         {delivery.status === 'CALLED' && (
                           <div>
-                            <span className={`font-black text-sm ${calledMin >= 15 ? 'text-red-600' : 'text-sky-600'}`}>
+                            <span className={`font-black text-sm ${calledMin >= 15 ? 'text-red-600' : 'text-thiso-700'}`}>
                               {formatWait(delivery.calledTime)}
                             </span>
                             {calledMin >= 15 && (
@@ -217,7 +217,7 @@ export default function QueueTable({
                             <>
                               <button
                                 type="button"
-                                className="btn-warning text-xs px-3 py-1.5"
+                                className="btn-primary text-xs px-3 py-1.5"
                                 disabled={!!actionLoading}
                                 onClick={() => onAction(delivery.id, 'start-receiving')}
                               >

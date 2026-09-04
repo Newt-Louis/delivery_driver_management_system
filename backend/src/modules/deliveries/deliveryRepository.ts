@@ -194,11 +194,12 @@ export async function getRegistrationDailyCapacity(args: {
 }
 
 export async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnitCode[]> {
-  if (!scope?.businessLocationId && !scope?.unitConfigId) return [];
+  if (!scope?.businessLocationId && !scope?.unitConfigId && !scope?.unitConfigIds?.length) return [];
 
   const unitConfigs = await prisma.unitConfig.findMany({
     where: {
       ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+      ...(scope.unitConfigIds?.length ? { id: { in: scope.unitConfigIds } } : {}),
       ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
     },
     select: { unit: true },
@@ -232,13 +233,14 @@ async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryR
     ],
   };
 
-  if (!scope?.businessLocationId && !scope?.unitConfigId) {
+  if (!scope?.businessLocationId && !scope?.unitConfigId && !scope?.unitConfigIds?.length) {
     return { status: activeStatus };
   }
 
   const unitConfigs = await prisma.unitConfig.findMany({
     where: {
       ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
+      ...(scope.unitConfigIds?.length ? { id: { in: scope.unitConfigIds } } : {}),
       ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
     },
     select: { id: true },
@@ -289,7 +291,10 @@ export function getAllSlots(scope?: SocketScope) {
     where: {
       isActive: true,
       zone: {
-        ...(scope?.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
+        ...(scope?.unitConfigIds
+          ? { unitConfigId: scope.unitConfigIds.length > 0 ? { in: scope.unitConfigIds } : '__NO_UNIT_SCOPE__' }
+          : {}),
+        ...(scope?.unitConfigId && !scope.unitConfigIds ? { unitConfigId: scope.unitConfigId } : {}),
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },

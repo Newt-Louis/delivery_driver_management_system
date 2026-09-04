@@ -1,6 +1,4 @@
-import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
-
-import { getUnitConfigForDefaultLocation } from '../lib/businessLocation';
+import type { ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { prisma } from '../lib/prisma';
 import type { SocketScope } from '../socket';
 
@@ -48,9 +46,7 @@ export async function getScopeForDelivery(delivery: DeliveryScopeInput): Promise
     }
   }
 
-  const unitConfig = await getUnitConfigForDefaultLocation(delivery.receivingUnit);
-  return {
-    unitConfigId: unitConfig?.id,
-    businessLocationId: unitConfig?.businessLocationId,
-  };
+  // Legacy rows without a UnitConfig and without an assigned slot are ambiguous
+  // in a multi-location system. Do not silently map them to the oldest location.
+  return {};
 }

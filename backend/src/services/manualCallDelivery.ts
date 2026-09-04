@@ -47,6 +47,14 @@ async function getDeliveryHomeLocationId(
   tx: Prisma.TransactionClient,
   delivery: DeliveryRegistration,
 ): Promise<string | null> {
+  if (delivery.unitConfigId) {
+    const unitConfig = await tx.unitConfig.findUnique({
+      where: { id: delivery.unitConfigId },
+      select: { businessLocationId: true },
+    });
+    if (unitConfig) return unitConfig.businessLocationId;
+  }
+
   if (delivery.assignedSlotId) {
     const slot = await tx.slot.findUnique({
       where: { id: delivery.assignedSlotId },
@@ -55,12 +63,7 @@ async function getDeliveryHomeLocationId(
     if (slot?.zone.unitConfig.businessLocationId) return slot.zone.unitConfig.businessLocationId;
   }
 
-  const unitConfig = await tx.unitConfig.findFirst({
-    where: { unit: delivery.receivingUnit },
-    orderBy: { createdAt: 'asc' },
-    select: { businessLocationId: true },
-  });
-  return unitConfig?.businessLocationId ?? null;
+  return null;
 }
 
 function crossUnitEventMetadata(delivery: DeliveryRegistration, slot: Slot): Prisma.InputJsonValue | undefined {
@@ -146,6 +149,15 @@ export async function manualCallDelivery(args: {
     }
 
     const crossUnit = slot.assignedUnit !== delivery.receivingUnit;
+    const deliveryLocationId = await getDeliveryHomeLocationId(tx, delivery);
+    if (!deliveryLocationId || slot.zone.unitConfig.businessLocationId !== deliveryLocationId) {
+      return {
+        outcome: 'slot_mismatch',
+        delivery,
+        slot,
+        message: `Slot ${slot.code} không thuộc cùng khu vực vận hành.`,
+      };
+    }
     const activeInTarget = await tx.deliveryRegistration.count({
       where: {
         assignedSlotId: slot.id,
@@ -155,15 +167,6 @@ export async function manualCallDelivery(args: {
     });
 
     if (crossUnit) {
-      const deliveryLocationId = await getDeliveryHomeLocationId(tx, delivery);
-      if (deliveryLocationId && slot.zone.unitConfig.businessLocationId !== deliveryLocationId) {
-        return {
-          outcome: 'slot_mismatch',
-          delivery,
-          slot,
-          message: `Slot ${slot.code} không thuộc cùng khu vực vận hành.`,
-        };
-      }
       if (activeInTarget > 0) {
         return {
           outcome: 'slot_full',

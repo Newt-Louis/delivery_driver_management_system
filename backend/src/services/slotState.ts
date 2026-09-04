@@ -101,12 +101,25 @@ export async function reconcileOneSlot(
 }
 
 export async function reconcileAllSlots(
-  options: { activeOnly?: boolean; preserveManualStatus?: boolean } = {},
+  options: {
+    activeOnly?: boolean;
+    preserveManualStatus?: boolean;
+    businessLocationId?: string;
+    unitConfigIds?: string[];
+  } = {},
 ): Promise<SlotStateSnapshot[]> {
   const activeOnly = options.activeOnly ?? true;
   return prisma.$transaction(async (tx) => {
     const slots = await tx.slot.findMany({
-      where: activeOnly ? { isActive: true } : undefined,
+      where: {
+        ...(activeOnly ? { isActive: true } : {}),
+        zone: {
+          ...(options.unitConfigIds
+            ? { unitConfigId: options.unitConfigIds.length > 0 ? { in: options.unitConfigIds } : '__NO_UNIT_SCOPE__' }
+            : {}),
+          ...(options.businessLocationId ? { unitConfig: { businessLocationId: options.businessLocationId } } : {}),
+        },
+      },
       orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
       select: { id: true },
     });

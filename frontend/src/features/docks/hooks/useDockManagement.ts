@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../context/AuthContext';
-import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
+import { useSocket } from '../../../context/SocketContext';
 import type { Slot } from '../../../lib/types';
 import { fetchSlots, updateSlotStatus } from '../api';
 import type { SlotStatusValue } from '../types';
@@ -10,13 +10,13 @@ import { buildDockStats, groupSlotsByUnit } from '../utils';
 export function useDockManagement() {
   const queryClient = useQueryClient();
   const socket = useSocket();
-  const realtimeScope = useRealtimeScope();
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const canEdit = hasRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING');
 
   const { data: slots = [] } = useQuery<Slot[]>({
-    queryKey: ['slots', realtimeScope],
-    queryFn: () => fetchSlots(realtimeScope),
+    queryKey: ['slots', user?.businessLocationId],
+    queryFn: fetchSlots,
+    enabled: !!user?.businessLocationId,
   });
 
   const refreshSlots = useCallback(() => {

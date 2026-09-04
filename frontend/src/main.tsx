@@ -18,15 +18,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <QueryClientProvider client={queryClient}>
-        <BrandingProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <BrandingProvider>
             <SocketProvider>
               <ToastProvider>
                 <App />
               </ToastProvider>
             </SocketProvider>
-          </AuthProvider>
-        </BrandingProvider>
+          </BrandingProvider>
+        </AuthProvider>
       </QueryClientProvider>
     </BrowserRouter>
   </React.StrictMode>

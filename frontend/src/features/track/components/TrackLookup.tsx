@@ -33,15 +33,15 @@ export default function TrackLookup() {
   }
 
   return (
-    <div className="min-h-screen bg-thiso-900 flex flex-col items-center justify-center p-5">
+    <div className="min-h-screen bg-thiso-50 flex flex-col items-center justify-center p-5">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <div className="text-4xl mb-3">🚛</div>
-          <h1 className="text-white font-black text-xl mb-1">Theo dõi giao hàng</h1>
+          <h1 className="font-black text-xl mb-1">Theo dõi giao hàng</h1>
           <p className="text-thiso-400 text-sm">Nhập mã đăng ký hoặc biển số xe</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-5 shadow-xl space-y-3">
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-thiso-200 p-5 shadow-card-md space-y-3">
           <input
             ref={inputRef}
             type="text"
@@ -66,11 +66,11 @@ export default function TrackLookup() {
           >
             {checking ? 'Đang tìm...' : 'Xem trạng thái →'}
           </button>
-          <p className="text-center text-[11px] text-thiso-400">
+          <p className="text-center text-[15px] text-thiso-400">
             Chưa đăng ký?{' '}
             <a href="/register" className="text-thiso-600 underline font-semibold">Đăng ký ngay</a>
           </p>
-          <p className="text-center text-[11px] text-thiso-400">
+          <p className="text-center text-[15px] text-thiso-400">
             Nhập sai thông tin? Muốn{' '}
             <Link to="/cancelled" className="text-red-600 underline font-semibold">hủy chuyến</Link>
           </p>

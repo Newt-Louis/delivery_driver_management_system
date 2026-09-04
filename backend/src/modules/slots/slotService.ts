@@ -1,7 +1,7 @@
 import { prisma } from '../../lib/prisma';
 import type { AuthUser } from '../../middleware/auth';
 import { roleHasUnitOperationScope } from '../../domain/permissions';
-import { assertCanOperateUnit } from '../../domain/permissionAssertions';
+import { assertCanAccessOperationalLocation, assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { getScopeForDelivery, getScopeForSlot } from '../../services/realtimeScope';
@@ -10,19 +10,8 @@ import { domainError } from '../shared/domainError';
 import type { CreateSlotPayload, UpdateSlotPayload } from './slotFormRequest';
 import * as slotRepository from './slotRepository';
 
-function assertResourceAccess(user: AuthUser | undefined, businessLocationId: string | null | undefined) {
-  if (!user) throw domainError.unauthorized();
-  if (user.role === 'SUPERADMIN') return;
-  if (!businessLocationId) {
-    throw domainError.forbidden('Không thể xác định khu vực của tài nguyên này.');
-  }
-  if (businessLocationId !== user.businessLocationId) {
-    throw domainError.forbidden('Tài nguyên không thuộc khu vực của bạn.');
-  }
-}
-
 function assertSlotOperationAccess(user: AuthUser | undefined, slot: { zone: { unitConfig: { businessLocationId: string }; unitConfigId: string } }) {
-  assertResourceAccess(user, slot.zone.unitConfig.businessLocationId);
+  assertCanAccessOperationalLocation(user, slot.zone.unitConfig.businessLocationId);
   assertCanOperateUnit(user, slot.zone.unitConfigId);
 }
 
@@ -87,9 +76,30 @@ export async function reconcileSlot(id: string, force: boolean, user: AuthUser |
   return snapshot;
 }
 
-export async function reconcileSlots(activeOnly: boolean, force: boolean) {
-  const snapshots = await reconcileAllSlots({ activeOnly, preserveManualStatus: !force });
-  await emitSlotList();
+export async function reconcileSlots(
+  activeOnly: boolean,
+  force: boolean,
+  scope: SocketScope | undefined,
+  user: AuthUser | undefined,
+) {
+  assertCanAccessOperationalLocation(user, scope?.businessLocationId);
+
+  const allowedUnitIds = roleHasUnitOperationScope(user?.role)
+    ? user!.operationUnits
+        .filter((unit) => unit.isActive && unit.businessLocationId === scope!.businessLocationId)
+        .map((unit) => unit.id)
+    : undefined;
+  const unitConfigIds = scope?.unitConfigId
+    ? [scope.unitConfigId]
+    : allowedUnitIds;
+
+  const snapshots = await reconcileAllSlots({
+    activeOnly,
+    preserveManualStatus: !force,
+    businessLocationId: scope?.businessLocationId,
+    unitConfigIds,
+  });
+  await emitSlotList({ ...scope, unitConfigIds });
   return { reconciled: snapshots.length, slots: snapshots };
 }
 
@@ -100,10 +110,10 @@ export async function assignDeliveryToSlot(id: string, deliveryId: string, user:
   assertSlotOperationAccess(user, slotCheck);
 
   const deliveryCheck = await slotRepository.findDeliveryForScope(deliveryId);
-  if (deliveryCheck) {
-    const deliveryScope = await getScopeForDelivery(deliveryCheck);
-    assertResourceAccess(user, deliveryScope.businessLocationId);
-  }
+  if (!deliveryCheck) throw domainError.notFound('Delivery not found');
+  const deliveryScope = await getScopeForDelivery(deliveryCheck);
+  assertCanAccessOperationalLocation(user, deliveryScope.businessLocationId);
+  assertCanOperateUnit(user, deliveryScope.unitConfigId);
 
   const snapshot = await prisma.$transaction(async (tx) => {
     const slot = await tx.slot.findUnique({ where: { id } });
@@ -135,7 +145,7 @@ export async function createSlot(body: CreateSlotPayload, user: AuthUser | undef
   const zone = await slotRepository.findZoneWithLocation(body.zoneId);
   if (!zone) throw domainError.badRequest('Khu nhận hàng không tồn tại.');
 
-  assertResourceAccess(user, zone.unitConfig.businessLocationId);
+  assertCanAccessOperationalLocation(user, zone.unitConfig.businessLocationId);
   assertCanOperateUnit(user, zone.unitConfigId);
 
   const exists = await slotRepository.findSlotByCode(body.code);
@@ -171,6 +181,12 @@ export async function updateSlot(id: string, body: UpdateSlotPayload, user: Auth
 
   const nextZoneId = body.zoneId ?? current.zoneId;
   const nextAssignedUnit = body.assignedUnit ?? current.assignedUnit;
+  if (nextZoneId !== current.zoneId) {
+    const nextZone = await slotRepository.findZoneWithLocation(nextZoneId);
+    if (!nextZone) throw domainError.badRequest('Khu nhận hàng không tồn tại.');
+    assertCanAccessOperationalLocation(user, nextZone.unitConfig.businessLocationId);
+    assertCanOperateUnit(user, nextZone.unitConfigId);
+  }
   const zoneError = await slotRepository.validateZoneForUnit(nextZoneId, nextAssignedUnit);
   if (zoneError) {
     throw domainError.badRequest(zoneError);
@@ -211,6 +227,10 @@ export async function deleteSlot(id: string, user: AuthUser | undefined) {
   if (!slot) throw domainError.notFound('Not found');
 
   assertSlotOperationAccess(user, slot);
+  const scope: SocketScope = {
+    businessLocationId: slot.zone.unitConfig.businessLocationId,
+    unitConfigId: slot.zone.unitConfigId,
+  };
 
   const historyEvents = await slotRepository.countSlotHistoryEvents(slot.id);
   let resultBody: unknown;
@@ -239,7 +259,6 @@ export async function deleteSlot(id: string, user: AuthUser | undefined) {
     resultBody = { deleted: true };
   }
 
-  const scope = await getScopeForSlot(id);
   await emitSlotList(scope);
   return resultBody;
 }

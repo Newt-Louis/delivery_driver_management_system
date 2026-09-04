@@ -35,8 +35,8 @@ export default function DashboardTabs({ tabs, activeTab, dispatch, totalWaiting,
             onClick={() => onChange(tab.key)}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold rounded-t-xl transition-all -mb-px border border-b-0 whitespace-nowrap
               ${isActive
-                ? (meta ? 'border-gray-200 bg-white' : 'border-gray-200 bg-white text-gray-700')
-                : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                ? (meta ? 'border-thiso-200 bg-white' : 'border-thiso-200 bg-white text-thiso-700')
+                : 'border-transparent text-thiso-400 hover:text-thiso-700 hover:bg-thiso-50'}`}
             style={isActive && meta ? meta.tabActiveStyle : undefined}
           >
             {meta ? (
@@ -49,7 +49,7 @@ export default function DashboardTabs({ tabs, activeTab, dispatch, totalWaiting,
             {tab.label}
             {waiting > 0 && (
               <span
-                className={`text-xs px-1.5 py-0.5 rounded-full font-black ${meta ? '' : 'bg-gray-200 text-gray-700'}`}
+                className={`text-xs px-1.5 py-0.5 rounded-full font-black ${meta ? '' : 'bg-thiso-200 text-thiso-700'}`}
                 style={meta ? meta.badgeStyle : undefined}
               >
                 {waiting}

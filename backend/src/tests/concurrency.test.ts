@@ -15,6 +15,7 @@ import { getVNDateKey } from '../lib/dateVN';
 import { getIO, initSocket } from '../socket';
 import deliveryRoutes from '../routes/deliveries';
 import { autoCancelCalledNoShowDeliveries, closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
+import { reconcileSlots } from '../modules/slots/slotService';
 
 const server = createServer();
 initSocket(server);
@@ -702,6 +703,37 @@ test('close daily archives REGISTERED deliveries for the business date', async (
   });
 });
 
+test('manual close daily processes only the selected BusinessLocation', async () => {
+  await withScope('CLOSESCOPEA', ReceivingUnit.EMART, async (scopeA) => {
+    await withScope('CLOSESCOPEB', ReceivingUnit.EMART, async (scopeB) => {
+      const businessDate = localDateTimeAfterDays(61, 0, 0).slice(0, 10);
+      const requestedTime = new Date(`${businessDate}T00:00:00+07:00`);
+      const [deliveryA, deliveryB] = await Promise.all([
+        createDelivery(scopeA, 1, { status: DeliveryStatus.REGISTERED, requestedTime }),
+        createDelivery(scopeB, 1, { status: DeliveryStatus.REGISTERED, requestedTime }),
+      ]);
+
+      const result = await closeDailyDeliveries({
+        businessDate,
+        businessLocationId: scopeA.businessLocationId,
+        trigger: 'MANUAL',
+      });
+
+      assert.equal(result.succeeded, 1);
+      const [removedA, untouchedB, historyA, historyB] = await Promise.all([
+        prisma.deliveryRegistration.findUnique({ where: { id: deliveryA.id } }),
+        prisma.deliveryRegistration.findUnique({ where: { id: deliveryB.id } }),
+        prisma.deliveryHistory.findUnique({ where: { originalDeliveryId: deliveryA.id } }),
+        prisma.deliveryHistory.findUnique({ where: { originalDeliveryId: deliveryB.id } }),
+      ]);
+      assert.equal(removedA, null);
+      assert.equal(historyA?.finalStatus, 'EXPIRED');
+      assert.equal(untouchedB?.status, DeliveryStatus.REGISTERED);
+      assert.equal(historyB, null);
+    });
+  });
+});
+
 test('auto-cancel no-show cancels overdue CALLED delivery and leaves row for archive job', async () => {
   await withScope('AUTOCANCELON', ReceivingUnit.EMART, async (scope) => {
     await prisma.unitConfig.update({
@@ -951,5 +983,106 @@ test('auto-assign follows slot goodsPriority before FIFO within the same goods t
     assert.equal(finalGeneral.status, DeliveryStatus.CALLED);
     assert.equal(finalGeneral.assignedSlotId, slot.id);
     assert.equal(finalFresh.status, DeliveryStatus.WAITING);
+  });
+});
+
+test('auto-assign never takes a same-unit waiting delivery from another BusinessLocation', async () => {
+  await withScope('AUTOSCOPEA', ReceivingUnit.EMART, async (scopeA) => {
+    await withScope('AUTOSCOPEB', ReceivingUnit.EMART, async (scopeB) => {
+      const slotA = await createSlot(scopeA, { suffix: 'S1' });
+      const deliveryB = await createDelivery(scopeB, 1, {
+        status: DeliveryStatus.WAITING,
+        checkinTime: new Date(Date.now() - 60_000),
+      });
+      const deliveryA = await createDelivery(scopeA, 1, {
+        status: DeliveryStatus.WAITING,
+        checkinTime: new Date(),
+      });
+
+      const called = await triggerAutoAssign(ReceivingUnit.EMART, {
+        businessLocationId: scopeA.businessLocationId,
+        unitConfigId: scopeA.unitConfigId,
+      });
+
+      assert.equal(called, 1);
+      const [finalA, finalB] = await Promise.all([
+        prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: deliveryA.id } }),
+        prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: deliveryB.id } }),
+      ]);
+      assert.equal(finalA.status, DeliveryStatus.CALLED);
+      assert.equal(finalA.assignedSlotId, slotA.id);
+      assert.equal(finalB.status, DeliveryStatus.WAITING);
+      assert.equal(finalB.assignedSlotId, null);
+    });
+  });
+});
+
+test('manual call rejects a same-unit slot from another BusinessLocation', async () => {
+  await withScope('MANUALSCOPEA', ReceivingUnit.EMART, async (scopeA) => {
+    await withScope('MANUALSCOPEB', ReceivingUnit.EMART, async (scopeB) => {
+      const [slotB, userA] = await Promise.all([
+        createSlot(scopeB, { suffix: 'S1' }),
+        createAdminUser(scopeA),
+      ]);
+      const deliveryA = await createDelivery(scopeA, 1, {
+        status: DeliveryStatus.WAITING,
+        checkinTime: new Date(),
+      });
+
+      const result = await manualCallDelivery({
+        deliveryId: deliveryA.id,
+        slotId: slotB.id,
+        calledByUserId: userA.id,
+      });
+
+      assert.equal(result.outcome, 'slot_mismatch');
+      const unchanged = await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: deliveryA.id } });
+      assert.equal(unchanged.status, DeliveryStatus.WAITING);
+      assert.equal(unchanged.assignedSlotId, null);
+    });
+  });
+});
+
+test('bulk slot reconcile changes only slots in the authenticated BusinessLocation', async () => {
+  await withScope('RECONCILESCOPEA', ReceivingUnit.EMART, async (scopeA) => {
+    await withScope('RECONCILESCOPEB', ReceivingUnit.EMART, async (scopeB) => {
+      const [slotA, slotB, userA] = await Promise.all([
+        createSlot(scopeA, { suffix: 'S1' }),
+        createSlot(scopeB, { suffix: 'S1' }),
+        createAdminUser(scopeA),
+      ]);
+      await prisma.slot.updateMany({
+        where: { id: { in: [slotA.id, slotB.id] } },
+        data: { status: SlotStatus.OCCUPIED },
+      });
+
+      await reconcileSlots(true, false, { businessLocationId: scopeA.businessLocationId }, {
+        id: userA.id,
+        email: userA.email,
+        role: userA.role,
+        name: userA.name,
+        unit: userA.unit,
+        businessLocationId: userA.businessLocationId,
+        operationUnits: [{
+          id: scopeA.unitConfigId,
+          code: ReceivingUnit.EMART,
+          displayName: 'Test unit',
+          shortName: 'Test',
+          icon: null,
+          businessLocationId: scopeA.businessLocationId,
+          isActive: true,
+        }],
+        manageableUnits: [],
+        unitPermissions: [],
+        capabilities: [],
+      });
+
+      const [finalA, finalB] = await Promise.all([
+        prisma.slot.findUniqueOrThrow({ where: { id: slotA.id } }),
+        prisma.slot.findUniqueOrThrow({ where: { id: slotB.id } }),
+      ]);
+      assert.equal(finalA.status, SlotStatus.AVAILABLE);
+      assert.equal(finalB.status, SlotStatus.OCCUPIED);
+    });
   });
 });

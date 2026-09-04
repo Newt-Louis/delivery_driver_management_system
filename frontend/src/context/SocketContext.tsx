@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import api from '../lib/api';
 import { getAuthToken } from '../lib/authCookies';
+import { useAuth } from './AuthContext';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? '';
 
@@ -17,11 +18,21 @@ function screenFlags(pathname: string) {
   };
 }
 
-async function resolveRealtimeScope(search: string): Promise<RealtimeScope> {
+async function resolveRealtimeScope(
+  pathname: string,
+  search: string,
+  authenticatedBusinessLocationId?: string,
+): Promise<RealtimeScope> {
   const params = new URLSearchParams(search);
   const businessLocationId = params.get('businessLocationId') ?? params.get('locationId') ?? undefined;
   const unitConfigId = params.get('unitConfigId') ?? undefined;
+  const flags = screenFlags(pathname);
+
+  if (flags.dashboard) {
+    return { businessLocationId: authenticatedBusinessLocationId, unitConfigId };
+  }
   if (businessLocationId || unitConfigId) return { businessLocationId, unitConfigId };
+  if (!flags.waitingScreen) return {};
 
   const res = await api.get('/api/brand');
   const mall = res.data?.mall;
@@ -31,6 +42,7 @@ async function resolveRealtimeScope(search: string): Promise<RealtimeScope> {
 export function SocketProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const location = useLocation();
+  const { user, logout, isLoading: isAuthLoading } = useAuth();
   const [scope, setScope] = useState<RealtimeScope>({});
 
   if (!socketRef.current) {
@@ -51,28 +63,39 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const socket = socketRef.current!;
+    const handleScopeChanged = () => { void logout(); };
+    socket.on('auth_scope_changed', handleScopeChanged);
+    return () => {
+      socket.off('auth_scope_changed', handleScopeChanged);
+    };
+  }, [logout]);
+
+  useEffect(() => {
+    const socket = socketRef.current!;
     let cancelled = false;
-    let joinedPayload: (RealtimeScope & ReturnType<typeof screenFlags>) | null = null;
+    let joinedPayload: (RealtimeScope & ReturnType<typeof screenFlags> & { token?: string }) | null = null;
 
     async function joinScope() {
       try {
-        const nextScope = await resolveRealtimeScope(location.search);
+        const flags = screenFlags(location.pathname);
+        if (flags.dashboard && isAuthLoading) return;
+
+        const nextScope = await resolveRealtimeScope(
+          location.pathname,
+          location.search,
+          user?.businessLocationId ?? undefined,
+        );
         if (cancelled) return;
         setScope(nextScope);
         if (!nextScope.businessLocationId && !nextScope.unitConfigId) return;
 
-        const flags = screenFlags(location.pathname);
         joinedPayload = {
           ...nextScope,
           ...flags,
           ...(flags.dashboard ? { token: getAuthToken() ?? undefined } : {}),
         };
-        const emitJoin = () => {
-          socket.auth = { token: getAuthToken() ?? undefined };
-          socket.emit('realtime:join', joinedPayload);
-        };
-        if (socket.connected) emitJoin();
-        else socket.once('connect', emitJoin);
+        if (socket.connected) onConnect();
+        else socket.connect();
       } catch {
         if (!cancelled) setScope({});
       }
@@ -80,21 +103,21 @@ export function SocketProvider({ children }: { children: ReactNode }) {
 
     joinScope();
 
-    // Re-join rooms after reconnect
-    function onReconnect() {
+    // Socket.IO emits connect both initially and after a reconnect.
+    function onConnect() {
       if (!cancelled && joinedPayload) {
         socket.auth = { token: getAuthToken() ?? undefined };
         socket.emit('realtime:join', joinedPayload);
       }
     }
-    socket.on('reconnect', onReconnect);
+    socket.on('connect', onConnect);
 
     return () => {
       cancelled = true;
-      socket.off('reconnect', onReconnect);
+      socket.off('connect', onConnect);
       if (joinedPayload) socket.emit('realtime:leave', joinedPayload);
     };
-  }, [location.pathname, location.search]);
+  }, [isAuthLoading, location.pathname, location.search, user?.businessLocationId]);
 
   return (
     <SocketContext.Provider value={socketRef.current}>

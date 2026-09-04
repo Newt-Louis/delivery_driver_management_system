@@ -44,10 +44,10 @@ export const STATUS_ORDER: Record<string, number> = {
 };
 
 export const STATUS_FILTER_OPTIONS: { k: StatusFilter; label: string; color: string }[] = [
-  { k: 'ALL', label: 'Tất cả', color: 'bg-thiso-100 text-thiso-700' },
-  { k: 'WAITING', label: '⏳ Chờ gọi', color: 'bg-amber-100 text-amber-700' },
-  { k: 'CALLED', label: '📣 Đã gọi', color: 'bg-sky-100 text-sky-700' },
-  { k: 'RECEIVING', label: '📦 Nhận hàng', color: 'bg-green-100 text-green-700' },
+  { k: 'ALL', label: 'Tất cả', color: 'bg-thiso-200 text-thiso-900' },
+  { k: 'WAITING', label: 'Chờ gọi', color: 'bg-thiso-200 text-thiso-900' },
+  { k: 'CALLED', label: 'Đã gọi', color: 'bg-thiso-200 text-thiso-900' },
+  { k: 'RECEIVING', label: 'Nhận hàng', color: 'bg-thiso-200 text-thiso-900' },
 ];
 
 export const VEHICLE_FILTER_OPTIONS: { k: VehicleTypeFilter; label: string }[] = [
@@ -74,17 +74,17 @@ export const DISPATCH_CSV_HEADERS = [
 export const EVENT_LABEL: Record<string, { label: string; icon: string; accent?: string }> = {
   REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
   CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
-  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-sky-700' },
-  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-sky-700' },
-  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-sky-700' },
-  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-sky-700' },
+  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-thiso-700' },
+  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-thiso-700' },
+  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-thiso-700' },
+  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-thiso-700' },
   RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' },
   AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
   COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
   CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },
   EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '⌛', accent: 'text-red-600' },
   EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '⌛', accent: 'text-red-600' },
-  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-orange-600' },
+  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-amber-700' },
   ARCHIVED: { label: 'Đã lưu lịch sử', icon: '🗄️', accent: 'text-thiso-500' },
 };
 

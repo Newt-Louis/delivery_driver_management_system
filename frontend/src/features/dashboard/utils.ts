@@ -2,7 +2,6 @@ import type { DeliveryRegistration, DispatchData, UnitDispatch } from '../../lib
 import { minutesSince } from '../../lib/utils';
 import {
   formatTicketCode as formatDynamicTicketCode,
-  unitFallbackColor,
   unitPresentation,
 } from '../../lib/unitPresentation';
 import {
@@ -73,7 +72,7 @@ export function getTicketCode(
 
 export function getUnitMeta(unit: string, unitConfig?: UnitDispatch['unitConfig']): UnitMeta {
   const brand = unitPresentation(unit, unitConfig);
-  const color = unitConfig?.primaryColor || unitFallbackColor(unit);
+  const color = unitConfig?.primaryColor || '#FF9500';
   return {
     label: brand.label,
     icon: brand.icon,

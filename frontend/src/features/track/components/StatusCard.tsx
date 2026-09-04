@@ -25,9 +25,9 @@ export default function StatusCard({ delivery, si, isTerminal }: {
           )}
 
           {delivery.status === 'CALLED' && delivery.assignedSlot && (
-            <div className="mt-3 inline-block bg-sky-50 rounded-2xl px-8 py-4 shadow-sm border border-sky-200">
-              <p className="text-[10px] font-black tracking-widest text-sky-400 uppercase mb-1">Vị trí nhận hàng</p>
-              <p className="text-4xl font-black text-sky-700 tracking-widest">{delivery.assignedSlot.code}</p>
+            <div className="mt-3 inline-block bg-thisodominant-50 rounded-2xl px-8 py-4 shadow-sm border border-thisodominant-200">
+              <p className="text-[10px] font-black tracking-widest text-thisodominant-600 uppercase mb-1">Vị trí nhận hàng</p>
+              <p className="text-4xl font-black text-thisodominant-800 tracking-widest">{delivery.assignedSlot.code}</p>
               <p className="text-sm text-thiso-500 mt-1">{delivery.assignedSlot.name}</p>
               {delivery.assignedSlot.zone && (
                 <p className="text-xs text-thiso-400">{delivery.assignedSlot.zone.name}</p>

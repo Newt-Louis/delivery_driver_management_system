@@ -29,14 +29,14 @@ export default function NotificationBanners({ isTerminal, pushSupport, notifPerm
       {pushSupport.supported && notifPermission === 'default' && (
         <button
           onClick={onRequestNotif}
-          className="w-full bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+          className="w-full bg-thisodominant-50 border border-thisodominant-200 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
         >
           <span className="text-2xl flex-shrink-0">🔔</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-indigo-800">Bật thông báo hệ thống</p>
-            <p className="text-xs text-indigo-500 mt-0.5">Nhận cảnh báo ngay kể cả khi màn hình tắt</p>
+            <p className="text-sm font-bold text-thiso-800">Bật thông báo hệ thống</p>
+            <p className="text-xs text-thiso-600 mt-0.5">Nhận cảnh báo ngay kể cả khi màn hình tắt</p>
           </div>
-          <span className="text-xs font-semibold bg-indigo-600 text-white px-3 py-1 rounded-lg flex-shrink-0">Bật</span>
+          <span className="text-xs font-semibold bg-thisodominant-600 text-white px-3 py-1 rounded-lg flex-shrink-0">Bật</span>
         </button>
       )}
       {notifPermission === 'granted' && pushEnabled && (
@@ -50,12 +50,12 @@ export default function NotificationBanners({ isTerminal, pushSupport, notifPerm
       {!deviceAlertsReady && (
         <button
           onClick={onPrimeAlerts}
-          className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
+          className="w-full bg-thisodominant-50 border border-thisodominant-200 rounded-2xl px-4 py-3 flex items-center gap-3 text-left active:scale-[0.98] transition-transform"
         >
           <span className="text-2xl flex-shrink-0">📳</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-emerald-800">Bật rung và âm báo trong màn hình</p>
-            <p className="text-xs text-emerald-600 mt-0.5">
+            <p className="text-sm font-bold text-thiso-800">Bật rung và âm báo trong màn hình</p>
+            <p className="text-xs text-thiso-600 mt-0.5">
               Chạm một lần để trình duyệt cho phép rung/chuông khi trạng thái thay đổi
             </p>
           </div>

@@ -5,7 +5,6 @@ import FieldFrame from '../components/FieldFrame';
 import ProcessGuide from '../components/ProcessGuide';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import { VEHICLE_INFO } from '../constants';
-import { unitFallbackColor } from '../../../lib/unitPresentation';
 import type { FormState, RegisterFieldErrors, SetFormField, Unit } from '../types';
 
 type UnitGoodsVehicleStepProps = {
@@ -65,14 +64,13 @@ export default function UnitGoodsVehicleStep({
     <div className="space-y-5">
       <a
         href="/track"
-        className="flex items-center gap-3 p-3.5 bg-thiso-800 rounded-2xl text-white active:opacity-80 transition-opacity"
+        className="flex items-center gap-3 p-3.5 rounded-2xl border border-thiso-200 bg-white text-thiso-800 hover:bg-thiso-50 active:scale-[0.99] transition-all"
       >
-        <span className="text-2xl flex-shrink-0">📱</span>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 ml-3">
           <p className="text-sm font-bold leading-tight">Đã đăng ký rồi?</p>
-          <p className="text-thiso-300 text-xs mt-0.5">Theo dõi đơn hoặc tra cứu bằng biển số xe</p>
+          <p className="text-thiso-500 text-xs mt-0.5">Theo dõi đơn hoặc tra cứu bằng biển số xe</p>
         </div>
-        <span className="text-thiso-400 text-lg flex-shrink-0">›</span>
+        <span className="text-thiso-500 text-lg flex-shrink-0">›</span>
       </a>
 
       {guideOpen && <ProcessGuide onDismiss={onDismissGuide} />}
@@ -109,7 +107,7 @@ export default function UnitGoodsVehicleStep({
                   {location.logoUrl ? (
                     <img src={location.logoUrl} alt={location.locationName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
                   ) : (
-                    <span className="w-10 h-10 rounded-xl bg-thiso-900 text-white text-xs font-black flex items-center justify-center flex-shrink-0">
+                    <span className="w-10 h-10 rounded-xl border border-thiso-200 bg-white text-thiso-800 text-xs font-black flex items-center justify-center flex-shrink-0">
                       {location.code.slice(0, 2).toUpperCase()}
                     </span>
                   )}
@@ -118,7 +116,7 @@ export default function UnitGoodsVehicleStep({
                     <p className="text-xs text-thiso-400 mt-0.5">{location.address || location.code}</p>
                   </div>
                   <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all ${active ? 'border-thiso-700' : 'border-thiso-200'}`}>
-                    {active && <div className="w-full h-full rounded-full bg-thiso-700 opacity-60" />}
+                    {active && <div className="w-full h-full rounded-full bg-thiso-900" />}
                   </div>
                 </button>
               );
@@ -150,7 +148,10 @@ export default function UnitGoodsVehicleStep({
             {publicUnits.map((unitConfig) => {
             const brand = unitBrand(unitConfig);
             const active = form.unitConfigId === unitConfig.id;
-            const color = unitConfig.primaryColor || unitFallbackColor(unitConfig.unit);
+            const color = unitConfig.primaryColor?.trim();
+            const activeStyle = active && color
+              ? { borderColor: color, backgroundColor: `${color}10` }
+              : undefined;
             return (
               <button
                 key={unitConfig.id}
@@ -164,9 +165,9 @@ export default function UnitGoodsVehicleStep({
                 }}
                 className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left
                   ${active
-                    ? 'shadow-card-md bg-white'
+                    ? 'border-thiso-200 bg-thiso-50 shadow-card-md'
                     : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                style={active ? { borderColor: color, backgroundColor: `${color}10` } : undefined}
+                style={activeStyle}
               >
                 {brand.logoUrl ? (
                   <img src={brand.logoUrl} alt={brand.displayName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
@@ -174,12 +175,12 @@ export default function UnitGoodsVehicleStep({
                   <span className="text-3xl flex-shrink-0">{brand.icon}</span>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-base text-thiso-800" style={active ? { color } : undefined}>{brand.displayName}</p>
+                  <p className="font-bold text-base text-thiso-800" style={active && color ? { color } : undefined}>{brand.displayName}</p>
                   <p className="text-xs text-thiso-400 mt-0.5">{brand.description}</p>
                 </div>
                 <div
                   className="w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all border-thiso-200"
-                  style={active ? { borderColor: color, color } : undefined}
+                  style={active && color ? { borderColor: color, color } : undefined}
                 >
                   {active && <div className="w-full h-full rounded-full bg-current opacity-60" />}
                 </div>
@@ -210,7 +211,7 @@ export default function UnitGoodsVehicleStep({
                     onClick={() => { set('goodsType', ct.baseType); set('unitGoodsTypeId', ct.id); set('vehicleType', ''); }}
                     className={`p-4 rounded-2xl border-2 text-left transition-all
                       ${form.unitGoodsTypeId === ct.id
-                        ? 'border-sky-400 bg-sky-50 shadow-card-md'
+                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
                         : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
                   >
                     <div className="text-2xl mb-2">{ct.emoji}</div>
@@ -226,13 +227,13 @@ export default function UnitGoodsVehicleStep({
                     onClick={() => { set('goodsType', 'FRESH_FOOD'); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
                     className={`p-4 rounded-2xl border-2 text-left transition-all
                       ${form.goodsType === 'FRESH_FOOD' && !form.unitGoodsTypeId
-                        ? 'border-sky-400 bg-sky-50 shadow-card-md'
+                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
                         : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
                   >
                     <div className="text-2xl mb-2">🥬</div>
                     <p className="font-bold text-sm text-thiso-800">Hàng tươi sống / mát / đông lạnh</p>
                     {unitConfig.sundayFreshFoodOnly && (
-                      <span className="inline-block mt-1 text-[10px] bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full">Cả Chủ nhật</span>
+                      <span className="inline-block mt-1 text-[10px] bg-thisodominant-100 text-thisodominant-700 px-1.5 py-0.5 rounded-full">Cả Chủ nhật</span>
                     )}
                   </button>
                 )}
@@ -242,7 +243,7 @@ export default function UnitGoodsVehicleStep({
                     onClick={() => { set('goodsType', 'GENERAL_GOODS'); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
                     className={`p-4 rounded-2xl border-2 text-left transition-all
                       ${form.goodsType === 'GENERAL_GOODS' && !form.unitGoodsTypeId
-                        ? 'border-thiso-500 bg-thiso-100 shadow-card-md'
+                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
                         : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
                   >
                     <div className="text-2xl mb-2">📦</div>
@@ -258,12 +259,12 @@ export default function UnitGoodsVehicleStep({
                     onClick={() => { set('goodsType', 'THI_CONG'); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
                     className={`p-4 rounded-2xl border-2 text-left transition-all
                       ${form.goodsType === 'THI_CONG' && !form.unitGoodsTypeId
-                        ? 'border-amber-400 bg-amber-50 shadow-card-md'
+                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
                         : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
                   >
                     <div className="text-2xl mb-2">🔨</div>
                     <p className="font-bold text-sm text-thiso-800">Thi công</p>
-                    <span className="inline-block mt-1 text-[10px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Công trình</span>
+                    <span className="inline-block mt-1 text-[10px] bg-thisodominant-100 text-thisodominant-700 px-1.5 py-0.5 rounded-full">Công trình</span>
                   </button>
                 )}
               </div>

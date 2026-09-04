@@ -2,13 +2,13 @@ import api from '../../lib/api';
 import type { DashboardSummary, DeliveryRegistration, DispatchData } from '../../lib/types';
 import type { DeliveryLifecycleAction } from './types';
 
-export async function fetchDashboardSummary(realtimeScope: Record<string, unknown>): Promise<DashboardSummary> {
-  const response = await api.get('/api/dashboard/summary', { params: realtimeScope });
+export async function fetchDashboardSummary(): Promise<DashboardSummary> {
+  const response = await api.get('/api/dashboard/summary');
   return response.data;
 }
 
-export async function fetchDashboardDispatch(realtimeScope: Record<string, unknown>): Promise<DispatchData> {
-  const response = await api.get('/api/dashboard/dispatch', { params: realtimeScope });
+export async function fetchDashboardDispatch(): Promise<DispatchData> {
+  const response = await api.get('/api/dashboard/dispatch');
   return response.data;
 }
 

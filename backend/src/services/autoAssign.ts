@@ -59,22 +59,25 @@ async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryR
       ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
       ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
     },
-    select: { unit: true },
+    select: { id: true },
   });
-  const units = [...new Set(unitConfigs.map((cfg) => cfg.unit))];
+  const unitConfigIds = unitConfigs.map((cfg) => cfg.id);
+
+  if (unitConfigIds.length === 0) {
+    return { id: '__empty_scope__', status: activeStatus };
+  }
 
   return {
     status: activeStatus,
     OR: [
+      { unitConfigId: { in: unitConfigIds } },
       {
         assignedSlot: {
           zone: {
-            ...(scope.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
-            ...(scope.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
+            unitConfigId: { in: unitConfigIds },
           },
         },
       },
-      ...(units.length > 0 ? [{ assignedSlotId: null, receivingUnit: { in: units } }] : []),
     ],
   };
 }
@@ -163,6 +166,7 @@ function candidateGoodsForSlot(slot: Slot): GoodsType[] {
 async function findNextWaitingDeliveryForSlot(
   tx: Prisma.TransactionClient,
   slot: Slot,
+  unitConfigId: string,
 ): Promise<DeliveryRegistration | null> {
   const goodsCandidates = candidateGoodsForSlot(slot);
   if (goodsCandidates.length === 0) return null;
@@ -175,6 +179,7 @@ async function findNextWaitingDeliveryForSlot(
       SELECT "id"
       FROM "delivery_registrations"
       WHERE "receiving_unit" = ${slot.assignedUnit}
+        AND "unit_config_id" = ${unitConfigId}
         AND "vehicle_type" = ${slot.vehicleType}::"VehicleType"
         AND "status" = ${DeliveryStatus.WAITING}::"DeliveryStatus"
         ${goodsFilter}
@@ -202,7 +207,10 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnitCode)
     `);
     if (lockedSlot.length === 0) return null;
 
-    const slot = await tx.slot.findUnique({ where: { id: slotId } });
+    const slot = await tx.slot.findUnique({
+      where: { id: slotId },
+      include: { zone: { select: { unitConfigId: true } } },
+    });
     if (!slot) return null;
     if (
       slot.assignedUnit !== unit
@@ -221,7 +229,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnitCode)
     });
     if (activeCount >= slot.maxCapacity) return null;
 
-    const next = await findNextWaitingDeliveryForSlot(tx, slot);
+    const next = await findNextWaitingDeliveryForSlot(tx, slot, slot.zone.unitConfigId);
     if (!next) return null;
 
     if (next.status !== DeliveryStatus.WAITING) return null;

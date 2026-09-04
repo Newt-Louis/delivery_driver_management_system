@@ -35,8 +35,8 @@ export default function ReviewSubmitStep({
   return (
     <div className="space-y-4">
       <div className="bg-white rounded-2xl border border-thiso-100 shadow-card overflow-hidden">
-        <div className="bg-thiso-800 px-4 py-3">
-          <p className="text-xs text-thiso-400 font-semibold uppercase tracking-wider">Tóm tắt đăng ký</p>
+        <div className="bg-white border-b border-thiso-100 px-4 py-3">
+          <p className="text-xs text-thiso-700 font-semibold uppercase tracking-wider">Tóm tắt đăng ký</p>
         </div>
         <div className="divide-y divide-thiso-100">
           {[
