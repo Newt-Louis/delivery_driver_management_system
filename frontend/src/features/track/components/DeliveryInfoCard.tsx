@@ -15,7 +15,7 @@ export default function DeliveryInfoCard({ delivery, unitMeta }: {
     { label: 'Nhà cung cấp', value: delivery.vendorName },
     { label: 'Đơn vị nhận',  value: unitMeta.label },
     { label: 'Loại hàng',    value: GOODS_LABEL[delivery.goodsType] ?? delivery.goodsType },
-    ...(delivery.poNumber    ? [{ label: 'Số PO / Mã thi công', value: delivery.poNumber, mono: true }] : []),
+    ...(delivery.poNumber    ? [{ label: 'Mã đối chiếu / PO / Thi công', value: delivery.poNumber, mono: true }] : []),
     ...(delivery.requestedTime ? [{ label: 'Ngày giao',        value: fmtDateOnly(delivery.requestedTime) }] : []),
     ...(delivery.note        ? [{ label: 'Ghi chú',             value: delivery.note }] : []),
   ];

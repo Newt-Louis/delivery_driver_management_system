@@ -24,6 +24,7 @@ export interface FormState {
 
 export interface SuccessInfo {
   code: string;
+  referenceCode: string;
   vehiclePlate: string;
   vendorName: string;
   driverName: string;

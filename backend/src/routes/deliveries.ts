@@ -40,6 +40,11 @@ router.post('/quick-verify', publicWriteLimiter, asyncHandler(async (req, res) =
   await respond(res, verifyQuickRegistrationCode(body.code));
 }));
 
+// POST /api/deliveries/manual-registration-code — reference code for one manual registration session
+router.post('/manual-registration-code', publicWriteLimiter, asyncHandler(async (_req, res) => {
+  await respond(res, Promise.resolve(deliveryService.createManualRegistrationCode()), 201);
+}));
+
 // POST /api/deliveries/public-cancel
 router.post('/public-cancel', publicWriteLimiter, asyncHandler(async (req, res) => {
   const body = DeliveryFormRequest.parsePublicCancel(req.body);

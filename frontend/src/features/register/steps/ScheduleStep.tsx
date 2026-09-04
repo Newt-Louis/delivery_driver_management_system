@@ -12,9 +12,12 @@ type ScheduleStepProps = {
   dailyStats: DailyRegistrationStat[];
   dailyStatsMsg: string;
   dailyStatsLoading: boolean;
+  manualReferenceLoading: boolean;
+  manualReferenceError: string;
   sundayFreshFoodBlocked: boolean;
   sundayFreshFoodOnly: boolean;
   set: SetFormField;
+  onRetryManualReferenceCode: () => void;
 };
 
 export default function ScheduleStep({
@@ -24,9 +27,12 @@ export default function ScheduleStep({
   dailyStats,
   dailyStatsMsg,
   dailyStatsLoading,
+  manualReferenceLoading,
+  manualReferenceError,
   sundayFreshFoodBlocked,
   sundayFreshFoodOnly,
   set,
+  onRetryManualReferenceCode,
 }: ScheduleStepProps) {
   return (
     <div className="space-y-5">
@@ -81,17 +87,27 @@ export default function ScheduleStep({
 
       <FieldFrame field="poNumber" highlightedField={highlightedField}>
         <label className="label">
-          Số PO / Mã số thi công <span className="text-thiso-300 font-normal normal-case">(Không bắt buộc)</span>
+          Mã đối chiếu đăng ký <span className="text-thiso-300 font-normal normal-case">(tự động tạo)</span>
         </label>
         <input
           type="text"
           value={form.poNumber}
-          onChange={e => set('poNumber', e.target.value)}
-          placeholder="Nhập theo phiếu/bản giấy nếu có"
+          readOnly
+          placeholder="Đang tạo mã..."
           autoComplete="off"
-          className="input py-3"
+          className="input py-3 bg-thiso-50 font-mono font-bold tracking-[0.2em]"
           style={{ fontSize: '16px' }}
         />
+        {manualReferenceLoading && <FieldHint text="Đang tạo mã đối chiếu cho lượt đăng ký này..." />}
+        {manualReferenceError ? (
+          <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
+            <p className="text-xs font-medium text-red-700">{manualReferenceError}</p>
+            <button type="button" onClick={onRetryManualReferenceCode} className="shrink-0 text-xs font-bold text-red-700 underline">Thử lại</button>
+          </div>
+        ) : !manualReferenceLoading && (
+          <FieldHint text="Mã này được lưu cùng lượt đăng ký để đối chiếu hoặc hủy chuyến khi cần." />
+        )}
+        {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
       </FieldFrame>
     </div>
   );

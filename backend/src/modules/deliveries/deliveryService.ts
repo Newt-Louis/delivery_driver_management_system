@@ -22,6 +22,7 @@ import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/hi
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
 import { verifyQuickRegistrationToken } from './quickRegistrationService';
+import { generateManualRegistrationCode } from './manualRegistrationCode';
 import type { CheckInLookupPayload, PublicCancelPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
 
@@ -42,6 +43,10 @@ const DELIVERY_UNIT_CONFIG_SELECT = {
   logoUrl: true,
   primaryColor: true,
 } as const;
+
+export function createManualRegistrationCode() {
+  return { code: generateManualRegistrationCode() };
+}
 
 async function assertUnitPermission(
   user: AuthUser | undefined,
@@ -322,7 +327,11 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         });
       }
 
-      const registrationCode = await reserveRegistrationCode(tx, body.receivingUnit);
+      const registrationCode = await reserveRegistrationCode(tx, {
+        unitConfigId: unitConfig.id,
+        businessLocationCode: unitConfig.businessLocation.code,
+        receivingUnit: body.receivingUnit,
+      });
 
       const created = await tx.deliveryRegistration.create({
         data: {

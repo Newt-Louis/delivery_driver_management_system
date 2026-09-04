@@ -49,7 +49,7 @@ export default function ReviewSubmitStep({
             { icon: '📞', label: 'Điện thoại', value: form.driverPhone, mono: true },
             { icon: '🏭', label: 'Nhà cung cấp', value: form.vendorName },
             ...(form.vendorCode ? [{ icon: '🔑', label: 'Mã NCC', value: form.vendorCode, mono: true as const }] : []),
-            { icon: '📋', label: 'Số PO / Mã thi công', value: form.poNumber, mono: true as const },
+            { icon: '📋', label: 'Mã đối chiếu', value: form.poNumber, mono: true as const },
             { icon: '📅', label: 'Ngày giao', value: form.deliveryDate.split('-').reverse().join('/') },
           ].map(({ icon, label, value, mono }) => (
             <div key={label} className="flex items-center justify-between px-4 py-3 gap-3">

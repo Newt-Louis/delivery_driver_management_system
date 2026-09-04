@@ -56,7 +56,7 @@ Homepage `/` hiện có:
 Wizard thủ công `/register`:
 
 1. Chọn `BusinessLocation`, đơn vị nhận hàng, loại hàng, loại xe.
-2. Chọn ngày giao hàng bằng calendar tháng hiện tại, xem mật độ đăng ký theo ngày, nhập thông tin nhà cung cấp và có thể nhập tự do Số PO/Mã thi công nếu bản giấy có.
+2. Chọn ngày giao hàng bằng calendar tháng hiện tại, xem mật độ đăng ký theo ngày, nhập thông tin nhà cung cấp. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
 3. Nhập thông tin tài xế/xe/nhà cung cấp.
 4. Review và hoàn tất đăng ký.
 
@@ -69,6 +69,7 @@ Logic trong `useRegisterForm.ts`:
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
 - Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
+- Tạo mã đối chiếu thủ công: `POST /api/deliveries/manual-registration-code`. Frontend gọi một lần khi vào step 2 của session đăng ký, giữ mã trong form và gọi lại cho lượt mới sau khi hoàn tất/reset.
 - Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend tự lưu `requestedTime` tại `00:00` của ngày giao theo giờ Việt Nam nếu payload không gửi giờ.
 - Scroll tới field lỗi đầu tiên khi validate fail.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
@@ -80,6 +81,7 @@ Lưu ý: các logic trong `frontend/src/features/register/*` hiện thuộc lu�
 API chính:
 
 - `POST /api/deliveries/register`
+- `POST /api/deliveries/manual-registration-code`
 - `POST /api/deliveries/quick-verify`
 - `GET /api/units/public/business-locations`
 - `GET /api/units/public/configs`
@@ -118,19 +120,20 @@ Hàm quan trọng trong module:
 Service:
 
 - `backend/src/services/registrationSequence.ts`
-  - `reserveRegistrationCode()` cấp registration code atomic theo ngày VN và receiving unit.
+  - `reserveRegistrationCode()` cấp registration code atomic theo ngày VN và `UnitConfig`.
 
 ## Rule Nghiệp Vụ
 
 - Biển số xe được normalize uppercase và bỏ khoảng trắng.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
-- Số PO/Mã thi công trong luồng thủ công `/register` không bắt buộc, không đối chiếu mock/backend và được lưu theo giá trị người vận hành nhập sau khi trim đầu/cuối.
-- Duplicate registration của luồng thủ công chỉ dùng `poNumber` khi người vận hành có nhập mã; nếu bỏ trống mã PO/Thi Công thì backend không chặn duplicate theo mã rỗng.
+- Luồng thủ công `/register` không nhập mã PO/Mã thi công. Ở step 2, API sinh Mã đối chiếu gồm 7 ký tự chữ/số in hoa và frontend lưu mã đó vào `poNumber` của delivery; không có bảng sequence hoặc kiểm tra trùng riêng cho mã này.
+- Mã đối chiếu được hiển thị ở step review, màn hình thành công, trang track và dùng cùng với biển số, số điện thoại, mã đăng ký, ngày giao khi tài xế tự hủy trước check-in.
 - Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
+- `registrationCode` có format `BUSINESSLOCATIONCODE + 4 ký tự cuối của UnitConfig.id + YYMMDD + số thứ tự ba chữ số`. Số thứ tự reset theo ngày và `UnitConfig`; mã location và suffix UnitConfig giữ mã đăng ký unique toàn cục để `/track/:code` và check-in không cần thêm scope.
 - `BusinessLocation` public là bước đầu của luồng thủ công `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
-- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId` và mã PO/Thi Công có được nhập.
-- Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/PO/TC; nếu đăng ký thủ công bỏ trống PO/TC thì người vận hành tự quyết định theo thực tế.
+- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`. Với luồng thủ công, `poNumber` là Mã đối chiếu tự sinh.
+- Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/Mã đối chiếu.
 - Tài xế chỉ có thể tự hủy chuyến tại `/cancelled` trước khi check-in, tức delivery còn `REGISTERED`; endpoint public đối chiếu đúng 5 trường `vehiclePlate`, `driverPhone`, `poNumber`, `registrationCode`, `deliveryDate` theo ngày giao, sau đó archive lịch sử với lý do `Tài xế thao tác hủy` và xóa row operational. Endpoint vẫn nhận `requestedTime` từ client cũ và quy đổi về ngày giao để tương thích.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale.
@@ -184,5 +187,6 @@ Thi Công normalization:
 `POST /api/deliveries/register` trả delivery đã tạo, gồm `registrationCode`. Frontend `SuccessScreen`:
 
 - Hiển thị QR/mã đăng ký.
+- Hiển thị Mã đối chiếu để tài xế có thể hủy chuyến hoặc đối chiếu khi cần.
 - Cho nút theo dõi.
 - Tự động đếm ngược 10 giây và điều hướng sang `/track/:code`.

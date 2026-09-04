@@ -145,6 +145,11 @@ export async function registerDelivery(payload: RegisterDeliveryPayload): Promis
   return res.data;
 }
 
+export async function createManualRegistrationCode(): Promise<{ code: string }> {
+  const res = await api.post('/api/deliveries/manual-registration-code');
+  return res.data;
+}
+
 export async function quickVerifyOrderCode(code: string): Promise<QuickVerifyResponse> {
   const res = await api.post('/api/deliveries/quick-verify', { code });
   return res.data;

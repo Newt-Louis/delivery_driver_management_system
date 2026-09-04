@@ -509,6 +509,7 @@ export default function Home() {
 
       setSuccess({
         code: res.registrationCode,
+        referenceCode: verified.orderCode,
         vehiclePlate: plate,
         vendorName: form.vendorName.trim(),
         driverName: form.driverName.trim(),

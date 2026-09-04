@@ -31,6 +31,8 @@ export default function Register() {
     dailyStats,
     dailyStatsMsg,
     dailyStatsLoading,
+    manualReferenceLoading,
+    manualReferenceError,
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
@@ -39,6 +41,7 @@ export default function Register() {
     awVendorName,
     contentRef,
     set,
+    retryManualReferenceCode,
     next,
     back,
     editStepFromReview,
@@ -118,9 +121,12 @@ export default function Register() {
             dailyStats={dailyStats}
             dailyStatsMsg={dailyStatsMsg}
             dailyStatsLoading={dailyStatsLoading}
+            manualReferenceLoading={manualReferenceLoading}
+            manualReferenceError={manualReferenceError}
             sundayFreshFoodBlocked={sundayFreshFoodBlocked}
             sundayFreshFoodOnly={Boolean(unitConfig?.sundayFreshFoodOnly)}
             set={set}
+            onRetryManualReferenceCode={retryManualReferenceCode}
           />
         )}
 
@@ -171,7 +177,7 @@ export default function Register() {
             <button
               type="button"
               onClick={next}
-              disabled={step === 2 && sundayFreshFoodBlocked}
+              disabled={step === 2 && (sundayFreshFoodBlocked || manualReferenceLoading || !form.poNumber)}
               className="h-12 flex-1 rounded-xl border border-thiso-200 bg-white text-thiso-800 font-bold text-base hover:bg-thiso-50 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
             >
               Tiếp theo →

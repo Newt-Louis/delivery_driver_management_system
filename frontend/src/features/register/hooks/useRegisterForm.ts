@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BusinessLocation, UnitConfig, UnitGoodsType } from '../../../lib/types';
 import {
   checkAutoWarehouseVendor,
+  createManualRegistrationCode,
   getDailyRegistrationStats,
   getPublicBusinessLocations,
   getPublicUnitConfigs,
@@ -73,6 +74,9 @@ export function useRegisterForm() {
   const [vehicleAvailabilityLoading, setVehicleAvailabilityLoading] = useState(false);
   const [awStatus, setAwStatus] = useState<'idle' | 'loading' | 'match' | 'nomatch'>('idle');
   const [awVendorName, setAwVendorName] = useState('');
+  const [manualReferenceLoading, setManualReferenceLoading] = useState(false);
+  const [manualReferenceError, setManualReferenceError] = useState('');
+  const [manualReferenceRequest, setManualReferenceRequest] = useState(0);
   const awDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const sundayFreshFoodBlocked = Boolean(
@@ -168,6 +172,27 @@ export function useRegisterForm() {
     // getUnitGoodsTypes(form.receivingUnit, selectedUnitScope).then(setCustomGoodsTypes).catch(() => setCustomGoodsTypes([]));
     setCustomGoodsTypes([]);
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId]);
+
+  useEffect(() => {
+    if (step !== 2 || form.poNumber) return;
+
+    let cancelled = false;
+    setManualReferenceLoading(true);
+    setManualReferenceError('');
+    createManualRegistrationCode()
+      .then(({ code }) => {
+        if (cancelled) return;
+        setForm((current) => current.poNumber ? current : { ...current, poNumber: code });
+      })
+      .catch(() => {
+        if (!cancelled) setManualReferenceError('Không thể tạo mã đối chiếu. Vui lòng thử lại.');
+      })
+      .finally(() => {
+        if (!cancelled) setManualReferenceLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [step, form.poNumber, manualReferenceRequest]);
 
   useEffect(() => {
     if (!form.receivingUnit || !form.goodsType || !selectedUnitScope) {
@@ -277,6 +302,7 @@ export function useRegisterForm() {
         errs.deliveryDate = selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký';
       }
       if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
+      if (!form.poNumber) errs.poNumber = manualReferenceError || 'Đang tạo mã đối chiếu đăng ký';
     }
     if (step === 3) {
       if (!form.vehiclePlate.trim()) errs.vehiclePlate = 'Vui lòng nhập biển số xe';
@@ -349,6 +375,7 @@ export function useRegisterForm() {
       const selectedLocation = publicLocations.find((l) => l.id === form.businessLocationId);
       setSuccess({
         code: res.registrationCode,
+        referenceCode: poNumber,
         vehiclePlate: plate,
         vendorName: form.vendorName,
         driverName: form.driverName,
@@ -379,6 +406,8 @@ export function useRegisterForm() {
     setReturnToReviewAfterEdit(false);
     setAwStatus('idle');
     setAwVendorName('');
+    setManualReferenceLoading(false);
+    setManualReferenceError('');
     setForm(f => ({
       ...f,
       businessLocationId: '',
@@ -394,6 +423,10 @@ export function useRegisterForm() {
       vendorCode: '',
     }));
   }
+
+  const retryManualReferenceCode = useCallback(() => {
+    setManualReferenceRequest((current) => current + 1);
+  }, []);
 
   return {
     step,
@@ -418,6 +451,8 @@ export function useRegisterForm() {
     dailyStats,
     dailyStatsMsg,
     dailyStatsLoading,
+    manualReferenceLoading,
+    manualReferenceError,
     vehicleAvailability,
     vehicleAvailabilityMsg,
     vehicleAvailabilityLoading,
@@ -426,6 +461,7 @@ export function useRegisterForm() {
     awVendorName,
     contentRef,
     set,
+    retryManualReferenceCode,
     next,
     back,
     editStepFromReview,

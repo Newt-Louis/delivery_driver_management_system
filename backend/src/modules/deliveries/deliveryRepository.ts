@@ -374,6 +374,7 @@ export async function resolveRegistrationUnitConfig(args: {
         ...(args.unitConfigId ? { id: args.unitConfigId } : {}),
         ...(args.businessLocationId ? { businessLocationId: args.businessLocationId } : {}),
       },
+      include: { businessLocation: { select: { code: true } } },
     });
   }
 
@@ -386,6 +387,7 @@ export async function resolveRegistrationUnitConfig(args: {
 
   return prisma.unitConfig.findUnique({
     where: { businessLocationId_unit: { businessLocationId: location.id, unit: args.receivingUnit } },
+    include: { businessLocation: { select: { code: true } } },
   });
 }
 

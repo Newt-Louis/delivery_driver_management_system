@@ -116,13 +116,13 @@ export default function Cancelled() {
           </label>
 
           <label className="block">
-            <span className="label">Mã PO/Thi Công</span>
+            <span className="label">Mã đối chiếu / PO / Thi công</span>
             <input
               value={form.poNumber}
               onChange={(e) => setField('poNumber', e.target.value.toUpperCase().replace(/\s/g, ''))}
               required
               className="input py-3 font-mono"
-              placeholder="PO0123456789 hoặc TC0123456789"
+              placeholder="Mã 7 ký tự hoặc mã PO/Thi công"
               autoComplete="off"
               style={{ fontSize: '16px' }}
             />

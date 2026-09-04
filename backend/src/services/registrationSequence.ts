@@ -1,4 +1,3 @@
-import type { ReceivingUnit as ReceivingUnitCode } from '../domain/unitCodes';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { getVNDateKey, getVNDateRangeUtc } from '../lib/dateVN';
 
@@ -11,29 +10,44 @@ function dateCompact(dateKey: string): string {
   return `${year.slice(2)}${month}${day}`;
 }
 
-function unitCodePrefix(unit: ReceivingUnitCode): string {
-  const normalized = unit
+function normalizeCodeSegment(value: string): string {
+  return value
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9]/g, '')
     .toUpperCase();
-  return (normalized || 'U').slice(0, 4);
 }
 
-function codePrefix(unit: ReceivingUnitCode, dateKey: string): string {
-  return `${unitCodePrefix(unit)}${dateCompact(dateKey)}`;
+export function registrationCodePrefix(args: {
+  businessLocationCode: string;
+  unitConfigId: string;
+  registrationDate: string;
+}): string {
+  const locationCode = normalizeCodeSegment(args.businessLocationCode) || 'LOC';
+  const unitConfigSuffix = normalizeCodeSegment(args.unitConfigId).slice(-4) || 'UNIT';
+  return `${locationCode}${unitConfigSuffix}${dateCompact(args.registrationDate)}`;
+}
+
+export function formatRegistrationCode(args: {
+  businessLocationCode: string;
+  unitConfigId: string;
+  registrationDate: string;
+  sequenceNumber: number;
+}): string {
+  return `${registrationCodePrefix(args)}${String(args.sequenceNumber).padStart(3, '0')}`;
 }
 
 async function getExistingMaxRegistrationNumber(
   tx: Prisma.TransactionClient,
   registrationDate: string,
-  receivingUnit: ReceivingUnitCode,
+  unitConfigId: string,
+  businessLocationCode: string,
 ): Promise<number> {
   const { start, end } = getVNDateRangeUtc(registrationDate);
-  const prefix = codePrefix(receivingUnit, registrationDate);
+  const prefix = registrationCodePrefix({ businessLocationCode, unitConfigId, registrationDate });
   const existing = await tx.deliveryRegistration.findMany({
     where: {
-      receivingUnit,
+      unitConfigId,
       createdAt: { gte: start, lt: end },
       registrationCode: { startsWith: prefix },
     },
@@ -49,22 +63,32 @@ async function getExistingMaxRegistrationNumber(
 
 export async function reserveRegistrationCode(
   tx: Prisma.TransactionClient,
-  receivingUnit: ReceivingUnitCode,
+  args: {
+    unitConfigId: string;
+    businessLocationCode: string;
+    receivingUnit: string;
+  },
   createdAt: Date = new Date(),
 ): Promise<string> {
   const registrationDate = getVNDateKey(createdAt);
-  const existingMax = await getExistingMaxRegistrationNumber(tx, registrationDate, receivingUnit);
+  const existingMax = await getExistingMaxRegistrationNumber(
+    tx,
+    registrationDate,
+    args.unitConfigId,
+    args.businessLocationCode,
+  );
 
   const sequence = await (tx as RegistrationSequenceTransaction).registrationSequence.upsert({
     where: {
-      registrationDate_receivingUnit: {
+      registrationDate_unitConfigId: {
         registrationDate,
-        receivingUnit,
+        unitConfigId: args.unitConfigId,
       },
     },
     create: {
       registrationDate,
-      receivingUnit,
+      receivingUnit: args.receivingUnit,
+      unitConfigId: args.unitConfigId,
       nextNumber: existingMax + 2,
     },
     update: {
@@ -74,5 +98,10 @@ export async function reserveRegistrationCode(
   });
 
   const nextNumber = sequence.nextNumber - 1;
-  return `${codePrefix(receivingUnit, registrationDate)}${String(nextNumber).padStart(3, '0')}`;
+  return formatRegistrationCode({
+    businessLocationCode: args.businessLocationCode,
+    unitConfigId: args.unitConfigId,
+    registrationDate,
+    sequenceNumber: nextNumber,
+  });
 }
