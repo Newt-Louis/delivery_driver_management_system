@@ -548,6 +548,7 @@ export default function Home() {
     return <SuccessScreen info={success} onReset={resetFlow} />;
   }
 
+
   return (
     <main className="min-h-screen bg-thiso-50 text-thiso-800">
       <section className="border-b border-thiso-100 bg-white">
@@ -571,15 +572,9 @@ export default function Home() {
             <Link to="/track" className="btn btn-ghost h-10 px-3">
               Theo dõi
             </Link>
-            {isAuthenticated ? (
-              <Link to={staffHomePath} className="btn btn-primary h-10 px-3">
-                Vận hành
-              </Link>
-            ) : (
-              <Link to="/login" className="btn btn-secondary h-10 px-3">
-                Nhân viên
-              </Link>
-            )}
+            <Link to="/register" className="btn btn-ghost h-10 px-3">
+              Đăng ký thủ công
+            </Link>
           </div>
         </div>
       </section>
