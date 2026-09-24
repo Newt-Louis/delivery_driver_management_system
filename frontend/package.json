@@ -6,7 +6,12 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "ui:audit": "node scripts/ui-audit.mjs",
+    "ui:check": "npm run lint && npm run ui:audit -- --changed --strict && npm run build",
+    "test:visual": "playwright test",
+    "test:visual:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.4",
@@ -27,10 +32,16 @@
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
+    "@eslint/js": "^9.35.0",
     "@vitejs/plugin-react": "^4.2.1",
     "autoprefixer": "^10.4.17",
+    "@playwright/test": "^1.55.0",
+    "eslint": "^9.35.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
     "postcss": "^8.4.35",
     "tailwindcss": "^3.4.1",
+    "typescript-eslint": "^8.42.0",
     "typescript": "^5.3.3",
     "vite": "^5.0.12"
   }
