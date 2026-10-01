@@ -28,6 +28,7 @@ Mỗi file tập trung vào một miền nghiệp vụ riêng:
 - [testing-load-concurrency.md](testing-load-concurrency.md): concurrency test và load test Artillery.
 - [delivery-history-scheduler.md](delivery-history-scheduler.md): scheduler, history snapshot và timeline chuyến giao hàng.
 - [datafile-storage.md](datafile-storage.md): storage nội bộ cho logo/avatar và file upload theo `DATAFILE_ROOT`.
+- [ui-redesign/README.md](ui-redesign/README.md): governance, design-system approval và quy trình rebuild UI theo từng trang.
 
 Lưu ý quan trọng:
 
