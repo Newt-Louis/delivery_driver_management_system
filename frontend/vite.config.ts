@@ -1,15 +1,22 @@
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    allowedHosts: true,
-    port: 5173,
-    proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: true },
-      '/datafile': { target: 'http://localhost:4000', changeOrigin: true },
-      '/socket.io': { target: 'http://localhost:4000', ws: true, changeOrigin: true },
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, '.', 'DEV_');
+  const proxyTarget = env.DEV_PROXY_TARGET || 'http://localhost:4000';
+
+  return {
+    plugins: [react()],
+    server: {
+      allowedHosts: true,
+      port: 5173,
+      strictPort: true,
+      watch: { usePolling: env.DEV_WATCH_POLLING === 'true' },
+      proxy: {
+        '/api': { target: proxyTarget, changeOrigin: true },
+        '/datafile': { target: proxyTarget, changeOrigin: true },
+        '/socket.io': { target: proxyTarget, ws: true, changeOrigin: true },
+      },
     },
-  },
+  };
 });
