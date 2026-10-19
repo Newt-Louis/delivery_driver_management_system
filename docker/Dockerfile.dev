@@ -1,0 +1,13 @@
+FROM node:24-bookworm-slim
+
+# Prisma needs OpenSSL. Dependencies are installed at runtime into the bind mount.
+RUN apt-get update && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY dev-entrypoint.sh /usr/local/bin/dev-entrypoint
+RUN sed -i 's/\r$//' /usr/local/bin/dev-entrypoint \
+    && chmod +x /usr/local/bin/dev-entrypoint
+
+WORKDIR /app
+USER node
+ENTRYPOINT ["dev-entrypoint"]
