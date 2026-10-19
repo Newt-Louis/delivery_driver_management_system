@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ApartmentOutlined, AppstoreOutlined, InboxOutlined, PictureOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
+import { Button, Empty, Typography } from 'antd';
 import { useAuth } from '../context/AuthContext';
+import AdminSectionFrame, { type AdminSectionItem } from '../components/layout/AdminSectionFrame';
 import { allowedBackofficeTabs, BACKOFFICE_TABS } from '../features/backoffice/constants';
 import type { BackofficeTab } from '../features/backoffice/types';
 import SlotsTab from '../features/backoffice/tabs/SlotsTab';
@@ -10,6 +13,15 @@ import BrandTab from '../features/backoffice/tabs/BrandTab';
 import StaffUsersTab from '../features/backoffice/tabs/StaffUsersTab';
 import AWVendorTab from '../features/backoffice/tabs/AWVendorTab';
 
+const SECTION_ICONS: Record<BackofficeTab, React.ReactNode> = {
+  slots: <AppstoreOutlined />,
+  zones: <ApartmentOutlined />,
+  units: <SettingOutlined />,
+  brand: <PictureOutlined />,
+  staff: <TeamOutlined />,
+  awvendors: <InboxOutlined />,
+};
+
 export default function Backoffice() {
   const { user } = useAuth();
   const allowedTabs = useMemo(() => allowedBackofficeTabs(user?.role), [user?.role]);
@@ -17,60 +29,41 @@ export default function Backoffice() {
   const [activeTab, setActiveTab] = useState<BackofficeTab>(() => allowedBackofficeTabs(user?.role)[0] ?? 'units');
 
   useEffect(() => {
-    if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) {
-      setActiveTab(allowedTabs[0]);
-    }
+    if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) setActiveTab(allowedTabs[0]);
   }, [activeTab, allowedTabKey, allowedTabs]);
+
+  const sectionItems: AdminSectionItem[] = BACKOFFICE_TABS
+    .filter(([tab]) => allowedTabs.includes(tab))
+    .map(([tab, label]) => ({ key: tab, label, icon: SECTION_ICONS[tab] }));
 
   function renderActiveTab() {
     if (!allowedTabs.includes(activeTab)) return null;
     switch (activeTab) {
-      case 'slots':
-        return <SlotsTab />;
-      case 'zones':
-        return <ZonesTab />;
-      case 'units':
-        return <UnitsTab />;
-      case 'brand':
-        return <BrandTab />;
-      case 'staff':
-        return <StaffUsersTab />;
-      case 'awvendors':
-        return <AWVendorTab />;
-      default:
-        return null;
+      case 'slots': return <SlotsTab />;
+      case 'zones': return <ZonesTab />;
+      case 'units': return <UnitsTab />;
+      case 'brand': return <BrandTab />;
+      case 'staff': return <StaffUsersTab />;
+      case 'awvendors': return <AWVendorTab />;
+      default: return null;
     }
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="page-title">Backoffice — Cấu hình Hệ thống</h1>
-          <p className="text-sm text-thiso-400 mt-1">Quản lý slot và cấu hình đơn vị nhận hàng theo quyền tài khoản</p>
+    <AdminSectionFrame title="Backoffice" items={sectionItems} selectedKey={activeTab} onSelect={(key) => setActiveTab(key as BackofficeTab)}>
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <Typography.Title level={1} className="!mb-1 !text-2xl">Backoffice</Typography.Title>
+            <Typography.Text type="secondary">Quản lý slot và cấu hình đơn vị nhận hàng theo quyền tài khoản.</Typography.Text>
+          </div>
+          {user?.role === 'SUPERADMIN' && (
+            <Link to="/superadmin"><Button icon={<SettingOutlined />}>Superadmin</Button></Link>
+          )}
         </div>
-        {user?.role === 'SUPERADMIN' && (
-          <Link to="/superadmin" className="btn btn-secondary">
-            Superadmin
-          </Link>
-        )}
-      </div>
 
-      <div className="flex gap-1 mb-6 border-b border-thiso-200">
-        {BACKOFFICE_TABS.filter(([tab]) => allowedTabs.includes(tab)).map(([tab, label]) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white border border-b-white border-thiso-200 text-thiso-800 font-semibold -mb-px' : 'text-thiso-400 hover:text-thiso-700'}`}
-          >
-            {label}
-          </button>
-        ))}
+        {allowedTabs.length === 0 ? <Empty description="Tài khoản hiện tại không có quyền vào Backoffice." /> : renderActiveTab()}
       </div>
-
-      {allowedTabs.length === 0 ? (
-        <div className="card text-sm text-thiso-500">Tài khoản hiện tại không có quyền vào Backoffice.</div>
-      ) : renderActiveTab()}
-    </div>
+    </AdminSectionFrame>
   );
 }

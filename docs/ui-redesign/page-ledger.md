@@ -4,7 +4,9 @@ One row represents one page or cohesive feature slice. Agents update evidence an
 
 | Scope | Owner role | Design | Implementation | QA | Evidence |
 | --- | --- | --- | --- | --- | --- |
-| Foundation: Ant Design theme and responsive app shell | ui-design-system | APPROVED (DESIGN-001..004) | Theme complete; app-shell migration deferred | Build passed | `ConfigProvider` installs the approved smoke-gray tokens without overriding Ant semantic colours. |
+| Foundation: Ant Design theme and responsive app shell | ui-design-system | APPROVED (DESIGN-001..006) | Local Inter font, light/dark Ant theme, role-aware staff header/Drawer and reusable admin Sider/Drawer frame complete; contextual section mapping deferred to owning page tasks | Build and UI-policy passed; browser visual QA pending | Task: `.agents/tasks/global-app-shell-refactor.md`; `docker compose exec -T frontend npm run build` passed on 2026-10-19. |
+| Navigation architecture: all registered routes | ui-architecture-audit | Existing design approvals apply; header-first shell needs explicit layout approval | Audit complete; no UI implementation changed | Route, role, shell and realtime-scope audit complete | Task: `.agents/tasks/navigation-architecture-audit.md`; recommends public, immersive and staff shell classes. |
+| `/backoffice` + `/superadmin`: contextual administration navigation | ui-page-implementation | APPROVED (DESIGN-001..006) | Complete | Production build and UI-policy passed; manual visual/keyboard QA pending | Task: `.agents/tasks/admin-contextual-navigation.md`; scope is page frame/navigation only. |
 | `/login` | ui-page-implementation | APPROVED (DESIGN-001..004) | Complete | Build, login-contract and UI-policy checks passed; browser visual QA pending | Task: `.agents/tasks/login-ant-design-refactor.md`; `npm run build` passed in isolated frontend Docker environment on 2026-10-01. |
 | `/receiving-times` | ui-page-implementation | Not started | Not started | Not started | Candidate pilot page: lower operational risk. |
 | `/register` | ui-page-implementation | Not started | Not started | Not started | Candidate mobile-form pilot. |

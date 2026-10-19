@@ -39,3 +39,17 @@ tsconfig.tsbuildinfo
 .claude/*
 .codex/*
 .agents/*
+!.codex/hooks/
+!.codex/hooks/**
+!.codex/scripts/
+!.codex/scripts/**
+!.codex/ui-redesign-mode.json
+!.agents/README.md
+!.agents/agents/
+!.agents/agents/**
+!.agents/skills/
+!.agents/skills/**
+!.agents/templates/
+!.agents/templates/**
+!.agents/tasks/
+!.agents/tasks/**
