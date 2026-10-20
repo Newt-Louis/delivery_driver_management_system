@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiOutlined, AppstoreOutlined, ClockCircleOutlined, ClusterOutlined, CodeOutlined, DatabaseOutlined, EnvironmentOutlined, SettingOutlined, TeamOutlined, TruckOutlined } from '@ant-design/icons';
+import { Select, Typography } from 'antd';
+import AdminSectionFrame, { type AdminSectionItem } from '../components/layout/AdminSectionFrame';
 import { superadminApi } from '../features/superadmin/api';
 import type { SuperadminTab } from '../features/superadmin/types';
 import AppConfigsTab from '../features/superadmin/tabs/AppConfigsTab';
@@ -25,6 +28,21 @@ const TABS: Array<[SuperadminTab, string]> = [
   ['apiconfigs', 'API tích hợp'],
   ['receivingTimes', 'Receiving times'],
 ];
+
+const SECTION_ICONS: Record<SuperadminTab, React.ReactNode> = {
+  locations: <EnvironmentOutlined />,
+  units: <AppstoreOutlined />,
+  zones: <ClusterOutlined />,
+  slots: <DatabaseOutlined />,
+  users: <TeamOutlined />,
+  goods: <AppstoreOutlined />,
+  windows: <ClockCircleOutlined />,
+  awvendors: <TruckOutlined />,
+  devices: <ApiOutlined />,
+  appconfigs: <SettingOutlined />,
+  apiconfigs: <CodeOutlined />,
+  receivingTimes: <ClockCircleOutlined />,
+};
 
 export default function Superadmin() {
   const queryClient = useQueryClient();
@@ -86,6 +104,7 @@ export default function Superadmin() {
     () => allUnits.filter((unit) => !businessLocationId || unit.businessLocationId === businessLocationId),
     [allUnits, businessLocationId],
   );
+  const sectionItems: AdminSectionItem[] = TABS.map(([key, label]) => ({ key, label, icon: SECTION_ICONS[key] }));
 
   function refreshActiveTab() {
     switch (activeTab) {
@@ -161,43 +180,33 @@ export default function Superadmin() {
   }
 
   return (
+    <AdminSectionFrame title="Superadmin" items={sectionItems} selectedKey={activeTab} onSelect={(key) => setActiveTab(key as SuperadminTab)}>
     <div className="max-w-7xl mx-auto py-6 px-4 space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-          <h1 className="page-title">Superadmin</h1>
-          <p className="text-sm text-thiso-400 mt-1">Master data toàn hệ thống, chỉ dành cho tài khoản SUPERADMIN duy nhất.</p>
+          <Typography.Title level={1} className="!mb-1 !text-2xl">Superadmin</Typography.Title>
+          <Typography.Text type="secondary">Master data toàn hệ thống, chỉ dành cho tài khoản SUPERADMIN duy nhất.</Typography.Text>
         </div>
         {(showsLocationFilter || showsUnitFilter) && (
           <div className="grid sm:grid-cols-2 gap-3 min-w-[320px]">
             {showsLocationFilter && (
-              <select className="input" value={businessLocationId} onChange={(e) => changeBusinessLocation(e.target.value)}>
-                <option value="">Tất cả locations</option>
-                {allLocations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
-              </select>
+              <Select value={businessLocationId} onChange={changeBusinessLocation} options={[
+                { value: '', label: 'Tất cả locations' },
+                ...allLocations.map((location) => ({ value: location.id, label: `${location.code} - ${location.locationName}` })),
+              ]} />
             )}
             {showsUnitFilter && (
-              <select className="input" value={unitConfigId} onChange={(e) => setUnitConfigId(e.target.value)}>
-                <option value="">Tất cả units</option>
-                {selectedLocationUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName}</option>)}
-              </select>
+              <Select value={unitConfigId} onChange={setUnitConfigId} options={[
+                { value: '', label: 'Tất cả units' },
+                ...selectedLocationUnits.map((unit) => ({ value: unit.id, label: `${unit.unit} - ${unit.displayName}` })),
+              ]} />
             )}
           </div>
         )}
       </div>
 
-      <div className="flex gap-1 border-b border-thiso-200">
-        {TABS.map(([tab, label]) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white border border-b-white border-thiso-200 text-thiso-800 font-semibold -mb-px' : 'text-thiso-400 hover:text-thiso-700'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {renderTab()}
     </div>
+    </AdminSectionFrame>
   );
 }

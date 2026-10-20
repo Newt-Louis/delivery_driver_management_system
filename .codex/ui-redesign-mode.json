@@ -1,0 +1,8 @@
+{
+  "active": false,
+  "activationRequirements": [
+    "DESIGN-001 through DESIGN-004 are APPROVED by a human reviewer in docs/ui-redesign/approval-ledger.md",
+    "The workspace hook at .codex/hooks/hooks.json has been reviewed and trusted through Codex /hooks"
+  ],
+  "completionGate": ".codex/scripts/validate-ui-redesign.ps1"
+}

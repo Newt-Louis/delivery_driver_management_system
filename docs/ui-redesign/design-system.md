@@ -1,29 +1,47 @@
-# Design-System Contract (Pending Approval)
+# Design System: THISO Operations UI
 
-This is the single source for the future UI system. It intentionally does not select a palette or component API before the audit and human design-direction review.
+Status: `APPROVED` by the product owner. The foundation is permitted to evolve `frontend/src` without changing product behaviour.
 
-## Decisions to approve
+## Foundation
 
-| Area | Required decision |
-| --- | --- |
-| Visual direction | Product character, density, and examples that are appropriate for public drivers, operations staff, TV, and administration. |
-| Color tokens | Neutral surface/text/border scale; one primary brand scale; optional supporting accent; semantic state scales; focus and disabled colors. |
-| Typography | Font family, Vietnamese legibility, type scale, line heights, and numeric/table treatment. |
-| Layout | Content widths, shell/sidebar/navigation behavior, responsive breakpoints, page density, and mobile-first public flows. |
-| Foundations | Button, field, select, checkbox/switch, status badge, dialog, toast, table, tabs, empty state, loading state, error state, and icon policy. |
-| Accessibility | Minimum contrast, `:focus-visible`, target sizes, screen-reader labels, reduced motion, and error messaging. |
+- UI library: Ant Design. Do not introduce MUI, PrimeReact, shadcn/ui, a second icon library, or a parallel component system.
+- Semantic behaviour: use Ant Design's default semantic tokens and component states for primary action, neutral/secondary action, success, warning, error, info, disabled, focus, loading and validation. Do not repaint these meanings with custom brand colours.
+- Neutral application theme: smoke gray. The lightest surface is `#FFFFFF`; darker stops are neutral gray with the darkest application neutral remaining gray rather than pure black. Proposed scale: `#FFFFFF`, `#F7F7F8`, `#EDEEEF`, `#D8DADC`, `#B6B9BE`, `#8D9299`, `#626871`, `#434850`.
+- THISO brand accents are reserved for navigation and low-emphasis chrome, not stateful controls: white; silver/smoke gray; dark gray; a translucent bright yellow; and a more visibly yellow pale-gold surface. Light mode uses the pale-gold hover surface; dark mode uses the bright-yellow hover surface. Exact tokens are defined once in the Ant theme foundation, never as page-local colours.
+- Use Ant Design `theme.defaultAlgorithm` and `theme.darkAlgorithm` for light and dark mode. Do not replace Ant Design's semantic red, green, blue primary, warning, secondary, progress, switch, validation, loading or status colours with THISO brand yellow.
+- Dynamic business branding: when a configured unit is represented, preserve `UnitConfig.primaryColor` only as the unit accent. It must not replace warning, error, success, focus or other semantic meanings.
+- Corporate identity is preserved unless a human explicitly authorizes a change: do not replace, remove or restyle THISO/group logos, favicon, web manifest icons, application title, or other existing company brand assets. A product unit's dynamic branding does not authorize changes to these assets.
 
-## Implementation contract after approval
+## Layout and typography
 
-- Define color, spacing, radius, elevation, typography, and motion as named tokens in the frontend theme/base stylesheet.
-- Build only the base primitives required by approved page groups; composition belongs in feature/page code.
-- Keep component states explicit and documented. Loading is not only a disabled button; it needs clear feedback without misleading status color.
-- Use icons to clarify a labeled action, not as unexplained decoration. Adopt a single icon source only after approval.
-- Keep public driver flows touch-first and operational screens information-dense without visual noise.
+- Use three responsive shell classes. Public driver routes use a compact public header; immersive login, tracking-detail and TV routes retain their route-owned full-screen shells; authenticated staff routes use a persistent header-first operations shell.
+- The staff header is the primary application navigation. It groups routes as Vận hành, Phân tích and Quản trị, filters items by the existing role rules, and provides account and theme controls. At phone widths, it uses Ant Design `Drawer`; on tablet it condenses to a menu; on wide desktop it presents grouped header navigation.
+- A desktop sider is not global navigation. It is a secondary, contextual navigator only within Backoffice and Superadmin. Its corresponding mobile form is a Drawer or an Ant Design selector. The owning page supplies its configuration sections; the shared shell supplies the responsive frame.
+- A public driver header exposes Đăng ký giao hàng and Theo dõi chuyến. A small public footer may repeat these and approved support links. Staff and immersive shells do not receive a large global footer because it would consume operational working space.
+- Make touch targets at least 44 by 44 CSS pixels for primary interactions on touch-capable layouts.
+- Use the locally bundled Inter variable font for all application typography, including code/ticket/table text, then the operating-system UI stack as fallback. It supports Vietnamese diacritics, dense operational tables and readable phone controls. Keep a concise type scale: page title, section title, body, metadata, and numeric/table text.
+- Use a fluid content width, compact page gutters on phone, and denser table controls only when space permits. A table may scroll horizontally inside its own container; the page must not overflow horizontally.
+- Make all destructive and high-impact actions explicit with confirmation and a progress state. Preserve existing domain confirmations and permissions.
 
-## Prohibited by default
+## Content resilience
 
-- Gradients, decorative glass effects, ambient blobs, or exaggerated shadows.
-- Arbitrary hex/RGB/HSL values, one-off spacing, and page-local color decisions.
-- Replacing configured unit colors or using semantic colors as general decoration.
-- A screenshot baseline created before a human has reviewed the target state.
+- Every image has meaningful `alt` text when informative, an empty alt when decorative, fixed display bounds, `object-fit`, and a fallback for failed dynamic logos/uploads.
+- Decide per field whether text wraps, truncates with access to the full value, or is monospace and unbroken. Ticket code, registration code, plate and timestamps may not be silently clipped.
+- Every data view includes loading, empty, error, retry, disabled and submitting states where relevant.
+- Dialogs and drawers must retain keyboard focus behaviour supplied by Ant Design; do not rebuild accessible overlays manually.
+
+## Component rules
+
+- Prefer Ant Design components and theme tokens. Shared wrappers exist only for established product rules such as a page header, brand logo, delivery-status tag or responsive data table.
+- Use Ant Design `Layout`, `Header`, `Content`, `Sider`, `Menu`, `Dropdown`, `Drawer`, `Button`, `Avatar`, `Tooltip`, `ConfigProvider`, `theme` algorithms and icons before creating a custom equivalent. A custom component may only compose these primitives around an established product rule or a route/role boundary.
+- Do not add new one-off Tailwind colour utilities, raw hexadecimal colours, hand-built modal overlays, form controls, buttons, or status badges in redesigned files.
+- Keep Tailwind only for structural layout during migration; remove superseded local CSS when a page is converted.
+- Forms keep their current validation and submission semantics. Choose one form owner per form; do not mix Ant Form state with React Hook Form state for the same field.
+
+## Responsive support matrix
+
+Each refactored page is checked at 360 px, 768 px, 1024 px and 1440 px widths. TV waiting screens also require a 1920 px check. Admin and operational pages are required at all four standard widths, including authenticated mobile/tablet use.
+
+## Out of scope
+
+This design system does not authorize a new API, route, role, query key, socket contract, lifecycle rule, backend change, or a replacement of the existing PWA strategy.

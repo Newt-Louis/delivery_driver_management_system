@@ -29,12 +29,12 @@ export const GOODS_LABELS: Record<GoodsType, string> = {
 };
 
 export const BACKOFFICE_TABS: readonly [BackofficeTab, string][] = [
-  ['slots', '🚪 Quản lý Slot'],
-  ['zones', '🗺 Quản lý Khu'],
-  ['units', '⚙ Cấu hình Đơn vị'],
-  ['brand', '🎨 Thương hiệu'],
-  ['staff', '👷 Nhân viên'],
-  ['awvendors', '🏭 Kho tự động'],
+  ['slots', 'Quản lý Slot'],
+  ['zones', 'Quản lý Khu'],
+  ['units', 'Cấu hình Đơn vị'],
+  ['brand', 'Thương hiệu'],
+  ['staff', 'Nhân viên'],
+  ['awvendors', 'Kho tự động'],
 ];
 
 export function allowedBackofficeTabs(role?: string): BackofficeTab[] {

@@ -1,47 +1,36 @@
 # UI Redesign Governance
 
-This directory governs the presentation-only frontend rebuild. The goal is a restrained, coherent product interface without changing delivery operations.
+This directory is the operating contract for the UI rebuild. It governs presentation changes in `frontend/src`; the delivery lifecycle, API contracts, routes, React Query keys, socket events, role checks, and backend behaviour remain unchanged unless a task explicitly expands scope.
 
-## Scope
+## Working order
 
-- In scope: visual hierarchy, layout, responsive behavior, design tokens, base components, icon usage, typography, and presentation states.
-- Out of scope unless explicitly approved: backend, Prisma, API contracts, routing, role rules, React Query keys, socket behavior, lifecycle logic, and delivery data.
-- Preserve `UnitConfig.primaryColor` where a configured unit accent is shown. Brand accent is not a replacement for semantic success, warning, or danger states.
+1. Create or update one page task from `.agents/templates/ui-page-task.md`.
+2. Audit the page, its responsive states, and the relevant domain document in `docs/`.
+3. Apply the approved design system through Ant Design and the shared application shell.
+4. Implement one page or a cohesive feature slice only.
+5. Run the page's logic checks, responsive checks, accessibility checks, and build. Record evidence in `page-ledger.md`.
+6. Run `.codex/scripts/test-ui-policy.ps1` and `.codex/scripts/validate-ui-redesign.ps1` before requesting review.
 
-## Delivery flow
+An audit or visual-QA task does not make broad page edits. A page implementation task may only work on entries whose design-system approval is `APPROVED`.
 
-```text
-UI architecture audit
-  -> human approval of audit and direction
-  -> design system and base components
-  -> human approval of foundation
-  -> one page group implementation
-  -> independent visual QA
-  -> human approval of the page group
-```
+## Roles and reusable workflows
 
-Use the matching Codex skill for each step:
+- `.agents/skills/ui-architecture-audit`: scope, dependency and responsive audit.
+- `.agents/skills/ui-design-system`: tokens, Ant Design theme and shared layout work.
+- `.agents/skills/ui-page-implementation`: one approved page or feature slice.
+- `.agents/skills/ui-visual-qa`: visual, UX, accessibility and regression review.
+- `.agents/agents`: task-role prompts for parallel or handoff work; they are not automatic runtime agents.
 
-- `ui-architecture-audit`: inventory and migration proposal only.
-- `ui-design-system`: approved tokens and reusable primitives only.
-- `ui-page-implementation`: one approved page group, presentation only.
-- `ui-visual-qa`: independent verification and defect report only.
+`AGENTS.md` directs Codex to these workflows. The skills are intentionally focused so a small UI correction is not forced through the complete rebuild process.
 
-The human approval ledger is intentionally separate from code review. A page group does not move forward merely because it builds.
+## Approval and completion
 
-## Hard rules during active rebuild
+Only a human reviewer changes a `PENDING` entry to `APPROVED` in `approval-ledger.md`. An agent may add evidence, identify risks, and request that approval.
 
-- Use approved design tokens and base primitives; do not hard-code color values or add gradients.
-- Keep color purposeful: neutral surfaces dominate; brand accents are limited; semantic colors communicate state only.
-- Use the approved typography and spacing scale. Do not create one-off visual constants inside page components.
-- Keep interactive states complete: default, hover, focus-visible, disabled, pending/loading, error, empty, and success where relevant.
-- Preserve existing responsive support and verify 1440px, 1024px, and 390px widths for every completed page group.
-- Do not add a UI library or change package dependencies without human approval.
+`.codex/ui-redesign-mode.json` remains inactive until the design system is approved and the workspace hook is explicitly trusted through Codex `/hooks`. Once active, the hook is a completion gate for frontend changes: it checks the approval state and requires current page evidence before Codex stops.
 
-## Codex guardrail
+## Design decisions awaiting ledger approval
 
-`.codex/ui-redesign-mode.json` starts disabled so ordinary maintenance is unaffected. After the foundation is approved and before a UI rebuild task, a human may set `active` to `true` and trust the project hooks with `/hooks`. While active, the hook blocks patch edits to backend/operational files and makes `ui:check` a completion gate for changed frontend files.
+The requested direction is recorded in `design-system.md`: Ant Design as the sole component library, its standard semantic behaviour colours, a smoke-gray neutral scale, responsive operation for every route, and `UnitConfig.primaryColor` as the only dynamic unit accent.
 
-## Required evidence
-
-Each approved phase needs its entry in `approval-ledger.md`, the relevant build/lint/audit outcome, and a visual QA report. A screenshot baseline is an approval artifact, not a generated truth: update it only after human review.
+The executable and manual checks are defined in `qa-policy.md`.

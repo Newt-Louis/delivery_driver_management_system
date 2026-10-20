@@ -45,6 +45,7 @@ export default {
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        mono: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
       boxShadow: {
         card: '0 1px 4px 0 rgba(0,0,0,0.06), 0 0 0 1px rgba(0,0,0,0.04)',
