@@ -15,7 +15,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-malluser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mallpass}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      # PostgreSQL owns its data directory as the container's postgres user.
+      # Keep this in a Docker-managed volume rather than a WSL bind mount so
+      # Linux UID mapping cannot make an existing cluster look inaccessible.
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - mall-net
     ports:
@@ -33,7 +36,9 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     command: ["sh", "-c", "redis-server --appendonly yes --protected-mode yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes:
-      - ./data/redis:/data
+      # Keep Redis AOF/RDB persistence out of the WSL bind mount for the same
+      # UID-mapping reason as PostgreSQL above.
+      - redis_data:/data
     networks:
       - mall-net
     restart: unless-stopped
@@ -44,3 +49,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+volumes:
+  # An explicit name keeps the development database stable if Compose's project
+  # name changes (for example after the repository directory is renamed).
+  postgres_data:
+    name: delivery_driver_management_postgres_data
+  redis_data:
+    name: delivery_driver_management_redis_data

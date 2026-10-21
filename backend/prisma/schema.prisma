@@ -223,7 +223,7 @@ model Zone {
 
 model Slot {
   id                String                 @id @default(cuid())
-  code              String                 @unique // T1, T2, M1, M2 …
+  code              String // T1, T2, M1, M2 …; unique within its zone
   name              String
   assignedUnit      String                 @map("assigned_unit")
   vehicleType       VehicleType            @default(TRUCK) @map("vehicle_type")
@@ -240,6 +240,7 @@ model Slot {
   zone              Zone                   @relation(fields: [zoneId], references: [id])
   deliveries        DeliveryRegistration[] @relation("AssignedSlot")
 
+  @@unique([zoneId, code])
   @@index([zoneId])
   @@index([assignedUnit, vehicleType, status, isActive, autoAssign])
   @@index([zoneId, vehicleType, status, isActive, autoAssign])

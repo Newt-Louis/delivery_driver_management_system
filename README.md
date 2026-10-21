@@ -14,7 +14,7 @@ Hệ thống quản lý đăng ký và điều phối giao hàng tại Mall (Ema
 
 ## Hạ tầng Docker và ứng dụng chạy native
 
-Docker chỉ chạy PostgreSQL và Redis. Backend và frontend chạy trực tiếp bằng Node.js trên Windows, không dùng bind mount, Docker Node container hoặc filesystem polling.
+Docker chỉ chạy PostgreSQL và Redis. Backend và frontend chạy trực tiếp bằng Node.js trên Windows, không dùng bind mount, Docker Node container hoặc filesystem polling. PostgreSQL và Redis dùng Docker named volumes `delivery_driver_management_postgres_data` và `delivery_driver_management_redis_data`; không dùng `./data/postgres` hay `./data/redis`, vì quyền UID của tiến trình trong container có thể không tương thích với filesystem WSL bind mount.
 
 ### Bước 1 – Clone và vào thư mục
 
@@ -48,13 +48,14 @@ Chờ PostgreSQL và Redis healthy, sau đó cài dependency và chạy backend/
 
 Frontend native gọi API tại `http://localhost:4000` theo `frontend/.env`.
 
-### Bước 4 – Seed dữ liệu mẫu
+### Bước 4 – Khởi tạo database mới
 
-Chỉ chạy seed nếu muốn tạo lại dữ liệu mẫu: script này xóa dữ liệu hiện có, nên không tự động chạy khi khởi động.
+Chỉ chạy một lần sau `db:deploy` khi PostgreSQL hoàn toàn mới. `db:bootstrap` kiểm tra database trước khi ghi; nếu phát hiện dữ liệu vận hành, master data, device, file hoặc audit đã có thì dừng và không xóa gì. Lệnh này không thuộc quy trình deploy phiên bản mới.
 
 ```bash
 cd backend
-npm run seed
+npm run db:deploy
+npm run db:bootstrap
 ```
 
 ### Bước 5 – Truy cập
@@ -67,6 +68,8 @@ npm run seed
 | Redis       | localhost:6379        |
 
 Port PostgreSQL và Redis có thể đổi qua `POSTGRES_PORT`, `REDIS_PORT` trong `.env` root. Backend native dùng `PORT` trong `backend/.env`; frontend Vite dùng port 5173. HTTPS production được cấu hình riêng trong Dockerfile/nginx frontend.
+
+Navicat vẫn kết nối PostgreSQL tại `127.0.0.1:5434` với database/user trong `.env`; named volume không làm đổi network hay credential. Redis vẫn mở cục bộ ở `127.0.0.1:6379`: dùng Redis Insight hoặc Redis client hỗ trợ Redis, nhập password `REDIS_PASSWORD` từ `.env`, để xem key, value, TTL và các chỉ số persistence. Repository không tự chạy một trang quản trị Redis riêng.
 
 ---
 
@@ -106,7 +109,8 @@ docker compose logs -f postgres redis
 # Dừng hệ thống
 docker compose down
 
-# Dừng và xóa named volumes (database vẫn lưu ở ./data/postgres)
+# CẢNH BÁO: lệnh này xóa PostgreSQL và Redis named volumes. Chỉ chạy sau khi
+# đã backup và thực sự muốn khởi tạo lại toàn bộ hạ tầng dữ liệu.
 docker compose down -v
 
 # Truy cập Prisma Studio (quản lý DB)
@@ -132,8 +136,9 @@ cp .env.example .env
 # Sửa DATABASE_URL trỏ về PostgreSQL local
 # DATAFILE_ROOT mặc định có thể đặt ../datafile để lưu upload ngoài thư mục backend
 npm ci
-npm run db:migrate
-# Tùy chọn: npm run seed (xóa dữ liệu cũ và tạo lại dữ liệu mẫu)
+npm run db:deploy
+# Chỉ cho database hoàn toàn mới, chạy đúng một lần:
+# npm run db:bootstrap
 npm run dev
 ```
 
@@ -166,7 +171,7 @@ Logo/avatar upload được lưu dưới `uploads/<locationCode>/<unitCode?>/<yy
 Bất kỳ khi nào chỉnh sửa DDL schema.prisma thì phải chạy lệnh:
 $ npx prisma migrate dev --name <tên tiếng anh ngắn mô tả thay đổi phân cách bảng dấu \_>
 
-Khi deploy server thì chạy lệnh:
-$ npx prisma migrate deploy
-Tiếp theo là: (Khi có sự cố, bình thường thì đã có lệnh npm run postinstall chạy lệnh này khi build rồi)
-$ npx prisma generate
+Khi deploy UAT hoặc production, chạy một lệnh:
+$ npm run db:deploy
+
+Lệnh này chạy tuần tự `prisma migrate deploy` và `prisma generate`. Image backend cũng gọi chính lệnh này trước khi khởi động. `db:bootstrap` là bước tách biệt, chỉ dùng một lần trên database mới.
