@@ -15,13 +15,14 @@ import {
   SunOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { Avatar, Button, Drawer, Dropdown, Grid, Layout, Menu, Space, Tooltip, Typography, theme, type MenuProps } from 'antd';
+import { Avatar, Button, ConfigProvider, Drawer, Dropdown, Grid, Layout, Menu, Space, Tooltip, Typography, theme, type MenuProps } from 'antd';
 import { useAuth } from '../../context/AuthContext';
 import { useBranding } from '../../context/BrandingContext';
 import { useThemeMode } from '../../context/ThemeModeContext';
 
 type NavigationItem = { to: string; label: string; icon: ReactNode; roles: string[] };
 type NavigationGroup = { key: string; label: string; icon: ReactNode; items: NavigationItem[] };
+type MenuItem = Required<MenuProps>['items'][number];
 
 const NAVIGATION_GROUPS: NavigationGroup[] = [
   {
@@ -77,6 +78,12 @@ export default function StaffShell({ children }: { children: ReactNode }) {
   })).filter((group) => group.items.length > 0), [hasRole]);
   const activeItem = groups.flatMap((group) => group.items).find((item) => pathIsActive(location.pathname, item.to));
   const homePath = user?.role === 'CHECKIN' ? '/check-in' : '/dashboard';
+  const headerItems = useMemo<MenuItem[]>(() => groups.map((group) => ({
+    key: group.key,
+    label: group.label,
+    icon: group.icon,
+    children: group.items.map((item) => ({ key: item.to, icon: item.icon, label: item.label })),
+  })), [groups]);
 
   function go(destination: string) {
     setDrawerOpen(false);
@@ -116,15 +123,30 @@ export default function StaffShell({ children }: { children: ReactNode }) {
           <span className="hidden max-w-48 truncate text-sm font-bold sm:block" style={{ color: token.colorText }}>{mall.mallName}</span>
         </Link>
 
-        <div className="hidden min-w-0 flex-1 items-center justify-center gap-1 xl:flex">
-          {groups.map((group) => {
-            const groupActive = group.items.some((item) => pathIsActive(location.pathname, item.to));
-            const menu: MenuProps = {
-              items: group.items.map((item) => ({ key: item.to, icon: item.icon, label: item.label })),
-              onClick: ({ key }) => go(key),
-            };
-            return <Dropdown key={group.key} menu={menu} trigger={['click']}><Button type={groupActive ? 'default' : 'text'} icon={group.icon}>{group.label} <DownOutlined /></Button></Dropdown>;
-          })}
+        <div className="hidden min-w-0 flex-1 self-stretch xl:flex">
+          <ConfigProvider
+            theme={{
+              components: {
+                Menu: {
+                  horizontalItemHoverColor: token.colorPrimary,
+                  horizontalItemSelectedColor: token.colorPrimary,
+                  itemHoverColor: token.colorPrimary,
+                  itemSelectedColor: token.colorPrimary,
+                  subMenuItemSelectedColor: token.colorPrimary,
+                },
+              },
+            }}
+          >
+            <Menu
+              mode="horizontal"
+              selectedKeys={activeItem ? [activeItem.to] : []}
+              items={headerItems}
+              triggerSubMenuAction="hover"
+              onClick={({ key }) => go(key)}
+              className="h-full min-w-0 flex-1 justify-center"
+              style={{ background: 'transparent', borderBottom: 0 }}
+            />
+          </ConfigProvider>
         </div>
 
         <div className="ml-auto flex items-center gap-1">
