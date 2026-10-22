@@ -32,6 +32,16 @@
   animation: marquee 35s linear infinite;
 }
 
+/* Keep the desktop header item's interactive bounds compact without changing Drawer menus. */
+.staff-header-menu .ant-menu-submenu-title {
+  padding-inline: 4px;
+}
+
+/* Ant Tooltip inherits the 44px global control height; one-line labels should fit their text. */
+body .ant-tooltip .ant-tooltip-container {
+  min-height: 0;
+}
+
 @layer components {
 
   /* ── Buttons ── */

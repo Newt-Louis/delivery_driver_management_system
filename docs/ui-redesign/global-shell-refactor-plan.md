@@ -16,8 +16,8 @@ Replace the current authenticated global sidebar and manual mobile drawer with a
 ## Theme contract
 
 - Ant Design is the sole component and icon library for new shell UI.
-- Light mode has white surfaces, silver/smoke-gray borders and text, and pale-gold navigation hover/selection surfaces.
-- Dark mode has dark-gray surfaces rather than `#000000`, white text, and bright-yellow navigation hover/selection surfaces.
+- Light mode has white surfaces with silver/smoke-gray borders and text; navigation hover and selection inherit Ant Design defaults.
+- Dark mode has dark-gray surfaces rather than `#000000`, white text, and default Ant Design navigation interaction states.
 - The mode control uses Ant components in the staff header and persists a user preference locally. It defaults to the operating-system preference only when the user has not selected a mode.
 - Ant Design algorithms own semantic state colours. THISO accents do not replace primary, success, error, warning, info, switch, progress, validation, focus or loading colours.
 - Existing THISO/group logos, favicon, manifest icons and application title are preserved exactly.
