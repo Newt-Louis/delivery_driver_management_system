@@ -112,8 +112,9 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
       title={isEdit ? `Chỉnh sửa slot — ${slot!.code}` : 'Thêm slot mới'}
       onCancel={onClose}
       footer={null}
-      width={640}
-      styles={{ body: { maxHeight: 'calc(100vh - 160px)', overflowY: 'auto' } }}
+      centered
+      width="min(768px, calc(100vw - 32px))"
+      styles={{ body: { maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto', padding: '16px 8px 16px 16px' } }}
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <Form layout="vertical" component={false}>

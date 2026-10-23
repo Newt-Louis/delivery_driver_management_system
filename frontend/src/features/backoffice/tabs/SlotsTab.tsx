@@ -259,7 +259,6 @@ export default function SlotsTab() {
             <Switch checked={showInactive} onChange={setShowInactive} aria-label="Hiện slot vô hiệu hóa" />
             <Typography.Text>Hiện slot vô hiệu hóa</Typography.Text>
           </Space>
-          <Typography.Text type="secondary" className="sm:ml-auto">{filtered.length} slot</Typography.Text>
         </Flex>
       </Card>
 
