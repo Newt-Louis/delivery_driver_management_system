@@ -34,7 +34,7 @@ Tab và quyền:
 - `Người dùng`: chỉ `SUPERADMIN` trong `/superadmin`; quản trị staff cấp dưới của `ADMIN_LOC` nằm ở tab nhân viên.
 - `Cấu hình Đơn vị`: `SUPERADMIN`, `ADMIN_LOC`; thao tác config theo unit scope.
 - `Kho tự động`: `SUPERADMIN`, `ADMIN_LOC`; vendor phải gắn với `unitConfigId`/location-aware.
-- `Nhân viên`: `ADMIN_LOC` quản trị `RECEIVING` và `CHECKIN`, đồng thời được thấy/sửa unit scope của `ADMIN_OPE` trong location.
+- `Nhân viên`: `ADMIN_LOC` quản trị `RECEIVING` và `CHECKIN`, đồng thời được thấy/sửa unit scope của `ADMIN_OPE` trong location. `SUPERADMIN` cũng dùng được tab này sau khi chọn BusinessLocation vận hành, với đầy đủ quyền tạo/sửa/reset mật khẩu/vô hiệu hóa các tài khoản `ADMIN_OPE`, `RECEIVING` và `CHECKIN` của location đó.
 - Zone/slot/goods types/time windows/receiving time config/unit brand: `SUPERADMIN`, `ADMIN_LOC` theo backend guard và unit operation scope.
 - `ADMIN_OPE` không truy cập Backoffice để chỉnh cấu hình. Role này thuộc nhóm vận hành dashboard/docks/reports trong phạm vi unit được cấp.
 - Link `Superadmin` trong Navbar và CTA trong Backoffice chỉ visible với `SUPERADMIN`.

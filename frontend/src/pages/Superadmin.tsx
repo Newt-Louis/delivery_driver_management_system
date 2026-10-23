@@ -181,7 +181,7 @@ export default function Superadmin() {
 
   return (
     <AdminSectionFrame title="Superadmin" items={sectionItems} selectedKey={activeTab} onSelect={(key) => setActiveTab(key as SuperadminTab)}>
-    <div className="max-w-7xl mx-auto py-6 px-4 space-y-6">
+    <div className="px-4 py-6 space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <Typography.Title level={1} className="!mb-1 !text-2xl">Superadmin</Typography.Title>

@@ -85,7 +85,7 @@ export default function AdminSectionFrame({ title, items, selectedKey, onSelect,
         </Layout.Sider>
       )}
 
-      <Layout.Content className="min-w-0">
+      <Layout.Content className="m-0 min-w-0">
         {!screens.lg && (
           <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
             <Button icon={<MenuOutlined />} onClick={() => setDrawerOpen(true)}>Danh mục</Button>

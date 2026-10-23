@@ -522,9 +522,6 @@ export default function UnitsTab() {
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-thiso-400">
-        Cấu hình khung giờ nhận hàng, slot booking và API tích hợp cho từng đơn vị.
-      </p>
       {unitConfigs.length === 0 && (
         <div className="rounded-2xl border border-thiso-100 bg-white p-5 text-sm text-thiso-400">
           Khu vực hiện tại chưa có đơn vị nào.

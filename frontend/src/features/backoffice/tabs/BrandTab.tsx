@@ -149,8 +149,6 @@ export default function BrandTab() {
   return (
     <div className="space-y-6">
       <div className="space-y-5">
-        <h3 className="font-bold text-thiso-700">Thương hiệu từng đơn vị</h3>
-        <p className="text-sm text-thiso-400">Cấu hình logo và tên hiển thị cho từng đơn vị vận hành. Logo xuất hiện trên màn hình chờ và phiếu in.</p>
         {unitsLoading && <p className="text-sm text-thiso-400">Đang tải đơn vị...</p>}
         {!unitsLoading && unitConfigs.length === 0 && (
           <div className="border border-thiso-100 bg-white rounded-2xl p-5 text-sm text-thiso-400">

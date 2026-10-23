@@ -99,8 +99,7 @@ export default function ZonesTab() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-thiso-400">Quản lý các khu nhận hàng vật lý. Mỗi khu có thể chứa nhiều slot và phục vụ nhiều đơn vị.</p>
+      <div className="mb-4 flex items-center justify-end">
         <button className="btn-primary px-4 py-2 text-sm" onClick={() => { setAddMode(true); setEditZone(null); setForm({ code: '', name: '', unitConfigId: unitConfigs[0]?.id ?? '' }); }}>
           + Thêm Khu
         </button>

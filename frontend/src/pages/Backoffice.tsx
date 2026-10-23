@@ -27,6 +27,7 @@ export default function Backoffice() {
   const allowedTabs = useMemo(() => allowedBackofficeTabs(user?.role), [user?.role]);
   const allowedTabKey = allowedTabs.join(',');
   const [activeTab, setActiveTab] = useState<BackofficeTab>(() => allowedBackofficeTabs(user?.role)[0] ?? 'units');
+  const activeTabMeta = BACKOFFICE_TABS.find(([tab]) => tab === activeTab);
 
   useEffect(() => {
     if (allowedTabs.length > 0 && !allowedTabs.includes(activeTab)) setActiveTab(allowedTabs[0]);
@@ -51,11 +52,11 @@ export default function Backoffice() {
 
   return (
     <AdminSectionFrame title="Backoffice" items={sectionItems} selectedKey={activeTab} onSelect={(key) => setActiveTab(key as BackofficeTab)}>
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className="px-4 py-6 sm:px-6">
         <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <Typography.Title level={1} className="!mb-1 !text-2xl">Backoffice</Typography.Title>
-            <Typography.Text type="secondary">Quản lý slot và cấu hình đơn vị nhận hàng theo quyền tài khoản.</Typography.Text>
+            <Typography.Title level={1} className="!mb-1 !text-2xl">{activeTabMeta?.[1] ?? 'Backoffice'}</Typography.Title>
+            <Typography.Text type="secondary">{activeTabMeta?.[2] ?? 'Cấu hình vận hành theo quyền tài khoản.'}</Typography.Text>
           </div>
           {user?.role === 'SUPERADMIN' && (
             <Link to="/superadmin"><Button icon={<SettingOutlined />}>Superadmin</Button></Link>
