@@ -588,7 +588,6 @@ function BrightUnitPanel({ unitKey, deliveries, highlightId, brand, compact = fa
           <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={compact ? 32 : 38} />
           <span className="leading-none"
                 style={{
-                  fontFamily: "'Inter', sans-serif",
                   fontWeight: 800,
                   color: '#111',
                   fontSize: compact ? '1.25rem' : 'clamp(1.2rem, 2vw, 1.65rem)',

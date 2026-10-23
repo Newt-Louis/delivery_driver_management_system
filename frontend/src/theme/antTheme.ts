@@ -39,8 +39,8 @@ export function createAntTheme(mode: ThemeMode): ThemeConfig {
     borderRadius: 12,
     controlHeight: 44,
     controlHeightLG: 48,
-    fontFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      fontFamilyCode: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      fontFamily: 'var(--app-font-family)',
+      fontFamilyCode: 'var(--app-font-family)',
     },
     components: {
       Button: isDark ? {

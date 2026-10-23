@@ -98,29 +98,27 @@ export default function SlotsTab() {
 
   const columns: TableColumnsType<Slot> = [
     {
-      title: 'Tên slot',
-      key: 'slot',
-      fixed: 'left',
-      width: 180,
-      render: (_, slot) => (
-        <Space size={8} align="center" className="flex w-full">
-          <Typography.Text strong code className="shrink-0">{slot.code}</Typography.Text>
-          <Tooltip title={slot.name}>
-            <span className="min-w-0 flex-1">
-              <Typography.Text ellipsis>{slot.name}</Typography.Text>
-            </span>
-          </Tooltip>
-        </Space>
-      ),
-    },
-    {
       title: 'Khu / đơn vị',
       key: 'scope',
-      width: 200,
+      width: 120,
       render: (_, slot) => (
         <Space direction="vertical" size={4}>
           {slot.zone ? <Tag>{slot.zone.code}</Tag> : <Typography.Text type="secondary">—</Typography.Text>}
-          <Tooltip title={slotUnitLabel(slot)}><Typography.Text type="secondary" ellipsis className="max-w-40">{slotUnitLabel(slot)}</Typography.Text></Tooltip>
+          <Typography.Text type="secondary" ellipsis className="max-w-40">{slotUnitLabel(slot)}</Typography.Text>
+        </Space>
+      ),
+    },
+    { 
+      title: 'Tên slot',
+      key: 'slot',
+      fixed: 'left',
+      width: 160,
+      render: (_, slot) => (
+        <Space size={8} align="center" className="flex w-full">
+          <Typography.Text strong code className="shrink-0">{slot.code}</Typography.Text>
+            <span className="min-w-0 flex-1">
+              <Typography.Text ellipsis>{slot.name}</Typography.Text>
+            </span>
         </Space>
       ),
     },
@@ -133,7 +131,7 @@ export default function SlotsTab() {
     {
       title: 'Hàng nhận',
       key: 'goods',
-      width: 280,
+      width: 300,
       render: (_, slot) => (
         <Space size={[4, 4]} wrap>
           {slot.autoWarehouseOnly && <Tag>🏭 Kho tự động</Tag>}
@@ -159,13 +157,13 @@ export default function SlotsTab() {
     {
       title: 'Trạng thái',
       dataIndex: 'status',
-      width: 130,
+      width: 110,
       render: (status: Slot['status']) => <Tag color={SLOT_STATUS_COLOR[status]}>{STATUS_LABEL[status]}</Tag>,
     },
     {
       title: 'Kích hoạt',
       dataIndex: 'isActive',
-      width: 125,
+      width: 80,
       render: (_: boolean, slot) => (
         <Switch
           checked={slot.isActive}

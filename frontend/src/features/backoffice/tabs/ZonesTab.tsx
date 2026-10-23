@@ -1,55 +1,161 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  Alert,
+  Avatar,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Empty,
+  Flex,
+  Form,
+  Input,
+  Modal,
+  Pagination,
+  Popconfirm,
+  Result,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Tag,
+  Tooltip,
+  Typography,
+  theme,
+} from 'antd';
 import api from '../../../lib/api';
-import type { Zone, UnitConfig } from '../../../lib/types';
+import type { Slot, UnitConfig, Zone } from '../../../lib/types';
+import { STATUS_LABEL } from '../constants';
 
-function unitConfigLabel(unit?: { unit?: string; displayName?: string; shortName?: string } | null) {
+type ZoneForm = {
+  code: string;
+  name: string;
+  unitConfigId: string;
+};
+
+const SLOT_STATUS_COLOR: Record<Slot['status'], 'success' | 'processing' | 'warning' | 'default'> = {
+  AVAILABLE: 'success',
+  OCCUPIED: 'processing',
+  RESERVED: 'warning',
+  MAINTENANCE: 'default',
+};
+
+function unitConfigLabel(unit?: Pick<UnitConfig, 'unit' | 'displayName' | 'shortName'> | null) {
   return unit?.displayName || unit?.shortName || unit?.unit || 'Không rõ đơn vị';
 }
 
-function hexToRgb(color: string): { r: number; g: number; b: number } | null {
-  const value = color.trim();
-  const full = /^#([0-9a-fA-F]{6})$/.exec(value);
-  if (full) {
-    return {
-      r: parseInt(full[1].slice(0, 2), 16),
-      g: parseInt(full[1].slice(2, 4), 16),
-      b: parseInt(full[1].slice(4, 6), 16),
-    };
+function errorMessage(error: unknown, fallback = 'Có lỗi xảy ra.') {
+  const response = error as { response?: { data?: { error?: string; message?: string } } };
+  return response.response?.data?.error ?? response.response?.data?.message ?? fallback;
+}
+
+function ZoneModal({
+  zone,
+  unitConfigs,
+  onClose,
+  onSaved,
+}: {
+  zone: Zone | null;
+  unitConfigs: UnitConfig[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = Boolean(zone);
+  const [form, setForm] = useState<ZoneForm>({
+    code: zone?.code ?? '',
+    name: zone?.name ?? '',
+    unitConfigId: zone?.unitConfigId ?? unitConfigs[0]?.id ?? '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function setField<K extends keyof ZoneForm>(key: K, value: ZoneForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setError('');
   }
 
-  const short = /^#([0-9a-fA-F]{3})$/.exec(value);
-  if (!short) return null;
-  return {
-    r: parseInt(short[1][0] + short[1][0], 16),
-    g: parseInt(short[1][1] + short[1][1], 16),
-    b: parseInt(short[1][2] + short[1][2], 16),
-  };
-}
+  async function saveZone() {
+    if (!form.code.trim() || !form.name.trim() || !form.unitConfigId) {
+      setError('Bắt buộc nhập mã, tên khu và đơn vị.');
+      return;
+    }
 
-function mixRgb(color: string, target: 0 | 255, amount: number): string {
-  const rgb = hexToRgb(color);
-  if (!rgb) return color;
-  const mix = (value: number) => Math.round(value + (target - value) * amount);
-  return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
-}
+    setSaving(true);
+    setError('');
+    try {
+      const payload = { ...form, code: form.code.trim().toUpperCase(), name: form.name.trim() };
+      if (isEdit) {
+        await api.patch(`/api/zones/${zone!.id}`, payload);
+      } else {
+        await api.post('/api/zones', payload);
+      }
+      onSaved();
+    } catch (saveError) {
+      setError(errorMessage(saveError, 'Không thể lưu khu.'));
+    } finally {
+      setSaving(false);
+    }
+  }
 
-function colorWithAlpha(color: string, alpha: number): string {
-  const rgb = hexToRgb(color);
-  if (!rgb) return color;
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
-}
-
-function zoneGradientStyle(color: string | null | undefined) {
-  const baseColor = color?.trim() || '#1C1C1C';
-  return {
-    background: `linear-gradient(90deg, ${mixRgb(baseColor, 0, 0.14)}, ${mixRgb(baseColor, 255, 0.18)})`,
-  };
+  return (
+    <Modal
+      open
+      centered
+      destroyOnHidden
+      title={isEdit ? `Sửa khu ${zone?.code}` : 'Thêm khu mới'}
+      width="min(680px, calc(100vw - 32px))"
+      styles={{ body: { maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto' } }}
+      onCancel={onClose}
+      footer={[
+        <Button key="cancel" onClick={onClose}>Hủy</Button>,
+        <Button key="save" type="primary" loading={saving} onClick={saveZone}>Lưu</Button>,
+      ]}
+    >
+      <Form layout="vertical" requiredMark={false} onFinish={saveZone}>
+        <Row gutter={16}>
+          <Col xs={24} sm={8}>
+            <Form.Item label="Mã khu" required>
+              <Input
+                value={form.code}
+                disabled={isEdit}
+                maxLength={10}
+                placeholder="K6"
+                onChange={(event) => setField('code', event.target.value.toUpperCase())}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={16}>
+            <Form.Item label="Tên khu" required>
+              <Input value={form.name} maxLength={100} placeholder="Khu 6 – Khu vực mới" onChange={(event) => setField('name', event.target.value)} />
+            </Form.Item>
+          </Col>
+        </Row>
+        <Form.Item label="Đơn vị" required>
+          <Select
+            value={form.unitConfigId || undefined}
+            placeholder="Chọn đơn vị"
+            options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.icon?.trim() || '🏬'} ${unitConfigLabel(unit)}` }))}
+            onChange={(value) => setField('unitConfigId', value)}
+          />
+        </Form.Item>
+        {error && <Alert type="error" showIcon message={error} />}
+      </Form>
+    </Modal>
+  );
 }
 
 export default function ZonesTab() {
   const queryClient = useQueryClient();
-  const { data: zones = [], isLoading } = useQuery<Zone[]>({
+  const { token } = theme.useToken();
+  const [unitFilter, setUnitFilter] = useState('');
+  const [modalZone, setModalZone] = useState<Zone | null | undefined>(undefined);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 9;
+
+  const { data: zones = [], isLoading, isError, refetch } = useQuery<Zone[]>({
     queryKey: ['zones'],
     queryFn: async () => (await api.get('/api/zones')).data,
   });
@@ -58,163 +164,195 @@ export default function ZonesTab() {
     queryFn: async () => (await api.get('/api/units/configs')).data,
   });
 
-  const [addMode, setAddMode] = useState(false);
-  const [editZone, setEditZone] = useState<Zone | null>(null);
-  const [form, setForm] = useState({ code: '', name: '', unitConfigId: '' });
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
   function refreshZones() {
     queryClient.invalidateQueries({ queryKey: ['zones'] });
     queryClient.invalidateQueries({ queryKey: ['slots', 'all'] });
   }
 
-  async function saveZone() {
-    if (!form.code.trim() || !form.name.trim() || !form.unitConfigId) { setError('Bắt buộc nhập mã, tên khu và đơn vị.'); return; }
-    setSaving(true); setError('');
-    try {
-      if (editZone) {
-        await api.patch(`/api/zones/${editZone.id}`, form);
-      } else {
-        await api.post('/api/zones', form);
-      }
-      setAddMode(false); setEditZone(null); setForm({ code: '', name: '', unitConfigId: '' });
-      refreshZones();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setError(msg ?? 'Lỗi lưu khu.');
-    } finally { setSaving(false); }
+  function closeModal() {
+    setModalZone(undefined);
   }
 
-  async function deleteZone(z: Zone) {
-    if (!confirm(`Xóa khu ${z.code}?`)) return;
+  async function deleteZone(zone: Zone) {
     try {
-      await api.delete(`/api/zones/${z.id}`);
+      await api.delete(`/api/zones/${zone.id}`);
+      setNotice({ type: 'success', message: `Đã xóa khu ${zone.code}.` });
       refreshZones();
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      alert(msg ?? 'Lỗi xóa khu.');
+    } catch (deleteError) {
+      setNotice({ type: 'error', message: errorMessage(deleteError, 'Không thể xóa khu.') });
     }
   }
 
-  return (
-    <div>
-      <div className="mb-4 flex items-center justify-end">
-        <button className="btn-primary px-4 py-2 text-sm" onClick={() => { setAddMode(true); setEditZone(null); setForm({ code: '', name: '', unitConfigId: unitConfigs[0]?.id ?? '' }); }}>
-          + Thêm Khu
-        </button>
-      </div>
+  const filteredZones = zones.filter((zone) => !unitFilter || zone.unitConfigId === unitFilter);
+  const totalPages = Math.max(1, Math.ceil(filteredZones.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedZones = filteredZones.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const totalSlots = zones.reduce((total, zone) => total + (zone._count?.slots ?? zone.slots?.length ?? 0), 0);
+  const activeSlots = zones.reduce((total, zone) => total + (zone.slots?.length ?? 0), 0);
+  const availableSlots = zones.reduce((total, zone) => total + (zone.slots?.filter((slot) => slot.status === 'AVAILABLE').length ?? 0), 0);
 
-      {(addMode || editZone) && (
-        <div className="mb-5 bg-white border border-thiso-100 rounded-2xl p-5">
-          <h3 className="font-bold text-thiso-800 mb-4">{editZone ? `Sửa Khu ${editZone.code}` : 'Thêm Khu mới'}</h3>
-          <div className="grid grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="label">Mã Khu *</label>
-              <input className="input uppercase" placeholder="K6" value={form.code} onChange={(e) => setForm((f) => ({ ...f, code: e.target.value.toUpperCase() }))} disabled={!!editZone} />
-            </div>
-            <div>
-              <label className="label">Tên Khu *</label>
-              <input className="input" placeholder="Khu 6 – Khu vực mới" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-            </div>
-            <div>
-              <label className="label">Đơn vị *</label>
-              <select className="input" value={form.unitConfigId} onChange={(e) => setForm((f) => ({ ...f, unitConfigId: e.target.value }))}>
-                <option value="">— Chọn đơn vị —</option>
-                {unitConfigs.map((cfg) => (
-                  <option key={cfg.id} value={cfg.id}>{cfg.unit} - {unitConfigLabel(cfg)}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {error && <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
-          <div className="flex gap-3">
-            <button className="btn-secondary" onClick={() => { setAddMode(false); setEditZone(null); setError(''); }}>Hủy</button>
-            <button className="btn-primary" onClick={saveZone} disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu'}</button>
-          </div>
-        </div>
+  return (
+    <Space direction="vertical" size="large" className="w-full">
+      <Flex justify="end">
+        <Tooltip title={unitConfigs.length === 0 ? 'Cần có ít nhất một đơn vị để tạo khu.' : undefined}>
+          <span>
+            <Button type="primary" icon={<PlusOutlined />} disabled={unitConfigs.length === 0} onClick={() => setModalZone(null)}>Thêm khu</Button>
+          </span>
+        </Tooltip>
+      </Flex>
+
+      {modalZone !== undefined && (
+        <ZoneModal
+          zone={modalZone}
+          unitConfigs={unitConfigs}
+          onClose={closeModal}
+          onSaved={() => {
+            closeModal();
+            refreshZones();
+            setNotice({ type: 'success', message: `Đã ${modalZone ? 'cập nhật' : 'tạo'} khu thành công.` });
+          }}
+        />
       )}
 
-      {isLoading && <div className="py-8 text-center text-thiso-400">Đang tải...</div>}
+      {notice && <Alert type={notice.type} message={notice.message} showIcon closable onClose={() => setNotice(null)} />}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {zones.map((z) => {
-          const slotList = z.slots ?? [];
-          const trucks = slotList.filter((s) => s.vehicleType === 'TRUCK');
-          const motorbikes = slotList.filter((s) => s.vehicleType === 'MOTORBIKE');
-          const zoneUnitConfig = z.unitConfig ?? unitConfigs.find((cfg) => cfg.id === z.unitConfigId);
-          const zoneColor = zoneUnitConfig?.primaryColor;
+      <Row gutter={[12, 12]}>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Tổng khu" value={zones.length} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Khu có slot" value={zones.filter((zone) => (zone._count?.slots ?? zone.slots?.length ?? 0) > 0).length} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Tổng slot" value={totalSlots} suffix={<Tag>{activeSlots} kích hoạt</Tag>} /></Card>
+        </Col>
+        <Col xs={12} sm={6}>
+          <Card size="small"><Statistic title="Slot trống" value={availableSlots} suffix={<Tag color="success">Sẵn sàng</Tag>} /></Card>
+        </Col>
+      </Row>
 
-          return (
-            <div key={z.id} className="bg-white border border-thiso-100 rounded-2xl overflow-hidden shadow-card">
-              <div className="px-4 py-3 text-white flex items-center justify-between" style={zoneGradientStyle(zoneColor)}>
-                <div>
-                  <div className="font-black text-xl tracking-widest">{z.code}</div>
-                  <div className="text-white/80 text-sm">{z.name}</div>
-                </div>
-                <div className="text-right">
-                  <div className="text-2xl font-black">{slotList.length}</div>
-                  <div className="text-white/70 text-xs">slot</div>
-                </div>
-              </div>
+      <Card size="small">
+        <Space direction="vertical" size={4}>
+          <Typography.Text type="secondary">Đơn vị</Typography.Text>
+          <Select
+            className="min-w-56"
+            allowClear
+            placeholder="Tất cả đơn vị"
+            value={unitFilter || undefined}
+            options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.icon?.trim() || '🏬'} ${unitConfigLabel(unit)}` }))}
+            onChange={(value) => {
+              setUnitFilter(value ?? '');
+              setPage(1);
+            }}
+          />
+        </Space>
+      </Card>
 
-              <div className="p-4">
-                {/* Unit badges */}
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {zoneUnitConfig ? (
-                    <span
-                      className="text-xs px-2 py-0.5 rounded-full font-semibold"
-                      style={{
-                        backgroundColor: colorWithAlpha(zoneColor || '#1C1C1C', 0.12),
-                        color: zoneColor || '#1C1C1C',
-                      }}
-                    >
-                      {unitConfigLabel(zoneUnitConfig)}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400 italic">Chưa xác định đơn vị</span>
-                  )}
-                </div>
+      {isError ? (
+        <Result status="error" title="Không thể tải danh sách khu" extra={<Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />
+      ) : isLoading ? (
+        <Card size="small" loading />
+      ) : pagedZones.length === 0 ? (
+        <Empty description="Chưa có khu phù hợp" />
+      ) : (
+        <>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] gap-4">
+            {pagedZones.map((zone) => {
+              const slots = zone.slots ?? [];
+              const slotCount = zone._count?.slots ?? slots.length;
+              const trucks = slots.filter((slot) => slot.vehicleType === 'TRUCK').length;
+              const motorbikes = slots.filter((slot) => slot.vehicleType === 'MOTORBIKE').length;
+              const unit = zone.unitConfig ?? unitConfigs.find((unitConfig) => unitConfig.id === zone.unitConfigId);
+              const unitName = unitConfigLabel(unit);
+              const unitColor = unit?.primaryColor || token.colorPrimary;
+              const canDelete = slotCount === 0;
+              const deleteButton = <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} disabled={!canDelete} aria-label={`Xóa khu ${zone.code}`} />;
 
-                {/* Slot summary */}
-                <div className="flex gap-4 text-sm text-thiso-600 mb-3">
-                  {trucks.length > 0 && <span>🚛 {trucks.length} tải</span>}
-                  {motorbikes.length > 0 && <span>🛵 {motorbikes.length} xe máy</span>}
-                  {slotList.length === 0 && <span className="text-gray-400 italic text-xs">Chưa có slot nào</span>}
-                </div>
-
-                {/* Slot chips */}
-                {slotList.length > 0 && (
-                  <div className="flex flex-wrap gap-1 mb-3">
-                    {slotList.map((s) => (
-                      <span key={s.id} className={`text-xs px-2 py-0.5 rounded font-mono font-bold border ${s.status === 'AVAILABLE' ? 'border-green-300 bg-green-50 text-green-700' : s.status === 'OCCUPIED' ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-50 text-gray-500'}`}>
-                        {s.code}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex gap-2 pt-2 border-t border-thiso-100">
-                  <button
-                    className="text-xs px-3 py-1 rounded-lg border border-thiso-200 hover:border-sky-400 hover:text-sky-600 transition-colors text-thiso-500"
-                    onClick={() => { setEditZone(z); setAddMode(false); setForm({ code: z.code, name: z.name, unitConfigId: z.unitConfigId }); setError(''); }}
-                  >
-                    Sửa
-                  </button>
-                  <button
-                    className="text-xs px-3 py-1 rounded-lg border border-thiso-200 hover:border-red-400 hover:text-red-600 transition-colors text-thiso-400"
-                    onClick={() => deleteZone(z)}
-                    disabled={(z._count?.slots ?? slotList.length) > 0}
-                    title={(z._count?.slots ?? slotList.length) > 0 ? 'Chuyển hết slot ra trước khi xóa' : ''}
-                  >
-                    Xóa
-                  </button>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
+              return (
+                <Card
+                  key={zone.id}
+                  size="small"
+                  className="h-full w-full"
+                  cover={<div aria-hidden className="h-24" style={{ backgroundColor: unitColor }} />}
+                  actions={[
+                    <Tooltip key="edit" title="Chỉnh sửa khu">
+                      <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa khu ${zone.code}`} onClick={() => setModalZone(zone)} />
+                    </Tooltip>,
+                    canDelete ? (
+                      <Popconfirm
+                        key="delete"
+                        title={`Xóa khu ${zone.code}?`}
+                        description="Khu không còn slot sẽ bị xóa vĩnh viễn."
+                        okText="Xóa"
+                        cancelText="Hủy"
+                        okButtonProps={{ color: 'danger', variant: 'solid' }}
+                        onConfirm={() => deleteZone(zone)}
+                      >
+                        {deleteButton}
+                      </Popconfirm>
+                    ) : (
+                      <Tooltip key="delete-disabled" title="Chuyển hết slot ra khỏi khu trước khi xóa.">
+                        <span>{deleteButton}</span>
+                      </Tooltip>
+                    ),
+                  ]}
+                >
+                  <Space direction="vertical" size="middle" className="w-full">
+                    <Card.Meta
+                      avatar={(
+                        <Avatar
+                          src={unit?.logoUrl || undefined}
+                          style={{ backgroundColor: 'transparent', color: token.colorText }}
+                        >
+                          {unit?.icon?.trim() || '🏬'}
+                        </Avatar>
+                      )}
+                      title={(
+                        <Flex justify="space-between" align="center" gap="small">
+                          <Typography.Text strong code>{zone.code}</Typography.Text>
+                          <Tag>{slotCount} slot</Tag>
+                        </Flex>
+                      )}
+                      description={<Tooltip title={zone.name}><Typography.Text ellipsis className="block max-w-full">{zone.name}</Typography.Text></Tooltip>}
+                    />
+                    <Space size="small" className="w-full">
+                      <Typography.Text type="secondary">Đơn vị:</Typography.Text>
+                      <Tooltip title={unitName}><Tag>{unit?.icon?.trim() || '🏬'} {unitName}</Tag></Tooltip>
+                    </Space>
+                    <Descriptions size="small" column={2} items={[
+                      { key: 'trucks', label: 'Xe tải', children: trucks },
+                      { key: 'motorbikes', label: 'Xe máy', children: motorbikes },
+                    ]} />
+                    {slots.length > 0 ? (
+                      <Space size={[4, 4]} wrap>
+                        {slots.map((slot) => (
+                          <Tooltip key={slot.id} title={`${slot.name} · ${STATUS_LABEL[slot.status]}`}>
+                            <Tag color={SLOT_STATUS_COLOR[slot.status]}>{slot.code}</Tag>
+                          </Tooltip>
+                        ))}
+                      </Space>
+                    ) : (
+                      <Typography.Text type="secondary">Chưa có slot nào.</Typography.Text>
+                    )}
+                  </Space>
+                </Card>
+              );
+            })}
+          </div>
+          <Flex justify="center">
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={filteredZones.length}
+              size="small"
+              showSizeChanger={false}
+              showTotal={(total) => `Tổng ${total} khu`}
+              hideOnSinglePage
+              onChange={setPage}
+            />
+          </Flex>
+        </>
+      )}
+    </Space>
   );
 }
