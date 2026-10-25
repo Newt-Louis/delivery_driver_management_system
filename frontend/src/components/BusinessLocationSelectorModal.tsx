@@ -1,3 +1,5 @@
+import { CheckCircleOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { Alert, Avatar, Card, Col, Empty, Flex, Modal, Row, Skeleton, Space, Tag, Typography, theme } from 'antd';
 import type { BusinessLocation } from '../lib/types';
 
 interface BusinessLocationSelectorModalProps {
@@ -27,101 +29,68 @@ export default function BusinessLocationSelectorModal({
   onSelect,
   onClose,
 }: BusinessLocationSelectorModalProps) {
-  if (!open) return null;
+  const { token } = theme.useToken();
 
   return (
-    <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-thiso-900/60 px-4 py-6"
-      onClick={(event) => {
-        if (!required && event.target === event.currentTarget) onClose?.();
-      }}
+    <Modal
+      open={open}
+      centered
+      title={title}
+      footer={null}
+      closable={!required}
+      maskClosable={!required}
+      keyboard={!required}
+      width="min(760px, calc(100vw - 32px))"
+      styles={{ body: { maxHeight: 'calc(100dvh - 180px)', overflowY: 'auto' } }}
+      onCancel={onClose}
     >
-      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl border border-thiso-100 overflow-hidden">
-        <div className="flex items-start gap-4 border-b border-thiso-100 px-5 py-4">
-          <div className="flex-1">
-            <h2 className="text-lg font-black text-thiso-900">{title}</h2>
-            <p className="mt-1 text-sm text-thiso-500">{description}</p>
-          </div>
-          {!required && (
-            <button
-              type="button"
-              className="h-9 w-9 rounded-lg text-thiso-400 hover:bg-thiso-100 hover:text-thiso-800"
-              onClick={onClose}
-              aria-label="Đóng"
-            >
-              ×
-            </button>
-          )}
-        </div>
+      <Space direction="vertical" size="large" className="w-full">
+        <Typography.Paragraph type="secondary" className="!mb-0">{description}</Typography.Paragraph>
 
-        <div className="max-h-[65vh] overflow-y-auto p-4">
-          {loading ? (
-            <div className="rounded-xl border border-thiso-100 bg-thiso-50 px-4 py-8 text-center text-sm text-thiso-500">
-              Đang tải danh sách khu vực...
-            </div>
-          ) : locations.length === 0 ? (
-            <div className="rounded-xl border border-thiso-100 bg-thiso-50 px-4 py-8 text-center text-sm text-thiso-500">
-              Chưa có BusinessLocation nào đang hoạt động.
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {locations.map((location) => {
-                const selected = currentId === location.id;
-                const unitCount = location.unitConfigs?.length ?? 0;
-                return (
-                  <button
-                    key={location.id}
-                    type="button"
-                    className={`rounded-xl border px-4 py-3 text-left transition-all ${
-                      selected
-                        ? 'border-thiso-800 bg-thiso-50 shadow-sm'
-                        : 'border-thiso-100 bg-white hover:border-thiso-300 hover:bg-thiso-50'
-                    }`}
-                    disabled={saving}
-                    onClick={() => onSelect(location.id)}
+        {loading ? (
+          <Skeleton active avatar paragraph={{ rows: 3 }} />
+        ) : locations.length === 0 ? (
+          <Empty description="Chưa có BusinessLocation nào đang hoạt động." image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        ) : (
+          <Row gutter={[12, 12]}>
+            {locations.map((location) => {
+              const selected = currentId === location.id;
+              const unitCount = location.unitConfigs?.length ?? 0;
+              const selectLocation = () => {
+                if (!saving) onSelect(location.id);
+              };
+              return (
+                <Col key={location.id} xs={24} sm={12}>
+                  <Card
+                    hoverable={!saving}
+                    className="h-full"
+                    style={selected ? { borderColor: token.colorPrimary } : undefined}
+                    role="button"
+                    tabIndex={saving ? -1 : 0}
+                    aria-disabled={saving}
+                    aria-label={`Chọn khu vực ${location.locationName}`}
+                    onClick={selectLocation}
+                    onKeyDown={(event) => {
+                      if (!saving && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        selectLocation();
+                      }
+                    }}
                   >
-                    <div className="flex items-start gap-3">
-                      {location.logoUrl ? (
-                        <img
-                          src={location.logoUrl}
-                          alt={location.locationName}
-                          className="h-10 w-10 rounded-lg border border-thiso-100 object-contain p-1"
-                        />
-                      ) : (
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-thiso-900 text-xs font-black text-white">
-                          {location.code.slice(0, 2).toUpperCase()}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-black text-thiso-900">
-                          {location.locationName}
-                        </div>
-                        <div className="mt-0.5 truncate text-xs font-semibold text-thiso-400">
-                          {location.code}
-                        </div>
-                        <div className="mt-2 text-xs text-thiso-500">
-                          {unitCount} đơn vị đang hoạt động
-                        </div>
-                      </div>
-                    </div>
-                    {selected && (
-                      <div className="mt-3 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-thiso-700">
-                        Đang là khu vực làm việc hiện tại
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+                    <Card.Meta
+                      avatar={<Avatar shape="square" size={44} src={location.logoUrl || undefined} icon={<EnvironmentOutlined />}>{location.code.slice(0, 2).toUpperCase()}</Avatar>}
+                      title={<Flex justify="space-between" gap="small"><Typography.Text strong ellipsis>{location.locationName}</Typography.Text>{selected && <Tag color="processing" icon={<CheckCircleOutlined />}>Đang chọn</Tag>}</Flex>}
+                      description={<Space direction="vertical" size={2}><Typography.Text code type="secondary">{location.code}</Typography.Text><Typography.Text type="secondary">{unitCount} đơn vị đang hoạt động</Typography.Text></Space>}
+                    />
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        )}
 
-          {error && (
-            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {error}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+        {error && <Alert type="error" showIcon message={error} />}
+      </Space>
+    </Modal>
   );
 }

@@ -9,16 +9,21 @@ import {
 } from '@ant-design/icons';
 import {
   Alert,
+  AutoComplete,
   Avatar,
   Button,
   Card,
   Checkbox,
   Col,
+  Collapse,
+  Descriptions,
   Empty,
   Flex,
   Form,
   Input,
+  Grid,
   Modal,
+  Pagination,
   Popconfirm,
   Result,
   Row,
@@ -44,6 +49,7 @@ import {
 } from '../api';
 import { STAFF_ROLE_META } from '../constants';
 import type { StaffUser } from '../types';
+import ResponsiveDataToolbar, { SearchButton } from '../components/ResponsiveDataToolbar';
 
 type StaffRoleValue = 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
 type StaffForm = {
@@ -326,14 +332,19 @@ function ResetStaffPasswordModal({ user, onClose }: { user: StaffUser; onClose: 
 export default function StaffUsersTab() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
   const canManageAdminOpe = currentUser?.role === 'SUPERADMIN';
   const [modal, setModal] = useState<'create' | 'edit' | 'reset' | null>(null);
   const [selected, setSelected] = useState<StaffUser | null>(null);
   const [filterRole, setFilterRole] = useState('');
   const [filterUnit, setFilterUnit] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data: staffUsers = [], isLoading, isError, refetch } = useQuery<StaffUser[]>({
     queryKey: ['location-staff-users'],
@@ -370,6 +381,20 @@ export default function StaffUsersTab() {
     const query = search.trim().toLowerCase();
     return !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query) || (user.department ?? '').toLowerCase().includes(query);
   });
+  const nameOptions = [...new Set(staffUsers.map((user) => user.name.trim()).filter(Boolean))].map((name) => ({ value: name }));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedStaffUsers = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function submitNameSearch() {
+    setSearch(searchDraft.trim());
+    setPage(1);
+  }
+
+  function updatePagination(nextPage: number, nextPageSize = pageSize) {
+    setPage(nextPage);
+    setPageSize(nextPageSize);
+  }
 
   const columns: TableColumnsType<StaffUser> = [
     {
@@ -428,45 +453,43 @@ export default function StaffUsersTab() {
       fixed: 'right',
       align: 'right',
       width: 150,
-      render: (_, user) => {
-        const canManageLifecycle = user.role === 'RECEIVING' || user.role === 'CHECKIN' || (canManageAdminOpe && user.role === 'ADMIN_OPE');
-        const isScopeOnly = user.role === 'ADMIN_OPE' && !canManageAdminOpe;
-        return (
-          <Space size="small">
-            {(canManageLifecycle || isScopeOnly) && (
-              <Tooltip title={isScopeOnly ? 'Chỉnh phạm vi đơn vị' : 'Chỉnh sửa nhân viên'}>
-                <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa ${user.name}`} onClick={() => { setSelected(user); setModal('edit'); }} />
-              </Tooltip>
-            )}
-            {canManageLifecycle && (
-              <Tooltip title="Đặt lại mật khẩu">
-                <Button type="primary" size="small" icon={<KeyOutlined />} aria-label={`Đặt lại mật khẩu ${user.name}`} onClick={() => { setSelected(user); setModal('reset'); }} />
-              </Tooltip>
-            )}
-            {canManageLifecycle && (
-              <Popconfirm
-                title={`${user.isActive ? 'Vô hiệu hóa / xóa' : 'Xóa'} ${user.name}?`}
-                description="Nếu tài khoản đã có lịch sử, hệ thống sẽ vô hiệu hóa thay vì xóa hoàn toàn."
-                okText="Xác nhận"
-                cancelText="Hủy"
-                okButtonProps={{ color: 'danger', variant: 'solid' }}
-                onConfirm={() => confirmDelete(user)}
-              >
-                <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa ${user.name}`} />
-              </Popconfirm>
-            )}
-          </Space>
-        );
-      },
+      render: (_, user) => staffActions(user),
     },
   ];
 
+  function staffActions(user: StaffUser) {
+    const canManageLifecycle = user.role === 'RECEIVING' || user.role === 'CHECKIN' || (canManageAdminOpe && user.role === 'ADMIN_OPE');
+    const isScopeOnly = user.role === 'ADMIN_OPE' && !canManageAdminOpe;
+    return (
+      <Space size="small" onClick={(event) => event.stopPropagation()}>
+        {(canManageLifecycle || isScopeOnly) && (
+          <Tooltip title={isScopeOnly ? 'Chỉnh phạm vi đơn vị' : 'Chỉnh sửa nhân viên'}>
+            <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa ${user.name}`} onClick={() => { setSelected(user); setModal('edit'); }} />
+          </Tooltip>
+        )}
+        {canManageLifecycle && (
+          <Tooltip title="Đặt lại mật khẩu">
+            <Button type="primary" size="small" icon={<KeyOutlined />} aria-label={`Đặt lại mật khẩu ${user.name}`} onClick={() => { setSelected(user); setModal('reset'); }} />
+          </Tooltip>
+        )}
+        {canManageLifecycle && (
+          <Popconfirm
+            title={`${user.isActive ? 'Vô hiệu hóa / xóa' : 'Xóa'} ${user.name}?`}
+            description="Nếu tài khoản đã có lịch sử, hệ thống sẽ vô hiệu hóa thay vì xóa hoàn toàn."
+            okText="Xác nhận"
+            cancelText="Hủy"
+            okButtonProps={{ color: 'danger', variant: 'solid' }}
+            onConfirm={() => confirmDelete(user)}
+          >
+            <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa ${user.name}`} />
+          </Popconfirm>
+        )}
+      </Space>
+    );
+  }
+
   return (
     <Space direction="vertical" size="large" className="w-full">
-      <Flex justify="end">
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setModal('create')}>Thêm nhân viên</Button>
-      </Flex>
-
       {modal === 'create' && <StaffUserModal unitConfigs={unitConfigs} canManageAdminOpe={canManageAdminOpe} onClose={closeModal} onSaved={() => { closeModal(); refresh(); }} />}
       {modal === 'edit' && selected && <StaffUserModal user={selected} unitConfigs={unitConfigs} canManageAdminOpe={canManageAdminOpe} onClose={closeModal} onSaved={() => { closeModal(); refresh(); }} />}
       {modal === 'reset' && selected && <ResetStaffPasswordModal user={selected} onClose={closeModal} />}
@@ -486,30 +509,48 @@ export default function StaffUsersTab() {
         })}
       </Row>
 
-      <Card size="small">
-        <Flex wrap="wrap" gap="middle" align="end">
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary">Tìm kiếm</Typography.Text>
-            <Input className="w-64 max-w-full" allowClear placeholder="Tên, email, bộ phận..." value={search} onChange={(event) => setSearch(event.target.value)} />
-          </Space>
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary">Vai trò</Typography.Text>
-            <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => setFilterRole(value ?? '')} options={STAFF_ROLES.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon} ${STAFF_ROLE_META[role].label}` }))} />
-          </Space>
-          <Space direction="vertical" size={4}>
-            <Typography.Text type="secondary">Đơn vị</Typography.Text>
-            <Select className="min-w-48" allowClear placeholder="Tất cả đơn vị" value={filterUnit || undefined} onChange={(value) => setFilterUnit(value ?? '')} options={unitConfigs.map((unit) => ({ value: unit.unit, label: `${unit.icon?.trim() || '🏬'} ${unitLabel(unit)}` }))} />
-          </Space>
-          <Space align="center">
-            <Switch checked={showInactive} onChange={setShowInactive} />
-            <Typography.Text>Hiện tài khoản vô hiệu</Typography.Text>
-          </Space>
-        </Flex>
-      </Card>
+      <ResponsiveDataToolbar
+        filters={(
+          <>
+            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+              <Typography.Text type="secondary">Tìm kiếm</Typography.Text>
+              <AutoComplete
+                className="w-full sm:w-64"
+                value={searchDraft}
+                options={nameOptions}
+                open={searchOpen && Boolean(searchDraft.trim())}
+                notFoundContent="Không có dữ liệu"
+                onFocus={() => setSearchOpen(Boolean(searchDraft.trim()))}
+                onBlur={() => setSearchOpen(false)}
+                onChange={(value) => { setSearchDraft(value); setSearchOpen(Boolean(value.trim())); }}
+                onSelect={(value) => { setSearchDraft(value); setSearchOpen(false); }}
+                filterOption={(inputValue, option) => String(option?.value ?? '').toLocaleLowerCase('vi-VN').includes(inputValue.toLocaleLowerCase('vi-VN'))}
+              >
+                <Input.Search allowClear placeholder="Tên, email, bộ phận..." enterButton={<SearchButton />} onSearch={submitNameSearch} />
+              </AutoComplete>
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Typography.Text type="secondary">Vai trò</Typography.Text>
+              <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => { setFilterRole(value ?? ''); setPage(1); }} options={STAFF_ROLES.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon} ${STAFF_ROLE_META[role].label}` }))} />
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Typography.Text type="secondary">Đơn vị</Typography.Text>
+              <Select className="min-w-48" allowClear placeholder="Tất cả đơn vị" value={filterUnit || undefined} onChange={(value) => { setFilterUnit(value ?? ''); setPage(1); }} options={unitConfigs.map((unit) => ({ value: unit.unit, label: `${unit.icon?.trim() || '🏬'} ${unitLabel(unit)}` }))} />
+            </Space>
+            <Space align="center">
+              <Switch checked={showInactive} onChange={(checked) => { setShowInactive(checked); setPage(1); }} />
+              <Typography.Text>Hiện tài khoản vô hiệu</Typography.Text>
+            </Space>
+          </>
+        )}
+        createAction={<Button type="primary" icon={<PlusOutlined />} onClick={() => setModal('create')}>Thêm nhân viên</Button>}
+      />
 
       {isError ? (
         <Result status="error" title="Không thể tải danh sách nhân viên" extra={<Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />
-      ) : (
+      ) : isLoading ? (
+        <Card size="small" loading />
+      ) : screens.lg ? (
         <Card size="small" styles={{ body: { padding: 0 } }}>
           <Table<StaffUser>
             rowKey="id"
@@ -524,9 +565,45 @@ export default function StaffUsersTab() {
               size: 'small',
               showSizeChanger: true,
               showTotal: (total) => `Tổng ${total} nhân viên`,
+              current: currentPage,
+              pageSize,
+              onChange: updatePagination,
             }}
           />
         </Card>
+      ) : pagedStaffUsers.length === 0 ? (
+        <Empty description="Không có nhân viên phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        <Space direction="vertical" size="middle" className="w-full">
+          <Collapse
+            items={pagedStaffUsers.map((user) => ({
+              key: user.id,
+              label: (
+                <Space size="small" className="min-w-0" align="start">
+                  <Avatar>{initials(user.name)}</Avatar>
+                  <Space direction="vertical" size={0} className="min-w-0">
+                    <Typography.Text strong ellipsis className="block max-w-40">{user.name}</Typography.Text>
+                    <Typography.Text type="secondary" ellipsis className="block max-w-40">{user.email}</Typography.Text>
+                  </Space>
+                </Space>
+              ),
+              extra: staffActions(user),
+              children: (
+                <Descriptions size="small" column={1} items={[
+                  { key: 'email', label: 'Email đăng nhập', children: <Typography.Text code>{user.email}</Typography.Text> },
+                  { key: 'role', label: 'Vai trò', children: <Tag>{STAFF_ROLE_META[user.role].icon} {STAFF_ROLE_META[user.role].label}</Tag> },
+                  { key: 'units', label: 'Đơn vị', children: user.unitPermissions?.length ? <Space size={[4, 4]} wrap>{user.unitPermissions.map((unit) => <Tag key={unit.id}>{unit.icon?.trim() || '🏬'} {staffPermissionUnitLabel(unit)}</Tag>)}</Space> : user.unit || '—' },
+                  { key: 'department', label: 'Bộ phận', children: user.department || '—' },
+                  { key: 'status', label: 'Trạng thái', children: <Tag color={user.isActive ? 'success' : 'default'}>{user.isActive ? 'Hoạt động' : 'Vô hiệu'}</Tag> },
+                  { key: 'created', label: 'Tạo lúc', children: new Date(user.createdAt).toLocaleDateString('vi-VN') },
+                ]} />
+              ),
+            }))}
+          />
+          <Flex justify="center">
+            <Pagination current={currentPage} pageSize={pageSize} total={filtered.length} size="small" showSizeChanger={false} showTotal={(total) => `Tổng ${total} nhân viên`} onChange={updatePagination} />
+          </Flex>
+        </Space>
       )}
     </Space>
   );

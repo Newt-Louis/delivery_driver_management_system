@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import {
   Alert,
+  AutoComplete,
   Avatar,
   Button,
   Card,
@@ -28,6 +29,7 @@ import {
 import api from '../../../lib/api';
 import type { Slot, UnitConfig, Zone } from '../../../lib/types';
 import { STATUS_LABEL } from '../constants';
+import ResponsiveDataToolbar, { SearchButton } from '../components/ResponsiveDataToolbar';
 
 type ZoneForm = {
   code: string;
@@ -150,6 +152,9 @@ export default function ZonesTab() {
   const queryClient = useQueryClient();
   const { token } = theme.useToken();
   const [unitFilter, setUnitFilter] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [nameSearch, setNameSearch] = useState('');
   const [modalZone, setModalZone] = useState<Zone | null | undefined>(undefined);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [page, setPage] = useState(1);
@@ -183,7 +188,11 @@ export default function ZonesTab() {
     }
   }
 
-  const filteredZones = zones.filter((zone) => !unitFilter || zone.unitConfigId === unitFilter);
+  const filteredZones = zones.filter((zone) => (
+    (!unitFilter || zone.unitConfigId === unitFilter)
+    && (!nameSearch || zone.name.toLocaleLowerCase('vi-VN').includes(nameSearch.toLocaleLowerCase('vi-VN')))
+  ));
+  const nameOptions = [...new Set(zones.map((zone) => zone.name.trim()).filter(Boolean))].map((name) => ({ value: name }));
   const totalPages = Math.max(1, Math.ceil(filteredZones.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const pagedZones = filteredZones.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -191,16 +200,13 @@ export default function ZonesTab() {
   const activeSlots = zones.reduce((total, zone) => total + (zone.slots?.length ?? 0), 0);
   const availableSlots = zones.reduce((total, zone) => total + (zone.slots?.filter((slot) => slot.status === 'AVAILABLE').length ?? 0), 0);
 
+  function submitNameSearch() {
+    setNameSearch(searchDraft.trim());
+    setPage(1);
+  }
+
   return (
     <Space direction="vertical" size="large" className="w-full">
-      <Flex justify="end">
-        <Tooltip title={unitConfigs.length === 0 ? 'Cần có ít nhất một đơn vị để tạo khu.' : undefined}>
-          <span>
-            <Button type="primary" icon={<PlusOutlined />} disabled={unitConfigs.length === 0} onClick={() => setModalZone(null)}>Thêm khu</Button>
-          </span>
-        </Tooltip>
-      </Flex>
-
       {modalZone !== undefined && (
         <ZoneModal
           zone={modalZone}
@@ -231,22 +237,50 @@ export default function ZonesTab() {
         </Col>
       </Row>
 
-      <Card size="small">
-        <Space direction="vertical" size={4}>
-          <Typography.Text type="secondary">Đơn vị</Typography.Text>
-          <Select
-            className="min-w-56"
-            allowClear
-            placeholder="Tất cả đơn vị"
-            value={unitFilter || undefined}
-            options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.icon?.trim() || '🏬'} ${unitConfigLabel(unit)}` }))}
-            onChange={(value) => {
-              setUnitFilter(value ?? '');
-              setPage(1);
-            }}
-          />
-        </Space>
-      </Card>
+      <ResponsiveDataToolbar
+        filters={(
+          <>
+            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+              <Typography.Text type="secondary">Tìm tên khu</Typography.Text>
+              <AutoComplete
+                className="w-full sm:w-64"
+                value={searchDraft}
+                options={nameOptions}
+                open={searchOpen && Boolean(searchDraft.trim())}
+                notFoundContent="Không có dữ liệu"
+                onFocus={() => setSearchOpen(Boolean(searchDraft.trim()))}
+                onBlur={() => setSearchOpen(false)}
+                onChange={(value) => { setSearchDraft(value); setSearchOpen(Boolean(value.trim())); }}
+                onSelect={(value) => { setSearchDraft(value); setSearchOpen(false); }}
+                filterOption={(inputValue, option) => String(option?.value ?? '').toLocaleLowerCase('vi-VN').includes(inputValue.toLocaleLowerCase('vi-VN'))}
+              >
+                <Input.Search allowClear placeholder="Nhập tên khu" enterButton={<SearchButton />} onSearch={submitNameSearch} />
+              </AutoComplete>
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Typography.Text type="secondary">Đơn vị</Typography.Text>
+              <Select
+                className="min-w-56"
+                allowClear
+                placeholder="Tất cả đơn vị"
+                value={unitFilter || undefined}
+                options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.icon?.trim() || '🏬'} ${unitConfigLabel(unit)}` }))}
+                onChange={(value) => {
+                  setUnitFilter(value ?? '');
+                  setPage(1);
+                }}
+              />
+            </Space>
+          </>
+        )}
+        createAction={(
+          <Tooltip title={unitConfigs.length === 0 ? 'Cần có ít nhất một đơn vị để tạo khu.' : undefined}>
+            <span>
+              <Button type="primary" icon={<PlusOutlined />} disabled={unitConfigs.length === 0} onClick={() => setModalZone(null)}>Thêm khu</Button>
+            </span>
+          </Tooltip>
+        )}
+      />
 
       {isError ? (
         <Result status="error" title="Không thể tải danh sách khu" extra={<Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />

@@ -3,14 +3,19 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import {
   Alert,
+  AutoComplete,
   Button,
   Card,
   Col,
+  Collapse,
+  Descriptions,
   Empty,
   Flex,
   Form,
   Input,
+  Grid,
   Modal,
+  Pagination,
   Popconfirm,
   Result,
   Row,
@@ -26,6 +31,7 @@ import {
 } from 'antd';
 import api from '../../../lib/api';
 import type { AutoWarehouseVendor, UnitConfig } from '../../../lib/types';
+import ResponsiveDataToolbar, { SearchButton } from '../components/ResponsiveDataToolbar';
 
 type VendorForm = {
   unitConfigId: string;
@@ -156,10 +162,16 @@ function AWVendorModal({
 
 export default function AWVendorTab() {
   const queryClient = useQueryClient();
+  const screens = Grid.useBreakpoint();
   const [unitFilter, setUnitFilter] = useState('');
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [nameSearch, setNameSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<AutoWarehouseVendor | null>(null);
   const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const { data: unitConfigs = [] } = useQuery<UnitConfig[]>({
     queryKey: ['unit-configs'],
@@ -196,6 +208,22 @@ export default function AWVendorTab() {
     } catch (deleteError) {
       setNotice({ type: 'error', message: errorMessage(deleteError, 'Không thể xóa nhà cung cấp.') });
     }
+  }
+
+  const filteredVendors = vendors.filter((vendor) => !nameSearch || vendor.vendorName.toLocaleLowerCase('vi-VN').includes(nameSearch.toLocaleLowerCase('vi-VN')));
+  const nameOptions = [...new Set(vendors.map((vendor) => vendor.vendorName.trim()).filter(Boolean))].map((name) => ({ value: name }));
+  const totalPages = Math.max(1, Math.ceil(filteredVendors.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const pagedVendors = filteredVendors.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  function submitNameSearch() {
+    setNameSearch(searchDraft.trim());
+    setPage(1);
+  }
+
+  function updatePagination(nextPage: number, nextPageSize = pageSize) {
+    setPage(nextPage);
+    setPageSize(nextPageSize);
   }
 
   const columns: TableColumnsType<AutoWarehouseVendor> = [
@@ -268,12 +296,35 @@ export default function AWVendorTab() {
     },
   ];
 
+  function vendorActions(vendor: AutoWarehouseVendor) {
+    return (
+      <Space size="small" onClick={(event) => event.stopPropagation()}>
+        <Switch
+          checked={vendor.active}
+          checkedChildren="Bật"
+          unCheckedChildren="Tắt"
+          aria-label={`${vendor.active ? 'Vô hiệu hóa' : 'Kích hoạt'} ${vendor.vendorCode}`}
+          onChange={() => toggleActive(vendor)}
+        />
+        <Tooltip title="Chỉnh sửa nhà cung cấp">
+          <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa ${vendor.vendorCode}`} onClick={() => { setEditItem(vendor); setModalOpen(true); }} />
+        </Tooltip>
+        <Popconfirm
+          title={`Xóa NCC ${vendor.vendorCode}?`}
+          description="Hành động này không thể hoàn tác."
+          okText="Xóa"
+          cancelText="Hủy"
+          okButtonProps={{ color: 'danger', variant: 'solid' }}
+          onConfirm={() => confirmDelete(vendor)}
+        >
+          <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa ${vendor.vendorCode}`} />
+        </Popconfirm>
+      </Space>
+    );
+  }
+
   return (
     <Space direction="vertical" size="large" className="w-full">
-      <Flex justify="end">
-        <Button type="primary" icon={<PlusOutlined />} disabled={unitConfigs.length === 0} onClick={() => { setEditItem(null); setModalOpen(true); }}>Thêm NCC</Button>
-      </Flex>
-
       {modalOpen && (
         <AWVendorModal
           vendor={editItem}
@@ -297,29 +348,53 @@ export default function AWVendorTab() {
         </Col>
       </Row>
 
-      <Card size="small">
-        <Space direction="vertical" size={4}>
-          <Typography.Text type="secondary">Đơn vị</Typography.Text>
-          <Select
-            className="min-w-56"
-            allowClear
-            placeholder="Tất cả đơn vị"
-            value={unitFilter || undefined}
-            options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.icon?.trim() || '🏬'} ${unitLabel(unit)}` }))}
-            onChange={(value) => setUnitFilter(value ?? '')}
-          />
-        </Space>
-      </Card>
+      <ResponsiveDataToolbar
+        filters={(
+          <>
+            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+              <Typography.Text type="secondary">Tìm tên NCC</Typography.Text>
+              <AutoComplete
+                className="w-full sm:w-64"
+                value={searchDraft}
+                options={nameOptions}
+                open={searchOpen && Boolean(searchDraft.trim())}
+                notFoundContent="Không có dữ liệu"
+                onFocus={() => setSearchOpen(Boolean(searchDraft.trim()))}
+                onBlur={() => setSearchOpen(false)}
+                onChange={(value) => { setSearchDraft(value); setSearchOpen(Boolean(value.trim())); }}
+                onSelect={(value) => { setSearchDraft(value); setSearchOpen(false); }}
+                filterOption={(inputValue, option) => String(option?.value ?? '').toLocaleLowerCase('vi-VN').includes(inputValue.toLocaleLowerCase('vi-VN'))}
+              >
+                <Input.Search allowClear placeholder="Nhập tên NCC" enterButton={<SearchButton />} onSearch={submitNameSearch} />
+              </AutoComplete>
+            </Space>
+            <Space direction="vertical" size={4}>
+              <Typography.Text type="secondary">Đơn vị</Typography.Text>
+              <Select
+                className="min-w-56"
+                allowClear
+                placeholder="Tất cả đơn vị"
+                value={unitFilter || undefined}
+                options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.icon?.trim() || '🏬'} ${unitLabel(unit)}` }))}
+                onChange={(value) => { setUnitFilter(value ?? ''); setPage(1); }}
+              />
+            </Space>
+          </>
+        )}
+        createAction={<Button type="primary" icon={<PlusOutlined />} disabled={unitConfigs.length === 0} onClick={() => { setEditItem(null); setModalOpen(true); }}>Thêm NCC</Button>}
+      />
 
       {isError ? (
         <Result status="error" title="Không thể tải danh sách NCC kho tự động" extra={<Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />
-      ) : (
+      ) : isLoading ? (
+        <Card size="small" loading />
+      ) : screens.lg ? (
         <Card size="small" styles={{ body: { padding: 0 } }}>
           <Table<AutoWarehouseVendor>
             rowKey="id"
             loading={isLoading}
             columns={columns}
-            dataSource={vendors}
+            dataSource={filteredVendors}
             locale={{ emptyText: <Empty description="Chưa có NCC nào cho đơn vị này" /> }}
             scroll={{ x: 1190 }}
             rowClassName={(vendor) => vendor.active ? '' : 'opacity-60'}
@@ -328,9 +403,43 @@ export default function AWVendorTab() {
               size: 'small',
               showSizeChanger: true,
               showTotal: (total) => `Tổng ${total} NCC`,
+              current: currentPage,
+              pageSize,
+              onChange: updatePagination,
             }}
           />
         </Card>
+      ) : pagedVendors.length === 0 ? (
+        <Empty description="Chưa có NCC nào cho đơn vị này" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+      ) : (
+        <Space direction="vertical" size="middle" className="w-full">
+          <Collapse
+            items={pagedVendors.map((vendor) => {
+              const unit = vendor.unitConfig ?? unitConfigs.find((unitConfig) => unitConfig.unit === vendor.unit);
+              return {
+                key: vendor.id,
+                label: (
+                  <Space direction="vertical" size={0} className="min-w-0">
+                    <Typography.Text strong code>{vendor.vendorCode}</Typography.Text>
+                    <Typography.Text type="secondary" ellipsis className="block max-w-44">{unitLabel(unit)}</Typography.Text>
+                  </Space>
+                ),
+                extra: vendorActions(vendor),
+                children: (
+                  <Descriptions size="small" column={1} items={[
+                    { key: 'unit', label: 'Đơn vị', children: unitLabel(unit) },
+                    { key: 'name', label: 'Tên nhà cung cấp', children: vendor.vendorName },
+                    { key: 'active', label: 'Kích hoạt', children: <Tag color={vendor.active ? 'success' : 'default'}>{vendor.active ? 'Bật' : 'Tắt'}</Tag> },
+                    { key: 'note', label: 'Ghi chú', children: vendor.note || '—' },
+                  ]} />
+                ),
+              };
+            })}
+          />
+          <Flex justify="center">
+            <Pagination current={currentPage} pageSize={pageSize} total={filteredVendors.length} size="small" showSizeChanger={false} showTotal={(total) => `Tổng ${total} NCC`} onChange={updatePagination} />
+          </Flex>
+        </Space>
       )}
     </Space>
   );

@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { EnvironmentOutlined } from '@ant-design/icons';
+import { FloatButton } from 'antd';
 import { useAuth } from '../context/AuthContext';
 import type { BusinessLocation } from '../lib/types';
 import BusinessLocationSelectorModal from './BusinessLocationSelectorModal';
@@ -75,16 +77,15 @@ export default function SuperadminOperationalContextGate() {
 
   return (
     <>
-      <button
-        type="button"
-        className="fixed bottom-5 right-5 z-[55] flex h-12 min-w-12 items-center justify-center rounded-full bg-thiso-900 px-4 text-sm font-black text-white shadow-xl transition-transform hover:-translate-y-0.5 hover:bg-thiso-800"
+      <FloatButton
+        type="primary"
+        shape="square"
+        icon={<EnvironmentOutlined />}
+        description={currentLocation?.code ?? 'Chọn'}
+        tooltip="Chuyển khu vực vận hành"
         onClick={() => setOpen(true)}
-        title="Chuyển khu vực vận hành"
         aria-label="Chuyển khu vực vận hành"
-      >
-        <span className="mr-2 text-[11px] uppercase tracking-wide text-thiso-300">BL</span>
-        <span className="max-w-[120px] truncate">{currentLocation?.code ?? 'Chọn'}</span>
-      </button>
+      />
 
       <BusinessLocationSelectorModal
         open={open || mustChooseLocation}
