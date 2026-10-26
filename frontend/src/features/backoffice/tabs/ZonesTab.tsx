@@ -206,7 +206,7 @@ export default function ZonesTab() {
   }
 
   return (
-    <Space direction="vertical" size="large" className="w-full">
+    <Space orientation="vertical" size="large" className="w-full">
       {modalZone !== undefined && (
         <ZoneModal
           zone={modalZone}
@@ -240,7 +240,7 @@ export default function ZonesTab() {
       <ResponsiveDataToolbar
         filters={(
           <>
-            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+            <Space orientation="vertical" size={4} className="w-full sm:w-auto">
               <Typography.Text type="secondary">Tìm tên khu</Typography.Text>
               <AutoComplete
                 className="w-full sm:w-64"
@@ -257,7 +257,7 @@ export default function ZonesTab() {
                 <Input.Search allowClear placeholder="Nhập tên khu" enterButton={<SearchButton />} onSearch={submitNameSearch} />
               </AutoComplete>
             </Space>
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Đơn vị</Typography.Text>
               <Select
                 className="min-w-56"
@@ -331,7 +331,7 @@ export default function ZonesTab() {
                     ),
                   ]}
                 >
-                  <Space direction="vertical" size="middle" className="w-full">
+                  <Space orientation="vertical" size="middle" className="w-full">
                     <Card.Meta
                       avatar={(
                         <Avatar

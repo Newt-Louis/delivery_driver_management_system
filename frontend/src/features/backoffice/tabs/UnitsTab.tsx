@@ -31,9 +31,9 @@ type GoodsConfig = {
 };
 
 const GOODS_CONFIGS: GoodsConfig[] = [
-  { type: 'FRESH_FOOD', label: 'Hàng tươi sống', icon: '🥬', field: 'freshFoodEnabled', tagColor: 'success' },
+  { type: 'FRESH_FOOD', label: 'Hàng tươi sống', icon: '🥬', field: 'freshFoodEnabled' },
   { type: 'GENERAL_GOODS', label: 'Hàng thường', icon: '📦', field: 'generalGoodsEnabled' },
-  { type: 'THI_CONG', label: 'Thi công', icon: '🔨', field: 'thiCongEnabled', tagColor: 'gold' },
+  { type: 'THI_CONG', label: 'Thi công', icon: '🔨', field: 'thiCongEnabled' },
 ];
 
 function errorMessage(error: unknown, fallback = 'Lỗi lưu cấu hình.') {
@@ -115,7 +115,7 @@ function TimeWindowEditor({ unit, goodsType, editing }: { unit: string; goodsTyp
   if (isError) return <Result status="warning" title="Không thể tải khung giờ" extra={<Button size="small" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />;
 
   return (
-    <Space direction="vertical" size="small" className="w-full">
+    <Space orientation="vertical" size="small" className="w-full">
       {windows.length === 0 && !addMode && <Typography.Text type="secondary" italic>{editing ? 'Chưa có khung giờ. Nhấn Thêm để cấu hình.' : 'Chưa cấu hình.'}</Typography.Text>}
       {windows.map((window) => (
         <Card key={window.id} size="small" className={!window.enabled ? 'opacity-60' : undefined}>
@@ -129,7 +129,7 @@ function TimeWindowEditor({ unit, goodsType, editing }: { unit: string; goodsTyp
             </Flex>
           ) : (
             <Flex justify="space-between" align="center" gap="small" wrap="wrap">
-              <Space direction="vertical" size={0} className="min-w-0">
+              <Space orientation="vertical" size={0} className="min-w-0">
                 <Typography.Text strong>{window.label || 'Khung giờ nhận hàng'}</Typography.Text>
                 <Typography.Text code>{window.startTime} → {window.endTime}</Typography.Text>
               </Space>
@@ -156,7 +156,7 @@ function TimeWindowEditor({ unit, goodsType, editing }: { unit: string; goodsTyp
             <Button onClick={() => setAddMode(false)}>Hủy</Button>
           </Flex>
         </Card>
-      ) : <Button type="dashed" icon={<PlusOutlined />} onClick={() => setAddMode(true)}>Thêm khung giờ</Button>)}
+      ) : <Button type="dashed" icon={<PlusOutlined />} onClick={() => setAddMode(true)} size="small">Thêm khung giờ</Button>)}
       {notice && <Alert type="error" showIcon message={notice} closable onClose={() => setNotice(null)} />}
     </Space>
   );
@@ -210,9 +210,9 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
 
   const goodsSections = GOODS_CONFIGS.map((goods) => ({
     key: goods.type,
-    label: <Space size="small"><span>{goods.icon}</span><Typography.Text strong>{goods.label}</Typography.Text>{goods.tagColor ? <Tag color={goods.tagColor}>Nhận hàng</Tag> : <Tag>Nhận hàng</Tag>}</Space>,
+    label: <Space size="small"><span>{goods.icon}</span><Typography.Text strong>{goods.label}</Typography.Text></Space>,
     children: (
-      <Space direction="vertical" size="middle" className="w-full">
+      <Space orientation="vertical" size="middle" className="w-full">
         <Flex justify="space-between" align="center" gap="small" wrap="wrap">
           <Typography.Text type="secondary">Cho phép nhận loại hàng này</Typography.Text>
           <Switch checked={form[goods.field]} disabled={!editing} checkedChildren="Bật" unCheckedChildren="Tắt" onChange={(checked) => setField(goods.field, checked)} />
@@ -227,9 +227,11 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
     <Card
       size="small"
       className="h-full"
-      title={<Space size="small" className="min-w-0"><Avatar shape="square" src={config.logoUrl || undefined} style={{ backgroundColor: 'transparent' }}>{config.icon?.trim() || '🏬'}</Avatar><Space direction="vertical" size={0} className="min-w-0"><Tooltip title={config.displayName || config.unit}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{config.displayName || config.unit}</Typography.Text></Tooltip><Typography.Text code type="secondary">{config.unit}</Typography.Text></Space></Space>}
-      extra={editing ? <Space><Button onClick={() => { setEditing(false); setSaveError(''); }}>Hủy</Button><Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save}>Lưu</Button></Space> : <Button color="gold" variant="solid" icon={<EditOutlined />} onClick={() => setEditing(true)}>Sửa</Button>}
     >
+      <Row gutter={[12, 12]} justify="space-between" align="middle">
+       <Space size="small" className="min-w-0"><Avatar shape="square" src={config.logoUrl || undefined} style={{ backgroundColor: 'transparent' }}>{config.icon?.trim() || '🏬'}</Avatar><Space orientation="vertical" size={0} className="min-w-0"><Tooltip title={config.displayName || config.unit}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{config.displayName || config.unit}</Typography.Text></Tooltip><Typography.Text code type="secondary">{config.unit}</Typography.Text></Space></Space>
+       {editing ? <Space><Button onClick={() => { setEditing(false); setSaveError(''); }} size="small">Hủy</Button><Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save} size="small">Lưu</Button></Space> : <Button color="gold" variant="solid" icon={<EditOutlined />} onClick={() => setEditing(true)} size="small">Sửa</Button>}
+      </Row>
       <Form layout="vertical" requiredMark={false}>
         <Collapse defaultActiveKey={GOODS_CONFIGS.map((goods) => goods.type)} items={goodsSections} />
         <Card size="small" className="mt-4" title={<Space><SettingOutlined /><span>Cấu hình slot</span></Space>}>
@@ -241,7 +243,7 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
           </Row>
         </Card>
         <Card size="small" className="mt-4" title={<Space><Tag color="gold">Cảnh báo</Tag><span>Tự động hủy xe đã gọi không vào</span></Space>}>
-          <Space direction="vertical" size="middle" className="w-full">
+          <Space orientation="vertical" size="middle" className="w-full">
             <Flex justify="space-between" align="center" gap="small" wrap="wrap"><Typography.Text>Bật tự động hủy</Typography.Text><Switch checked={form.autoCancelCalledEnabled} disabled={!editing} checkedChildren="Bật" unCheckedChildren="Tắt" onChange={(checked) => setField('autoCancelCalledEnabled', checked)} /></Flex>
             <Form.Item label="Từ lần cuối gọi vào slot sau (phút)" className="mb-0"><InputNumber className="w-full" min={5} max={999} value={form.autoCancelCalledAfterMinutes} disabled={!editing || !form.autoCancelCalledEnabled} onChange={(value) => setField('autoCancelCalledAfterMinutes', Number(value ?? 5))} /></Form.Item>
           </Space>

@@ -124,7 +124,7 @@ export default function SlotsTab() {
       key: 'scope',
       width: 120,
       render: (_, slot) => (
-        <Space direction="vertical" size={4}>
+        <Space orientation="vertical" size={4}>
           {slot.zone ? <Tag>{slot.zone.code}</Tag> : <Typography.Text type="secondary">—</Typography.Text>}
           <Typography.Text type="secondary" ellipsis className="max-w-40">{slotUnitLabel(slot)}</Typography.Text>
         </Space>
@@ -250,7 +250,7 @@ export default function SlotsTab() {
   }
 
   return (
-    <Space direction="vertical" size="large" className="w-full">
+    <Space orientation="vertical" size="large" className="w-full">
       {editSlot !== undefined && (
         <SlotModal slot={editSlot} zones={zones} onClose={() => setEditSlot(undefined)} onSaved={() => { setEditSlot(undefined); refresh(); }} />
       )}
@@ -277,7 +277,7 @@ export default function SlotsTab() {
       <ResponsiveDataToolbar
         filters={(
           <>
-            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+            <Space orientation="vertical" size={4} className="w-full sm:w-auto">
               <Typography.Text type="secondary">Tìm tên slot</Typography.Text>
               <AutoComplete
                 className="w-full sm:w-64"
@@ -294,7 +294,7 @@ export default function SlotsTab() {
                 <Input.Search allowClear placeholder="Nhập tên slot" enterButton={<SearchButton />} onSearch={submitNameSearch} />
               </AutoComplete>
             </Space>
-          <Space direction="vertical" size={4}>
+          <Space orientation="vertical" size={4}>
             <Typography.Text type="secondary">Đơn vị</Typography.Text>
             <Select
               className="min-w-52"
@@ -305,7 +305,7 @@ export default function SlotsTab() {
               options={unitConfigs.map((unit) => ({ value: unit.id, label: `${unit.unit} - ${unit.displayName || unit.shortName || unit.unit}` }))}
             />
           </Space>
-          <Space direction="vertical" size={4}>
+          <Space orientation="vertical" size={4}>
             <Typography.Text type="secondary">Loại xe</Typography.Text>
             <Select
               className="min-w-44"
@@ -359,12 +359,12 @@ export default function SlotsTab() {
       ) : pagedSlots.length === 0 ? (
         <Empty description="Không có slot nào" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
-        <Space direction="vertical" size="middle" className="w-full">
+        <Space orientation="vertical" size="middle" className="w-full">
           <Collapse
             items={pagedSlots.map((slot) => ({
               key: slot.id,
               label: (
-                <Space direction="vertical" size={0} className="min-w-0">
+                <Space orientation="vertical" size={0} className="min-w-0">
                   <Typography.Text type="secondary" ellipsis className="block max-w-44">{slot.zone?.code ?? 'Chưa gán khu'} · {slotUnitLabel(slot)}</Typography.Text>
                   <Space size="small" className="min-w-0">
                     <Typography.Text strong code>{slot.code}</Typography.Text>

@@ -324,7 +324,7 @@ export default function AWVendorTab() {
   }
 
   return (
-    <Space direction="vertical" size="large" className="w-full">
+    <Space orientation="vertical" size="large" className="w-full">
       {modalOpen && (
         <AWVendorModal
           vendor={editItem}
@@ -351,7 +351,7 @@ export default function AWVendorTab() {
       <ResponsiveDataToolbar
         filters={(
           <>
-            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+            <Space orientation="vertical" size={4} className="w-full sm:w-auto">
               <Typography.Text type="secondary">Tìm tên NCC</Typography.Text>
               <AutoComplete
                 className="w-full sm:w-64"
@@ -368,7 +368,7 @@ export default function AWVendorTab() {
                 <Input.Search allowClear placeholder="Nhập tên NCC" enterButton={<SearchButton />} onSearch={submitNameSearch} />
               </AutoComplete>
             </Space>
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Đơn vị</Typography.Text>
               <Select
                 className="min-w-56"
@@ -412,14 +412,14 @@ export default function AWVendorTab() {
       ) : pagedVendors.length === 0 ? (
         <Empty description="Chưa có NCC nào cho đơn vị này" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
-        <Space direction="vertical" size="middle" className="w-full">
+        <Space orientation="vertical" size="middle" className="w-full">
           <Collapse
             items={pagedVendors.map((vendor) => {
               const unit = vendor.unitConfig ?? unitConfigs.find((unitConfig) => unitConfig.unit === vendor.unit);
               return {
                 key: vendor.id,
                 label: (
-                  <Space direction="vertical" size={0} className="min-w-0">
+                  <Space orientation="vertical" size={0} className="min-w-0">
                     <Typography.Text strong code>{vendor.vendorCode}</Typography.Text>
                     <Typography.Text type="secondary" ellipsis className="block max-w-44">{unitLabel(unit)}</Typography.Text>
                   </Space>

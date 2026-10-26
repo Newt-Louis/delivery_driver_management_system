@@ -93,14 +93,14 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
       size="small"
       className="h-full"
       cover={<div aria-hidden className="h-3" style={{ backgroundColor: form.primaryColor }} />}
-      title={<Space size="small" className="min-w-0"><Avatar shape="square" size={40} src={form.logoUrl || undefined} alt={`Logo ${title}`} style={{ backgroundColor: 'transparent' }}>{form.icon || '🏬'}</Avatar><Space direction="vertical" size={0} className="min-w-0"><Tooltip title={title}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{title}</Typography.Text></Tooltip><Typography.Text code type="secondary">{unit.unit}</Typography.Text></Space></Space>}
+      title={<Space size="small" className="min-w-0"><Avatar shape="square" size={40} src={form.logoUrl || undefined} alt={`Logo ${title}`} style={{ backgroundColor: 'transparent' }}>{form.icon || '🏬'}</Avatar><Space orientation="vertical" size={0} className="min-w-0"><Tooltip title={title}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{title}</Typography.Text></Tooltip><Typography.Text code type="secondary">{unit.unit}</Typography.Text></Space></Space>}
       extra={<Tooltip title="Màu đại diện của đơn vị"><span className="inline-block h-5 w-5 rounded-full border" style={{ backgroundColor: form.primaryColor }} /></Tooltip>}
     >
       <Form layout="vertical" requiredMark={false}>
         <Form.Item label="Logo đơn vị">
           <Flex gap="middle" align="center" wrap="wrap">
             <Avatar shape="square" size={64} src={form.logoUrl || undefined} alt={`Logo ${title}`} style={{ backgroundColor: 'transparent' }}>{form.icon || '🏬'}</Avatar>
-            <Space direction="vertical" size="small">
+            <Space orientation="vertical" size="small">
               <Upload accept="image/png,image/jpeg,image/webp,image/gif" showUploadList={false} beforeUpload={selectLogo}>
                 <Button icon={<UploadOutlined />}>{form.logoUrl ? 'Thay logo' : 'Tải lên logo'}</Button>
               </Upload>

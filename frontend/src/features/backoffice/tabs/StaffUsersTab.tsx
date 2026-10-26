@@ -241,7 +241,7 @@ function StaffUserModal({
             <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn vị trong location hiện tại." />
           ) : (
             <Checkbox.Group value={form.unitConfigIds} onChange={(ids) => setField('unitConfigIds', ids.map(String))} className="w-full">
-              <Space direction="vertical" size="small" className="w-full">
+              <Space orientation="vertical" size="small" className="w-full">
                 {unitConfigs.map((unit) => (
                   <Checkbox key={unit.id} value={unit.id} className="w-full">
                     {unit.icon?.trim() || '🏬'} {unitLabel(unit)}
@@ -405,7 +405,7 @@ export default function StaffUsersTab() {
       render: (_, user) => (
         <Space size="small">
           <Avatar>{initials(user.name)}</Avatar>
-          <Space direction="vertical" size={0} className="min-w-0">
+          <Space orientation="vertical" size={0} className="min-w-0">
             <Typography.Text strong ellipsis className="max-w-32">{user.name}</Typography.Text>
             <Typography.Text type="secondary" className="text-xs">Tạo {new Date(user.createdAt).toLocaleDateString('vi-VN')}</Typography.Text>
           </Space>
@@ -489,7 +489,7 @@ export default function StaffUsersTab() {
   }
 
   return (
-    <Space direction="vertical" size="large" className="w-full">
+    <Space orientation="vertical" size="large" className="w-full">
       {modal === 'create' && <StaffUserModal unitConfigs={unitConfigs} canManageAdminOpe={canManageAdminOpe} onClose={closeModal} onSaved={() => { closeModal(); refresh(); }} />}
       {modal === 'edit' && selected && <StaffUserModal user={selected} unitConfigs={unitConfigs} canManageAdminOpe={canManageAdminOpe} onClose={closeModal} onSaved={() => { closeModal(); refresh(); }} />}
       {modal === 'reset' && selected && <ResetStaffPasswordModal user={selected} onClose={closeModal} />}
@@ -512,7 +512,7 @@ export default function StaffUsersTab() {
       <ResponsiveDataToolbar
         filters={(
           <>
-            <Space direction="vertical" size={4} className="w-full sm:w-auto">
+            <Space orientation="vertical" size={4} className="w-full sm:w-auto">
               <Typography.Text type="secondary">Tìm kiếm</Typography.Text>
               <AutoComplete
                 className="w-full sm:w-64"
@@ -529,11 +529,11 @@ export default function StaffUsersTab() {
                 <Input.Search allowClear placeholder="Tên, email, bộ phận..." enterButton={<SearchButton />} onSearch={submitNameSearch} />
               </AutoComplete>
             </Space>
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Vai trò</Typography.Text>
               <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => { setFilterRole(value ?? ''); setPage(1); }} options={STAFF_ROLES.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon} ${STAFF_ROLE_META[role].label}` }))} />
             </Space>
-            <Space direction="vertical" size={4}>
+            <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Đơn vị</Typography.Text>
               <Select className="min-w-48" allowClear placeholder="Tất cả đơn vị" value={filterUnit || undefined} onChange={(value) => { setFilterUnit(value ?? ''); setPage(1); }} options={unitConfigs.map((unit) => ({ value: unit.unit, label: `${unit.icon?.trim() || '🏬'} ${unitLabel(unit)}` }))} />
             </Space>
@@ -574,14 +574,14 @@ export default function StaffUsersTab() {
       ) : pagedStaffUsers.length === 0 ? (
         <Empty description="Không có nhân viên phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ) : (
-        <Space direction="vertical" size="middle" className="w-full">
+        <Space orientation="vertical" size="middle" className="w-full">
           <Collapse
             items={pagedStaffUsers.map((user) => ({
               key: user.id,
               label: (
                 <Space size="small" className="min-w-0" align="start">
                   <Avatar>{initials(user.name)}</Avatar>
-                  <Space direction="vertical" size={0} className="min-w-0">
+                  <Space orientation="vertical" size={0} className="min-w-0">
                     <Typography.Text strong ellipsis className="block max-w-40">{user.name}</Typography.Text>
                     <Typography.Text type="secondary" ellipsis className="block max-w-40">{user.email}</Typography.Text>
                   </Space>

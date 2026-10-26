@@ -19,7 +19,7 @@ export function SearchButton() {
 export default function ResponsiveDataToolbar({ filters, createAction }: ResponsiveDataToolbarProps) {
   const screens = Grid.useBreakpoint();
   const sortControl = (
-    <Space direction="vertical" size={4} className="min-w-52">
+    <Space orientation="vertical" size={4} className="min-w-52">
       <Typography.Text type="secondary">Sắp xếp</Typography.Text>
       <Select disabled placeholder="Sắp xếp sẽ được bổ sung" aria-label="Sắp xếp sẽ được bổ sung" />
     </Space>
@@ -27,7 +27,7 @@ export default function ResponsiveDataToolbar({ filters, createAction }: Respons
 
   if (!screens.lg) {
     return (
-      <Space direction="vertical" size="middle" className="w-full">
+      <Space orientation="vertical" size="middle" className="w-full">
         <Collapse
           items={[{
             key: 'filters',

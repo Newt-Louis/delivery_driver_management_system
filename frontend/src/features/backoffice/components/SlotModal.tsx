@@ -208,7 +208,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
 
           <Card size="small" className="mb-4">
             <Flex justify="space-between" align="center" gap="middle">
-              <Space direction="vertical" size={0}>
+              <Space orientation="vertical" size={0}>
                 <Typography.Text strong>Tự động điều xe</Typography.Text>
                 <Typography.Text type="secondary">Hệ thống tự gọi xe vào slot khi có chỗ trống.</Typography.Text>
               </Space>
@@ -218,7 +218,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
 
           <Card size="small" className="mb-4">
             <Flex justify="space-between" align="center" gap="middle">
-              <Space direction="vertical" size={0}>
+              <Space orientation="vertical" size={0}>
                 <Typography.Text strong>Chỉ dành cho kho tự động</Typography.Text>
                 <Typography.Text type="secondary">Slot này chỉ nhận xe được xác nhận là NCC kho tự động.</Typography.Text>
               </Space>

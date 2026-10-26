@@ -70,7 +70,7 @@ export default function Login() {
         <Row align="middle" gutter={screens.lg ? 64 : 0}>
           {screens.lg && (
             <Col lg={13}>
-              <Space direction="vertical" size={24} className="max-w-xl">
+              <Space orientation="vertical" size={24} className="max-w-xl">
                 <img
                   src="/thiso_logo-full-color.jpg"
                   alt="THISO"
@@ -88,8 +88,8 @@ export default function Login() {
 
           <Col xs={24} lg={11}>
             <Card className="mx-auto w-full max-w-md" styles={{ body: { padding: screens.sm ? 32 : 24 } }}>
-              <Space direction="vertical" size={24} className="w-full">
-                <Space direction="vertical" size={12} className="w-full">
+              <Space orientation="vertical" size={24} className="w-full">
+                <Space orientation="vertical" size={12} className="w-full">
                   {!screens.lg && (
                     <div className="w-full">
                       <img

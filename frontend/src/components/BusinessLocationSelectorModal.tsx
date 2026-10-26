@@ -44,7 +44,7 @@ export default function BusinessLocationSelectorModal({
       styles={{ body: { maxHeight: 'calc(100dvh - 180px)', overflowY: 'auto' } }}
       onCancel={onClose}
     >
-      <Space direction="vertical" size="large" className="w-full">
+      <Space orientation="vertical" size="large" className="w-full">
         <Typography.Paragraph type="secondary" className="!mb-0">{description}</Typography.Paragraph>
 
         {loading ? (
@@ -80,7 +80,7 @@ export default function BusinessLocationSelectorModal({
                     <Card.Meta
                       avatar={<Avatar shape="square" size={44} src={location.logoUrl || undefined} icon={<EnvironmentOutlined />}>{location.code.slice(0, 2).toUpperCase()}</Avatar>}
                       title={<Flex justify="space-between" gap="small"><Typography.Text strong ellipsis>{location.locationName}</Typography.Text>{selected && <Tag color="processing" icon={<CheckCircleOutlined />}>Đang chọn</Tag>}</Flex>}
-                      description={<Space direction="vertical" size={2}><Typography.Text code type="secondary">{location.code}</Typography.Text><Typography.Text type="secondary">{unitCount} đơn vị đang hoạt động</Typography.Text></Space>}
+                      description={<Space orientation="vertical" size={2}><Typography.Text code type="secondary">{location.code}</Typography.Text><Typography.Text type="secondary">{unitCount} đơn vị đang hoạt động</Typography.Text></Space>}
                     />
                   </Card>
                 </Col>
