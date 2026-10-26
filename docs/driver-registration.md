@@ -40,7 +40,7 @@ Routes:
 
 Homepage `/` hiện có:
 
-- Lời chào `Hệ thống điều phối giao hàng THISO`.
+- Lời chào `Hệ thống điều phối nhận hàng THISO`.
 - Ô nhập mã PO/Thi Công.
 - Nút lớn `Quét QR hoặc Barcode tại đây` mở scanner thật; trong dialog quét có thêm nút chọn ảnh mã QR từ thư viện. Cả hai cách đều tách mã PO/Thi Công từ nội dung quét và tự điền vào ô nhập mã, không tự submit.
 - Validate format cơ bản phía client:

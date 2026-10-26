@@ -12,6 +12,7 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import viVN from 'antd/locale/vi_VN';
 import { AuthProvider } from './context/AuthContext';
 import { BrandingProvider } from './context/BrandingContext';
+import { PublicBusinessLocationProvider } from './context/PublicBusinessLocationContext';
 import { SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
 import { setupPwa } from './lib/pwa';
@@ -33,13 +34,15 @@ function ApplicationProviders() {
         <BrowserRouter>
           <QueryClientProvider client={queryClient}>
             <AuthProvider>
-              <BrandingProvider>
-                <SocketProvider>
-                  <ToastProvider>
-                    <App />
-                  </ToastProvider>
-                </SocketProvider>
-              </BrandingProvider>
+              <PublicBusinessLocationProvider>
+                <BrandingProvider>
+                  <SocketProvider>
+                    <ToastProvider>
+                      <App />
+                    </ToastProvider>
+                  </SocketProvider>
+                </BrandingProvider>
+              </PublicBusinessLocationProvider>
             </AuthProvider>
           </QueryClientProvider>
         </BrowserRouter>

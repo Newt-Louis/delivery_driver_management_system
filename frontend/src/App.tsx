@@ -15,6 +15,7 @@ import Reports from './pages/Reports';
 import Histories from './pages/Histories';
 import Cancelled from './pages/Cancelled';
 import StaffShell from './components/layout/StaffShell';
+import PublicShell from './components/layout/PublicShell';
 import SuperadminOperationalContextGate from './components/SuperadminOperationalContextGate';
 import ToastContainer from './components/ToastContainer';
 
@@ -37,10 +38,20 @@ function isStaffRoute(pathname: string) {
   ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
 }
 
+function isPublicDriverRoute(pathname: string) {
+  return pathname === '/'
+    || pathname === '/register'
+    || pathname === '/track'
+    || pathname.startsWith('/track/')
+    || pathname === '/cancel'
+    || pathname === '/waiting-screen';
+}
+
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
   const staffRoute = isStaffRoute(location.pathname);
+  const publicDriverRoute = isPublicDriverRoute(location.pathname);
 
   const routes = (
     <Routes>
@@ -50,7 +61,7 @@ export default function App() {
       <Route path="/taixe" element={<Navigate to="/register" replace />} />
       <Route path="/track" element={<Track />} />
       <Route path="/track/:code" element={<Track />} />
-      <Route path="/cancelled" element={<Cancelled />} />
+      <Route path="/cancel" element={<Cancelled />} />
       <Route path="/check-in" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN']}><CheckIn /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><Dashboard /></ProtectedRoute>} />
       <Route path="/docks" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><DockManagement /></ProtectedRoute>} />
@@ -66,7 +77,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen">
-      {isAuthenticated && staffRoute ? <StaffShell>{routes}</StaffShell> : routes}
+      {isAuthenticated && staffRoute ? <StaffShell>{routes}</StaffShell> : publicDriverRoute ? <PublicShell>{routes}</PublicShell> : routes}
       {isAuthenticated && staffRoute && <SuperadminOperationalContextGate />}
       <ToastContainer />
     </div>

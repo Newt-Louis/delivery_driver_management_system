@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
 import api from '../../../lib/api';
-import type { BusinessLocation, DeliveryRegistration } from '../../../lib/types';
+import type { DeliveryRegistration } from '../../../lib/types';
 import { playChime } from '../../../lib/chime';
 import { formatTicketForDelivery, getDeliveryUnitKey, normalizeWaitingScreenDeliveries } from '../utils';
 import type { BrandConfig, CalledAlert, UnitKey } from '../types';
@@ -27,8 +26,6 @@ function enrichCalledAlert(alert: CalledAlert, queue: DeliveryRegistration[]): C
 export function useWaitingScreen() {
   const socket        = useSocket();
   const realtimeScope = useRealtimeScope();
-  const location      = useLocation();
-  const navigate      = useNavigate();
 
   const [deliveries, setDeliveries]   = useState<DeliveryRegistration[]>([]);
   const [calledEvt, setCalledEvt]     = useState<CalledAlert | null>(null);
@@ -36,7 +33,6 @@ export function useWaitingScreen() {
   const [now, setNow]                 = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [brand, setBrand]             = useState<BrandConfig | null>(null);
-  const [locations, setLocations]     = useState<BusinessLocation[]>([]);
   const [isMobile, setIsMobile]       = useState(typeof window !== 'undefined' && window.innerWidth < 768);
   const [activeTab, setActiveTab]     = useState<UnitKey>('');
   const [view, setView]               = useState<'dark' | 'bright'>(
@@ -54,14 +50,20 @@ export function useWaitingScreen() {
   const toggleView = () => setView((v) => (v === 'dark' ? 'bright' : 'dark'));
 
   useEffect(() => {
+    if (!realtimeScope.businessLocationId && !realtimeScope.unitConfigId) {
+      setBrand(null);
+      return;
+    }
     api.get<BrandConfig>('/api/brand', { params: realtimeScope }).then((r) => setBrand(r.data)).catch(() => {});
   }, [realtimeScope]);
 
   useEffect(() => {
-    api.get<BusinessLocation[]>('/api/units/public/business-locations')
-      .then((r) => setLocations(r.data))
-      .catch(() => setLocations([]));
-  }, []);
+    setDeliveries([]);
+    setCalledEvt(null);
+    setHighlightId(null);
+    setActiveTab('');
+    setBrand(null);
+  }, [realtimeScope.businessLocationId, realtimeScope.unitConfigId]);
 
   useEffect(() => {
     const handler = () => setIsMobile(window.innerWidth < 768);
@@ -124,20 +126,6 @@ export function useWaitingScreen() {
     else document.exitFullscreen().catch(() => {});
   }
 
-  function changeBusinessLocation(businessLocationId: string) {
-    if (!businessLocationId || businessLocationId === realtimeScope.businessLocationId) return;
-    const params = new URLSearchParams(location.search);
-    params.set('businessLocationId', businessLocationId);
-    params.delete('locationId');
-    params.delete('unitConfigId');
-    setDeliveries([]);
-    setCalledEvt(null);
-    setHighlightId(null);
-    setActiveTab('');
-    setBrand(null);
-    navigate({ pathname: location.pathname, search: params.toString() }, { replace: true });
-  }
-
   const unitKeys = useMemo(() => {
     const fromBrand = Object.keys(brand?.units ?? {});
     if (fromBrand.length > 0) return fromBrand;
@@ -171,9 +159,6 @@ export function useWaitingScreen() {
     now,
     isFullscreen,
     brand,
-    locations,
-    selectedBusinessLocationId: realtimeScope.businessLocationId ?? brand?.mall.id ?? '',
-    changeBusinessLocation,
     isMobile,
     activeTab,
     setActiveTab,

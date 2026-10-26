@@ -14,12 +14,12 @@ Frontend:
 Route:
 
 - `/waiting-screen`
-- Public fullscreen, không hiển thị navbar.
+- Public read-only route, dùng `GlobalHeader` chung với các public route.
 - Có thể truyền scope bằng query:
   - `?businessLocationId=<id>` để TV hiển thị một khu vực kinh doanh cụ thể.
   - `?unitConfigId=<id>` nếu muốn giới hạn vào một unit cụ thể.
-- Nếu URL không truyền scope, `SocketContext` resolve default public brand/location rồi join realtime room theo `businessLocationId` đó.
-- Header Waiting Screen có selector public lấy danh sách `BusinessLocation` active từ `GET /api/units/public/business-locations`. Khi đổi khu vực, frontend cập nhật query `businessLocationId`, bỏ `unitConfigId`, rồi `SocketContext` join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
+- `SocketContext` lấy `businessLocationId` từ `PublicBusinessLocationContext` rồi join realtime room tương ứng. Khi public scope chưa được chọn, waiting screen không join room hoặc tải queue.
+- Chọn khu vực dùng public FloatButton toàn cục; waiting screen không còn selector riêng. Khi public scope đổi, SocketContext join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
 
 Backend/API:
 
