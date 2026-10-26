@@ -21,6 +21,7 @@ Status: `APPROVED` by the product owner. The foundation is permitted to evolve `
 - Make touch targets at least 44 by 44 CSS pixels for primary interactions on touch-capable layouts.
 - Use the locally bundled Be Vietnam Pro font for all application typography, including code/ticket/table text, then the operating-system UI stack as fallback. It supports Vietnamese diacritics, dense operational tables and readable phone controls. Keep a concise type scale: page title, section title, body, metadata, and numeric/table text.
 - Use a fluid content width, compact page gutters on phone, and denser table controls only when space permits. A table may scroll horizontally inside its own container; the page must not overflow horizontally.
+- Repeated dynamic-card collections use the shared `AdaptiveGrid` primitive. It applies `repeat(auto-fit, minmax(min(100%, minColumnWidth), maxColumnWidth-or-1fr))`: each owner selects a safe minimum width for its content, and dense configuration cards may provide a readable maximum width so ultrawide screens gain columns rather than stretching cards indefinitely.
 - Make all destructive and high-impact actions explicit with confirmation and a progress state. Preserve existing domain confirmations and permissions.
 
 ## Content resilience

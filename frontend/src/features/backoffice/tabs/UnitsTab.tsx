@@ -4,6 +4,7 @@ import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SaveOutline
 import { Alert, Avatar, Button, Card, Col, Collapse, Empty, Flex, Form, Input, InputNumber, Popconfirm, Result, Row, Skeleton, Space, Switch, Tag, Tooltip, Typography } from 'antd';
 import api from '../../../lib/api';
 import type { DeliveryTimeWindow, GoodsType, UnitConfig } from '../../../lib/types';
+import AdaptiveGrid from '../../../components/AdaptiveGrid';
 
 type UnitConfigFormData = {
   freshFoodEnabled: boolean;
@@ -227,11 +228,23 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
     <Card
       size="small"
       className="h-full"
+      cover={<div aria-hidden className="h-6 lg:h-8" style={{ backgroundColor: config.primaryColor }} />}
     >
-      <Row gutter={[12, 12]} justify="space-between" align="middle">
-       <Space size="small" className="min-w-0"><Avatar shape="square" src={config.logoUrl || undefined} style={{ backgroundColor: 'transparent' }}>{config.icon?.trim() || '🏬'}</Avatar><Space orientation="vertical" size={0} className="min-w-0"><Tooltip title={config.displayName || config.unit}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{config.displayName || config.unit}</Typography.Text></Tooltip><Typography.Text code type="secondary">{config.unit}</Typography.Text></Space></Space>
-       {editing ? <Space><Button onClick={() => { setEditing(false); setSaveError(''); }} size="small">Hủy</Button><Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save} size="small">Lưu</Button></Space> : <Button color="gold" variant="solid" icon={<EditOutlined />} onClick={() => setEditing(true)} size="small">Sửa</Button>}
-      </Row>
+      <Flex justify="space-between" align="center" gap="small" wrap="wrap" className="mb-4 w-full">
+        <Space size="small" className="min-w-0">
+          <Avatar shape="square" src={config.logoUrl || undefined} style={{ backgroundColor: 'transparent' }}>{config.icon?.trim() || '🏬'}</Avatar>
+          <Space orientation="vertical" size={0} className="min-w-0">
+            <Tooltip title={config.displayName || config.unit}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{config.displayName || config.unit}</Typography.Text></Tooltip>
+            <Typography.Text code type="secondary">{config.unit}</Typography.Text>
+          </Space>
+        </Space>
+        {editing ? (
+          <Space>
+            <Button onClick={() => { setEditing(false); setSaveError(''); }} size="small">Hủy</Button>
+            <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={save} size="small">Lưu</Button>
+          </Space>
+        ) : <Button color="gold" variant="solid" icon={<EditOutlined />} onClick={() => setEditing(true)} size="small">Sửa</Button>}
+      </Flex>
       <Form layout="vertical" requiredMark={false}>
         <Collapse defaultActiveKey={GOODS_CONFIGS.map((goods) => goods.type)} items={goodsSections} />
         <Card size="small" className="mt-4" title={<Space><SettingOutlined /><span>Cấu hình slot</span></Space>}>
@@ -260,5 +273,5 @@ export default function UnitsTab() {
   if (isError) return <Result status="error" title="Không thể tải cấu hình đơn vị" extra={<Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />;
   if (isLoading) return <Card size="small" loading />;
   if (unitConfigs.length === 0) return <Empty description="Khu vực hiện tại chưa có đơn vị nào." image={Empty.PRESENTED_IMAGE_SIMPLE} />;
-  return <Row gutter={[16, 16]}>{unitConfigs.map((config) => <Col key={config.id} xs={24} xl={12}><UnitConfigCard config={config} onSaved={() => queryClient.invalidateQueries({ queryKey: ['unit-configs'] })} /></Col>)}</Row>;
+  return <AdaptiveGrid minColumnWidth={320} maxColumnWidth={520}>{unitConfigs.map((config) => <UnitConfigCard key={config.id} config={config} onSaved={() => queryClient.invalidateQueries({ queryKey: ['unit-configs'] })} />)}</AdaptiveGrid>;
 }

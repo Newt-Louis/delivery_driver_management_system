@@ -6,6 +6,7 @@ import api from '../../../lib/api';
 import { useBranding } from '../../../context/BrandingContext';
 import type { UnitConfig } from '../../../lib/types';
 import { hasPendingUploadFile, uploadDatafileAsset } from '../../../lib/datafileUpload';
+import AdaptiveGrid from '../../../components/AdaptiveGrid';
 
 type BrandForm = {
   displayName: string;
@@ -17,6 +18,13 @@ type BrandForm = {
   logoFile?: File;
   primaryColor: string;
 };
+
+function normalizeHexColor(value: string) {
+  const color = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  if (/^[0-9a-fA-F]{6}$/.test(color)) return `#${color}`;
+  return null;
+}
 
 function errorMessage(error: unknown, fallback = 'Không thể lưu nhận diện đơn vị.') {
   const response = error as { response?: { data?: { error?: string; message?: string } } };
@@ -53,15 +61,20 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
   }
 
   async function saveUnit() {
+    const primaryColor = normalizeHexColor(form.primaryColor);
+    if (!primaryColor) {
+      setNotice({ type: 'error', message: 'Màu thương hiệu phải có dạng #RRGGBB.' });
+      return;
+    }
     setSaving(true);
     setNotice(null);
     try {
       const logoUrl = await uploadUnitLogoIfNeeded(unit.id, form.logoUrl, form.logoOriginalName, form.logoFile);
-      const { logoOriginalName: _logoOriginalName, logoFile: _logoFile, ...payload } = { ...form, logoUrl };
+      const { logoOriginalName: _logoOriginalName, logoFile: _logoFile, ...payload } = { ...form, logoUrl, primaryColor };
       void _logoOriginalName;
       void _logoFile;
       await api.patch(`/api/units/${unit.unit}/config`, payload);
-      setForm((current) => ({ ...current, logoUrl, logoOriginalName: undefined, logoFile: undefined }));
+      setForm((current) => ({ ...current, primaryColor, logoUrl, logoOriginalName: undefined, logoFile: undefined }));
       onSaved();
       setNotice({ type: 'success', message: 'Đã lưu nhận diện đơn vị.' });
     } catch (error) {
@@ -92,9 +105,7 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
     <Card
       size="small"
       className="h-full"
-      cover={<div aria-hidden className="h-3" style={{ backgroundColor: form.primaryColor }} />}
-      title={<Space size="small" className="min-w-0"><Avatar shape="square" size={40} src={form.logoUrl || undefined} alt={`Logo ${title}`} style={{ backgroundColor: 'transparent' }}>{form.icon || '🏬'}</Avatar><Space orientation="vertical" size={0} className="min-w-0"><Tooltip title={title}><Typography.Text strong ellipsis className="block max-w-36 sm:max-w-48">{title}</Typography.Text></Tooltip><Typography.Text code type="secondary">{unit.unit}</Typography.Text></Space></Space>}
-      extra={<Tooltip title="Màu đại diện của đơn vị"><span className="inline-block h-5 w-5 rounded-full border" style={{ backgroundColor: form.primaryColor }} /></Tooltip>}
+      cover={<div aria-hidden className="h-6 lg:h-8" style={{ backgroundColor: form.primaryColor }} />}
     >
       <Form layout="vertical" requiredMark={false}>
         <Form.Item label="Logo đơn vị">
@@ -114,7 +125,7 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
           <Col xs={24} sm={12}><Form.Item label="Tên rút gọn" extra="Dùng trên màn hình TV hàng chờ."><Input value={form.shortName} placeholder={unit.unit} onChange={(event) => setField('shortName', event.target.value)} /></Form.Item></Col>
           <Col xs={24} sm={8}><Form.Item label="Icon" extra="Emoji hoặc class icon, có thể để trống."><Input value={form.icon} placeholder="🏬" maxLength={40} onChange={(event) => setField('icon', event.target.value)} /></Form.Item></Col>
           <Col xs={24} sm={16}><Form.Item label="Mô tả / địa chỉ cổng" extra="Ví dụ: Siêu thị — Cửa B3, tầng hầm."><Input value={form.description} placeholder="Ví dụ: Siêu thị - Cửa B3" onChange={(event) => setField('description', event.target.value)} /></Form.Item></Col>
-          <Col xs={24} sm={12}><Form.Item label="Màu thương hiệu"><Space.Compact className="w-full"><ColorPicker value={form.primaryColor} format="hex" onChange={(_, hex) => setField('primaryColor', hex)} /><Input value={form.primaryColor} placeholder={unit.primaryColor} onChange={(event) => setField('primaryColor', event.target.value)} /></Space.Compact></Form.Item></Col>
+          <Col xs={24} sm={12}><Form.Item label="Màu thương hiệu"><Space.Compact className="w-full"><ColorPicker value={normalizeHexColor(form.primaryColor) ?? unit.primaryColor} format="hex" disabledAlpha onChange={(color) => setField('primaryColor', color.toHexString())} /><Input value={form.primaryColor} placeholder={unit.primaryColor} onChange={(event) => setField('primaryColor', event.target.value)} /></Space.Compact></Form.Item></Col>
         </Row>
         {notice && <Alert className="mb-4" type={notice.type} showIcon message={notice.message} closable onClose={() => setNotice(null)} />}
         <Flex justify="end"><Button type="primary" loading={saving} onClick={saveUnit}>Lưu {title}</Button></Flex>
@@ -137,5 +148,5 @@ export default function BrandTab() {
   if (isLoading) return <Card size="small" loading />;
   if (unitConfigs.length === 0) return <Empty description="Khu vực hiện tại chưa có đơn vị nào." image={Empty.PRESENTED_IMAGE_SIMPLE} />;
 
-  return <Row gutter={[16, 16]}>{unitConfigs.map((unit) => <Col key={unit.id} xs={24} xl={12}><UnitBrandCard unit={unit} onSaved={refreshUnits} /></Col>)}</Row>;
+  return <AdaptiveGrid minColumnWidth={320} maxColumnWidth={520}>{unitConfigs.map((unit) => <UnitBrandCard key={unit.id} unit={unit} onSaved={refreshUnits} />)}</AdaptiveGrid>;
 }

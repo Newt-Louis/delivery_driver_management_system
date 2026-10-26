@@ -30,6 +30,7 @@ import api from '../../../lib/api';
 import type { Slot, UnitConfig, Zone } from '../../../lib/types';
 import { STATUS_LABEL } from '../constants';
 import ResponsiveDataToolbar, { SearchButton } from '../components/ResponsiveDataToolbar';
+import AdaptiveGrid from '../../../components/AdaptiveGrid';
 
 type ZoneForm = {
   code: string;
@@ -290,7 +291,7 @@ export default function ZonesTab() {
         <Empty description="Chưa có khu phù hợp" />
       ) : (
         <>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,300px),1fr))] gap-4">
+          <AdaptiveGrid minColumnWidth={300}>
             {pagedZones.map((zone) => {
               const slots = zone.slots ?? [];
               const slotCount = zone._count?.slots ?? slots.length;
@@ -372,7 +373,7 @@ export default function ZonesTab() {
                 </Card>
               );
             })}
-          </div>
+          </AdaptiveGrid>
           <Flex justify="center">
             <Pagination
               current={currentPage}
