@@ -1,3 +1,5 @@
+import { EnvironmentOutlined } from '@ant-design/icons';
+import { Avatar, Badge, Card, Space, Typography } from 'antd';
 import { getTrackUnit } from '../utils';
 import type { TrackDelivery } from '../types';
 
@@ -8,27 +10,11 @@ export default function TrackHeader({ delivery, unitMeta, isUrgentQueue }: {
   unitMeta: UnitMeta;
   isUrgentQueue: boolean;
 }) {
-  const unitColor = delivery.unitConfig?.primaryColor || delivery.assignedSlot?.zone?.unitConfig?.primaryColor || '#FF9500';
-
   return (
-    <div className={`bg-white border-b border-thiso-100 px-4 py-4 sticky top-0 z-10 flex items-center justify-between ${isUrgentQueue ? 'ring-2 ring-amber-400' : ''}`}>
-      <div>
-        <p className="text-[11px] text-thiso-400 leading-none mb-1">Theo dõi giao hàng</p>
-        <p className="font-mono font-black text-thiso-800 tracking-widest text-base leading-none">
-          {delivery.registrationCode}
-        </p>
-      </div>
-      <span
-        className="inline-flex items-center gap-1.5 text-xs font-semibold bg-thiso-100 text-thiso-600 px-2.5 py-1 rounded-full"
-        style={{ color: unitColor, backgroundColor: `${unitColor}14` }}
-      >
-        {unitMeta.logoUrl ? (
-          <img src={unitMeta.logoUrl} alt="" className="w-4 h-4 object-contain rounded" />
-        ) : (
-          <span>{unitMeta.icon}</span>
-        )}
-        {unitMeta.shortName}
-      </span>
-    </div>
+    <header className="sticky top-[60px] z-10 px-4 pt-4 sm:px-6">
+      <Card size="small" className={isUrgentQueue ? 'border-warning' : undefined}>
+        <div className="flex items-center justify-between gap-3"><div className="min-w-0"><Typography.Text type="secondary" className="text-xs">Theo dõi giao hàng</Typography.Text><Typography.Text className="block truncate font-mono text-base font-bold" copyable>{delivery.registrationCode}</Typography.Text></div><Space size={6} className="shrink-0">{isUrgentQueue && <Badge status="warning" />}<Avatar size="small" src={unitMeta.logoUrl ?? undefined} icon={<EnvironmentOutlined />}>{unitMeta.logoUrl ? undefined : unitMeta.icon}</Avatar><Typography.Text className="hidden max-w-28 truncate text-xs font-medium sm:inline">{unitMeta.shortName}</Typography.Text></Space></div>
+      </Card>
+    </header>
   );
 }

@@ -29,4 +29,4 @@ export const STEP_HINTS = [
 ];
 
 export const LS_KEY = 'qms_driver_info';
-export const AUTO_TRACK_SECONDS = 10;
+export const AUTO_TRACK_SECONDS = 15;

@@ -1,19 +1,21 @@
+import { SearchOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Form, Input, Typography, theme, type InputRef } from 'antd';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../lib/api';
 import { looksLikeCode } from '../utils';
 
 export default function TrackLookup() {
+  const { token } = theme.useToken();
   const navigate = useNavigate();
   const [input, setInput]       = useState('');
   const [error, setError]       = useState('');
   const [checking, setChecking] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<InputRef>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSubmit() {
     const val = input.trim().toUpperCase();
     if (!val) return;
     setError('');
@@ -33,49 +35,35 @@ export default function TrackLookup() {
   }
 
   return (
-    <div className="min-h-screen bg-thiso-50 flex flex-col items-center justify-center p-5">
-      <div className="w-full max-w-sm space-y-6">
+    <main className="mx-auto flex min-h-[calc(100vh-60px)] w-full max-w-lg items-center px-4 py-8 sm:px-6">
+      <Card className="w-full" styles={{ body: { padding: 'clamp(20px, 5vw, 32px)' } }}>
         <div className="text-center">
-          <div className="text-4xl mb-3">🚛</div>
-          <h1 className="font-black text-xl mb-1">Theo dõi giao hàng</h1>
-          <p className="text-thiso-400 text-sm">Nhập mã đăng ký hoặc biển số xe</p>
+          <Typography.Title level={2} className="!mb-1 !text-2xl">Theo dõi giao hàng</Typography.Title>
+          <Typography.Text type="secondary">Nhập mã đăng ký hoặc biển số xe để xem hành trình.</Typography.Text>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-thiso-200 p-5 shadow-card-md space-y-3">
-          <input
+        <Form className="mt-7" layout="vertical" onFinish={handleSubmit} requiredMark={false}>
+          <Form.Item label="Mã đăng ký hoặc biển số xe" className="!mb-3">
+          <Input
             ref={inputRef}
-            type="text"
             value={input}
             onChange={(e) => { setInput(e.target.value.toUpperCase()); setError(''); }}
-            placeholder="Mã đăng ký hoặc biển số xe..."
-            className="w-full border-2 border-thiso-200 rounded-xl px-4 py-3.5 text-base font-mono font-black tracking-widest text-thiso-900 placeholder:text-thiso-300 placeholder:font-normal placeholder:tracking-normal focus:outline-none focus:border-thiso-500 transition-colors"
+            placeholder="VD: PVTABCD261026001 hoặc 51C-123.45"
+            size="large"
             autoComplete="off"
             autoCapitalize="characters"
             spellCheck={false}
-            style={{ fontSize: '16px' }}
+            className="font-mono"
           />
-          {error && (
-            <div className="text-sm text-red-600 bg-red-50 rounded-xl px-3 py-2.5 flex items-center gap-2">
-              <span>⚠</span> {error}
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={!input.trim() || checking}
-            className="w-full py-3.5 rounded-xl font-black text-white text-base transition-all bg-thiso-800 hover:bg-thiso-700 disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98]"
-          >
-            {checking ? 'Đang tìm...' : 'Xem trạng thái →'}
-          </button>
-          <p className="text-center text-[15px] text-thiso-400">
-            Chưa đăng ký?{' '}
-            <a href="/register" className="text-thiso-600 underline font-semibold">Đăng ký ngay</a>
-          </p>
-          <p className="text-center text-[15px] text-thiso-400">
-            Nhập sai thông tin? Muốn{' '}
-            <Link to="/cancelled" className="text-red-600 underline font-semibold">hủy chuyến</Link>
-          </p>
-        </form>
-      </div>
-    </div>
+          </Form.Item>
+          {error && <Alert className="mb-3" type="error" showIcon message={error} />}
+          <Button htmlType="submit" type="primary" size="large" block icon={<SearchOutlined />} loading={checking} disabled={!input.trim()}>Xem trạng thái</Button>
+        </Form>
+        <div className="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-3 text-center text-base">
+          <Typography.Text type="secondary">Chưa đăng ký? <Link to="/register" className="font-semibold underline underline-offset-4" style={{ color: token.colorPrimary }}>Đăng ký ngay</Link></Typography.Text>
+          <Typography.Text type="secondary">Nhập sai thông tin? <Link to="/cancelled" className="font-semibold underline underline-offset-4" style={{ color: token.colorError }}>Hủy chuyến</Link></Typography.Text>
+        </div>
+      </Card>
+    </main>
   );
 }

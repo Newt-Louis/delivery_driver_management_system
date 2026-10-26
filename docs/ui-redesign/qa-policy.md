@@ -19,7 +19,3 @@ At 360, 768, 1024 and 1440 px, validate no page-level horizontal overflow; retai
 ## 4. Build and regression
 
 Run `npm run build` from `frontend`. For a page that can affect realtime operational flows, regression-check `/register`, `/track/:code`, `/check-in`, `/waiting-screen`, `/dashboard` and `/docks` as applicable under the task scope. Record commands, result and visual evidence in the page task and page ledger.
-
-## Automation baseline
-
-After the design system is approved, establish Playwright visual and interaction coverage for the shared shell, login, a mobile form, a data table, a dialog/drawer and a loading/empty/error state. Baselines are not approved until `BASELINE-001` is approved in the ledger. Keep browser tests deterministic: stable fixtures, fixed viewport, fixed locale/timezone and disabled nonessential animation.

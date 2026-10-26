@@ -1,4 +1,6 @@
 import { useParams } from 'react-router-dom';
+import { Result, Spin } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 import { useTrackContent } from '../features/track/hooks/useTrackContent';
 import TrackLookup from '../features/track/components/TrackLookup';
 import StatusAlertOverlay from '../features/track/components/StatusAlertOverlay';
@@ -23,26 +25,20 @@ function TrackContent({ code }: { code: string }) {
 
   if (hook.loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-thiso-50">
-        <p className="text-thiso-400 text-sm animate-pulse">Đang tải...</p>
-      </div>
+      <div className="grid min-h-[calc(100vh-60px)] place-items-center"><Spin size="large" tip="Đang tải hành trình..." /></div>
     );
   }
 
   if (hook.fetchErr || !hook.delivery) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-thiso-50 p-8 text-center">
-        <div className="text-5xl mb-4">🔍</div>
-        <p className="font-bold text-thiso-700">Không tìm thấy lượt đăng ký</p>
-        <p className="text-thiso-400 text-sm mt-1 font-mono">{code}</p>
-      </div>
+      <Result className="mx-auto grid min-h-[calc(100vh-60px)] max-w-lg place-content-center" status="404" icon={<SearchOutlined />} title="Không tìm thấy lượt đăng ký" subTitle={code} />
     );
   }
 
   const { delivery, si, isTerminal, isUrgentQueue, unitMeta, statusAlert, setStatusAlert, stopCalledAlerts, queueBanner, setQueueBanner, qrDataUrl, qrExpanded, setQrExpanded, notifPermission, pushEnabled, deviceAlertsReady, pushSupport, wakeLockActive, primeDeviceAlerts, requestNotif } = hook;
 
   return (
-    <div className="min-h-screen bg-thiso-50 flex flex-col">
+    <main className="min-h-[calc(100vh-60px)]">
       {statusAlert && (
         <StatusAlertOverlay
           statusAlert={statusAlert}
@@ -57,7 +53,7 @@ function TrackContent({ code }: { code: string }) {
       <TrackHeader delivery={delivery} unitMeta={unitMeta!} isUrgentQueue={isUrgentQueue} />
 
       <div
-        className="flex-1 overflow-y-auto px-4 py-4 max-w-md mx-auto w-full space-y-4"
+        className="mx-auto w-full max-w-2xl space-y-4 px-4 py-4 sm:px-6"
         style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
       >
         <NotificationBanners
@@ -90,6 +86,6 @@ function TrackContent({ code }: { code: string }) {
 
         {!isTerminal && <TrackFooter wakeLockActive={wakeLockActive} />}
       </div>
-    </div>
+    </main>
   );
 }

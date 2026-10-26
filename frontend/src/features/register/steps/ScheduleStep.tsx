@@ -1,6 +1,6 @@
-import { CalendarOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Form, Input, Typography } from 'antd';
-import type { DailyRegistrationStat } from '../api';
+import { CalendarOutlined, CheckCircleOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Alert, AutoComplete, Button, Card, Form, Input, Space, Typography } from 'antd';
+import type { AutoWarehouseVendorSuggestion, DailyRegistrationStat } from '../api';
 import DeliveryDateCalendar from '../components/DeliveryDateCalendar';
 import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
@@ -18,11 +18,23 @@ type ScheduleStepProps = {
   manualReferenceError: string;
   sundayFreshFoodBlocked: boolean;
   sundayFreshFoodOnly: boolean;
+  awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
+  awVendorName: string;
+  awVendorSuggestions: AutoWarehouseVendorSuggestion[];
+  awVendorSuggestionsLoading: boolean;
   set: SetFormField;
   onRetryManualReferenceCode: () => void;
+  onSelectAutoWarehouseVendor: (vendor: AutoWarehouseVendorSuggestion) => void;
 };
 
-export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, sundayFreshFoodOnly, set, onRetryManualReferenceCode }: ScheduleStepProps) {
+export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, sundayFreshFoodOnly, awStatus, awVendorName, awVendorSuggestions, awVendorSuggestionsLoading, set, onRetryManualReferenceCode, onSelectAutoWarehouseVendor }: ScheduleStepProps) {
+  const vendorOptions = awVendorSuggestions.map((vendor) => ({
+    value: vendor.vendorCode,
+    label: <div className="py-1"><Typography.Text strong>{vendor.vendorCode}</Typography.Text><Typography.Text type="secondary" className="block text-xs">{vendor.vendorName}</Typography.Text></div>,
+    vendor,
+  }));
+  const vendorSuffix = <span className="inline-flex w-4 justify-center" aria-live="polite">{awStatus === 'loading' ? <LoadingOutlined /> : awStatus === 'match' ? <CheckCircleOutlined /> : null}</span>;
+
   return (
     <div className="space-y-5">
       <FieldFrame field="deliveryDate" highlightedField={highlightedField} variant="choice">
@@ -36,6 +48,25 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
 
       <Card size="small" title="Thông tin đơn hàng">
         <Form layout="vertical" requiredMark={false}>
+          <FieldFrame field="vendorCode" highlightedField={highlightedField}>
+            <Form.Item label="Mã nhà cung cấp (NCC)" className="!mb-4">
+              <AutoComplete
+                value={form.vendorCode}
+                options={vendorOptions}
+                filterOption={false}
+                notFoundContent={awVendorSuggestionsLoading ? <Space><LoadingOutlined />Đang tìm NCC...</Space> : null}
+                onChange={(value) => set('vendorCode', value)}
+                onSelect={(_value, option) => {
+                  const vendor = (option as { vendor?: AutoWarehouseVendorSuggestion }).vendor;
+                  if (vendor) onSelectAutoWarehouseVendor(vendor);
+                }}
+              >
+                <Input size="large" placeholder="VD: Sup001, NccAbc..." autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} suffix={vendorSuffix} />
+              </AutoComplete>
+              <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự gợi ý dữ liệu và xếp vào khu kho tự động khi được phép." />
+              {awStatus === 'match' && <Alert className="mt-3" type="success" showIcon message="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
+            </Form.Item>
+          </FieldFrame>
           <FieldFrame field="vendorName" highlightedField={highlightedField}>
             <Form.Item label="Tên công ty / Nhà cung cấp" required validateStatus={fieldErrors.vendorName ? 'error' : undefined} className="!mb-4">
               <Input size="large" value={form.vendorName} onChange={(event) => set('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" status={fieldErrors.vendorName ? 'error' : undefined} />

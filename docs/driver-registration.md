@@ -56,8 +56,8 @@ Homepage `/` hiện có:
 Wizard thủ công `/register`:
 
 1. Dùng `BusinessLocation` đã chọn bằng FloatButton toàn cục trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
-2. Chọn ngày giao hàng từ hôm nay trở đi bằng calendar; ngày đã qua là ô trống, lịch chỉ hiển thị số ngày và cho phép đi tới các tháng tương lai. Khi Header quay lại tháng hiện tại từ một ngày tương lai có ngày-tháng đã qua, lịch neo tại hôm nay để tháng hiện tại vẫn mở được. Công suất vẫn được dùng để disable ngày hết chỗ, nhưng không hiển thị như số thứ hai trong ô ngày. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
-3. Nhập thông tin tài xế/xe/nhà cung cấp.
+2. Chọn ngày giao hàng từ hôm nay trở đi bằng calendar; ngày đã qua là ô trống, lịch chỉ hiển thị số ngày và cho phép đi tới các tháng tương lai. Khi Header quay lại tháng hiện tại từ một ngày tương lai có ngày-tháng đã qua, lịch neo tại hôm nay để tháng hiện tại vẫn mở được. Công suất vẫn được dùng để disable ngày hết chỗ, nhưng không hiển thị như số thứ hai trong ô ngày. Người dùng có thể nhập hoặc chọn Mã NCC trước Tên công ty / Nhà cung cấp; mã giữ nguyên chữ hoa/thường đã nhập. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
+3. Nhập thông tin tài xế và phương tiện.
 4. Review và hoàn tất đăng ký.
 
 Logic trong `useRegisterForm.ts`:
@@ -69,7 +69,7 @@ Logic trong `useRegisterForm.ts`:
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
 - Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
-- Gợi ý mã NCC ở step thông tin tài xế: `GET /api/aw-vendors/suggestions?q=...&businessLocationId=...&unitConfigId=...`. Endpoint chỉ trả tối đa 10 NCC active thuộc đúng `UnitConfig` public đang chọn; chọn một gợi ý sẽ điền lại cả mã lẫn tên NCC.
+- Gợi ý mã NCC ở step thông tin đơn hàng: `GET /api/aw-vendors/suggestions?q=...&businessLocationId=...&unitConfigId=...`. Endpoint chỉ trả tối đa 10 NCC active thuộc đúng `UnitConfig` public đang chọn; chọn một gợi ý sẽ điền lại cả mã lẫn tên NCC; mã người dùng nhập không bị ép đổi hoa/thường.
 - Tạo mã đối chiếu thủ công: `POST /api/deliveries/manual-registration-code`. Frontend gọi một lần khi vào step 2 của session đăng ký, giữ mã trong form và gọi lại cho lượt mới sau khi hoàn tất/reset.
 - Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend tự lưu `requestedTime` tại `00:00` của ngày giao theo giờ Việt Nam nếu payload không gửi giờ.
 - Scroll tới field lỗi đầu tiên khi validate fail.
@@ -191,4 +191,4 @@ Thi Công normalization:
 - Hiển thị QR/mã đăng ký.
 - Hiển thị Mã đối chiếu để tài xế có thể hủy chuyến hoặc đối chiếu khi cần.
 - Cho nút theo dõi.
-- Tự động đếm ngược 10 giây và điều hướng sang `/track/:code`.
+- Khi màn thành công mở, tự cuộn về đầu trang để tài xế thấy thông báo. Nút theo dõi tự động đếm ngược 15 giây rồi điều hướng sang `/track/:code`.

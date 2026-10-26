@@ -9,9 +9,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "ui:audit": "node scripts/ui-audit.mjs",
-    "ui:check": "npm run lint && npm run ui:audit -- --changed --strict && npm run build",
-    "test:visual": "playwright test",
-    "test:visual:update": "playwright test --update-snapshots"
+    "ui:check": "npm run lint && npm run ui:audit -- --changed --strict && npm run build"
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.4",
@@ -33,7 +31,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.35.0",
-    "@playwright/test": "^1.55.0",
     "@types/qrcode": "^1.5.5",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",

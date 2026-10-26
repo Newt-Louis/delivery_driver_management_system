@@ -29,6 +29,10 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   const trackUrl = `${window.location.origin}${trackPath}`;
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
     let disposed = false;
     setQrDataUrl('');
     setQrError('');

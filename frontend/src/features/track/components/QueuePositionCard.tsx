@@ -1,88 +1,9 @@
+import { ClockCircleOutlined, HourglassOutlined } from '@ant-design/icons';
+import { Card, Progress, Statistic, Tag, Typography } from 'antd';
 import type { QueueInfo } from '../types';
 
 export default function QueuePositionCard({ queueInfo }: { queueInfo: QueueInfo }) {
-  const q = queueInfo;
-  const isFront  = q.position <= (q.availableSlots || 1);
-  const nearFront = q.position <= 5;
-  const callAt    = q.estimatedCallTime ? new Date(q.estimatedCallTime) : null;
-  const callTimeStr = callAt
-    ? callAt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-    : null;
-
-  return (
-    <div className={`bg-white rounded-2xl overflow-hidden shadow-sm border-2 ${nearFront ? 'border-amber-400' : 'border-amber-200'}`}>
-      {nearFront && <div className="h-1 bg-amber-400 animate-pulse" />}
-      <div className={`px-4 py-3 border-b flex items-center gap-2 ${nearFront ? 'bg-amber-50 border-amber-100' : 'bg-amber-50 border-amber-100'}`}>
-        <span className={`text-lg ${nearFront ? 'animate-bounce' : ''}`}>{nearFront ? '⚡' : '🔢'}</span>
-        <span className={`font-bold text-sm ${nearFront ? 'text-amber-800' : 'text-amber-700'}`}>
-          {nearFront ? 'Sắp đến lượt bạn!' : 'Vị trí hàng chờ'}
-        </span>
-        {isFront && (
-          <span className="ml-auto text-xs font-bold bg-green-100 text-green-700 px-2.5 py-1 rounded-full animate-pulse">
-            ▶ Sắp được gọi!
-          </span>
-        )}
-      </div>
-      <div className="px-4 py-4 space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 text-center bg-amber-50 rounded-2xl py-3">
-            <p className="text-4xl font-black text-amber-700 leading-none">#{q.position}</p>
-            <p className="text-xs text-amber-600 mt-1 font-medium">trong số {q.totalWaiting} xe chờ</p>
-          </div>
-          <div className="flex-1 text-center bg-thisodominant-50 rounded-2xl py-3">
-            {q.estimatedWaitMinutes === 0 ? (
-              <>
-                <p className="text-2xl font-black text-green-600 leading-none">Sắp gọi</p>
-                <p className="text-xs text-green-500 mt-1 font-medium">có slot trống ngay</p>
-              </>
-            ) : (
-              <>
-                <p className="text-2xl font-black text-thisodominant-800 leading-none">
-                  {q.estimatedWaitMinutes < 60
-                    ? `~${Math.round(q.estimatedWaitMinutes)} phút`
-                    : `~${Math.ceil(q.estimatedWaitMinutes / 60)} giờ`}
-                </p>
-                <p className="text-xs text-thisodominant-700 mt-1 font-medium">thời gian chờ ước tính</p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {callTimeStr && q.estimatedWaitMinutes > 0 && (
-          <div className="flex items-center gap-3 bg-thisodominant-50 rounded-xl px-4 py-3">
-            <span className="text-xl">🕐</span>
-            <div>
-              <p className="text-xs text-thisodominant-700 font-medium">Dự kiến được gọi vào khoảng</p>
-              <p className="text-xl font-black text-thisodominant-800 leading-none">{callTimeStr}</p>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { value: String(q.availableSlots), label: 'Slot trống', color: q.availableSlots > 0 ? 'text-green-600' : 'text-red-500' },
-            { value: `~${q.avgReceivingMinutes}'`, label: 'TB nhận/xe', color: 'text-thiso-600' },
-            { value: String(q.totalWaiting - q.position), label: 'Xe sau bạn', color: 'text-thiso-500' },
-          ].map(({ value, label, color }) => (
-            <div key={label} className="text-center bg-thiso-50 rounded-xl py-2 px-1">
-              <p className={`font-black text-lg ${color}`}>{value}</p>
-              <p className="text-[10px] text-thiso-400 mt-0.5 leading-tight">{label}</p>
-            </div>
-          ))}
-        </div>
-
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <div className="flex-1 h-2 bg-thiso-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-amber-400 rounded-full transition-all duration-700"
-                style={{ width: `${Math.max(4, 100 - ((q.position - 1) / Math.max(q.totalWaiting, 1)) * 100)}%` }}
-              />
-            </div>
-            <span className="text-xs text-thiso-400 flex-shrink-0 font-mono">{q.position}/{q.totalWaiting}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+  const near = queueInfo.position <= 5;
+  const percent = Math.max(4, 100 - ((queueInfo.position - 1) / Math.max(queueInfo.totalWaiting, 1)) * 100);
+  return <Card size="small" title={<><HourglassOutlined /> {near ? 'Sắp đến lượt bạn' : 'Vị trí hàng chờ'}</>} extra={near ? <Tag color="warning">Chuẩn bị sẵn sàng</Tag> : undefined}><div className="grid grid-cols-2 gap-3"><Statistic title="Vị trí" value={queueInfo.position} suffix={`/ ${queueInfo.totalWaiting}`} /><Statistic title="Chờ ước tính" value={queueInfo.estimatedWaitMinutes === 0 ? 'Sắp gọi' : `~${Math.round(queueInfo.estimatedWaitMinutes)} phút`} /></div>{queueInfo.estimatedCallTime && <Typography.Text type="secondary" className="mt-3 block"><ClockCircleOutlined /> Dự kiến gọi: {new Date(queueInfo.estimatedCallTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</Typography.Text>}<Progress className="mt-3" percent={percent} showInfo={false} status={near ? 'active' : 'normal'} /><div className="mt-2 flex justify-between text-xs text-[var(--ant-color-text-secondary)]"><span>{queueInfo.availableSlots} slot trống</span><span>{queueInfo.totalWaiting - queueInfo.position} xe sau bạn</span></div></Card>;
 }

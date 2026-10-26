@@ -1,8 +1,7 @@
-import { CheckCircleOutlined, InfoCircleOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons';
-import { Alert, AutoComplete, Card, Form, Input, Space, Switch, Typography } from 'antd';
+import { InfoCircleOutlined, SaveOutlined } from '@ant-design/icons';
+import { Alert, Card, Form, Input, Space, Switch, Typography } from 'antd';
 import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
-import type { AutoWarehouseVendorSuggestion } from '../api';
 import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
 
 type DriverInfoStepProps = {
@@ -11,26 +10,14 @@ type DriverInfoStepProps = {
   highlightedField: keyof FormState | null;
   rememberInfo: boolean;
   setRememberInfo: (updater: (value: boolean) => boolean) => void;
-  awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
-  awVendorName: string;
-  awVendorSuggestions: AutoWarehouseVendorSuggestion[];
-  awVendorSuggestionsLoading: boolean;
-  onSelectAutoWarehouseVendor: (vendor: AutoWarehouseVendorSuggestion) => void;
   set: SetFormField;
 };
 
-export default function DriverInfoStep({ form, fieldErrors, highlightedField, rememberInfo, setRememberInfo, awStatus, awVendorName, awVendorSuggestions, awVendorSuggestionsLoading, onSelectAutoWarehouseVendor, set }: DriverInfoStepProps) {
-  const vendorOptions = awVendorSuggestions.map((vendor) => ({
-    value: vendor.vendorCode,
-    label: <div className="py-1"><Typography.Text strong>{vendor.vendorCode}</Typography.Text><Typography.Text type="secondary" className="block text-xs">{vendor.vendorName}</Typography.Text></div>,
-    vendor,
-  }));
-  const vendorSuffix = <span className="inline-flex w-4 justify-center" aria-live="polite">{awStatus === 'loading' ? <LoadingOutlined /> : awStatus === 'match' ? <CheckCircleOutlined /> : null}</span>;
-
+export default function DriverInfoStep({ form, fieldErrors, highlightedField, rememberInfo, setRememberInfo, set }: DriverInfoStepProps) {
   return (
     <div className="space-y-5">
       {(form.driverName || form.vehiclePlate) && <Alert type="info" showIcon icon={<InfoCircleOutlined />} message="Đã điền sẵn thông tin từ lần trước. Hãy kiểm tra lại trước khi tiếp tục." />}
-      <Card size="small" title="Thông tin tài xế và phương tiện">
+      <Card size="small" title="Thông tin tài xế">
         <Form layout="vertical" requiredMark={false}>
           <FieldFrame field="vehiclePlate" highlightedField={highlightedField}>
             <Form.Item label="Biển số xe" required className="!mb-4">
@@ -51,26 +38,9 @@ export default function DriverInfoStep({ form, fieldErrors, highlightedField, re
               {fieldErrors.driverPhone && <FieldError text={fieldErrors.driverPhone} />}
             </Form.Item>
           </FieldFrame>
-          <Form.Item label="Mã nhà cung cấp (NCC)" className="!mb-0">
-            <AutoComplete
-              value={form.vendorCode}
-              options={vendorOptions}
-              filterOption={false}
-              notFoundContent={awVendorSuggestionsLoading ? <Space><LoadingOutlined />Đang tìm NCC...</Space> : null}
-              onChange={(value) => set('vendorCode', value.toUpperCase().replace(/\s/g, ''))}
-              onSelect={(_value, option) => {
-                const vendor = (option as { vendor?: AutoWarehouseVendorSuggestion }).vendor;
-                if (vendor) onSelectAutoWarehouseVendor(vendor);
-              }}
-            >
-              <Input size="large" placeholder="VD: SUP001, NCCABC..." autoComplete="off" suffix={vendorSuffix} />
-            </AutoComplete>
-            <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự xếp vào khu kho tự động khi được phép." />
-          </Form.Item>
         </Form>
       </Card>
 
-      {awStatus === 'match' && <Alert type="success" showIcon message="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
       <Card size="small">
         <Space align="start">
           <Switch checked={rememberInfo} onChange={(checked) => setRememberInfo(() => checked)} aria-label="Ghi nhớ thông tin của tôi" />
