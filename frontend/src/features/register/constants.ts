@@ -13,10 +13,10 @@ export const VEHICLE_INFO: Record<VehicleType, {
 };
 
 export const GOODS_LABEL: Record<GoodsType | string, string> = {
-  FRESH_FOOD:     '🥬 Hàng tươi sống',
-  GENERAL_GOODS:  '📦 Hàng thường',
-  AUTO_WAREHOUSE: '🏭 Kho tự động',
-  THI_CONG:       '🔨 Thi công',
+  FRESH_FOOD:     'Hàng tươi sống',
+  GENERAL_GOODS:  'Hàng thường',
+  AUTO_WAREHOUSE: 'Kho tự động',
+  THI_CONG:       'Thi công',
 };
 
 export const STEP_TITLES = ['Điểm giao & Loại hàng', 'Ngày giờ & Đơn hàng', 'Thông tin tài xế', 'Xác nhận'];

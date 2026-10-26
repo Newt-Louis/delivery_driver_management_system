@@ -1,4 +1,9 @@
+import { ArrowLeftOutlined, ArrowRightOutlined, EnvironmentOutlined, SendOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Steps, theme, Typography } from 'antd';
+import type { CSSProperties } from 'react';
 import { useBranding } from '../context/BrandingContext';
+import { usePublicBusinessLocation } from '../context/PublicBusinessLocationContext';
+import { useThemeMode } from '../context/ThemeModeContext';
 import SuccessScreen from '../features/register/components/SuccessScreen';
 import { STEP_HINTS, STEP_TITLES } from '../features/register/constants';
 import { useRegisterForm } from '../features/register/hooks/useRegisterForm';
@@ -7,198 +12,79 @@ import ReviewSubmitStep from '../features/register/steps/ReviewSubmitStep';
 import ScheduleStep from '../features/register/steps/ScheduleStep';
 import UnitGoodsVehicleStep from '../features/register/steps/UnitGoodsVehicleStep';
 
-export default function Register() {
-  const {
-    step,
-    guideOpen,
-    setGuideOpen,
-    fieldErrors,
-    highlightedField,
-    submitting,
-    submitError,
-    success,
-    form,
-    rememberInfo,
-    setRememberInfo,
-    publicLocations,
-    publicLocationsLoading,
-    publicLocationsMsg,
-    publicUnits,
-    publicUnitsLoading,
-    publicUnitsMsg,
-    unitConfig,
-    customGoodsTypes,
-    dailyStats,
-    dailyStatsMsg,
-    dailyStatsLoading,
-    manualReferenceLoading,
-    manualReferenceError,
-    vehicleAvailability,
-    vehicleAvailabilityMsg,
-    vehicleAvailabilityLoading,
-    sundayFreshFoodBlocked,
-    awStatus,
-    awVendorName,
-    contentRef,
-    set,
-    retryManualReferenceCode,
-    next,
-    back,
-    editStepFromReview,
-    submit,
-    resetForm,
-  } = useRegisterForm();
+function canAdvance(step: number, form: ReturnType<typeof useRegisterForm>['form'], sundayFreshFoodBlocked: boolean, manualReferenceLoading: boolean) {
+  if (step === 1) return Boolean(form.businessLocationId && form.unitConfigId && form.receivingUnit && form.goodsType && form.vehicleType);
+  if (step === 2) return Boolean(form.deliveryDate && form.vendorName.trim() && form.poNumber && !sundayFreshFoodBlocked && !manualReferenceLoading);
+  if (step === 3) return Boolean(form.vehiclePlate.trim() && form.driverPhone.replace(/\D/g, '').length >= 9);
+  return true;
+}
 
+export default function Register() {
+  const register = useRegisterForm();
+  const { token } = theme.useToken();
+  const { mode } = useThemeMode();
   const { units: brandUnits } = useBranding();
-  const selectedLocation = publicLocations.find((l) => l.id === form.businessLocationId);
+  const { selectedBusinessLocation, isLoading: publicLocationLoading, error: publicLocationError } = usePublicBusinessLocation();
+  const {
+    step, fieldErrors, highlightedField, submitting, submitError, success, form, rememberInfo, setRememberInfo,
+    publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig, customGoodsTypes, dailyStats, dailyStatsMsg,
+    dailyStatsLoading, manualReferenceLoading, manualReferenceError, vehicleAvailability, vehicleAvailabilityMsg,
+    vehicleAvailabilityLoading, sundayFreshFoodBlocked, awStatus, awVendorName, awVendorSuggestions,
+    awVendorSuggestionsLoading, contentRef, set, retryManualReferenceCode, selectAutoWarehouseVendor,
+    next, back, editStepFromReview, submit, resetForm,
+  } = register;
 
   if (success) return <SuccessScreen info={success} onReset={resetForm} />;
 
+  const readyForNext = canAdvance(step, form, sundayFreshFoodBlocked, manualReferenceLoading);
+  const selectedLocationName = selectedBusinessLocation?.locationName ?? '';
+  const progressStyle = {
+    '--register-step-finish-color': mode === 'dark' ? token.colorSuccessHover : token.colorSuccess,
+    '--register-step-finish-icon-color': token.colorTextLightSolid,
+  } as CSSProperties;
+
   return (
-    <div className="flex flex-col min-h-screen bg-thiso-50">
-      <div className="sticky top-0 z-20 bg-white border-b border-thiso-100 shadow-sm">
-        <div className="max-w-xl mx-auto">
-          <div className="flex border-b border-thiso-100">
-            <div className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-black text-thisodominant-700 border-b-2 border-thisodominant-500">
-              <span>📝</span> Đăng ký mới
-            </div>
-            <a
-              href="/track"
-              className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-semibold text-thiso-400 hover:text-thiso-700 hover:bg-thiso-50 transition-colors"
-            >
-              <span>📱</span> Theo dõi đơn
-            </a>
-          </div>
-
-          <div className="px-4 py-2.5">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-sm font-bold text-thiso-800 leading-tight">{STEP_TITLES[step - 1]}</p>
-              <span className="text-xs text-thiso-400">
-                Bước <span className="font-black text-thiso-700">{step}</span>/4
-              </span>
-            </div>
-            <div className="h-1 bg-thiso-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-thisodominant-500 rounded-full transition-all duration-500"
-                style={{ width: `${(step / 4) * 100}%` }}
-              />
-            </div>
+    <main ref={contentRef} className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
+      <Card className="overflow-hidden" styles={{ body: { padding: 0 } }}>
+        <div className="border-b px-5 py-5 sm:px-7" style={{ borderColor: 'var(--ant-color-border-secondary)' }}>
+          <Typography.Title level={2} className="!mb-1 !text-xl sm:!text-2xl">Đăng ký giao hàng thủ công</Typography.Title>
+          <Typography.Paragraph type="secondary" className="!mb-0">
+            Dùng khi mã PO hoặc mã Thi Công chưa thể xác thực từ hệ thống đối tác.
+          </Typography.Paragraph>
+          <div className="mt-4 flex items-center gap-2">
+            <EnvironmentOutlined />
+            <Typography.Text strong ellipsis>{selectedLocationName || 'Chưa chọn khu vực giao hàng'}</Typography.Text>
           </div>
         </div>
-      </div>
 
-      <div ref={contentRef} className="flex-1 overflow-y-auto px-4 pt-5 pb-32 max-w-xl mx-auto w-full">
-        <p className="text-sm text-thiso-400 mb-4">{STEP_HINTS[step - 1]}</p>
-
-        {step === 1 && (
-          <UnitGoodsVehicleStep
-            form={form}
-            fieldErrors={fieldErrors}
-            highlightedField={highlightedField}
-            guideOpen={guideOpen}
-            onDismissGuide={() => setGuideOpen(false)}
-            publicLocations={publicLocations}
-            publicLocationsLoading={publicLocationsLoading}
-            publicLocationsMsg={publicLocationsMsg}
-            publicUnits={publicUnits}
-            publicUnitsLoading={publicUnitsLoading}
-            publicUnitsMsg={publicUnitsMsg}
-            unitConfig={unitConfig}
-            customGoodsTypes={customGoodsTypes}
-            vehicleAvailability={vehicleAvailability}
-            vehicleAvailabilityMsg={vehicleAvailabilityMsg}
-            vehicleAvailabilityLoading={vehicleAvailabilityLoading}
-            brandUnits={brandUnits}
-            set={set}
-          />
-        )}
-
-        {step === 2 && (
-          <ScheduleStep
-            form={form}
-            fieldErrors={fieldErrors}
-            highlightedField={highlightedField}
-            dailyStats={dailyStats}
-            dailyStatsMsg={dailyStatsMsg}
-            dailyStatsLoading={dailyStatsLoading}
-            manualReferenceLoading={manualReferenceLoading}
-            manualReferenceError={manualReferenceError}
-            sundayFreshFoodBlocked={sundayFreshFoodBlocked}
-            sundayFreshFoodOnly={Boolean(unitConfig?.sundayFreshFoodOnly)}
-            set={set}
-            onRetryManualReferenceCode={retryManualReferenceCode}
-          />
-        )}
-
-        {step === 3 && (
-          <DriverInfoStep
-            form={form}
-            fieldErrors={fieldErrors}
-            highlightedField={highlightedField}
-            rememberInfo={rememberInfo}
-            setRememberInfo={setRememberInfo}
-            awStatus={awStatus}
-            awVendorName={awVendorName}
-            set={set}
-          />
-        )}
-
-        {step === 4 && (
-          <ReviewSubmitStep
-            form={form}
-            unitConfig={unitConfig}
-            brandUnits={brandUnits}
-            locationName={selectedLocation?.locationName ?? ''}
-            awStatus={awStatus}
-            awVendorName={awVendorName}
-            submitError={submitError}
-            set={set}
-            onEditStep={editStepFromReview}
-          />
-        )}
-      </div>
-
-      <div
-        className="fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-thiso-100 px-4 pt-3"
-        style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
-      >
-        <div className="flex gap-3 max-w-xl mx-auto">
-          {step > 1 && (
-            <button
-              type="button"
-              onClick={back}
-              className="h-12 px-5 rounded-xl border-2 border-thiso-200 text-thiso-600 font-bold text-sm hover:bg-thiso-50 transition-colors flex-shrink-0"
-            >
-              ← Quay lại
-            </button>
-          )}
-
-          {step < 4 && (
-            <button
-              type="button"
-              onClick={next}
-              disabled={step === 2 && (sundayFreshFoodBlocked || manualReferenceLoading || !form.poNumber)}
-              className="h-12 flex-1 rounded-xl border border-thiso-200 bg-white text-thiso-800 font-bold text-base hover:bg-thiso-50 transition-colors active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white"
-            >
-              Tiếp theo →
-            </button>
-          )}
-
-          {step === 4 && (
-            <button
-              type="button"
-              onClick={submit}
-              disabled={submitting}
-              className="h-14 flex-1 rounded-xl bg-sky-600 text-white font-black text-base hover:bg-sky-700 transition-colors disabled:opacity-50 active:scale-[0.98] shadow-card-md"
-            >
-              {submitting
-                ? <span className="flex items-center justify-center gap-2"><span className="animate-spin">⏳</span> Đang xử lý...</span>
-                : '✓ Hoàn tất đăng ký'
-              }
-            </button>
-          )}
+        <div className="register-progress px-5 pt-5 sm:px-7" style={progressStyle}>
+          <Steps current={step - 1} size="small" responsive items={STEP_TITLES.map((title) => ({ title }))} />
         </div>
-      </div>
-    </div>
+
+        <div className="space-y-4 px-5 py-6 sm:px-7">
+          <Typography.Paragraph type="secondary" className="!mb-0">{STEP_HINTS[step - 1]}</Typography.Paragraph>
+
+          {!selectedLocationName && !publicLocationLoading && (
+            <Alert
+              type="info"
+              showIcon
+              message="Hãy chọn khu vực giao hàng"
+              description={publicLocationError ?? 'Dùng nút chọn khu vực ở góc dưới phải trước khi tiếp tục đăng ký.'}
+            />
+          )}
+
+          {step === 1 && <UnitGoodsVehicleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} publicUnits={publicUnits} publicUnitsLoading={publicUnitsLoading} publicUnitsMsg={publicUnitsMsg} unitConfig={unitConfig} customGoodsTypes={customGoodsTypes} vehicleAvailability={vehicleAvailability} vehicleAvailabilityMsg={vehicleAvailabilityMsg} vehicleAvailabilityLoading={vehicleAvailabilityLoading} brandUnits={brandUnits} hasPublicLocation={Boolean(selectedLocationName)} set={set} />}
+          {step === 2 && <ScheduleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} dailyStats={dailyStats} dailyStatsMsg={dailyStatsMsg} dailyStatsLoading={dailyStatsLoading} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} sundayFreshFoodOnly={Boolean(unitConfig?.sundayFreshFoodOnly)} set={set} onRetryManualReferenceCode={retryManualReferenceCode} />}
+          {step === 3 && <DriverInfoStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} rememberInfo={rememberInfo} setRememberInfo={setRememberInfo} awStatus={awStatus} awVendorName={awVendorName} awVendorSuggestions={awVendorSuggestions} awVendorSuggestionsLoading={awVendorSuggestionsLoading} onSelectAutoWarehouseVendor={selectAutoWarehouseVendor} set={set} />}
+          {step === 4 && <ReviewSubmitStep form={form} unitConfig={unitConfig} brandUnits={brandUnits} locationName={selectedLocationName} awStatus={awStatus} awVendorName={awVendorName} submitError={submitError} set={set} onEditStep={editStepFromReview} />}
+
+          <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:justify-between">
+            {step > 1 ? <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Quay lại</Button> : <span />}
+            {step < 4 && readyForNext && <Button type="primary" size="large" icon={<ArrowRightOutlined />} iconPosition="end" onClick={next}>Tiếp theo</Button>}
+            {step === 4 && <Button type="primary" size="large" icon={<SendOutlined />} loading={submitting} onClick={submit}>Hoàn tất đăng ký</Button>}
+          </div>
+        </div>
+      </Card>
+    </main>
   );
 }

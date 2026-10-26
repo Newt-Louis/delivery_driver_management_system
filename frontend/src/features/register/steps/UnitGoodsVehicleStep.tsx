@@ -1,8 +1,11 @@
+import { useEffect, useRef } from 'react';
+import { AppstoreOutlined, CarOutlined, CheckCircleFilled, InboxOutlined, ShopOutlined, ToolOutlined } from '@ant-design/icons';
+import { Alert, Avatar, Button, Card, Empty, Skeleton, Space, Tag, Typography } from 'antd';
+import AdaptiveGrid from '../../../components/AdaptiveGrid';
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
-import type { BusinessLocation, UnitConfig, UnitGoodsType } from '../../../lib/types';
+import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
 import type { VehicleAvailabilityOption } from '../api';
 import FieldFrame from '../components/FieldFrame';
-import ProcessGuide from '../components/ProcessGuide';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
 import { VEHICLE_INFO } from '../constants';
 import type { FormState, RegisterFieldErrors, SetFormField, Unit } from '../types';
@@ -11,11 +14,6 @@ type UnitGoodsVehicleStepProps = {
   form: FormState;
   fieldErrors: RegisterFieldErrors;
   highlightedField: keyof FormState | null;
-  guideOpen: boolean;
-  onDismissGuide: () => void;
-  publicLocations: BusinessLocation[];
-  publicLocationsLoading: boolean;
-  publicLocationsMsg: string;
   publicUnits: UnitConfig[];
   publicUnitsLoading: boolean;
   publicUnitsMsg: string;
@@ -25,294 +23,168 @@ type UnitGoodsVehicleStepProps = {
   vehicleAvailabilityMsg: string;
   vehicleAvailabilityLoading: boolean;
   brandUnits: Record<Unit, UnitBranding>;
+  hasPublicLocation: boolean;
   set: SetFormField;
 };
 
-export default function UnitGoodsVehicleStep({
-  form,
-  fieldErrors,
-  highlightedField,
-  guideOpen,
-  onDismissGuide,
-  publicLocations,
-  publicLocationsLoading,
-  publicLocationsMsg,
-  publicUnits,
-  publicUnitsLoading,
-  publicUnitsMsg,
-  unitConfig,
-  customGoodsTypes,
-  vehicleAvailability,
-  vehicleAvailabilityMsg,
-  vehicleAvailabilityLoading,
-  brandUnits,
-  set,
-}: UnitGoodsVehicleStepProps) {
-  const selectedLocation = publicLocations.find((location) => location.id === form.businessLocationId);
+const GOODS_OPTIONS = [
+  { value: 'FRESH_FOOD', label: 'Hàng tươi sống / mát / đông lạnh', icon: <ShopOutlined /> },
+  { value: 'GENERAL_GOODS', label: 'Hàng thường', icon: <InboxOutlined /> },
+  { value: 'THI_CONG', label: 'Thi công', icon: <ToolOutlined /> },
+] as const;
 
-  function unitBrand(unitConfig: UnitConfig) {
-    const legacyBrand = brandUnits[unitConfig.unit] ?? UNIT_FALLBACKS[unitConfig.unit];
+const VEHICLE_ICONS = { TRUCK: <CarOutlined />, MOTORBIKE: <CarOutlined />, OTHER: <CarOutlined /> } as const;
+
+export default function UnitGoodsVehicleStep({
+  form, fieldErrors, highlightedField, publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig,
+  customGoodsTypes, vehicleAvailability, vehicleAvailabilityMsg, vehicleAvailabilityLoading, brandUnits,
+  hasPublicLocation, set,
+}: UnitGoodsVehicleStepProps) {
+  const goodsRef = useRef<HTMLDivElement>(null);
+  const vehicleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!form.receivingUnit) return;
+    const timer = window.setTimeout(() => goodsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+    return () => window.clearTimeout(timer);
+  }, [form.receivingUnit]);
+
+  useEffect(() => {
+    if (!form.goodsType) return;
+    const timer = window.setTimeout(() => vehicleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+    return () => window.clearTimeout(timer);
+  }, [form.goodsType]);
+
+  function unitBrand(config: UnitConfig) {
+    const legacyBrand = brandUnits[config.unit] ?? UNIT_FALLBACKS[config.unit];
     return {
-      displayName: unitConfig.displayName || legacyBrand?.displayName || unitConfig.unit,
-      description: unitConfig.description || legacyBrand?.description || unitConfig.shortName || unitConfig.unit,
-      logoUrl: unitConfig.logoUrl ?? legacyBrand?.logoUrl ?? null,
-      icon: unitConfig.icon || legacyBrand?.icon || '◆',
+      displayName: config.displayName || legacyBrand?.displayName || config.unit,
+      description: config.description || legacyBrand?.description || config.shortName || config.unit,
+      logoUrl: config.logoUrl ?? legacyBrand?.logoUrl ?? null,
     };
+  }
+
+  function selectUnit(config: UnitConfig) {
+    if (form.unitConfigId === config.id) return;
+    set('unitConfigId', config.id);
+    set('receivingUnit', config.unit);
+    set('goodsType', '');
+    set('unitGoodsTypeId', '');
+    set('vehicleType', '');
+  }
+
+  function renderVehicleChoice({ vehicleType, slotCount, capacity }: VehicleAvailabilityOption) {
+    const info = VEHICLE_INFO[vehicleType];
+    const active = form.vehicleType === vehicleType;
+    return (
+      <Button
+        key={vehicleType}
+        type="default"
+        aria-pressed={active}
+        className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`}
+        onClick={() => {
+          if (!active) set('vehicleType', vehicleType);
+        }}
+      >
+        {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+        <div className="space-y-1 py-2 text-center">
+          <div className="text-lg">{VEHICLE_ICONS[vehicleType]}</div>
+          <Typography.Text strong>{info.label}</Typography.Text>
+          <Typography.Text type="secondary" className="block text-xs">{slotCount} vị trí · {capacity} lượt</Typography.Text>
+        </div>
+      </Button>
+    );
   }
 
   return (
     <div className="space-y-5">
-      <a
-        href="/track"
-        className="flex items-center gap-3 p-3.5 rounded-2xl border border-thiso-200 bg-white text-thiso-800 hover:bg-thiso-50 active:scale-[0.99] transition-all"
-      >
-        <div className="flex-1 min-w-0 ml-3">
-          <p className="text-sm font-bold leading-tight">Đã đăng ký rồi?</p>
-          <p className="text-thiso-500 text-xs mt-0.5">Theo dõi đơn hoặc tra cứu bằng biển số xe</p>
-        </div>
-        <span className="text-thiso-500 text-lg flex-shrink-0">›</span>
-      </a>
-
-      {guideOpen && <ProcessGuide onDismiss={onDismissGuide} />}
-
-      <FieldFrame field="businessLocationId" highlightedField={highlightedField} variant="choice">
-        <p className="label">Bạn giao hàng tại khu vực nào? <span className="text-red-400">*</span></p>
-        {publicLocationsLoading && (
-          <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
-            Đang tải khu vực giao hàng...
-          </div>
-        )}
-        {!publicLocationsLoading && publicLocations.length > 0 && (
-          <div className="space-y-2.5">
-            {publicLocations.map((location) => {
-              const active = form.businessLocationId === location.id;
-              return (
-                <button
-                  key={location.id}
-                  type="button"
-                  onClick={() => {
-                    set('businessLocationId', location.id);
-                    set('unitConfigId', '');
-                    set('receivingUnit', '');
-                    set('goodsType', '');
-                    set('unitGoodsTypeId', '');
-                    set('vehicleType', '');
-                  }}
-                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left ${
-                    active
-                      ? 'border-thiso-700 bg-thiso-50 shadow-card-md'
-                      : 'border-thiso-200 bg-white hover:border-thiso-300'
-                  }`}
-                >
-                  {location.logoUrl ? (
-                    <img src={location.logoUrl} alt={location.locationName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
-                  ) : (
-                    <span className="w-10 h-10 rounded-xl border border-thiso-200 bg-white text-thiso-800 text-xs font-black flex items-center justify-center flex-shrink-0">
-                      {location.code.slice(0, 2).toUpperCase()}
-                    </span>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className={`font-bold text-base ${active ? 'text-thiso-900' : 'text-thiso-800'}`}>{location.locationName}</p>
-                    <p className="text-xs text-thiso-400 mt-0.5">{location.address || location.code}</p>
-                  </div>
-                  <div className={`w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all ${active ? 'border-thiso-700' : 'border-thiso-200'}`}>
-                    {active && <div className="w-full h-full rounded-full bg-thiso-900" />}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {!publicLocationsLoading && publicLocations.length === 0 && (
-          <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
-            {publicLocationsMsg || 'Chưa có khu vực giao hàng đang hoạt động.'}
-          </div>
-        )}
-        {fieldErrors.businessLocationId && <FieldError text={fieldErrors.businessLocationId} />}
-      </FieldFrame>
-
       <FieldFrame field="receivingUnit" highlightedField={highlightedField} variant="choice">
-        <p className="label">Bạn giao hàng đến đâu? <span className="text-red-400">*</span></p>
-        {!form.businessLocationId && (
-          <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
-            Chọn khu vực giao hàng trước để xem đơn vị nhận hàng.
-          </div>
-        )}
-        {form.businessLocationId && publicUnitsLoading && (
-          <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
-            Đang tải đơn vị nhận hàng...
-          </div>
-        )}
-        {form.businessLocationId && !publicUnitsLoading && publicUnits.length > 0 && (
-          <div className="space-y-2.5">
-            {publicUnits.map((unitConfig) => {
-            const brand = unitBrand(unitConfig);
-            const active = form.unitConfigId === unitConfig.id;
-            const color = unitConfig.primaryColor?.trim();
-            const activeStyle = active && color
-              ? { borderColor: color, backgroundColor: `${color}10` }
-              : undefined;
-            return (
-              <button
-                key={unitConfig.id}
-                type="button"
-                onClick={() => {
-                  set('unitConfigId', unitConfig.id);
-                  set('receivingUnit', unitConfig.unit);
-                  set('goodsType', '');
-                  set('unitGoodsTypeId', '');
-                  set('vehicleType', '');
-                }}
-                className={`w-full flex items-center gap-4 p-4 rounded-2xl border-2 transition-all text-left
-                  ${active
-                    ? 'border-thiso-200 bg-thiso-50 shadow-card-md'
-                    : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                style={activeStyle}
-              >
-                {brand.logoUrl ? (
-                  <img src={brand.logoUrl} alt={brand.displayName} className="w-10 h-10 rounded-xl object-contain flex-shrink-0 bg-white p-1 border border-thiso-100" />
-                ) : (
-                  <span className="text-3xl flex-shrink-0">{brand.icon}</span>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-base text-thiso-800" style={active && color ? { color } : undefined}>{brand.displayName}</p>
-                  <p className="text-xs text-thiso-400 mt-0.5">{brand.description}</p>
-                </div>
-                <div
-                  className="w-5 h-5 rounded-full border-2 flex-shrink-0 transition-all border-thiso-200"
-                  style={active && color ? { borderColor: color, color } : undefined}
-                >
-                  {active && <div className="w-full h-full rounded-full bg-current opacity-60" />}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-        )}
-        {form.businessLocationId && !publicUnitsLoading && publicUnits.length === 0 && (
-          <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
-            {publicUnitsMsg || `${selectedLocation?.locationName ?? 'Khu vực này'} chưa có đơn vị nhận hàng đang hoạt động.`}
-          </div>
-        )}
-        {fieldErrors.receivingUnit && <FieldError text={fieldErrors.receivingUnit} />}
-      </FieldFrame>
-
-      {form.receivingUnit && (
-        <FieldFrame field="goodsType" highlightedField={highlightedField} variant="choice" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <p className="label">Loại hàng bạn giao <span className="text-red-400">*</span></p>
-          {!unitConfig && <p className="text-xs text-thiso-400 py-2">Đang tải...</p>}
-          {unitConfig && (
-            customGoodsTypes.length > 0 ? (
-              <div className="grid grid-cols-2 gap-3">
-                {customGoodsTypes.map(ct => (
-                  <button
-                    key={ct.id}
-                    type="button"
-                    onClick={() => { set('goodsType', ct.baseType); set('unitGoodsTypeId', ct.id); set('vehicleType', ''); }}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all
-                      ${form.unitGoodsTypeId === ct.id
-                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
-                        : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                  >
-                    <div className="text-2xl mb-2">{ct.emoji}</div>
-                    <p className="font-bold text-sm text-thiso-800">{ct.name}</p>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {unitConfig.freshFoodEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => { set('goodsType', 'FRESH_FOOD'); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all
-                      ${form.goodsType === 'FRESH_FOOD' && !form.unitGoodsTypeId
-                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
-                        : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                  >
-                    <div className="text-2xl mb-2">🥬</div>
-                    <p className="font-bold text-sm text-thiso-800">Hàng tươi sống / mát / đông lạnh</p>
-                    {unitConfig.sundayFreshFoodOnly && (
-                      <span className="inline-block mt-1 text-[10px] bg-thisodominant-100 text-thisodominant-700 px-1.5 py-0.5 rounded-full">Cả Chủ nhật</span>
-                    )}
-                  </button>
-                )}
-                {unitConfig.generalGoodsEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => { set('goodsType', 'GENERAL_GOODS'); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all
-                      ${form.goodsType === 'GENERAL_GOODS' && !form.unitGoodsTypeId
-                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
-                        : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                  >
-                    <div className="text-2xl mb-2">📦</div>
-                    <p className="font-bold text-sm text-thiso-800">Hàng thường</p>
-                    {unitConfig.sundayFreshFoodOnly && (
-                      <span className="inline-block mt-1 text-[10px] bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Không nhận CN</span>
-                    )}
-                  </button>
-                )}
-                {unitConfig.thiCongEnabled && (
-                  <button
-                    type="button"
-                    onClick={() => { set('goodsType', 'THI_CONG'); set('unitGoodsTypeId', ''); set('vehicleType', ''); }}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all
-                      ${form.goodsType === 'THI_CONG' && !form.unitGoodsTypeId
-                        ? 'border-thisodominant-400 bg-thisodominant-50 shadow-card-md'
-                        : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                  >
-                    <div className="text-2xl mb-2">🔨</div>
-                    <p className="font-bold text-sm text-thiso-800">Thi công</p>
-                    <span className="inline-block mt-1 text-[10px] bg-thisodominant-100 text-thisodominant-700 px-1.5 py-0.5 rounded-full">Công trình</span>
-                  </button>
-                )}
-              </div>
-            )
-          )}
-          {fieldErrors.goodsType && <FieldError text={fieldErrors.goodsType} />}
-        </FieldFrame>
-      )}
-
-      {form.goodsType && (
-        <FieldFrame field="vehicleType" highlightedField={highlightedField} variant="choice" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
-          <p className="label">Loại phương tiện <span className="text-red-400">*</span></p>
-          {vehicleAvailabilityLoading && (
-            <div className="p-3.5 rounded-xl border border-thiso-100 bg-white text-sm text-thiso-400">
-              Đang kiểm tra slot phù hợp...
-            </div>
-          )}
-          {!vehicleAvailabilityLoading && vehicleAvailability.length > 0 && (
-            <div className="grid grid-cols-3 gap-3">
-              {vehicleAvailability.map(({ vehicleType }) => {
-                const info = VEHICLE_INFO[vehicleType];
-                const active = form.vehicleType === vehicleType;
+        <Card size="small" title={<Space><AppstoreOutlined />Đơn vị giao hàng</Space>}>
+          {!hasPublicLocation && <Alert type="info" showIcon message="Chọn khu vực từ nút nổi toàn cục để xem đơn vị nhận hàng." />}
+          {hasPublicLocation && publicUnitsLoading && <Skeleton active paragraph={{ rows: 3 }} />}
+          {hasPublicLocation && !publicUnitsLoading && publicUnits.length > 0 && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              {publicUnits.map((config) => {
+                const brand = unitBrand(config);
+                const active = form.unitConfigId === config.id;
                 return (
-                  <button
-                    key={vehicleType}
-                    type="button"
-                    onClick={() => set('vehicleType', vehicleType)}
-                    className={`p-3.5 rounded-2xl border-2 text-center transition-all
-                      ${active
-                        ? `${info.activeBorder} ${info.activeBg} shadow-card-md scale-[1.03]`
-                        : 'border-thiso-200 bg-white hover:border-thiso-300'}`}
-                  >
-                    <div className="text-2xl mb-1.5">{info.icon}</div>
-                    <p className="font-bold text-xs text-thiso-800">{info.label}</p>
-                  </button>
+                  <Button key={config.id} type="default" block aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal !p-0 !text-left ${active ? 'selection-card-button-selected' : ''}`} onClick={() => selectUnit(config)}>
+                    {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+                    <div className="flex min-h-20 w-full items-center gap-3 px-4 py-3 text-left">
+                      <Avatar shape="square" size={40} className="shrink-0" src={config.logoUrl?.trim() || brand.logoUrl || undefined} icon={<AppstoreOutlined />} />
+                      <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
+                        <Typography.Text strong className="block w-full whitespace-normal">{brand.displayName}</Typography.Text>
+                        <Typography.Text type="secondary" className="block w-full whitespace-normal text-xs">Khu nhận hàng {brand.displayName}</Typography.Text>
+                      </div>
+                    </div>
+                  </Button>
                 );
               })}
             </div>
           )}
-          {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && (
-            <div className="p-3.5 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-700">
-              {vehicleAvailabilityMsg || 'Không có slot phù hợp cho loại hàng này.'}
-            </div>
-          )}
-          <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn đúng loại để hệ thống xếp đúng bãi'} />
-          {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
+          {hasPublicLocation && !publicUnitsLoading && publicUnits.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={publicUnitsMsg || 'Khu vực này chưa có đơn vị nhận hàng đang hoạt động.'} />}
+          {fieldErrors.receivingUnit && <FieldError text={fieldErrors.receivingUnit} />}
+        </Card>
+      </FieldFrame>
+
+      {form.receivingUnit && <div ref={goodsRef}>
+        <FieldFrame field="goodsType" highlightedField={highlightedField} variant="choice">
+          <Card size="small" title={<Space><InboxOutlined />Loại hàng giao</Space>}>
+            {!unitConfig && <Skeleton active paragraph={{ rows: 2 }} />}
+            {unitConfig && customGoodsTypes.length > 0 && <div className="grid gap-3 sm:grid-cols-2">
+              {customGoodsTypes.map((type) => {
+                const active = form.unitGoodsTypeId === type.id;
+                return <Button key={type.id} type="default" aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`} onClick={() => {
+                  if (active) return;
+                  set('goodsType', type.baseType);
+                  set('unitGoodsTypeId', type.id);
+                  set('vehicleType', '');
+                }}>
+                  {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+                  <div className="py-2 text-left"><Typography.Text strong>{type.name}</Typography.Text></div>
+                </Button>;
+              })}
+            </div>}
+            {unitConfig && customGoodsTypes.length === 0 && <div className="grid gap-3 sm:grid-cols-2">
+              {GOODS_OPTIONS.filter((option) => (
+                option.value === 'FRESH_FOOD' ? unitConfig.freshFoodEnabled : option.value === 'GENERAL_GOODS' ? unitConfig.generalGoodsEnabled : unitConfig.thiCongEnabled
+              )).map((option) => {
+                const active = form.goodsType === option.value && !form.unitGoodsTypeId;
+                return <Button key={option.value} type="default" aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`} onClick={() => {
+                  if (active) return;
+                  set('goodsType', option.value);
+                  set('unitGoodsTypeId', '');
+                  set('vehicleType', '');
+                }}>
+                  {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+                  <div className="flex min-h-16 items-center gap-3 px-1 py-2 text-left"><span className="text-lg">{option.icon}</span><Typography.Text strong>{option.label}</Typography.Text></div>
+                </Button>;
+              })}
+            </div>}
+            {unitConfig?.sundayFreshFoodOnly && <Tag color="gold" className="mt-3">Chủ nhật chỉ nhận hàng tươi sống</Tag>}
+            {fieldErrors.goodsType && <FieldError text={fieldErrors.goodsType} />}
+          </Card>
         </FieldFrame>
-      )}
+      </div>}
+
+      {form.goodsType && <div ref={vehicleRef}>
+        <FieldFrame field="vehicleType" highlightedField={highlightedField} variant="choice">
+          <Card size="small" title={<Space><CarOutlined />Phương tiện giao hàng</Space>}>
+            {vehicleAvailabilityLoading && <Skeleton active paragraph={{ rows: 2 }} />}
+            {!vehicleAvailabilityLoading && vehicleAvailability.length > 0 && <>
+              <div className={`grid gap-3 md:hidden ${vehicleAvailability.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {vehicleAvailability.map(renderVehicleChoice)}
+              </div>
+              <AdaptiveGrid minColumnWidth={180} maxColumnWidth={240} className="hidden md:grid">
+                {vehicleAvailability.map(renderVehicleChoice)}
+              </AdaptiveGrid>
+            </>}
+            {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && <Alert type="warning" showIcon message={vehicleAvailabilityMsg || 'Không có phương tiện phù hợp cho loại hàng này.'} />}
+            <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn đúng loại để hệ thống xếp đúng bãi.'} />
+            {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
+          </Card>
+        </FieldFrame>
+      </div>}
     </div>
   );
 }

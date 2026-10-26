@@ -47,6 +47,45 @@ body .ant-tooltip .ant-tooltip-container {
   min-height: 0;
 }
 
+/* Ant Steps v6 uses per-item CSS variables and a rail, not v5's tail element. */
+.register-progress .ant-steps-item-finish {
+  --ant-cmp-steps-item-icon-bg-color: var(--register-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-border-color: var(--register-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-text-color: var(--register-step-finish-icon-color) !important;
+}
+
+.register-progress .ant-steps-item-rail-finish {
+  --ant-cmp-steps-item-solid-line-color: var(--register-step-finish-color) !important;
+}
+
+/* Rich, single-choice cards are visually distinct from affirmative Buttons and boolean Switches. */
+.selection-card-button.ant-btn {
+  position: relative;
+}
+
+.selection-card-button.ant-btn.selection-card-button-selected {
+  background-color: var(--dqm-color-primary-bg);
+  border-color: var(--dqm-color-primary-border);
+  box-shadow: 0 0 0 1px var(--dqm-color-primary-border);
+}
+
+.selection-card-button.ant-btn.selection-card-button-selected .ant-typography {
+  color: var(--dqm-color-primary);
+}
+
+.selection-card-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--dqm-color-primary);
+}
+
+.register-date-calendar .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background-color: var(--register-calendar-selected-bg) !important;
+  border: 1px solid var(--register-calendar-selected-border);
+  color: var(--register-calendar-selected-text) !important;
+}
+
 @layer components {
 
   /* ── Buttons ── */
@@ -61,18 +100,28 @@ body .ant-tooltip .ant-tooltip-container {
 
   /* Success — green */
   .btn-success {
-    @apply btn bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-500;
+    @apply btn;
+    background-color: var(--dqm-color-success);
+    color: var(--dqm-color-text-light-solid);
   }
 
   /* Danger — red */
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+    @apply btn;
+    background-color: var(--dqm-color-error);
+    color: var(--dqm-color-text-light-solid);
   }
 
   /* Warning — amber */
   .btn-warning {
-    @apply btn bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400;
+    @apply btn;
+    background-color: var(--dqm-color-warning);
+    color: var(--dqm-color-text-light-solid);
   }
+
+  .btn-success:hover { background-color: var(--dqm-color-success-hover); }
+  .btn-danger:hover { background-color: var(--dqm-color-error-hover); }
+  .btn-warning:hover { background-color: var(--dqm-color-warning-hover); }
 
   /* Secondary — light gray */
   .btn-secondary {

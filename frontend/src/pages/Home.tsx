@@ -538,10 +538,10 @@ export default function Home() {
   return (
     <main className="flex flex-1 bg-[var(--dqm-color-bg-layout)] px-4 py-6 sm:px-6 md:py-10">
       <div className="mx-auto w-full max-w-3xl">
-        <Space direction="vertical" size="large" className="w-full">
-          <div>
+        <Space orientation="vertical" size="large" className="w-full">
+          <div className="justify-items-center">
             <Typography.Title level={1} className="!mb-2 !text-3xl sm:!text-4xl">Hệ thống điều phối nhận hàng THISO</Typography.Title>
-            <Typography.Paragraph type="secondary" className="!mb-0 !max-w-2xl !text-base">
+            <Typography.Paragraph type="secondary" className="!mb-0 !max-w-2xl !text-base ">
               Nhập mã PO hoặc mã Thi Công để hệ thống kiểm tra nhanh thông tin đơn vị nhận, khu vực và loại hàng trước khi đăng ký.
             </Typography.Paragraph>
           </div>

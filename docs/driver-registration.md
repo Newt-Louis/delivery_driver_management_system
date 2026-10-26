@@ -55,20 +55,21 @@ Homepage `/` hiện có:
 
 Wizard thủ công `/register`:
 
-1. Chọn `BusinessLocation`, đơn vị nhận hàng, loại hàng, loại xe.
-2. Chọn ngày giao hàng bằng calendar tháng hiện tại, xem mật độ đăng ký theo ngày, nhập thông tin nhà cung cấp. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
+1. Dùng `BusinessLocation` đã chọn bằng FloatButton toàn cục trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
+2. Chọn ngày giao hàng từ hôm nay trở đi bằng calendar; ngày đã qua là ô trống, lịch chỉ hiển thị số ngày và cho phép đi tới các tháng tương lai. Khi Header quay lại tháng hiện tại từ một ngày tương lai có ngày-tháng đã qua, lịch neo tại hôm nay để tháng hiện tại vẫn mở được. Công suất vẫn được dùng để disable ngày hết chỗ, nhưng không hiển thị như số thứ hai trong ô ngày. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
 3. Nhập thông tin tài xế/xe/nhà cung cấp.
 4. Review và hoàn tất đăng ký.
 
 Logic trong `useRegisterForm.ts`:
 
-- Lấy danh sách khu vực public: `GET /api/units/public/business-locations`.
-- Sau khi chọn khu vực, lấy unit active: `GET /api/units/public/configs?businessLocationId=...`.
+- Nhận `businessLocationId` từ `PublicBusinessLocationContext`; context chung là nơi lấy danh sách public `GET /api/units/public/business-locations` và lưu lựa chọn thiết bị.
+- Theo khu vực toàn cục, lấy unit active: `GET /api/units/public/configs?businessLocationId=...`.
 - Lấy cấu hình unit: `GET /api/units/:unit/config?businessLocationId=...&unitConfigId=...`.
 - Lấy loại hàng tùy biến: `GET /api/units/:unit/goods-types?businessLocationId=...&unitConfigId=...`. Dữ liệu nằm trong `unit_goods_types`, scope chính theo `unitConfigId` để không lẫn giữa các `BusinessLocation`.
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
 - Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
+- Gợi ý mã NCC ở step thông tin tài xế: `GET /api/aw-vendors/suggestions?q=...&businessLocationId=...&unitConfigId=...`. Endpoint chỉ trả tối đa 10 NCC active thuộc đúng `UnitConfig` public đang chọn; chọn một gợi ý sẽ điền lại cả mã lẫn tên NCC.
 - Tạo mã đối chiếu thủ công: `POST /api/deliveries/manual-registration-code`. Frontend gọi một lần khi vào step 2 của session đăng ký, giữ mã trong form và gọi lại cho lượt mới sau khi hoàn tất/reset.
 - Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend tự lưu `requestedTime` tại `00:00` của ngày giao theo giờ Việt Nam nếu payload không gửi giờ.
 - Scroll tới field lỗi đầu tiên khi validate fail.
@@ -92,6 +93,7 @@ API chính:
 - `GET /api/units/:unit/daily-registration-stats`
 - `GET /api/units/order-codes`
 - `GET /api/aw-vendors/check`
+- `GET /api/aw-vendors/suggestions`
 - `POST /api/deliveries/public-cancel`
 
 Module backend:
@@ -130,7 +132,7 @@ Service:
 - Mã đối chiếu được hiển thị ở step review, màn hình thành công, trang track và dùng cùng với biển số, số điện thoại, mã đăng ký, ngày giao khi tài xế tự hủy trước check-in.
 - Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
 - `registrationCode` có format `BUSINESSLOCATIONCODE + 4 ký tự cuối của UnitConfig.id + YYMMDD + số thứ tự ba chữ số`. Số thứ tự reset theo ngày và `UnitConfig`; mã location và suffix UnitConfig giữ mã đăng ký unique toàn cục để `/track/:code` và check-in không cần thêm scope.
-- `BusinessLocation` public là bước đầu của luồng thủ công `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn.
+- `BusinessLocation` public là phạm vi chung của các route public, không phải field trong wizard `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn toàn cục.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
 - Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`. Với luồng thủ công, `poNumber` là Mã đối chiếu tự sinh.
 - Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/Mã đối chiếu.
