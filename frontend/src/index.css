@@ -58,6 +58,16 @@ body .ant-tooltip .ant-tooltip-container {
   --ant-cmp-steps-item-solid-line-color: var(--register-step-finish-color) !important;
 }
 
+.track-journey-steps .ant-steps-item-finish {
+  --ant-cmp-steps-item-icon-bg-color: var(--track-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-border-color: var(--track-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-text-color: var(--track-step-finish-icon-color) !important;
+}
+
+.track-journey-steps .ant-steps-item-rail-finish {
+  --ant-cmp-steps-item-solid-line-color: var(--track-step-finish-color) !important;
+}
+
 /* Rich, single-choice cards are visually distinct from affirmative Buttons and boolean Switches. */
 .selection-card-button.ant-btn {
   position: relative;
@@ -84,6 +94,66 @@ body .ant-tooltip .ant-tooltip-container {
   background-color: var(--register-calendar-selected-bg) !important;
   border: 1px solid var(--register-calendar-selected-border);
   color: var(--register-calendar-selected-text) !important;
+}
+
+/* Delivery dates must always be selected from the day grid. The year and
+ * month selects remain available; Calendar's alternative year-only view does not. */
+.register-date-calendar .ant-picker-calendar-mode-switch {
+  display: none;
+}
+
+@media (min-width: 1025px) {
+  .waiting-unit-carousel,
+  .waiting-unit-carousel .slick-slider,
+  .waiting-unit-carousel .slick-list,
+  .waiting-unit-carousel .slick-track,
+  .waiting-unit-carousel .slick-slide,
+  .waiting-unit-carousel .slick-slide > div {
+    height: 100%;
+  }
+}
+
+.waiting-screen-viewport,
+.waiting-unit-carousel,
+.waiting-unit-carousel .slick-list {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+/* Ant Tabs remains the explicit unit selector at every width. Keep a short
+ * list centred, but allow a long unit list to pan horizontally without a
+ * visual scrollbar or the default overflow menu. */
+.waiting-unit-tabs .ant-tabs-nav-wrap {
+  display: block;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+}
+
+.waiting-unit-tabs .ant-tabs-nav-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.waiting-unit-tabs .ant-tabs-nav-list {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  justify-content: center;
+  transform: none !important;
+}
+
+.waiting-unit-tabs .ant-tabs-nav-operations {
+  display: none;
+}
+
+.waiting-vehicle-table .ant-table-cell {
+  vertical-align: top;
+}
+
+.waiting-vehicle-table-highlight > td {
+  background: var(--ant-color-info-bg) !important;
 }
 
 @layer components {

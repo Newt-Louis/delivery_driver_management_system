@@ -39,6 +39,7 @@ export function useTrackContent(code: string) {
   const wakeLockRef     = useRef<{ release(): Promise<void> } | null>(null);
   const vibrationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioIntervalRef     = useRef<ReturnType<typeof setInterval> | null>(null);
+  const chimeStopRef         = useRef<(() => void) | null>(null);
 
   function primeDeviceAlerts() {
     ensureAudio();
@@ -51,7 +52,14 @@ export function useTrackContent(code: string) {
   function stopCalledAlerts() {
     if (vibrationIntervalRef.current) { clearInterval(vibrationIntervalRef.current); vibrationIntervalRef.current = null; }
     if (audioIntervalRef.current)     { clearInterval(audioIntervalRef.current);     audioIntervalRef.current = null;     }
+    chimeStopRef.current?.();
+    chimeStopRef.current = null;
     buzz([]);
+  }
+
+  function playCalledChime() {
+    chimeStopRef.current?.();
+    chimeStopRef.current = playChimeWithCtx(ensureAudio(), 10)?.stop ?? null;
   }
 
   const subscribePush = useCallback(async (deliveryCode: string) => {
@@ -112,20 +120,6 @@ export function useTrackContent(code: string) {
     if (delivery.status === 'COMPLETED' || delivery.status === 'CANCELLED') return;
     if (notifPermission === 'granted') void subscribePush(delivery.registrationCode);
   }, [delivery?.registrationCode, delivery?.status, notifPermission, pushEnabled]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-request notification permission on mount (non-iOS)
-  useEffect(() => {
-    if (!pushSupport.supported || typeof Notification === 'undefined') return;
-    if (pushSupport.platform === 'ios') return;
-    if (notifPermission !== 'default') return;
-    const timer = setTimeout(() => {
-      Notification.requestPermission().then((p) => {
-        setNotifPermission(p);
-        if (p === 'granted' && delivery) void subscribePush(delivery.registrationCode);
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [pushSupport.supported, notifPermission, delivery, subscribePush]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-dismiss non-urgent status alerts after 10 s
   useEffect(() => {
@@ -239,17 +233,17 @@ export function useTrackContent(code: string) {
     if (prev === null || prev === delivery.status) return;
 
     if (delivery.status === 'CALLED') {
-      const slot = delivery.assignedSlot?.code ?? 'dock';
+      const slot = delivery.assignedSlot?.code ?? 'khu vực giao hàng';
       buzz([300, 150, 300, 150, 600, 150, 600]);
-      playChimeWithCtx(ensureAudio(), 10);
-      sendNotification(`🚛 Xe bạn được gọi vào ${slot}!`, delivery.vehiclePlate, 'called');
-      setStatusAlert({ title: `🚛 Được gọi vào ${slot}!`, body: `${delivery.vehiclePlate} — Di chuyển vào dock ngay`, level: 'urgent' });
+      playCalledChime();
+      sendNotification(`Xe bạn được gọi vào ${slot}!`, delivery.vehiclePlate, 'called');
+      setStatusAlert({ title: `Được gọi vào ${slot}!`, body: `${delivery.vehiclePlate} — Di chuyển vào khu vực giao hàng ngay`, level: 'urgent' });
       vibrationIntervalRef.current = setInterval(() => { buzz([300, 150, 300, 150, 600]); }, 3000);
-      audioIntervalRef.current = setInterval(() => { playChimeWithCtx(ensureAudio(), 10); }, 10000);
+      audioIntervalRef.current = setInterval(playCalledChime, 10_000);
     } else if (delivery.status === 'WAITING') {
       buzz([120]);
       playBeeps([{ freq: 660, start: 0, dur: 0.3 }]);
-      sendNotification('✅ Check-in thành công!', `${delivery.vehiclePlate} đang chờ gọi vào dock`, 'waiting');
+      sendNotification('✅ Check-in thành công!', `${delivery.vehiclePlate} đang chờ gọi vào khu vực giao hàng`, 'waiting');
       setStatusAlert({ title: '✅ Check-in thành công!', body: 'Vui lòng vào khu vực chờ xe', level: 'info' });
     } else if (delivery.status === 'COMPLETED') {
       buzz([200, 100, 400]);
@@ -282,11 +276,11 @@ export function useTrackContent(code: string) {
     if (isUrgent) {
       buzz([200, 100, 200, 100, 400]);
       playBeeps([{ freq: 880, start: 0, dur: 0.15 }, { freq: 1100, start: 0.2, dur: 0.15 }, { freq: 1320, start: 0.4, dur: 0.35 }]);
-      sendNotification(`⚡ Sắp đến lượt bạn! Vị trí #${newPos}`, `Còn ${newPos} lượt nữa — chuẩn bị sẵn sàng`, 'queue-urgent');
+      sendNotification(`Sắp đến lượt bạn! Vị trí #${newPos}`, `Còn ${newPos} lượt nữa — chuẩn bị sẵn sàng`, 'queue-urgent');
     } else if (diff > 0) {
       buzz([80]);
       playBeeps([{ freq: 660, start: 0, dur: 0.15 }]);
-      sendNotification(`🔢 Hàng chờ cập nhật — Vị trí #${newPos}`, `Tiến lên ${diff} lượt`, 'queue-update');
+      sendNotification(`Hàng chờ cập nhật — Vị trí #${newPos}`, `Tiến lên ${diff} lượt`, 'queue-update');
     }
     setQueueBanner({ pos: newPos, diff, isUrgent });
   }, [delivery?.queueInfo?.position]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -311,7 +305,7 @@ export function useTrackContent(code: string) {
     { icon: '🔐', label: 'Check-in cổng',    time: delivery.checkinTime,          done: !!delivery.checkinTime,        detail: null },
     {
       icon: '📢',
-      label: delivery.assignedSlot ? `Được gọi vào ${delivery.assignedSlot.code}` : 'Được gọi vào dock',
+      label: delivery.assignedSlot ? `Được gọi vào ${delivery.assignedSlot.code}` : 'Được gọi vào khu vực giao hàng',
       time: delivery.calledTime, done: !!delivery.calledTime,
       detail: delivery.assignedSlot
         ? `${delivery.assignedSlot.name}${delivery.assignedSlot.zone ? ' · ' + delivery.assignedSlot.zone.name : ''}`

@@ -2,7 +2,7 @@
 
 ## Mục Tiêu
 
-Tài xế theo dõi hành trình tại `/track/:code`. Khi có thay đổi trạng thái, trang track cập nhật realtime, hiện thông báo, phát âm thanh và rung nếu thiết bị hỗ trợ.
+Tài xế theo dõi hành trình tại `/track/:code`. Khi có thay đổi trạng thái trong lúc trang Track đang mở, route này cập nhật realtime, hiện Ant `StatusAlertOverlay`, phát âm thanh và rung nếu thiết bị hỗ trợ. Đây chưa phải là cơ chế global cho mọi public route.
 
 ## Frontend
 
@@ -24,7 +24,8 @@ Chức năng:
 - Subscribe web push.
 - Wake lock nếu trình duyệt hỗ trợ.
 - Audio/vibration khi được gọi vào slot.
-- Overlay xanh khi `CALLED`, dừng khi user bấm đóng.
+- Ant `StatusAlertOverlay`: `CALLED` là urgent và chỉ dừng khi người dùng đóng; `WAITING` và `COMPLETED` tự đóng sau 10 giây.
+- Chime `CALLED` dùng AudioContext đã được mở bằng thao tác người dùng; đóng overlay, rời route hoặc rời trạng thái `CALLED` sẽ dừng cả interval lẫn các oscillator đang phát.
 - Unit label/color/ticket prefix trên track dùng metadata `unitConfig` từ API khi có; nếu delivery legacy thiếu metadata thì fallback generic theo mã unit.
 
 API:
@@ -37,6 +38,13 @@ API:
 - `DELETE /api/push/unsubscribe`
 
 Track hiện là bề mặt public read/notification cho tài xế. Route staff PIN/action cũ đã bị gỡ; các thao tác check-in/receiving/cancel đi qua tài khoản nội bộ và `/api/deliveries/*`.
+
+### Phạm vi hiện tại và giới hạn
+
+- Service worker được register toàn app, nhưng việc xin permission, tạo PushSubscription, join `track:{registrationCode}`, xử lý foreground transition và mở overlay đều nằm trong `useTrackContent(code)`. Vì vậy chỉ `/track/:code` đang chạy mới có foreground overlay/audio và tự subscribe push.
+- `WAITING` (check-in) hiện chỉ emit realtime track update; backend chưa gửi Web Push cho trạng thái này. `CALLED`, bắt đầu nhận hàng, hoàn tất và hủy đã có lệnh gửi Web Push nếu delivery có subscription và VAPID được cấu hình. UI Track hiện chỉ tạo overlay cho `WAITING`, `CALLED` và `COMPLETED`.
+- `/waiting-screen` không thuộc cơ chế cảnh báo tài xế: đó là màn hình chờ/TV read-only, chỉ refresh queue và highlight xe vừa được gọi.
+- Push background chỉ hiển thị system notification qua Service Worker; âm thanh và cách hiển thị do hệ điều hành/trình duyệt/quyền người dùng quyết định. React overlay và Web Audio không thể chạy khi ứng dụng đã đóng.
 
 ## Backend
 
@@ -80,6 +88,7 @@ Service worker:
 - iOS Web Push yêu cầu iOS 16.4+ và web app được Add to Home Screen.
 - Vibration API trên iOS bị hạn chế; không nên coi rung là đảm bảo tuyệt đối.
 - Audio autoplay cần có user gesture trước đó.
+- Permission notification phải được yêu cầu từ một thao tác trực tiếp của người dùng; không tự động xin permission khi mount route.
 
 ## Điểm Cần Test Thật
 

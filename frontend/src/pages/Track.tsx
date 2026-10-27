@@ -5,7 +5,6 @@ import { useTrackContent } from '../features/track/hooks/useTrackContent';
 import TrackLookup from '../features/track/components/TrackLookup';
 import StatusAlertOverlay from '../features/track/components/StatusAlertOverlay';
 import QueueBanner from '../features/track/components/QueueBanner';
-import TrackHeader from '../features/track/components/TrackHeader';
 import NotificationBanners from '../features/track/components/NotificationBanners';
 import StatusCard from '../features/track/components/StatusCard';
 import QueuePositionCard from '../features/track/components/QueuePositionCard';
@@ -50,8 +49,6 @@ function TrackContent({ code }: { code: string }) {
         <QueueBanner queueBanner={queueBanner} onClose={() => setQueueBanner(null)} />
       )}
 
-      <TrackHeader delivery={delivery} unitMeta={unitMeta!} isUrgentQueue={isUrgentQueue} />
-
       <div
         className="mx-auto w-full max-w-2xl space-y-4 px-4 py-4 sm:px-6"
         style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
@@ -66,7 +63,7 @@ function TrackContent({ code }: { code: string }) {
           onPrimeAlerts={primeDeviceAlerts}
         />
 
-        <StatusCard delivery={delivery} si={si} isTerminal={isTerminal} />
+        <StatusCard delivery={delivery} si={si} unitMeta={unitMeta!} isTerminal={isTerminal} />
 
         {delivery.status === 'WAITING' && delivery.queueInfo && (
           <QueuePositionCard queueInfo={delivery.queueInfo} />

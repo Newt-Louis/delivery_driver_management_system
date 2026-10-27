@@ -258,19 +258,19 @@ function HeaderAccount({ isAuthenticated, userName, mode, onToggleMode, accountM
   onLogin: () => void;
   activeItemLabel?: string;
 }) {
-  if (!isAuthenticated) {
-    return <Button type="text" className="ml-auto h-auto px-1" aria-label="Đăng nhập hệ thống" onClick={onLogin}><Avatar size="small" icon={<UserOutlined />} /></Button>;
-  }
-
   return (
     <div className="ml-auto flex items-center gap-1">
       {activeItemLabel && <Typography.Text ellipsis className="hidden max-w-40 text-sm sm:block">{activeItemLabel}</Typography.Text>}
       <Tooltip title={mode === 'light' ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'}>
         <Button type="text" icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />} onClick={onToggleMode} aria-label={mode === 'light' ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'} />
       </Tooltip>
-      <Dropdown menu={accountMenu} trigger={['click']}>
-        <Button type="text" className="h-auto px-1"><Space size={8}><Avatar size="small" icon={<UserOutlined />}>{userName ? initials(userName) : undefined}</Avatar><span className="hidden max-w-32 truncate text-sm font-medium lg:inline">{userName}</span><DownOutlined className="hidden text-xs sm:inline" /></Space></Button>
-      </Dropdown>
+      {isAuthenticated ? (
+        <Dropdown menu={accountMenu} trigger={['click']}>
+          <Button type="text" className="h-auto px-1"><Space size={8}><Avatar size="small" icon={<UserOutlined />}>{userName ? initials(userName) : undefined}</Avatar><span className="hidden max-w-32 truncate text-sm font-medium lg:inline">{userName}</span><DownOutlined className="hidden text-xs sm:inline" /></Space></Button>
+        </Dropdown>
+      ) : (
+        <Button type="text" className="h-auto px-1" aria-label="Đăng nhập hệ thống" onClick={onLogin}><Avatar size="small" icon={<UserOutlined />} /></Button>
+      )}
     </div>
   );
 }

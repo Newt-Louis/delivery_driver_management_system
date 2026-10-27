@@ -168,7 +168,7 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 - `frontend/src/pages/Dashboard.tsx` và `frontend/src/features/dashboard/*`
 - `frontend/src/pages/DockManagement.tsx` và `frontend/src/features/docks/*`
 - `frontend/src/pages/CheckIn.tsx` và `frontend/src/features/check-in/*`
-- `frontend/src/features/waiting-screen/WaitingScreen.tsx`
+- `frontend/src/pages/WaitingScreen.tsx` và `frontend/src/features/waiting-screen/*`
 - `frontend/src/features/track/Track.tsx`
 - `frontend/src/features/reports/Reports.tsx`
 - `frontend/src/pages/ReceivingTimes.tsx` và `frontend/src/features/receiving-times/*`

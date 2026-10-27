@@ -28,6 +28,7 @@ export default function DeliveryDateCalendar({ value, stats, loading, disabledRe
         className="register-date-calendar"
         style={selectedDateStyle}
         fullscreen={false}
+        mode="month"
         value={dayjs(value)}
         disabledDate={(date) => date.isBefore(today, 'day') || Boolean(disabledReasonForDate?.(date.format('YYYY-MM-DD'))) || statsByDate.get(date.format('YYYY-MM-DD'))?.available === false}
         onSelect={(date) => {

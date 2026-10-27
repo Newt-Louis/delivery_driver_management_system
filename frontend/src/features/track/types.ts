@@ -56,11 +56,7 @@ export interface TrackDelivery {
 }
 
 export interface StatusInfo {
-  icon: string;
   label: string;
-  color: string;
-  bg: string;
-  border: string;
 }
 
 export interface TimelineEvent {

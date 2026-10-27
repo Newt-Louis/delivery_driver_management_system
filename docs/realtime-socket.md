@@ -57,7 +57,7 @@ File:
 
 - `frontend/src/context/SocketContext.tsx`
 - `frontend/src/pages/Dashboard.tsx` và `frontend/src/features/dashboard/*`
-- `frontend/src/pages/WaitingScreen.tsx` -> `frontend/src/features/waiting-screen/WaitingScreen.tsx`
+- `frontend/src/pages/WaitingScreen.tsx` + `frontend/src/features/waiting-screen/hooks/useWaitingScreen.ts`
 - `frontend/src/pages/DockManagement.tsx` và `frontend/src/features/docks/*`
 - `frontend/src/pages/Track.tsx` -> `frontend/src/features/track/Track.tsx`
 

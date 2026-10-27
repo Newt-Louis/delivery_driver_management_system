@@ -8,8 +8,9 @@ Ngoài register/check-in/dashboard, hệ thống có các màn hình vận hành
 
 Frontend:
 
-- `frontend/src/pages/WaitingScreen.tsx`: route wrapper.
-- `frontend/src/features/waiting-screen/WaitingScreen.tsx`: implementation.
+- `frontend/src/pages/WaitingScreen.tsx`: route presentation: unit Tabs/Carousel và responsive layout.
+- `frontend/src/features/waiting-screen/hooks/useWaitingScreen.ts`: owner của public scope, queue query, socket/chime và called overlay state.
+- `frontend/src/features/waiting-screen/components/bright/*`: Ant Design unit/vehicle presentation components.
 
 Route:
 
@@ -38,8 +39,9 @@ Realtime:
 Mục đích:
 
 - TV/khu chờ hiển thị xe đang chờ, xe được gọi, thông tin ticket/slot.
-- Waiting screen chỉ hiển thị `CALLED` trước rồi `WAITING` sau; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không còn hiển thị trên màn hình chờ vì tài xế đã vào khu nhận hàng.
-- Có chime khi xe được gọi.
+- Waiting screen chỉ hiển thị `CALLED` trước rồi `WAITING` sau; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không còn hiển thị trên màn hình chờ vì tài xế đã vào khu nhận hàng. Mỗi đơn vị có ba nhóm phương tiện riêng `TRUCK`, `MOTORBIKE`, `OTHER`; trong mỗi nhóm, phần được gọi đứng trước phần đã check-in đang chờ.
+- Màn hình hiển thị một đơn vị mỗi lần qua Ant Carousel. Ant Tabs luôn cho phép chọn trực tiếp đơn vị; khi danh sách dài, tab bar cuộn ngang bằng chạm/trackpad nhưng không lộ scrollbar. Từ 1025px, Carousel có nút chuyển, tự sang đơn vị kế tiếp sau 60 giây và ba nhóm phương tiện nằm cạnh nhau; Card đơn vị cuộn dọc nội bộ khi danh sách dài. Đến 1024px, người dùng cũng có thể tự vuốt ngang giữa các đơn vị, còn ba nhóm phương tiện xếp dọc và màn hình cuộn dọc theo chiều cao nội dung tự nhiên, kể cả các trạng thái rỗng. Nếu phần gọi xe của một loại xe trống, UI phân biệt không có xe đã check-in sẵn sàng với xe đang chờ nhưng chưa có vị trí nhận hàng trống.
+- Waiting screen không phát chime hoặc chặn màn hình khi xe được gọi; event realtime chỉ làm mới queue và highlight tạm thời dòng `CALLED` vừa xuất hiện.
 
 Quy ước dữ liệu:
 
