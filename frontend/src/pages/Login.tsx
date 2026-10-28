@@ -113,7 +113,7 @@ export default function Login() {
                   <Alert
                     type="error"
                     showIcon
-                    message={error}
+                    title={error}
                     action={hasActiveSessionConflict ? (
                       <Space wrap size={8}>
                         <Button

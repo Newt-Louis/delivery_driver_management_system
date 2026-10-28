@@ -38,7 +38,7 @@ export default function BusinessLocationSelectorModal({
       title={title}
       footer={null}
       closable={!required}
-      maskClosable={!required}
+      mask={{ closable: !required }}
       keyboard={!required}
       width="min(760px, calc(100vw - 32px))"
       styles={{ body: { maxHeight: 'calc(100dvh - 180px)', overflowY: 'auto' } }}
@@ -89,7 +89,7 @@ export default function BusinessLocationSelectorModal({
           </Row>
         )}
 
-        {error && <Alert type="error" showIcon message={error} />}
+        {error && <Alert type="error" showIcon title={error} />}
       </Space>
     </Modal>
   );

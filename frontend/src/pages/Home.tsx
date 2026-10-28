@@ -13,6 +13,7 @@ import {
 } from '../features/register/api';
 import DeliveryDateCalendar from '../features/register/components/DeliveryDateCalendar';
 import SuccessScreen from '../features/register/components/SuccessScreen';
+import SavedTrips from '../features/driver-notifications/SavedTrips';
 import { isSundayDate, todayDate } from '../features/register/utils/date';
 import type { SuccessInfo } from '../features/register/types';
 import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
@@ -539,6 +540,7 @@ export default function Home() {
     <main className="flex flex-1 bg-[var(--dqm-color-bg-layout)] px-4 py-6 sm:px-6 md:py-10">
       <div className="mx-auto w-full max-w-3xl">
         <Space orientation="vertical" size="large" className="w-full">
+          <SavedTrips />
           <div className="justify-items-center">
             <Typography.Title level={1} className="!mb-2 !text-3xl sm:!text-4xl">Hệ thống điều phối nhận hàng THISO</Typography.Title>
             <Typography.Paragraph type="secondary" className="!mb-0 !max-w-2xl !text-base ">
@@ -569,7 +571,7 @@ export default function Home() {
                       autoCapitalize="none"
                       className="font-mono tracking-wide"
                     />
-                    <Button type="primary" size="large" htmlType="submit" loading={verifying} icon={<ArrowRightOutlined />} iconPosition="end">
+                    <Button type="primary" size="large" htmlType="submit" loading={verifying} icon={<ArrowRightOutlined />} iconPlacement="end">
                       Kiểm tra
                     </Button>
                   </Space.Compact>
@@ -585,13 +587,13 @@ export default function Home() {
                 <Alert
                   type="info"
                   showIcon
-                  message={verified.kind === 'PO' ? 'PO đã xác thực' : 'Mã Thi Công đã xác thực'}
+                  title={verified.kind === 'PO' ? 'PO đã xác thực' : 'Mã Thi Công đã xác thực'}
                   description={<><Typography.Text code>{verified.orderCode}</Typography.Text><br />{verified.unitDisplayName} · {verified.businessLocationName}{effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}</>}
                 />
 
                 {needsCalendar ? (
                   <Space direction="vertical" size="middle" className="w-full">
-                    {dailyStatsMsg && <Alert type="warning" showIcon message={dailyStatsMsg} />}
+                    {dailyStatsMsg && <Alert type="warning" showIcon title={dailyStatsMsg} />}
                     <div>
                       <Typography.Text strong>Ngày giao hàng</Typography.Text>
                       <div className="mt-2"><DeliveryDateCalendar value={form.deliveryDate} stats={dailyStats} loading={dailyStatsLoading} disabledReasonForDate={(date) => (
@@ -601,8 +603,8 @@ export default function Home() {
                     <div>
                       <Typography.Text strong>Loại hàng bạn giao</Typography.Text>
                       <div className="mt-2">
-                        {unitConfigLoading && <div className="py-4 text-center"><Spin tip="Đang tải loại hàng..." /></div>}
-                        {unitConfigMsg && <Alert type="warning" showIcon message={unitConfigMsg} />}
+                        {unitConfigLoading && <div className="py-4 text-center"><Spin description="Đang tải loại hàng..." /></div>}
+                        {unitConfigMsg && <Alert type="warning" showIcon title={unitConfigMsg} />}
                         {!unitConfigLoading && !unitConfigMsg && goodsOptions.length > 0 && (
                           <Row gutter={[12, 12]}>{goodsOptions.map((option) => (
                             <Col key={option.value} xs={24} sm={8}>
@@ -629,7 +631,7 @@ export default function Home() {
                     <Col span={24}><Form.Item label="Tên NCC / Công ty"><Input value={form.vendorName} onChange={(event) => setField('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" /></Form.Item></Col>
                   </Row>
                 </Form>
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button onClick={() => setStep(1)}>Nhập mã khác</Button><Button type="primary" icon={<ArrowRightOutlined />} iconPosition="end" onClick={goReview}>Tiếp tục</Button></div>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button onClick={() => setStep(1)}>Nhập mã khác</Button><Button type="primary" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={goReview}>Tiếp tục</Button></div>
               </Space>
             )}
 
@@ -663,7 +665,7 @@ export default function Home() {
         footer={<Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>Chọn ảnh mã QR</Button>}
         destroyOnHidden
       >
-        <Space direction="vertical" size="middle" className="w-full">
+        <Space orientation="vertical" size="middle" className="w-full">
           <Typography.Text type="secondary">{scannerStatus || 'Đang khởi động...'}</Typography.Text>
           <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-black sm:aspect-video"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline autoPlay /><div className="pointer-events-none absolute inset-10 rounded-lg border-2 border-white/90" /></div>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageCodeFile} />

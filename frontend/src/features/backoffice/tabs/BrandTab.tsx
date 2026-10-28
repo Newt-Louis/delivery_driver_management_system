@@ -127,7 +127,7 @@ function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => voi
           <Col xs={24} sm={16}><Form.Item label="Mô tả / địa chỉ cổng" extra="Ví dụ: Siêu thị — Cửa B3, tầng hầm."><Input value={form.description} placeholder="Ví dụ: Siêu thị - Cửa B3" onChange={(event) => setField('description', event.target.value)} /></Form.Item></Col>
           <Col xs={24} sm={12}><Form.Item label="Màu thương hiệu"><Space.Compact className="w-full"><ColorPicker value={normalizeHexColor(form.primaryColor) ?? unit.primaryColor} format="hex" disabledAlpha onChange={(color) => setField('primaryColor', color.toHexString())} /><Input value={form.primaryColor} placeholder={unit.primaryColor} onChange={(event) => setField('primaryColor', event.target.value)} /></Space.Compact></Form.Item></Col>
         </Row>
-        {notice && <Alert className="mb-4" type={notice.type} showIcon message={notice.message} closable onClose={() => setNotice(null)} />}
+        {notice && <Alert className="mb-4" type={notice.type} showIcon title={notice.message} closable onClose={() => setNotice(null)} />}
         <Flex justify="end"><Button type="primary" loading={saving} onClick={saveUnit}>Lưu {title}</Button></Flex>
       </Form>
     </Card>

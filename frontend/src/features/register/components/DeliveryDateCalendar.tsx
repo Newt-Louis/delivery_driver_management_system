@@ -50,7 +50,7 @@ export default function DeliveryDateCalendar({ value, stats, loading, disabledRe
           );
         }}
       />
-      {loading && <div className="absolute inset-0 grid place-items-center bg-white/70"><Spin tip="Đang tải công suất..." /></div>}
+      {loading && <div className="absolute inset-0 grid place-items-center bg-white/70"><Spin description="Đang tải công suất..." /></div>}
     </div>
   );
 }

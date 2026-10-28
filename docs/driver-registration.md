@@ -192,3 +192,4 @@ Thi Công normalization:
 - Hiển thị Mã đối chiếu để tài xế có thể hủy chuyến hoặc đối chiếu khi cần.
 - Cho nút theo dõi.
 - Khi màn thành công mở, tự cuộn về đầu trang để tài xế thấy thông báo. Nút theo dõi tự động đếm ngược 15 giây rồi điều hướng sang `/track/:code`.
+- Lưu mã chuyến ngay vào danh sách gần đây và kiểm tra notification/âm báo. Nếu chưa sẵn sàng, mở Ant Modal để người dùng bấm xin quyền; bộ đếm 15 giây tạm dừng khi modal mở. Đăng ký không tự gán thông báo cá nhân: tài xế chọn **Theo dõi chuyến giao hàng này** trong Track. Sau đó provider giữ cảnh báo xuyên route; xem `track-pwa-push.md`.

@@ -17,6 +17,7 @@ import { SocketProvider } from './context/SocketContext';
 import { ToastProvider } from './context/ToastContext';
 import { setupPwa } from './lib/pwa';
 import App from './App';
+import { DriverNotificationsProvider } from './features/driver-notifications/DriverNotificationsProvider';
 import { ThemeModeProvider, useThemeMode } from './context/ThemeModeContext';
 import { createAntTheme } from './theme/antTheme';
 import './index.css';
@@ -38,7 +39,7 @@ function ApplicationProviders() {
                 <BrandingProvider>
                   <SocketProvider>
                     <ToastProvider>
-                      <App />
+                      <DriverNotificationsProvider><App /></DriverNotificationsProvider>
                     </ToastProvider>
                   </SocketProvider>
                 </BrandingProvider>

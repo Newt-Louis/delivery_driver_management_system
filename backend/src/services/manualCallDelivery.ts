@@ -20,6 +20,7 @@ type ManualCallSuccess = {
   slot: Slot;
   message: string;
   historyEventCreated: boolean;
+  notificationOccurredAt: Date;
   activeCount: number;
 };
 
@@ -206,6 +207,7 @@ export async function manualCallDelivery(args: {
         slot,
         message,
         historyEventCreated: true,
+        notificationOccurredAt: recalledAt,
         activeCount,
       };
     }
@@ -256,6 +258,7 @@ export async function manualCallDelivery(args: {
       slot,
       message,
       historyEventCreated: true,
+      notificationOccurredAt: calledTime,
       activeCount,
     };
   });

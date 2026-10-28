@@ -39,8 +39,8 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
     <div className="space-y-5">
       <FieldFrame field="deliveryDate" highlightedField={highlightedField} variant="choice">
         <Card size="small" title={<><CalendarOutlined /> Ngày giao hàng</>}>
-          {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon message={dailyStatsMsg} />}
-          {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon message="Chủ nhật chỉ nhận hàng tươi sống" />}
+          {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon title={dailyStatsMsg} />}
+          {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon title="Chủ nhật chỉ nhận hàng tươi sống" />}
           <DeliveryDateCalendar value={form.deliveryDate} stats={dailyStats} loading={dailyStatsLoading} disabledReasonForDate={(date) => sundayFreshFoodOnly && isSundayDate(date) && form.goodsType !== 'FRESH_FOOD' ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined} onChange={(date) => set('deliveryDate', date)} />
           {fieldErrors.deliveryDate && <FieldError text={fieldErrors.deliveryDate} />}
         </Card>
@@ -64,7 +64,7 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
                 <Input size="large" placeholder="VD: Sup001, NccAbc..." autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} suffix={vendorSuffix} />
               </AutoComplete>
               <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự gợi ý dữ liệu và xếp vào khu kho tự động khi được phép." />
-              {awStatus === 'match' && <Alert className="mt-3" type="success" showIcon message="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
+              {awStatus === 'match' && <Alert className="mt-3" type="success" showIcon title="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
             </Form.Item>
           </FieldFrame>
           <FieldFrame field="vendorName" highlightedField={highlightedField}>
@@ -77,7 +77,7 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
           <FieldFrame field="poNumber" highlightedField={highlightedField}>
             <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu hoặc hủy chuyến khi cần." className="!mb-0">
               <Input size="large" value={form.poNumber} readOnly placeholder="Đang tạo mã..." autoComplete="off" className="font-mono font-bold tracking-[0.2em]" suffix={manualReferenceLoading ? <LoadingOutlined /> : undefined} />
-              {manualReferenceError && <Alert className="mt-3" type="error" showIcon message={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
+              {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
               {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
             </Form.Item>
           </FieldFrame>

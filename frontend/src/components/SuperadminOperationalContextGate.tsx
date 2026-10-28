@@ -81,7 +81,7 @@ export default function SuperadminOperationalContextGate() {
         type="primary"
         shape="square"
         icon={<EnvironmentOutlined />}
-        description={currentLocation?.code ?? 'Chọn'}
+        content={currentLocation?.code ?? 'Chọn'}
         tooltip="Chuyển khu vực vận hành"
         onClick={() => setOpen(true)}
         aria-label="Chuyển khu vực vận hành"

@@ -255,7 +255,7 @@ export default function SlotsTab() {
         <SlotModal slot={editSlot} zones={zones} onClose={() => setEditSlot(undefined)} onSaved={() => { setEditSlot(undefined); refresh(); }} />
       )}
 
-      {notice && <Alert type={notice.type} message={notice.message} showIcon closable onClose={() => setNotice(null)} />}
+      {notice && <Alert type={notice.type} title={notice.message} showIcon closable onClose={() => setNotice(null)} />}
 
       <Row gutter={[12, 12]}>
         {[

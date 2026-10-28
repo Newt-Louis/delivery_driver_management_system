@@ -238,10 +238,10 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
         )}
       </Layout.Header>
 
-      {isPublic && <Drawer title="Điều hướng" placement="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} width={304} styles={{ body: { padding: 0 } }}>
+      {isPublic && <Drawer title="Điều hướng" placement="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={304} styles={{ body: { padding: 0 } }}>
         <Menu mode="inline" selectedKeys={[publicActiveKey(pathname)]} items={publicHeaderItems} onClick={() => setDrawerOpen(false)} />
       </Drawer>}
-      {!isPublic && <Drawer title="Điều hướng" placement="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} width={304} styles={{ body: { padding: 0 } }}>
+      {!isPublic && <Drawer title="Điều hướng" placement="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={304} styles={{ body: { padding: 0 } }}>
         <Menu mode="inline" selectedKeys={activeItem ? [activeItem.to] : []} items={staffDrawerItems} onClick={({ key }) => go(key)} />
       </Drawer>}
       {isPublic && <PublicBusinessLocationSelector />}

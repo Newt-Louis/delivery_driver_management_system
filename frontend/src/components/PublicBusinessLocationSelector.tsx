@@ -26,7 +26,7 @@ export default function PublicBusinessLocationSelector() {
         type="primary"
         shape="square"
         icon={<EnvironmentOutlined />}
-        description={selectedBusinessLocation?.code ?? 'Chọn'}
+        content={selectedBusinessLocation?.code ?? 'Chọn'}
         tooltip="Chọn khu vực hiển thị"
         onClick={() => setOpen(true)}
         aria-label="Chọn khu vực hiển thị"

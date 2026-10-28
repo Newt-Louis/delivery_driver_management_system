@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../lib/api';
 import { looksLikeCode } from '../utils';
+import SavedTrips from '../../driver-notifications/SavedTrips';
 
 export default function TrackLookup() {
   const { token } = theme.useToken();
@@ -36,7 +37,7 @@ export default function TrackLookup() {
 
   return (
     <main className="mx-auto flex min-h-[calc(100vh-60px)] w-full max-w-lg items-center px-4 py-8 sm:px-6">
-      <Card className="w-full" styles={{ body: { padding: 'clamp(20px, 5vw, 32px)' } }}>
+      <div className="w-full space-y-4"><SavedTrips /><Card className="w-full" styles={{ body: { padding: 'clamp(20px, 5vw, 32px)' } }}>
         <div className="text-center">
           <Typography.Title level={2} className="!mb-1 !text-2xl">Theo dõi giao hàng</Typography.Title>
           <Typography.Text type="secondary">Nhập mã đăng ký hoặc biển số xe để xem hành trình.</Typography.Text>
@@ -56,14 +57,14 @@ export default function TrackLookup() {
             className="font-mono"
           />
           </Form.Item>
-          {error && <Alert className="mb-3" type="error" showIcon message={error} />}
+          {error && <Alert className="mb-3" type="error" showIcon title={error} />}
           <Button htmlType="submit" type="primary" size="large" block icon={<SearchOutlined />} loading={checking} disabled={!input.trim()}>Xem trạng thái</Button>
         </Form>
         <div className="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-3 text-center text-base">
           <Typography.Text type="secondary">Chưa đăng ký? <Link to="/register" className="font-semibold underline underline-offset-4" style={{ color: token.colorPrimary }}>Đăng ký ngay</Link></Typography.Text>
           <Typography.Text type="secondary">Nhập sai thông tin? <Link to="/cancelled" className="font-semibold underline underline-offset-4" style={{ color: token.colorError }}>Hủy chuyến</Link></Typography.Text>
         </div>
-      </Card>
+      </Card></div>
     </main>
   );
 }

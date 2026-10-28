@@ -100,7 +100,7 @@ export default function UnitGoodsVehicleStep({
     <div className="space-y-5">
       <FieldFrame field="receivingUnit" highlightedField={highlightedField} variant="choice">
         <Card size="small" title={<Space><AppstoreOutlined />Đơn vị giao hàng</Space>}>
-          {!hasPublicLocation && <Alert type="info" showIcon message="Chọn khu vực từ nút nổi toàn cục để xem đơn vị nhận hàng." />}
+          {!hasPublicLocation && <Alert type="info" showIcon title="Chọn khu vực từ nút nổi toàn cục để xem đơn vị nhận hàng." />}
           {hasPublicLocation && publicUnitsLoading && <Skeleton active paragraph={{ rows: 3 }} />}
           {hasPublicLocation && !publicUnitsLoading && publicUnits.length > 0 && (
             <div className="grid gap-3 sm:grid-cols-2">
@@ -179,7 +179,7 @@ export default function UnitGoodsVehicleStep({
                 {vehicleAvailability.map(renderVehicleChoice)}
               </AdaptiveGrid>
             </>}
-            {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && <Alert type="warning" showIcon message={vehicleAvailabilityMsg || 'Không có phương tiện phù hợp cho loại hàng này.'} />}
+            {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && <Alert type="warning" showIcon title={vehicleAvailabilityMsg || 'Không có phương tiện phù hợp cho loại hàng này.'} />}
             <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn đúng loại để hệ thống xếp đúng bãi.'} />
             {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
           </Card>

@@ -1,4 +1,4 @@
-// Driver bell chime. WaitingScreen/TV is intentionally silent: it only displays the queue.
+// Personal driver bell chime, owned by the global selected-trip notifications.
 
 // 4-note ding-dong pattern, one cycle ≈ 2.8 s.
 const NOTES = [
@@ -27,6 +27,7 @@ function scheduleNotes(ctx: AudioContext, durationSecs: number): ChimeHandle {
       gain.connect(ctx.destination);
 
       osc.type = 'sine';
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
       osc.frequency.value = n.freq;
 
       gain.gain.setValueAtTime(0, ctx.currentTime + t);
@@ -62,7 +63,7 @@ function scheduleNotes(ctx: AudioContext, durationSecs: number): ChimeHandle {
 export function playChimeWithCtx(ctx: AudioContext | null, durationSecs = 10): ChimeHandle | null {
   if (!ctx) return null;
   try {
-    if (ctx.state === 'suspended') ctx.resume();
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
     return scheduleNotes(ctx, durationSecs);
   } catch {
     return null;

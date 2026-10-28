@@ -6,6 +6,8 @@ import QRCode from 'qrcode';
 import { UNIT_FALLBACKS, useBranding } from '../../../context/BrandingContext';
 import { AUTO_TRACK_SECONDS, GOODS_LABEL } from '../constants';
 import type { SuccessInfo } from '../types';
+import { useDriverNotifications } from '../../driver-notifications/DriverNotificationsProvider';
+import { saveDeliverySession } from '../../../lib/session';
 
 type SuccessScreenProps = {
   info: SuccessInfo;
@@ -24,6 +26,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   const [secondsToTrack, setSecondsToTrack] = useState(AUTO_TRACK_SECONDS);
   const { units } = useBranding();
   const navigate = useNavigate();
+  const { checkPermissions, setupOpen } = useDriverNotifications();
 
   const trackPath = `/track/${info.code}`;
   const trackUrl = `${window.location.origin}${trackPath}`;
@@ -31,6 +34,11 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  useEffect(() => {
+    saveDeliverySession(info.code);
+    checkPermissions();
+  }, [info.code, checkPermissions]);
 
   useEffect(() => {
     let disposed = false;
@@ -51,6 +59,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 
   useEffect(() => {
     setSecondsToTrack(AUTO_TRACK_SECONDS);
+    if (setupOpen) return;
 
     const interval = window.setInterval(() => {
       setSecondsToTrack((s) => Math.max(0, s - 1));
@@ -63,7 +72,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [navigate, trackPath]);
+  }, [navigate, trackPath, setupOpen]);
 
   function downloadQRWithInfo() {
     if (!qrDataUrl) return;
@@ -239,7 +248,7 @@ ${locationRow}
           <Card size="small" title={<Space><ScanOutlined />Mã QR check-in</Space>}>
             <div className="text-center">
               <Typography.Paragraph type="secondary">Đưa mã QR này cho bảo vệ tại cổng để check-in.</Typography.Paragraph>
-              {qrDataUrl ? <img src={qrDataUrl} alt={`Mã QR cho ${info.code}`} className="mx-auto h-56 w-56 max-w-full rounded-lg" /> : qrError ? <Alert type="error" showIcon message={qrError} action={<Button size="small" onClick={() => setQrGenerationAttempt((attempt) => attempt + 1)}>Thử lại</Button>} /> : <div className="grid h-56 place-items-center"><Spin tip="Đang tạo mã QR..." /></div>}
+              {qrDataUrl ? <img src={qrDataUrl} alt={`Mã QR cho ${info.code}`} className="mx-auto h-56 w-56 max-w-full rounded-lg" /> : qrError ? <Alert type="error" showIcon title={qrError} action={<Button size="small" onClick={() => setQrGenerationAttempt((attempt) => attempt + 1)}>Thử lại</Button>} /> : <div className="grid h-56 place-items-center"><Spin description="Đang tạo mã QR..." /></div>}
               <Typography.Paragraph className="!mb-1 !mt-4"><Typography.Text code copyable className="text-base">{info.code}</Typography.Text></Typography.Paragraph>
               <Space size={[4, 4]} wrap className="justify-center"><Tag>{info.vehiclePlate}</Tag><Tag>{info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</Tag><Tag>{info.requestedTime.split(' ')[0]}</Tag></Space>
             </div>

@@ -158,7 +158,7 @@ function TimeWindowEditor({ unit, goodsType, editing }: { unit: string; goodsTyp
           </Flex>
         </Card>
       ) : <Button type="dashed" icon={<PlusOutlined />} onClick={() => setAddMode(true)} size="small">Thêm khung giờ</Button>)}
-      {notice && <Alert type="error" showIcon message={notice} closable onClose={() => setNotice(null)} />}
+      {notice && <Alert type="error" showIcon title={notice} closable onClose={() => setNotice(null)} />}
     </Space>
   );
 }
@@ -261,7 +261,7 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
             <Form.Item label="Từ lần cuối gọi vào slot sau (phút)" className="mb-0"><InputNumber className="w-full" min={5} max={999} value={form.autoCancelCalledAfterMinutes} disabled={!editing || !form.autoCancelCalledEnabled} onChange={(value) => setField('autoCancelCalledAfterMinutes', Number(value ?? 5))} /></Form.Item>
           </Space>
         </Card>
-        {saveError && <Alert className="mt-4" type="error" showIcon message={saveError} />}
+        {saveError && <Alert className="mt-4" type="error" showIcon title={saveError} />}
       </Form>
     </Card>
   );

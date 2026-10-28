@@ -68,7 +68,7 @@ export default function Register() {
             <Alert
               type="info"
               showIcon
-              message="Hãy chọn khu vực giao hàng"
+              title="Hãy chọn khu vực giao hàng"
               description={publicLocationError ?? 'Dùng nút chọn khu vực ở góc dưới phải trước khi tiếp tục đăng ký.'}
             />
           )}
@@ -80,7 +80,7 @@ export default function Register() {
 
           <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:justify-between">
             {step > 1 ? <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Quay lại</Button> : <span />}
-            {step < 4 && readyForNext && <Button type="primary" size="large" icon={<ArrowRightOutlined />} iconPosition="end" onClick={next}>Tiếp theo</Button>}
+            {step < 4 && readyForNext && <Button type="primary" size="large" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={next}>Tiếp theo</Button>}
             {step === 4 && <Button type="primary" size="large" icon={<SendOutlined />} loading={submitting} onClick={submit}>Hoàn tất đăng ký</Button>}
           </div>
         </div>

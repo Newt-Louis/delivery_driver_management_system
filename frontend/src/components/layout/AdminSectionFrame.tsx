@@ -95,7 +95,7 @@ export default function AdminSectionFrame({ title, items, selectedKey, onSelect,
         {children}
       </Layout.Content>
 
-      <Drawer title={title} placement="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} width={304} styles={{ body: { padding: 0 } }}>
+      <Drawer title={title} placement="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={304} styles={{ body: { padding: 0 } }}>
         {sectionMenu}
       </Drawer>
     </Layout>

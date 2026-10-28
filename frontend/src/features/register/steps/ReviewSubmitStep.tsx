@@ -51,7 +51,7 @@ export default function ReviewSubmitStep({ form, unitConfig, brandUnits, locatio
       <Card size="small" title="Ghi chú">
         <Form layout="vertical"><Form.Item className="!mb-0"><Input.TextArea rows={3} value={form.note} onChange={(event) => set('note', event.target.value)} placeholder="Yêu cầu đặc biệt, hàng dễ vỡ, cần xe nâng..." /></Form.Item></Form>
       </Card>
-      {submitError && <Alert type="error" showIcon message={submitError} />}
+      {submitError && <Alert type="error" showIcon title={submitError} />}
       <Typography.Paragraph type="secondary" className="!mb-0 text-center text-xs">Thông tin đăng ký chỉ dùng cho mục đích quản lý giao hàng. Khi hoàn tất, bạn đồng ý để hệ thống sử dụng thông tin này cho chuyến giao.</Typography.Paragraph>
     </div>
   );

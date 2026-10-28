@@ -143,7 +143,7 @@ function ZoneModal({
             onChange={(value) => setField('unitConfigId', value)}
           />
         </Form.Item>
-        {error && <Alert type="error" showIcon message={error} />}
+        {error && <Alert type="error" showIcon title={error} />}
       </Form>
     </Modal>
   );
@@ -221,7 +221,7 @@ export default function ZonesTab() {
         />
       )}
 
-      {notice && <Alert type={notice.type} message={notice.message} showIcon closable onClose={() => setNotice(null)} />}
+      {notice && <Alert type={notice.type} title={notice.message} showIcon closable onClose={() => setNotice(null)} />}
 
       <Row gutter={[12, 12]}>
         <Col xs={12} sm={6}>

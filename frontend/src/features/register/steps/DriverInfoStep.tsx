@@ -16,7 +16,7 @@ type DriverInfoStepProps = {
 export default function DriverInfoStep({ form, fieldErrors, highlightedField, rememberInfo, setRememberInfo, set }: DriverInfoStepProps) {
   return (
     <div className="space-y-5">
-      {(form.driverName || form.vehiclePlate) && <Alert type="info" showIcon icon={<InfoCircleOutlined />} message="Đã điền sẵn thông tin từ lần trước. Hãy kiểm tra lại trước khi tiếp tục." />}
+      {(form.driverName || form.vehiclePlate) && <Alert type="info" showIcon icon={<InfoCircleOutlined />} title="Đã điền sẵn thông tin từ lần trước. Hãy kiểm tra lại trước khi tiếp tục." />}
       <Card size="small" title="Thông tin tài xế">
         <Form layout="vertical" requiredMark={false}>
           <FieldFrame field="vehiclePlate" highlightedField={highlightedField}>

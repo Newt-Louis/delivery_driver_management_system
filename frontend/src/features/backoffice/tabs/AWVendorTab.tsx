@@ -154,7 +154,7 @@ function AWVendorModal({
         <Form.Item label="Trạng thái">
           <Switch checked={form.active} checkedChildren="Hoạt động" unCheckedChildren="Vô hiệu" onChange={(checked) => setField('active', checked)} />
         </Form.Item>
-        {error && <Alert type="error" showIcon message={error} />}
+        {error && <Alert type="error" showIcon title={error} />}
       </Form>
     </Modal>
   );
@@ -334,7 +334,7 @@ export default function AWVendorTab() {
           onSaved={() => { closeModal(); refresh(); setNotice({ type: 'success', message: 'Đã lưu nhà cung cấp.' }); }}
         />
       )}
-      {notice && <Alert type={notice.type} message={notice.message} showIcon closable onClose={() => setNotice(null)} />}
+      {notice && <Alert type={notice.type} title={notice.message} showIcon closable onClose={() => setNotice(null)} />}
 
       <Row gutter={[12, 12]}>
         <Col xs={24} sm={12} lg={8}>

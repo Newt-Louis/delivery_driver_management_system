@@ -280,7 +280,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
             </Card>
           </Form.Item>
 
-          {serverError && <Alert type="error" message={serverError} showIcon className="mb-4" />}
+          {serverError && <Alert type="error" title={serverError} showIcon className="mb-4" />}
           <Flex justify="end" gap="small">
             <Button onClick={onClose}>Hủy</Button>
             <Button

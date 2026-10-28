@@ -209,7 +209,7 @@ function StaffUserModal({
             className="mb-4"
             type="info"
             showIcon
-            message={user?.name}
+            title={user?.name}
             description="ADMIN_LOC chỉ được chỉnh phạm vi đơn vị thao tác của ADMIN_OPE."
           />
         ) : (
@@ -264,7 +264,7 @@ function StaffUserModal({
             <Switch checked={form.isActive} checkedChildren="Hoạt động" unCheckedChildren="Vô hiệu" onChange={(checked) => setField('isActive', checked)} />
           </Form.Item>
         )}
-        {error && <Alert type="error" showIcon message={error} />}
+        {error && <Alert type="error" showIcon title={error} />}
       </Form>
     </Modal>
   );
@@ -322,7 +322,7 @@ function ResetStaffPasswordModal({ user, onClose }: { user: StaffUser; onClose: 
           <Form.Item label="Xác nhận mật khẩu" required>
             <Input.Password value={confirm} onChange={(event) => { setConfirm(event.target.value); setError(''); }} />
           </Form.Item>
-          {error && <Alert type="error" showIcon message={error} />}
+          {error && <Alert type="error" showIcon title={error} />}
         </Form>
       )}
     </Modal>
@@ -494,7 +494,7 @@ export default function StaffUsersTab() {
       {modal === 'edit' && selected && <StaffUserModal user={selected} unitConfigs={unitConfigs} canManageAdminOpe={canManageAdminOpe} onClose={closeModal} onSaved={() => { closeModal(); refresh(); }} />}
       {modal === 'reset' && selected && <ResetStaffPasswordModal user={selected} onClose={closeModal} />}
 
-      {notice && <Alert type={notice.type} message={notice.message} showIcon closable onClose={() => setNotice(null)} />}
+      {notice && <Alert type={notice.type} title={notice.message} showIcon closable onClose={() => setNotice(null)} />}
 
       <Row gutter={[12, 12]}>
         {STAFF_ROLES.map((role) => {
