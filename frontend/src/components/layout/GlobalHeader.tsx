@@ -140,7 +140,7 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
       { key: 'logout', label: 'Đăng xuất', icon: <LoginOutlined /> },
     ],
     onClick: ({ key }) => {
-      if (key === 'switch-area') go(isPublic ? '/dashboard' : '/');
+      if (key === 'switch-area') go(isPublic ? (user?.role === 'CHECKIN' ? '/check-in' : '/dashboard') : '/');
       if (key === 'logout') void handleLogout();
     },
   };

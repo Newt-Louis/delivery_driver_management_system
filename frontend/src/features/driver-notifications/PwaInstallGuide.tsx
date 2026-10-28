@@ -61,17 +61,20 @@ export default function PwaInstallGuide({ blocked }: { blocked: boolean }) {
     { title: 'Chọn Chia sẻ → Thêm vào Màn hình chính', description: 'Giữ tùy chọn Mở dưới dạng ứng dụng nếu có, sau đó bấm Thêm.' },
     { title: 'Mở ứng dụng vừa thêm', description: 'Mở chuyến cần theo dõi và chọn Bật thông báo. Nếu chưa thấy chuyến, dùng mã đăng ký hoặc biển số để tìm lại.' },
   ] : [
-    { title: 'Mở website bằng Chrome', description: 'Sử dụng trình duyệt trên điện thoại Android của bạn.' },
+    { title: 'Mở website bằng Chrome', description: 'Hoặc sử dụng trình duyệt trên điện thoại Android của bạn.' },
     { title: 'Chọn Cài đặt ứng dụng', description: 'Bấm nút cài đặt bên dưới nếu có, hoặc mở menu ⋮ → Thêm vào Màn hình chính / Cài đặt ứng dụng.' },
     { title: 'Mở ứng dụng và chọn chuyến', description: 'Chọn Theo dõi chuyến giao hàng này rồi cho phép thông báo để nhận tin khi tới lượt.' },
   ];
   return <Modal open={checked && publicRoute && (ios || platform === 'android') && !blocked && !installed && !saved(HIDE_KEY) && !dismissed}
     focusable={{ focusTriggerAfterClose: !blocked }}
-    centered width="min(760px, calc(100vw - 24px))" title={<Space>{ios ? <AppleOutlined /> : <AndroidOutlined />}Thêm ứng dụng vào điện thoại</Space>}
+    centered width="min(760px, calc(100vw - 24px))" title={<Space orientation="vertical" size={0}>{ios ? 'Xin chào, bạn đang sử dụng iOS' : 'Xin chào, bạn đang sử dụng Android'}</Space>}
     onCancel={close} mask={{ closable: true }} footer={<Checkbox checked={neverAgain} onChange={(event) => setNeverAgain(event.target.checked)}>Không hiện lên popup này nữa</Checkbox>}
     styles={{ body: { minHeight: 'min(60dvh, 520px)', maxHeight: '72dvh', overflowY: 'auto' } }}>
     <Space orientation="vertical" size="large" className="w-full py-4">
-      <Typography.Title level={3}><MobileOutlined /> Mở nhanh chuyến giao hàng, nhận tin khi tới lượt</Typography.Title>
+      <Typography.Title level={3}>
+        <span className="block">Bạn có muốn</span>
+        <span className="block">Mở nhanh chuyến giao hàng, nhận tin khi tới lượt?</span>
+      </Typography.Title>
       <Typography.Paragraph>Bạn có thể thêm ứng dụng lên Màn hình chính để mở lại thuận tiện. Bạn vẫn có thể sử dụng website nếu chưa muốn cài.</Typography.Paragraph>
       <Steps orientation="vertical" items={items.map(({ title, description }) => ({ title, content: description }))} current={-1} />
       {prompt && <Button type="primary" size="large" block icon={<DownloadOutlined />} loading={installing} onClick={async () => {
