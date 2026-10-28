@@ -33,7 +33,7 @@ const GOODS_OPTIONS = [
   { value: 'THI_CONG', label: 'Thi công', icon: <ToolOutlined /> },
 ] as const;
 
-const VEHICLE_ICONS = { TRUCK: <CarOutlined />, MOTORBIKE: <CarOutlined />, OTHER: <CarOutlined /> } as const;
+const VEHICLE_ICONS = { TRUCK: <CarOutlined />, MOTORBIKE: <CarOutlined /> } as const;
 
 export default function UnitGoodsVehicleStep({
   form, fieldErrors, highlightedField, publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig,
@@ -90,7 +90,7 @@ export default function UnitGoodsVehicleStep({
         <div className="space-y-1 py-2 text-center">
           <div className="text-lg">{VEHICLE_ICONS[vehicleType]}</div>
           <Typography.Text strong>{info.label}</Typography.Text>
-          <Typography.Text type="secondary" className="block text-xs">{slotCount} vị trí · {capacity} lượt</Typography.Text>
+          <Typography.Text type="secondary" className="block text-xs">{slotCount} vị trí chung · {capacity} lượt</Typography.Text>
         </div>
       </Button>
     );
@@ -180,7 +180,7 @@ export default function UnitGoodsVehicleStep({
               </AdaptiveGrid>
             </>}
             {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && <Alert type="warning" showIcon title={vehicleAvailabilityMsg || 'Không có phương tiện phù hợp cho loại hàng này.'} />}
-            <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn đúng loại để hệ thống xếp đúng bãi.'} />
+            <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn loại phương tiện giao hàng.'} />
             {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
           </Card>
         </FieldFrame>

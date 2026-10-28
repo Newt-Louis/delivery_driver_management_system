@@ -41,7 +41,6 @@ enum GoodsType {
 enum VehicleType {
   TRUCK
   MOTORBIKE
-  OTHER
 }
 
 enum DeviceType {
@@ -268,7 +267,7 @@ model DeliveryRegistration {
   status             DeliveryStatus         @default(REGISTERED)
   assignedSlotId     String?                @map("assigned_slot_id")
   assignedSlot       Slot?                  @relation("AssignedSlot", fields: [assignedSlotId], references: [id])
-  vehicleType        VehicleType            @default(OTHER) @map("vehicle_type")
+  vehicleType        VehicleType            @map("vehicle_type")
   autoWarehouse      Boolean                @default(false) @map("auto_warehouse")
   ticketNumber       Int?                   @map("ticket_number")
   note               String?

@@ -67,6 +67,7 @@ Logic trong `useRegisterForm.ts`:
 - Lấy cấu hình unit: `GET /api/units/:unit/config?businessLocationId=...&unitConfigId=...`.
 - Lấy loại hàng tùy biến: `GET /api/units/:unit/goods-types?businessLocationId=...&unitConfigId=...`. Dữ liệu nằm trong `unit_goods_types`, scope chính theo `unitConfigId` để không lẫn giữa các `BusinessLocation`.
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
+- Có slot vận hành thì tài xế chọn được cả `TRUCK` và `MOTORBIKE`; số vị trí và sức chứa trả về là tổng dùng chung của đơn vị, không khẳng định slot chỉ nhận loại xe đó. Khi đăng ký, loại xe là bắt buộc và không còn giá trị `OTHER`.
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
 - Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
 - Gợi ý mã NCC ở step thông tin đơn hàng: `GET /api/aw-vendors/suggestions?q=...&businessLocationId=...&unitConfigId=...`. Endpoint chỉ trả tối đa 10 NCC active thuộc đúng `UnitConfig` public đang chọn; chọn một gợi ý sẽ điền lại cả mã lẫn tên NCC; mã người dùng nhập không bị ép đổi hoa/thường.

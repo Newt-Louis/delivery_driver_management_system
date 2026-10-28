@@ -56,7 +56,6 @@ export const GOODS_LABEL: Record<string, string> = {
 export const VEHICLE_LABEL: Record<string, string> = {
   TRUCK: 'Xe tải',
   MOTORBIKE: 'Xe máy',
-  OTHER: 'Khác',
 };
 
 export const ACTOR_TYPE_LABEL: Record<string, string> = {

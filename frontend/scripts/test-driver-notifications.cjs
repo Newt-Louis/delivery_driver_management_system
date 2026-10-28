@@ -52,6 +52,25 @@ test('closing a chime cancels every scheduled oscillator once', () => {
   assert.ok(nodes.every((node) => node.stops.length === 2 && node.stops[1] === 2), 'close cancels all future notes and is idempotent');
 });
 
+test('called chime repeats until stopped, then cancels timer and active notes', () => {
+  let tick; let cleared = false; const nodes = [];
+  const { playRepeatingChimeWithCtx } = loadTs('../src/lib/chime.ts', {
+    setInterval: (fn, delay) => { assert.equal(delay, 10000); tick = fn; return 1; },
+    clearInterval: () => { cleared = true; },
+  });
+  const ctx = { state: 'running', currentTime: 1, destination: {},
+    createOscillator() { const node = { frequency: {}, stops: [], connect() {}, disconnect() {}, start() {}, stop(time) { this.stops.push(time); } }; nodes.push(node); return node; },
+    createGain() { return { connect() {}, disconnect() {}, gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {}, cancelScheduledValues() {} } }; },
+  };
+  const handle = playRepeatingChimeWithCtx(ctx);
+  const count = nodes.length;
+  ctx.currentTime = 11; tick();
+  assert.equal(nodes.length, count * 2);
+  ctx.currentTime = 12; handle.stop(); handle.stop();
+  assert.equal(cleared, true);
+  assert.ok(nodes.slice(count).every((node) => node.stops.at(-1) === 12));
+});
+
 test('leaving Track cannot release the global notification room; reconnect rejoins once', () => {
   const { retainTrackRoom } = loadTs('../src/lib/trackRoom.ts');
   const sent = [];

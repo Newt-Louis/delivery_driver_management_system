@@ -4,7 +4,6 @@ import type { BackofficeTab } from './types';
 export const VEHICLE_LABEL: Record<string, string> = {
   TRUCK: '🚛 Xe Tải',
   MOTORBIKE: '🛵 Xe Máy',
-  OTHER: '🚗 Khác',
 };
 
 export const STATUS_LABEL: Record<string, string> = {

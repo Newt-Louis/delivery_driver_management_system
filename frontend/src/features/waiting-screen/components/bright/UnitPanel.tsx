@@ -24,7 +24,6 @@ type VehicleGroupProps = {
 const VEHICLE_GROUPS: Array<Pick<VehicleGroupProps, 'label' | 'vehicleType'>> = [
   { vehicleType: 'TRUCK', label: 'Xe tải' },
   { vehicleType: 'MOTORBIKE', label: 'Xe máy' },
-  { vehicleType: 'OTHER', label: 'Xe khác' },
 ];
 
 function VehicleGroup({ label, vehicleType, deliveries, highlightId }: VehicleGroupProps) {
@@ -78,7 +77,7 @@ export default function BrightUnitPanel({ unitKey, deliveries, highlightId, bran
           {cooldownSeconds !== null && <Typography.Text type="secondary" className="!leading-none" style={{ fontSize: 'clamp(1.5rem, 5vw, 3rem)' }}>({cooldownSeconds})</Typography.Text>}
         </Space>
       </div>
-      <div className={desktop ? 'grid grid-cols-3 gap-3 px-3 pb-3' : 'space-y-3 px-3 pb-3'}>
+      <div className={desktop ? 'grid grid-cols-2 gap-3 px-3 pb-3' : 'space-y-3 px-3 pb-3'}>
         {VEHICLE_GROUPS.map((group) => (
           <VehicleGroup key={group.vehicleType} {...group} deliveries={deliveries} highlightId={highlightId} />
         ))}

@@ -6,7 +6,7 @@ export const GOODS_LABEL: Record<string, string> = {
 };
 
 export const VEHICLE_LABEL: Record<string, string> = {
-  TRUCK: '🚛 Xe tải', MOTORBIKE: '🛵 Xe máy', OTHER: '🚗 Khác',
+  TRUCK: '🚛 Xe tải', MOTORBIKE: '🛵 Xe máy',
 };
 
 export const STATUS_LABEL: Record<string, string> = {

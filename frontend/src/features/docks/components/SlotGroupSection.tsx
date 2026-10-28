@@ -9,7 +9,7 @@ interface SlotGroupSectionProps {
 }
 
 export default function SlotGroupSection({ group, canEdit, onStatusChange }: SlotGroupSectionProps) {
-  const { truckSlots, motorbikeSlots, otherSlots } = splitSlotsByVehicle(group.slots);
+  const { truckSlots, motorbikeSlots } = splitSlotsByVehicle(group.slots);
 
   return (
     <div className="mb-10">
@@ -31,13 +31,6 @@ export default function SlotGroupSection({ group, canEdit, onStatusChange }: Slo
         title="🛵 Xe Máy"
         count={motorbikeSlots.length}
         slots={motorbikeSlots}
-        canEdit={canEdit}
-        onStatusChange={onStatusChange}
-      />
-      <SlotVehicleSection
-        title="🚗 Khác"
-        count={otherSlots.length}
-        slots={otherSlots}
         canEdit={canEdit}
         onStatusChange={onStatusChange}
       />

@@ -45,8 +45,6 @@ function TrackContent({ code }: { code: string }) {
         className="mx-auto w-full max-w-2xl space-y-4 px-4 py-4 sm:px-6"
         style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
       >
-        {!isTerminal && <FollowTripCard delivery={delivery} />}
-
         <StatusCard delivery={delivery} si={si} unitMeta={unitMeta!} isTerminal={isTerminal} />
 
         {delivery.status === 'WAITING' && delivery.queueInfo && (
@@ -66,6 +64,7 @@ function TrackContent({ code }: { code: string }) {
         <JourneyTimeline delivery={delivery} />
 
         {!isTerminal && <TrackFooter wakeLockActive={wakeLockActive} />}
+        {!isTerminal && <FollowTripCard delivery={delivery} />}
       </div>
     </main>
   );

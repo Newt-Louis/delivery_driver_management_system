@@ -4,7 +4,7 @@ import { BellOutlined, CheckCircleOutlined, NotificationOutlined } from '@ant-de
 import { useSocket } from '../../context/SocketContext';
 import api from '../../lib/api';
 import { retainTrackRoom } from '../../lib/trackRoom';
-import { playChimeWithCtx } from '../../lib/chime';
+import { playChimeWithCtx, playRepeatingChimeWithCtx } from '../../lib/chime';
 import { getPushPlatformSupport } from '../../lib/platform';
 import { registerAppServiceWorker, urlBase64ToUint8Array } from '../../lib/pwa';
 import { removeDeliverySession, saveDeliverySession } from '../../lib/session';
@@ -57,6 +57,46 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     writeFollowedTrip(next);
   }, []);
 
+  // A restored trip survives a reload, but its AudioContext does not. Prepare
+  // audio on a real gesture anywhere in the app without requesting push rights.
+  useEffect(() => {
+    let disposed = false;
+    let resuming = false;
+    const prepareAudio = (event: Event) => {
+      if (!event.isTrusted || !current.current || resuming) return;
+      if (isDeviceAudioReady()) {
+        if (!audioReadyRef.current) { audioReadyRef.current = true; setAudioReady(true); }
+        return;
+      }
+      try {
+        const ctx = ensureAudio();
+        if (!ctx) return;
+        unlockIOSAudio();
+        resuming = true;
+        const resumed = ctx.state === 'running' ? Promise.resolve() : ctx.resume();
+        void resumed.then(() => {
+          if (disposed) return;
+          audioReadyRef.current = ctx.state === 'running';
+          setAudioReady(audioReadyRef.current);
+        }).catch(() => {
+          if (!disposed) { audioReadyRef.current = false; setAudioReady(false); }
+        }).finally(() => { resuming = false; });
+      } catch {
+        audioReadyRef.current = false;
+        setAudioReady(false);
+      }
+    };
+    document.addEventListener('touchstart', prepareAudio, { passive: true });
+    document.addEventListener('click', prepareAudio);
+    document.addEventListener('keydown', prepareAudio);
+    return () => {
+      disposed = true;
+      document.removeEventListener('touchstart', prepareAudio);
+      document.removeEventListener('click', prepareAudio);
+      document.removeEventListener('keydown', prepareAudio);
+    };
+  }, []);
+
   const removePushBinding = useCallback(async (code: string) => {
     const registration = await navigator.serviceWorker?.getRegistration();
     const sub = await registration?.pushManager?.getSubscription();
@@ -98,6 +138,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
 
   const connectPush = useCallback((code: string) => {
     const run = async () => {
+      console.log(Notification.permission);
       if (current.current?.code !== code || !getPushPlatformSupport().supported || Notification.permission !== 'granted') return;
       setPushState('connecting');
       try {
@@ -153,10 +194,11 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
       const allowed = await permission;
       if (allowed === 'granted' && current.current) await connectPush(current.current.code);
       if (capabilities.supported && allowed !== 'granted') {
+        setSetupOpen(true);
         setError(allowed === 'denied'
           ? 'Thông báo đang bị chặn. Mở cài đặt quyền của website/ứng dụng để cho phép thông báo, rồi thử lại.'
           : 'Bạn chưa cho phép thông báo. Bạn vẫn có thể xem và nhận cảnh báo khi đang mở ứng dụng.');
-      } else if (audioReadyRef.current && capabilities.supported) {
+      } else if (audioReadyRef.current) {
         setSetupOpen(false);
       }
       if (!audioReadyRef.current) setError('Trình duyệt chưa cho phát âm thanh. Hãy chạm Bật thông báo và âm báo để thử lại.');
@@ -169,7 +211,9 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     const ready = getPushPlatformSupport().supported && typeof Notification !== 'undefined' && Notification.permission === 'granted';
     audioReadyRef.current = isDeviceAudioReady();
     setAudioReady(audioReadyRef.current);
-    if (!ready || !audioReadyRef.current) setSetupOpen(true);
+    // AudioContext is recreated after a page reload; its absence is not a
+    // revoked notification permission. Unlock it on the next follow gesture.
+    setSetupOpen(!ready);
   }, []);
 
   const selectTrip = (delivery: TrackDelivery) => {
@@ -186,7 +230,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     if (isDeviceAudioReady() && getPushPlatformSupport().supported && Notification.permission === 'granted') {
       void connectPush(delivery.registrationCode);
     } else {
-      setSetupOpen(true);
+      if (!getPushPlatformSupport().supported || typeof Notification === 'undefined' || Notification.permission === 'denied') setSetupOpen(true);
       void enableDevice();
     }
   };
@@ -212,7 +256,10 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     silence();
     setNotice(display ? incoming : null);
     if (display && document.visibilityState === 'visible' && document.hasFocus()) {
-      if (audioReadyRef.current) stopSound.current = playChimeWithCtx(ensureAudio(), incoming.status === 'CALLED' ? 10 : 0.5)?.stop ?? null;
+      if (audioReadyRef.current) {
+        const ctx = ensureAudio();
+        stopSound.current = (incoming.status === 'CALLED' ? playRepeatingChimeWithCtx(ctx) : playChimeWithCtx(ctx, 0.5))?.stop ?? null;
+      }
       buzz(incoming.status === 'CALLED' ? [300, 150, 300, 150, 600] : [150]);
     }
   }, [commit, detachPush, silence]);
@@ -239,7 +286,6 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     socket.on('connect', reconnect);
     const onVisible = () => {
       if (document.visibilityState === 'visible') { sync(); void connectPush(code); }
-      else silence();
     };
     const onPush = (event: MessageEvent) => {
       if (event.data?.type === 'driver-push-received' && event.data.payload?.deliveryCode === code) sync();
@@ -286,9 +332,12 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     return () => navigator.serviceWorker?.removeEventListener('message', context);
   }, []);
 
+  // Check a restored trip once. A newly selected trip already checks in the
+  // click handler; checking it again races the browser permission prompt.
+  const restoredTrip = useRef(!!followed?.code);
   useEffect(() => {
-    if (followed?.code) checkPermissions();
-  }, [followed?.code, checkPermissions]);
+    if (restoredTrip.current) checkPermissions();
+  }, [checkPermissions]);
 
   useEffect(() => {
     if (!notice || notice.status === 'CALLED') return;
@@ -302,7 +351,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
   }, stopFollowing, checkPermissions }}>
     {children}
     <PwaInstallGuide blocked={setupOpen || !!notice || !!switchTo} />
-    <Modal open={!!switchTo && !notice} focusable={{ focusTriggerAfterClose: !notice }} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} onOk={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }} okText="Theo dõi chuyến mới" cancelText="Giữ chuyến hiện tại">
+    <Modal open={!!switchTo} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} onOk={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }} okText="Theo dõi chuyến mới" cancelText="Giữ chuyến hiện tại">
       <Typography.Paragraph>Điện thoại đang nhận thông báo cho xe {followed?.plate}. Chuyển sang xe {switchTo?.vehiclePlate} ({switchTo?.registrationCode})?</Typography.Paragraph>
     </Modal>
     <Modal open={setupOpen && !notice} focusable={{ focusTriggerAfterClose: !notice }} centered title="Bật thông báo cho chuyến giao hàng" onCancel={() => setSetupOpen(false)} footer={<Space wrap><Button size="large" onClick={() => setSetupOpen(false)}>Để sau</Button><Button size="large" type="primary" icon={<BellOutlined />} loading={busy} onClick={() => void enableDevice()}>Bật thông báo và âm báo</Button></Space>}>
@@ -319,7 +368,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
       footer={<Button ref={dismissNoticeButton} type="primary" size="large" block onClick={() => { silence(); setNotice(null); }}>Đã hiểu — Đóng thông báo</Button>}>
       {notice && <Result status={notice.status === 'CALLED' ? 'warning' : 'success'} icon={notice.status === 'CALLED' ? <NotificationOutlined /> : <CheckCircleOutlined />} title={notice.title} subTitle={<Space orientation="vertical"><Typography.Text strong className="!text-xl">{notice.body}</Typography.Text><Typography.Text type="secondary" className="break-all">Mã chuyến: {notice.deliveryCode}</Typography.Text></Space>} />}
     </Modal>
-  </Context.Provider>;
+  </Context.Provider>
 }
 
 export function useDriverNotifications() {

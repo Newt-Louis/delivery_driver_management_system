@@ -3,8 +3,8 @@
 ## Hành vi cho tài xế
 
 1. Đăng ký thành công: lưu mã vào danh sách chuyến trên thiết bị, kiểm tra quyền và mở hướng dẫn bật thông báo/âm báo nếu chưa sẵn sàng. Bộ đếm chuyển sang Track vẫn là 15 giây, tạm dừng trong lúc modal thiết lập mở.
-2. Mở `/track/:code`, kiểm tra biển số rồi chọn **Theo dõi chuyến giao hàng này**. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó.
-3. Mỗi trình duyệt/PWA theo dõi chủ động một chuyến. Chọn chuyến khác có xác nhận; chuyến cũ có thể nằm trong danh sách gần đây nhưng không còn nhận cảnh báo trên thiết bị này.
+2. Mở `/track/:code`, kiểm tra biển số. Nút cuối trang dựa trên mã chuyến đang lưu: nếu trùng thì hiện **Dừng nhận thông báo chuyến này**, nếu khác hoặc chưa chọn thì hiện **Bật thông báo và âm báo**. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó.
+3. Mỗi trình duyệt/PWA theo dõi chủ động một chuyến. Bấm bật trên chuyến khác sẽ hỏi xác nhận trước khi chuyển; chuyến cũ có thể nằm trong danh sách gần đây nhưng không còn là chuyến được chọn.
 4. Sau khi chọn, cảnh báo cá nhân hoạt động trên mọi route khi ứng dụng đang mở, kể cả `/waiting-screen`.
 5. Hoàn tất: hiển thị thông báo hoàn thành rồi xóa lựa chọn theo dõi, mã khỏi danh sách gần đây và binding push tương ứng. Hủy/hết hạn/kết thúc chưa hoàn tất cũng ngừng theo dõi, không bị hiểu nhầm là giao thành công.
 
@@ -15,7 +15,7 @@
 - `frontend/src/main.tsx`: một `DriverNotificationsProvider` bên trong SocketProvider, bên ngoài route/shell.
 - `frontend/src/features/driver-notifications/DriverNotificationsProvider.tsx`: chủ sở hữu chuyến được chọn, room cá nhân, quyền thiết bị, push binding, overlay, âm thanh/rung.
 - `model.ts`: persistence, kiểm tra mã chuyến, chống event trùng/cũ; lưu yêu cầu gỡ push đang chờ khi mất mạng.
-- `FollowTripCard.tsx`: chọn/dừng theo dõi, xác nhận đổi chuyến, trạng thái và lỗi có thể thử lại.
+- `FollowTripCard.tsx`: một nút chọn/dừng theo dõi theo mã chuyến đã lưu; trạng thái quyền và push không quyết định chuyến đã chọn.
 - `SavedTrips.tsx`: danh sách gần đây trên `/` và `/track`; không xóa mã vì lỗi mạng tạm thời.
 - `PwaInstallGuide.tsx`: hướng dẫn Android/iOS bằng Ant Modal.
 - `frontend/src/features/track/hooks/useTrackContent.ts`: chỉ đọc và trình bày chuyến, QR, hàng chờ, wake lock; không sở hữu cảnh báo cá nhân.
@@ -27,12 +27,12 @@
 | Trạng thái | Foreground overlay | Âm báo/rung | Web Push |
 | --- | --- | --- | --- |
 | `WAITING` | Check-in thành công; tự đóng 10 giây | Một lượt ngắn | Có |
-| `CALLED` (cả gọi lại/đổi slot) | Mời vào vị trí; giữ đến khi đóng hoặc đổi trạng thái | Một lượt khoảng 10 giây, không lặp vô hạn | Có |
+| `CALLED` (cả gọi lại/đổi slot) | Mời vào vị trí; giữ đến khi đóng hoặc đổi trạng thái | Âm lặp đến khi đóng cảnh báo hoặc cảnh báo bị thay thế | Có |
 | `RECEIVING`, `AUTO_WAREHOUSE_RECEIVING` | Không; đóng cảnh báo gọi cũ | Dừng âm/rung cũ | Có, giữ thông báo bắt đầu nhận hàng đang có |
 | `COMPLETED` | Hoàn thành; tự đóng 10 giây | Một lượt ngắn | Có; sau đó gỡ binding |
 | `CANCELLED`, `EXPIRED`, `INCOMPLETED` | Không hiển thị thành công; dọn theo dõi | Dừng | Có; sau đó gỡ binding |
 
-Đóng overlay, đổi/dừng chuyến, đổi trạng thái hoặc ẩn ứng dụng đều dừng âm/rung. Foreground chỉ xử lý ở cửa sổ visible và focus; tab khác đồng bộ localStorage để tránh phát trùng. Reconnect/focus/visibility/push signal tải lại trạng thái hiện tại, không phát lại toàn bộ lịch sử. Gọi lại có timestamp riêng từ `RECALLED`; API Track thêm `notificationCalledAt` để phục hồi lượt gọi lại, không sửa `calledTime` vận hành.
+Đóng overlay, đổi/dừng chuyến hoặc đổi trạng thái đều dừng âm/rung. Âm gọi xe còn lặp khi overlay vẫn mở, nhưng trình duyệt/hệ điều hành có thể tạm dừng âm khi ứng dụng ở nền. Foreground chỉ xử lý sự kiện ở cửa sổ visible và focus; tab khác đồng bộ localStorage để tránh phát trùng. Reconnect/focus/visibility/push signal tải lại trạng thái hiện tại, không phát lại toàn bộ lịch sử. Gọi lại có timestamp riêng từ `RECALLED`; API Track thêm `notificationCalledAt` để phục hồi lượt gọi lại, không sửa `calledTime` vận hành.
 
 ### Dữ liệu thiết bị
 
@@ -63,7 +63,7 @@ VAPID dùng `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Không đ�
 
 `frontend/public/sw.js` nhận push toàn app. Worker hỏi cửa sổ đang focus theo dõi mã nào, không suy từ URL. Nếu đúng chuyến, system notification im lặng để overlay/âm báo foreground xử lý; nếu không, OS xử lý notification và âm/rung. Worker luôn gọi `showNotification` cho push, phù hợp yêu cầu user-visible Safari. Cache receipt tối đa 30 chuyến chống push trùng/đảo thứ tự; push cũ chỉ trình bày lại thông báo mới nhất im lặng. Bấm notification mở đúng `/track/:code`.
 
-- Quyền notification phải xin từ thao tác bấm; app tự mở modal giải thích nhưng không tự cấp/ép quyền. Audio phải unlock bằng tương tác và có thể cần bật lại sau reload. Rung tùy API/thiết bị, không có hộp xin quyền rung thống nhất.
+- Quyền notification phải xin từ thao tác bấm; app tự mở modal giải thích nhưng không tự cấp/ép quyền. Sau reload, khi đã có chuyến theo dõi, lần chạm/click/bấm phím thật tiếp theo trên bất kỳ route nào sẽ thử chuẩn bị lại AudioContext; nếu chưa thành công thì có thể thử lại bằng tương tác tiếp theo. Không tự xin quyền notification trong thao tác chuẩn bị âm thanh. Rung tùy API/thiết bị, không có hộp xin quyền rung thống nhất.
 - Android có nút cài khi nhận `beforeinstallprompt`; nếu không hướng dẫn menu.
 - iOS/iPadOS Web Push cần Home Screen web app từ 16.4 trở lên. Safari hướng dẫn thêm Màn hình chính rồi mở app, tìm/chọn chuyến và bật thông báo.
 - Hướng dẫn không hiện trong standalone, sau `appinstalled`, khi related-apps xác nhận hoặc đã chọn không hiện lại. Không thể kiểm tra tuyệt đối từ Safari một PWA đã cài trong kho khác; localStorage chỉ nhớ điều đã quan sát. Fresh `beforeinstallprompt` có thể xóa dấu cài cũ.

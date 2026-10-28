@@ -11,7 +11,6 @@ const STATUS_CONFIG = {
 const VEHICLE_BADGE: Record<string, string> = {
   TRUCK: '🚛',
   MOTORBIKE: '🛵',
-  OTHER: '🚗',
 };
 
 const GOODS_LABELS: Record<string, string> = {

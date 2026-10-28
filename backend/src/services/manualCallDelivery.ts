@@ -37,13 +37,6 @@ function isManualCallSuccess(result: ManualCallResult): result is ManualCallSucc
   return result.outcome === 'called' || result.outcome === 'recalled' || result.outcome === 'already_called';
 }
 
-function getSlotMismatchMessage(delivery: DeliveryRegistration, slot: Slot): string | null {
-  if (slot.vehicleType !== delivery.vehicleType) {
-    return `Slot ${slot.code} nhận ${slot.vehicleType}, không nhận xe ${delivery.vehicleType}.`;
-  }
-  return null;
-}
-
 async function getDeliveryHomeLocationId(
   tx: Prisma.TransactionClient,
   delivery: DeliveryRegistration,
@@ -136,16 +129,6 @@ export async function manualCallDelivery(args: {
         delivery,
         slot,
         message: `Slot ${slot.code} không sẵn sàng để gọi xe.`,
-      };
-    }
-
-    const mismatch = getSlotMismatchMessage(delivery, slot);
-    if (mismatch) {
-      return {
-        outcome: 'slot_mismatch',
-        delivery,
-        slot,
-        message: mismatch,
       };
     }
 

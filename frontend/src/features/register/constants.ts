@@ -9,7 +9,6 @@ export const VEHICLE_INFO: Record<VehicleType, {
 }> = {
   TRUCK:     { label: 'Xe Tải',  icon: '🚛', activeBorder: 'border-thisodominant-400', activeBg: 'bg-thisodominant-50', hint: 'Xe tải, xe container' },
   MOTORBIKE: { label: 'Xe Máy', icon: '🛵', activeBorder: 'border-thisodominant-400', activeBg: 'bg-thisodominant-50', hint: 'Xe máy, xe gắn máy' },
-  OTHER:     { label: 'Khác',   icon: '🚐', activeBorder: 'border-thiso-400',  activeBg: 'bg-thiso-100', hint: 'Van, xe ô tô nhỏ...' },
 };
 
 export const GOODS_LABEL: Record<GoodsType | string, string> = {

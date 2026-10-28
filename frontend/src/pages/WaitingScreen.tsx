@@ -5,6 +5,7 @@ import BrightUnitPanel from '../features/waiting-screen/components/bright/UnitPa
 import { getDeliveryUnitKey, getUnitBrand } from '../features/waiting-screen/utils';
 
 const DESKTOP_WAITING_SCREEN_QUERY = '(min-width: 1025px)';
+const ROTATION_INTERVAL_MS = 60_000;
 
 function useDesktopWaitingScreen() {
   const [desktop, setDesktop] = useState(() => typeof window !== 'undefined' && window.matchMedia(DESKTOP_WAITING_SCREEN_QUERY).matches);
@@ -27,6 +28,12 @@ export default function WaitingScreen() {
   const carouselRef = useRef<CarouselRef>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(60);
+  const unitKeySignature = unitKeys.join('|');
+  const nextRotationAt = useRef(0);
+  const resetCooldown = () => {
+    nextRotationAt.current = performance.now() + ROTATION_INTERVAL_MS;
+    setCooldownSeconds(60);
+  };
   const initialSlide = useMemo(() => Math.max(0, unitKeys.indexOf(activeTab)), [activeTab, unitKeys]);
   const tabItems = useMemo(() => unitKeys.map((unit) => {
     const config = getUnitBrand(brand, unit);
@@ -45,12 +52,18 @@ export default function WaitingScreen() {
 
   useEffect(() => {
     if (!desktop || unitKeys.length < 2) return undefined;
-    setCooldownSeconds(60);
+    resetCooldown();
     const interval = window.setInterval(() => {
-      setCooldownSeconds((current) => current > 1 ? current - 1 : 60);
-    }, 1000);
+      const remaining = nextRotationAt.current - performance.now();
+      if (remaining <= 0) {
+        resetCooldown();
+        carouselRef.current?.next();
+      } else {
+        setCooldownSeconds(Math.ceil(remaining / 1000));
+      }
+    }, 250);
     return () => window.clearInterval(interval);
-  }, [activeTab, desktop, unitKeys.length]);
+  }, [desktop, unitKeys.length, unitKeySignature]);
 
   useEffect(() => {
     const activeTabElement = tabsRef.current?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
@@ -81,8 +94,10 @@ export default function WaitingScreen() {
           activeKey={activeTab}
           onChange={(key) => {
             const index = unitKeys.indexOf(key);
-            if (index >= 0) carouselRef.current?.goTo(index);
-            setActiveTab(key);
+            if (index >= 0) {
+              resetCooldown();
+              carouselRef.current?.goTo(index);
+            }
           }}
           items={tabItems}
           centered
@@ -91,17 +106,20 @@ export default function WaitingScreen() {
       </div>
       <Carousel
         ref={carouselRef}
-        key={unitKeys.join('|')}
+        key={unitKeySignature}
         className="waiting-unit-carousel min-[1025px]:min-h-0 min-[1025px]:flex-1"
         arrows={desktop && unitKeys.length > 1}
-        autoplay={desktop && unitKeys.length > 1}
-        autoplaySpeed={60_000}
+        autoplay={false}
+        waitForAnimate={false}
         draggable={!desktop}
         swipe={!desktop}
         touchMove={!desktop}
         dots={desktop && unitKeys.length > 1}
         initialSlide={initialSlide}
-        afterChange={(index) => setActiveTab(unitKeys[index] ?? unitKeys[0])}
+        beforeChange={(_current, index) => {
+          resetCooldown();
+          setActiveTab(unitKeys[index] ?? unitKeys[0]);
+        }}
       >
         {unitKeys.map((unit) => (
           <div key={unit} className={desktop ? 'h-full pb-7' : 'pb-7'}>

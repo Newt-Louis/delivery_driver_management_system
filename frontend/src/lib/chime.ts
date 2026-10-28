@@ -69,3 +69,22 @@ export function playChimeWithCtx(ctx: AudioContext | null, durationSecs = 10): C
     return null;
   }
 }
+
+/** Repeat only while the owning alert is open; stop cancels both timer and notes. */
+export function playRepeatingChimeWithCtx(ctx: AudioContext | null): ChimeHandle | null {
+  if (!ctx) return null;
+  let current = playChimeWithCtx(ctx, 10);
+  if (!current) return null;
+  const timer = setInterval(() => {
+    current?.stop();
+    current = playChimeWithCtx(ctx, 10);
+  }, 10_000);
+  let stopped = false;
+  return { stop: () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(timer);
+    current?.stop();
+    current = null;
+  } };
+}

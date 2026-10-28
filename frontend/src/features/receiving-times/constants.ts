@@ -1,7 +1,6 @@
 export const VT_LABEL: Record<string, string> = {
   TRUCK: '🚛 Xe Tải',
   MOTORBIKE: '🛵 Xe Máy',
-  OTHER: '🚗 Khác',
 };
 
 export const GOODS_LABEL: Record<string, string> = {

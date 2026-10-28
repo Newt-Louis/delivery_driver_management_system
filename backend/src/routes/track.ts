@@ -7,7 +7,7 @@ import { publicLookupLimiter } from '../middleware/rateLimit';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const VT_TICKET_PREFIX: Record<string, string> = {
-  TRUCK: 'T', MOTORBIKE: 'M', OTHER: 'X',
+  TRUCK: 'T', MOTORBIKE: 'M',
 };
 function normalizeTicketPrefix(value: string): string {
   const normalized = value

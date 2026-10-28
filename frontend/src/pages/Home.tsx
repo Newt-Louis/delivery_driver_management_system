@@ -47,7 +47,6 @@ const GOODS_LABEL: Record<GoodsType, string> = {
 const VEHICLE_LABEL: Record<VehicleType, string> = {
   TRUCK: 'Xe tải',
   MOTORBIKE: 'Xe máy',
-  OTHER: 'Xe khác',
 };
 
 function normalizeOrderCode(value: string) {

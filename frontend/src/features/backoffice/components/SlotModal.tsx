@@ -12,7 +12,7 @@ const slotSchema = z.object({
   code: z.string().min(1, 'Bắt buộc').max(20),
   name: z.string().min(1, 'Bắt buộc').max(50),
   assignedUnit: z.string().trim().min(1, 'Bắt buộc chọn đơn vị').transform((value) => value.toUpperCase()),
-  vehicleType: z.enum(['TRUCK', 'MOTORBIKE', 'OTHER']).default('TRUCK'),
+  vehicleType: z.enum(['TRUCK', 'MOTORBIKE']).default('TRUCK'),
   status: z.enum(['AVAILABLE', 'OCCUPIED', 'RESERVED', 'MAINTENANCE']).default('AVAILABLE'),
   zoneId: z.string().min(1, 'Bắt buộc chọn khu'),
   autoAssign: z.boolean().default(true),
@@ -159,7 +159,6 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                       options={[
                         { value: 'TRUCK', label: '🚛 Xe tải' },
                         { value: 'MOTORBIKE', label: '🛵 Xe máy' },
-                        { value: 'OTHER', label: '🚗 Khác' },
                       ]}
                     />
                   )}

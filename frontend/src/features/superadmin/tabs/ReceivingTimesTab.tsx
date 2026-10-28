@@ -4,13 +4,12 @@ import { unitPresentation } from '../../../lib/unitPresentation';
 import { superadminApi } from '../api';
 import { EmptyState, TableShell } from './shared';
 
-const VEHICLE_TYPES: VehicleType[] = ['TRUCK', 'MOTORBIKE', 'OTHER'];
+const VEHICLE_TYPES: VehicleType[] = ['TRUCK', 'MOTORBIKE'];
 const GOODS_TYPES: GoodsType[] = ['FRESH_FOOD', 'GENERAL_GOODS', 'AUTO_WAREHOUSE', 'THI_CONG'];
 
 const VEHICLE_LABELS: Record<VehicleType, string> = {
   TRUCK: 'Xe tải',
   MOTORBIKE: 'Xe máy',
-  OTHER: 'Khác',
 };
 
 const GOODS_LABELS: Record<GoodsType, string> = {
