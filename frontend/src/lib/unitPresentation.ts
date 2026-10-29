@@ -44,7 +44,7 @@ export function formatTicketCode(
   ticketNumber: number,
   unitConfig?: Partial<UnitBrandSource> | null,
 ): string {
-  const vehiclePrefix: Record<string, string> = { TRUCK: 'T', MOTORBIKE: 'M', OTHER: 'X' };
+  const vehiclePrefix: Record<string, string> = { TRUCK: 'T', MOTORBIKE: 'M' };
   return `${unitTicketPrefix(unit, unitConfig)}-${vehiclePrefix[vehicleType] ?? 'X'}${String(ticketNumber).padStart(3, '0')}`;
 }
 

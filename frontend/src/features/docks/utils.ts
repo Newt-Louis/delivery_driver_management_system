@@ -42,6 +42,5 @@ export function splitSlotsByVehicle(slots: Slot[]) {
   return {
     truckSlots: slots.filter((slot) => slot.vehicleType === 'TRUCK'),
     motorbikeSlots: slots.filter((slot) => slot.vehicleType === 'MOTORBIKE'),
-    otherSlots: slots.filter((slot) => slot.vehicleType === 'OTHER'),
   };
 }

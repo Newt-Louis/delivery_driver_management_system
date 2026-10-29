@@ -54,7 +54,7 @@ export function useAuditLogs() {
     to: filters.to || undefined,
   };
 
-  const { data, isLoading, isFetching } = useQuery<PaginatedResponse<AuditLogItem>>({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery<PaginatedResponse<AuditLogItem>>({
     queryKey: ['histories-audit', params],
     queryFn: () => getAuditLogs(params),
     placeholderData: (prev) => prev,
@@ -63,7 +63,7 @@ export function useAuditLogs() {
   return {
     data,
     isLoading,
-    isFetching,
+    isFetching, isError, refetch,
     page,
     setPage,
     sortField,

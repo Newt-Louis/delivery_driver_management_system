@@ -30,9 +30,9 @@ export function buildReceivingTimesCsvRows(configs: ReceivingTimeConfig[]) {
 export function getReceivingTimesSummary(configs: ReceivingTimeConfig[], totalCompleted?: number) {
   const pendingCount = configs.filter((config) => config.shouldUpdate).length;
   return [
-    { label: 'Đơn đã phân tích', value: totalCompleted ?? '—', icon: '📦' },
-    { label: 'Cấu hình có khuyến nghị', value: configs.filter((config) => config.recommendedMinutes !== null).length, icon: '🤖' },
-    { label: 'Chờ chấp nhận', value: pendingCount, icon: '⚠️', alert: pendingCount > 0 },
-    { label: 'Đã tối ưu', value: configs.filter((config) => !config.shouldUpdate && config.sampleCount > 0).length, icon: '✅' },
+    { label: 'Đơn đã phân tích', value: totalCompleted ?? '—' },
+    { label: 'Cấu hình có khuyến nghị', value: configs.filter((config) => config.recommendedMinutes !== null).length },
+    { label: 'Chờ chấp nhận', value: pendingCount, alert: pendingCount > 0 },
+    { label: 'Đã tối ưu', value: configs.filter((config) => !config.shouldUpdate && config.sampleCount > 0).length },
   ];
 }

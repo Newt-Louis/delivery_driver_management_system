@@ -1,187 +1,22 @@
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
+import { Alert, Button, Checkbox, Form, Input, Modal, Popconfirm, Select, Space, Tooltip } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
 import type { AutoWarehouseVendor, UnitConfig } from '../../../lib/types';
 import { unitPresentation } from '../../../lib/unitPresentation';
 import { superadminApi } from '../api';
-import { EmptyState, StatusBadge, TableShell } from './shared';
-
-interface VendorFormState {
-  unitConfigId: string;
-  vendorCode: string;
-  vendorName: string;
-  active: boolean;
-  note: string;
+import ReadOnlyMasterList, { type ReadOnlyScope } from '../components/ReadOnlyMasterList';
+import { StatusBadge } from './shared';
+interface Values { unitConfigId: string; vendorCode: string; vendorName: string; active: boolean; note: string }
+function VendorForm({ units, editing, onDone, onCancel, onSavingChange }: { units: UnitConfig[]; editing: AutoWarehouseVendor | null; onDone: () => void; onCancel: () => void; onSavingChange: (saving: boolean) => void }) {
+ const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
+ async function submit(v: Values) { setSaving(true); onSavingChange(true); setError(''); try { if (editing) await superadminApi.updateVendor(editing.id, { vendorCode: v.vendorCode, vendorName: v.vendorName, active: v.active, note: v.note || null }); else await superadminApi.createVendor({ unitConfigId: v.unitConfigId, vendorCode: v.vendorCode, vendorName: v.vendorName, active: v.active, note: v.note || null }); onDone(); } catch (e) { setError((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được vendor.'); } finally { setSaving(false); onSavingChange(false); } }
+ return <Form layout="vertical" initialValues={{ unitConfigId: editing?.unitConfigId ?? units[0]?.id ?? '', vendorCode: editing?.vendorCode ?? '', vendorName: editing?.vendorName ?? '', active: editing?.active ?? true, note: editing?.note ?? '' }} onFinish={submit}><div className="grid sm:grid-cols-2 gap-x-4"><Form.Item name="unitConfigId" label="Đơn vị" rules={[{ required: true }]}><Select disabled={!!editing} options={units.map(u => { const meta = unitPresentation(u.unit, u); return { value: u.id, label: `${meta.shortName} - ${meta.label}` }; })} /></Form.Item><Form.Item name="vendorCode" label="Vendor code" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="vendorName" label="Vendor name" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="note" label="Ghi chú"><Input /></Form.Item><Form.Item name="active" valuePropName="checked"><Checkbox>Active</Checkbox></Form.Item></div>{error && <Alert type="error" message={error} showIcon />}<Space><Button onClick={onCancel} disabled={saving}>Hủy</Button><Button type="primary" htmlType="submit" disabled={!units.length} loading={saving}>{editing ? 'Lưu' : 'Tạo vendor'}</Button></Space></Form>;
 }
-
-function formFromVendor(vendor?: AutoWarehouseVendor | null, units: UnitConfig[] = []): VendorFormState {
-  return {
-    unitConfigId: vendor?.unitConfigId ?? units[0]?.id ?? '',
-    vendorCode: vendor?.vendorCode ?? '',
-    vendorName: vendor?.vendorName ?? '',
-    active: vendor?.active ?? true,
-    note: vendor?.note ?? '',
-  };
-}
-
-function VendorForm({
-  units,
-  editing,
-  onDone,
-  onCancel,
-}: {
-  units: UnitConfig[];
-  editing?: AutoWarehouseVendor | null;
-  onDone: () => void;
-  onCancel?: () => void;
-}) {
-  const [form, setForm] = useState<VendorFormState>(() => formFromVendor(editing, units));
-  const [error, setError] = useState('');
-  const isEdit = Boolean(editing);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      if (editing) {
-        await superadminApi.updateVendor(editing.id, {
-          vendorCode: form.vendorCode,
-          vendorName: form.vendorName,
-          active: form.active,
-          note: form.note || null,
-        });
-      } else {
-        await superadminApi.createVendor({
-          unitConfigId: form.unitConfigId,
-          vendorCode: form.vendorCode,
-          vendorName: form.vendorName,
-          active: form.active,
-          note: form.note || null,
-        });
-      }
-      onDone();
-      if (!isEdit) setForm(formFromVendor(undefined, units));
-    } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được vendor.');
-    }
-  }
-
-  return (
-    <form onSubmit={submit} className="grid md:grid-cols-6 gap-3 items-end">
-      <label className="grid gap-1 md:col-span-2">
-        <span className="label">Đơn vị</span>
-        <select className="input" value={form.unitConfigId} onChange={(e) => setForm({ ...form, unitConfigId: e.target.value })} disabled={isEdit} required>
-          {units.map((unit) => {
-            const unitInfo = unitPresentation(unit.unit, unit);
-            return <option key={unit.id} value={unit.id}>{unitInfo.shortName} - {unitInfo.label}</option>;
-          })}
-        </select>
-      </label>
-      <label className="grid gap-1">
-        <span className="label">Vendor code</span>
-        <input className="input" value={form.vendorCode} onChange={(e) => setForm({ ...form, vendorCode: e.target.value })} required />
-      </label>
-      <label className="grid gap-1 md:col-span-2">
-        <span className="label">Vendor name</span>
-        <input className="input" value={form.vendorName} onChange={(e) => setForm({ ...form, vendorName: e.target.value })} required />
-      </label>
-      <label className="flex items-center gap-2 text-sm text-thiso-700">
-        <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} />
-        Active
-      </label>
-      <label className="grid gap-1 md:col-span-5">
-        <span className="label">Ghi chú</span>
-        <input className="input" value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Tùy chọn" />
-      </label>
-      <div className="flex gap-2">
-        <button className="btn btn-primary" type="submit" disabled={units.length === 0}>{isEdit ? 'Lưu' : 'Tạo vendor'}</button>
-        {isEdit && <button className="btn btn-secondary" type="button" onClick={onCancel}>Hủy</button>}
-      </div>
-      {error && <div className="md:col-span-6 text-sm text-red-600">{error}</div>}
-    </form>
-  );
-}
-
-export default function AwVendorsTab({
-  vendors,
-  units,
-  onRefresh,
-}: {
-  vendors: AutoWarehouseVendor[];
-  units: UnitConfig[];
-  onRefresh: () => void;
-}) {
-  const [editing, setEditing] = useState<AutoWarehouseVendor | null>(null);
-  const [error, setError] = useState('');
-
-  async function remove(vendor: AutoWarehouseVendor) {
-    if (!window.confirm('Xóa vendor kho tự động này?')) return;
-    setError('');
-    try {
-      await superadminApi.deleteVendor(vendor.id);
-      if (editing?.id === vendor.id) setEditing(null);
-      onRefresh();
-    } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không xóa được vendor.');
-    }
-  }
-
-  return (
-    <section className="space-y-4">
-      <div className="card">
-        <h2 className="section-heading mb-4">{editing ? 'Chỉnh vendor kho tự động' : 'Tạo vendor kho tự động'}</h2>
-        <VendorForm
-          key={editing?.id ?? 'create'}
-          units={units}
-          editing={editing}
-          onCancel={() => setEditing(null)}
-          onDone={() => {
-            setEditing(null);
-            onRefresh();
-          }}
-        />
-      </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {vendors.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <TableShell>
-          <table className="w-full text-sm">
-            <thead className="bg-thiso-50 text-left text-thiso-500">
-              <tr>
-                <th className="p-3 font-medium">Đơn vị</th>
-                <th className="p-3 font-medium">Vendor code</th>
-                <th className="p-3 font-medium">Vendor name</th>
-                <th className="p-3 font-medium">Status</th>
-                <th className="p-3 font-medium">Ghi chú</th>
-                <th className="p-3 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {vendors.map((item) => {
-                const unit = item.unitConfig ?? units.find((config) => config.id === item.unitConfigId);
-                const unitInfo = unitPresentation(item.unit, unit);
-                return (
-                  <tr key={item.id} className="border-t border-thiso-100">
-                    <td className="p-3">
-                      <div className="font-medium text-thiso-800">{unitInfo.shortName}</div>
-                      <div className="text-xs text-thiso-400">{unitInfo.label}</div>
-                    </td>
-                    <td className="p-3 font-mono">{item.vendorCode}</td>
-                    <td className="p-3">{item.vendorName}</td>
-                    <td className="p-3"><StatusBadge active={item.active} /></td>
-                    <td className="p-3">{item.note || '-'}</td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <button className="btn btn-secondary btn-sm" type="button" onClick={() => setEditing(item)}>Edit</button>
-                        <button className="btn btn-danger btn-sm" type="button" onClick={() => remove(item)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableShell>
-      )}
-    </section>
-  );
+const getName = (v: AutoWarehouseVendor) => v.vendorName;
+export default function AwVendorsTab({ vendors, units, scope, onRefresh }: { vendors: AutoWarehouseVendor[]; units: UnitConfig[]; scope: ReadOnlyScope; onRefresh: () => void }) {
+ const [editing, setEditing] = useState<AutoWarehouseVendor | null>(null); const [creating, setCreating] = useState(false); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [deleting, setDeleting] = useState<string | null>(null);
+ async function remove(v: AutoWarehouseVendor) { setDeleting(v.id); setError(''); try { await superadminApi.deleteVendor(v.id); if (editing?.id === v.id) setEditing(null); onRefresh(); } catch (e) { setError((e as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không xóa được vendor.'); } finally { setDeleting(null); } }
+ function actions(v: AutoWarehouseVendor) { return <Space size="small"><Tooltip title="Chỉnh sửa vendor"><Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Sửa vendor ${v.vendorCode}`} onClick={() => setEditing(v)} /></Tooltip><Popconfirm title="Xóa vendor kho tự động này?" onConfirm={() => remove(v)}><Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa vendor ${v.vendorCode}`} loading={deleting === v.id} /></Popconfirm></Space>; }
+ const fields = [{ key: 'unit', title: 'Đơn vị', value: (v: AutoWarehouseVendor) => { const u = unitPresentation(v.unit, v.unitConfig ?? units.find(x => x.id === v.unitConfigId)); return `${u.shortName} - ${u.label}`; } }, { key: 'code', title: 'Vendor code', value: (v: AutoWarehouseVendor) => v.vendorCode }, { key: 'name', title: 'Vendor name', value: (v: AutoWarehouseVendor) => v.vendorName }, { key: 'status', title: 'Status', value: (v: AutoWarehouseVendor) => <StatusBadge active={v.active} /> }, { key: 'note', title: 'Ghi chú', value: (v: AutoWarehouseVendor) => v.note || '—' }];
+ return <Space orientation="vertical" size="large" className="w-full">{error && <Alert type="error" message={error} showIcon />}<ReadOnlyMasterList items={vendors} scope={scope} fields={fields} getName={getName} searchLabel="Tìm tên vendor" emptyLabel="Không có vendor phù hợp" createAction={<Button type="primary" icon={<PlusOutlined />} disabled={!units.length} onClick={() => setCreating(true)}>Thêm vendor</Button>} actions={actions} />{(creating || editing) && <Modal open title={editing ? 'Chỉnh vendor kho tự động' : 'Tạo vendor kho tự động'} footer={null} onCancel={() => { setEditing(null); setCreating(false); }} closable={!saving} maskClosable={!saving} keyboard={!saving} destroyOnHidden><VendorForm key={editing?.id ?? 'create'} units={units} editing={editing} onSavingChange={setSaving} onCancel={() => { setEditing(null); setCreating(false); }} onDone={() => { setEditing(null); setCreating(false); onRefresh(); }} /></Modal>}</Space>;
 }

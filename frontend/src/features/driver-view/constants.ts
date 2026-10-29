@@ -23,7 +23,6 @@ export const GOODS_SHORT: Record<string, string> = {
 export const VEHICLE_LABEL: Record<string, string> = {
   TRUCK: '🚛 Xe tải',
   MOTORBIKE: '🛵 Xe máy',
-  OTHER: '🚗 Khác',
 };
 
 export const STORAGE_KEY = 'thiso_driver_plate';

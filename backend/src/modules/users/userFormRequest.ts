@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const USER_ROLES = ['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
 export const LOCATION_STAFF_ROLES = ['ADMIN_OPE', 'RECEIVING', 'CHECKIN'] as const;
-export const LOCATION_STAFF_LIFECYCLE_ROLES = ['RECEIVING', 'CHECKIN'] as const;
 
 const unitSchema = z.string().trim().min(1).transform((value) => value.toUpperCase()).nullable().optional();
 
@@ -36,7 +35,7 @@ const locationStaffCreateSchema = z.object({
   name: z.string().min(1).max(80),
   email: z.string().trim().email().nullable().optional(),
   password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự'),
-  role: z.enum(LOCATION_STAFF_LIFECYCLE_ROLES),
+  role: z.enum(LOCATION_STAFF_ROLES),
   unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
@@ -45,7 +44,7 @@ const locationStaffCreateSchema = z.object({
 const locationStaffUpdateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   email: z.string().trim().email().nullable().optional(),
-  role: z.enum(LOCATION_STAFF_LIFECYCLE_ROLES).optional(),
+  role: z.enum(LOCATION_STAFF_ROLES).optional(),
   unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),

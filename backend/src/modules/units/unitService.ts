@@ -432,19 +432,12 @@ export async function getVehicleAvailability(unit: ReceivingUnitCode, query: Veh
   }
 
   const slots = await unitRepository.listMatchingOperationalSlots({ unitConfigId: config.id, unit });
-  const capacityByVehicle = new Map<VehicleType, { slotCount: number; capacity: number }>();
-  for (const slot of slots) {
-    const current = capacityByVehicle.get(slot.vehicleType) ?? { slotCount: 0, capacity: 0 };
-    capacityByVehicle.set(slot.vehicleType, {
-      slotCount: current.slotCount + 1,
-      capacity: current.capacity + slot.maxCapacity,
-    });
-  }
-
-  const vehicles = [VehicleType.TRUCK, VehicleType.MOTORBIKE, VehicleType.OTHER].flatMap((vehicleType) => {
-    const stats = capacityByVehicle.get(vehicleType);
-    return stats ? [{ vehicleType, ...stats }] : [];
-  });
+  // A slot's configured vehicle type is not a restriction on a manual call.
+  // Both vehicle types may register whenever this unit has operational slots.
+  const capacity = slots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
+  const vehicles = slots.length
+    ? [VehicleType.TRUCK, VehicleType.MOTORBIKE].map((vehicleType) => ({ vehicleType, slotCount: slots.length, capacity }))
+    : [];
 
   return {
     vehicles,

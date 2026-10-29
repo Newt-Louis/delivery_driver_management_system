@@ -2,12 +2,16 @@
 // lazily on the first touch/click and reuse the instance afterwards.
 const audioCtxRef: { current: AudioContext | null } = { current: null };
 
+export function isDeviceAudioReady(): boolean {
+  return audioCtxRef.current?.state === 'running';
+}
+
 export function ensureAudio(): AudioContext | null {
-  if (!audioCtxRef.current) {
+  if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
     const AC = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (AC) audioCtxRef.current = new AC();
   }
-  if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
+  if (audioCtxRef.current?.state === 'suspended') void audioCtxRef.current.resume().catch(() => {});
   return audioCtxRef.current ?? null;
 }
 
@@ -26,31 +30,9 @@ export function unlockIOSAudio() {
   } catch { /* ignore */ }
 }
 
-export function playBeeps(pattern: { freq: number; start: number; dur: number }[]) {
-  const ctx = ensureAudio();
-  if (!ctx) return;
-  for (const { freq, start, dur } of pattern) {
-    const osc  = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
-    gain.gain.setValueAtTime(0.35, ctx.currentTime + start);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
-    osc.start(ctx.currentTime + start);
-    osc.stop(ctx.currentTime + start + dur + 0.05);
-  }
-}
-
 export function buzz(pattern: number[]): boolean {
   const vibrate = (navigator as Navigator & { vibrate?: (pattern: number | number[]) => boolean }).vibrate;
   if (typeof vibrate !== 'function') return false;
   try { return vibrate.call(navigator, pattern); } catch { return false; }
 }
 
-export function sendNotification(title: string, body: string, tag: string) {
-  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    try { new Notification(title, { body, tag, icon: '/icons/icon-192.png' }); } catch {}
-  }
-}

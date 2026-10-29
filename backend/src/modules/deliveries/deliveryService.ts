@@ -433,6 +433,12 @@ export async function publicCancel(body: PublicCancelPayload) {
     metadata: { source: 'deliveries.public-cancel' },
   });
 
+  sendPushToDelivery(result.delivery.registrationCode, {
+    status: 'CANCELLED', occurredAt: result.delivery.updatedAt.toISOString(),
+    title: 'Chuyến giao hàng đã hủy', body: `Xe ${result.delivery.vehiclePlate} — đã dừng theo dõi chuyến.`,
+    url: `/track/${result.delivery.registrationCode}`,
+  }).catch(console.error);
+
   await archiveDelivery({
     deliveryId: result.delivery.id,
     finalStatus: DeliveryHistoryFinalStatus.CANCELLED,
@@ -524,6 +530,11 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
       },
       metadata: { source: 'deliveries.check-in-lookup' },
     });
+    sendPushToDelivery(updated.registrationCode, {
+      status: 'WAITING', occurredAt: updated.checkinTime?.toISOString(),
+      title: 'Check-in thành công', body: `Xe ${updated.vehiclePlate} đã vào hàng chờ.`,
+      url: `/track/${updated.registrationCode}`,
+    }).catch(console.error);
     emitQueueUpdated(queue, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
     triggerAutoAssign(updated.receivingUnit, scope).catch(console.error);
@@ -591,6 +602,11 @@ export async function checkInById(id: string, user: AuthUser | undefined) {
       },
       metadata: { source: 'deliveries.id-check-in' },
     });
+    sendPushToDelivery(updated.registrationCode, {
+      status: 'WAITING', occurredAt: updated.checkinTime?.toISOString(),
+      title: 'Check-in thành công', body: `Xe ${updated.vehiclePlate} đã vào hàng chờ.`,
+      url: `/track/${updated.registrationCode}`,
+    }).catch(console.error);
     emitQueueUpdated(queue, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
     triggerAutoAssign(updated.receivingUnit, scope).catch(console.error);
@@ -684,7 +700,8 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
     emitSlotUpdated(slots, scope);
     emitTrackUpdatesForQueue(queue).catch(console.error);
     sendPushToDelivery(delivery.registrationCode, {
-      title: `🚛 Mời vào ${slot.code}`,
+      status: 'CALLED', occurredAt: result.notificationOccurredAt.toISOString(),
+      title: `Mời xe vào ${slot.code}`,
       body: `Xe ${delivery.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
       tag: 'delivery-called-manual',
       url: `/track/${delivery.registrationCode}`,
@@ -741,7 +758,8 @@ export async function startReceiving(id: string, user: AuthUser | undefined) {
 
   const slotName = updated.assignedSlot?.name ?? 'dock';
   sendPushToDelivery(delivery.registrationCode, {
-    title: '📦 Bắt đầu giao hàng',
+    status: newStatus, occurredAt: updated.receivingStartTime?.toISOString(),
+    title: 'Bắt đầu giao hàng',
     body: `Xe ${delivery.vehiclePlate} tại ${slotName}`,
     tag: 'delivery-receiving-started',
     url: `/track/${delivery.registrationCode}`,
@@ -801,7 +819,8 @@ export async function complete(id: string, user: AuthUser | undefined) {
     });
 
     sendPushToDelivery(result.delivery.registrationCode, {
-      title: '🎉 Giao hàng hoàn tất',
+      status: 'COMPLETED', occurredAt: result.delivery.completedTime?.toISOString(),
+      title: 'Giao hàng hoàn thành',
       body: `Xe ${result.delivery.vehiclePlate} — Cảm ơn bạn đã giao hàng!`,
       tag: 'delivery-completed',
       url: `/track/${result.delivery.registrationCode}`,
@@ -854,7 +873,8 @@ export async function cancel(id: string, reason: string, user: AuthUser | undefi
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
     emitTrackUpdatesForQueue(queue).catch(console.error);
     sendPushToDelivery(result.delivery.registrationCode, {
-      title: '❌ Lượt giao hàng đã hủy',
+      status: 'CANCELLED', occurredAt: result.delivery.updatedAt.toISOString(),
+      title: 'Lượt giao hàng đã hủy',
       body: `Xe ${result.delivery.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
       tag: 'delivery-cancelled',
       url: `/track/${result.delivery.registrationCode}`,

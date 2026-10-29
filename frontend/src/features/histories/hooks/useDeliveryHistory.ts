@@ -57,7 +57,7 @@ export function useDeliveryHistory() {
     to: filters.to || undefined,
   };
 
-  const { data, isLoading, isFetching } = useQuery<PaginatedResponse<DeliveryHistoryItem>>({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery<PaginatedResponse<DeliveryHistoryItem>>({
     queryKey: ['histories-delivery', params],
     queryFn: () => getDeliveryHistory(params),
     placeholderData: (prev) => prev,
@@ -66,7 +66,7 @@ export function useDeliveryHistory() {
   return {
     data,
     isLoading,
-    isFetching,
+    isFetching, isError, refetch,
     page,
     setPage,
     sortField,

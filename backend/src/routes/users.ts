@@ -17,30 +17,30 @@ async function respond(res: Response, action: Promise<unknown>, successStatus = 
 }
 
 // GET /api/users/location-staff
-router.get('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHandler(async (req, res) => {
+router.get('/location-staff', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   await respond(res, userService.listLocationStaff(req.user));
 }));
 
 // POST /api/users/location-staff
-router.post('/location-staff', authenticate, requireRole('ADMIN_LOC'), asyncHandler(async (req, res) => {
+router.post('/location-staff', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const body = UserFormRequest.parseLocationStaffCreate(req.body);
   await respond(res, userService.createLocationStaff(body, req.user), 201);
 }));
 
 // PATCH /api/users/location-staff/:id
-router.patch('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyncHandler(async (req, res) => {
+router.patch('/location-staff/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const body = UserFormRequest.parseLocationStaffUpdate(req.body);
   await respond(res, userService.updateLocationStaff(req.params.id, body, req.user));
 }));
 
 // PATCH /api/users/location-staff/:id/reset-password
-router.patch('/location-staff/:id/reset-password', authenticate, requireRole('ADMIN_LOC'), asyncHandler(async (req, res) => {
+router.patch('/location-staff/:id/reset-password', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   const { password } = UserFormRequest.parseResetPassword(req.body);
   await respond(res, userService.resetLocationStaffPassword(req.params.id, password, req.user));
 }));
 
 // DELETE /api/users/location-staff/:id
-router.delete('/location-staff/:id', authenticate, requireRole('ADMIN_LOC'), asyncHandler(async (req, res) => {
+router.delete('/location-staff/:id', authenticate, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req, res) => {
   await respond(res, userService.deleteLocationStaff(req.params.id, req.user));
 }));
 

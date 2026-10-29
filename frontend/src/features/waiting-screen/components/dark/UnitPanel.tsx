@@ -34,7 +34,7 @@ export default function DarkUnitPanel({ unitKey, deliveries, highlightId, brand,
         <div className="absolute inset-0 flex items-center justify-center gap-3 pointer-events-none">
           <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={compact ? 32 : 38} />
           <span className="leading-none"
-                style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, color: '#fff', fontSize: compact ? '1.25rem' : 'clamp(1.2rem, 2vw, 1.65rem)', letterSpacing: '0.04em' }}>
+                style={{ fontWeight: 800, color: '#fff', fontSize: compact ? '1.25rem' : 'clamp(1.2rem, 2vw, 1.65rem)', letterSpacing: '0.04em' }}>
             {cfg.displayName}
           </span>
         </div>

@@ -20,6 +20,7 @@ type ManualCallSuccess = {
   slot: Slot;
   message: string;
   historyEventCreated: boolean;
+  notificationOccurredAt: Date;
   activeCount: number;
 };
 
@@ -34,13 +35,6 @@ export type ManualCallResult = ManualCallSuccess | ManualCallFailure;
 
 function isManualCallSuccess(result: ManualCallResult): result is ManualCallSuccess {
   return result.outcome === 'called' || result.outcome === 'recalled' || result.outcome === 'already_called';
-}
-
-function getSlotMismatchMessage(delivery: DeliveryRegistration, slot: Slot): string | null {
-  if (slot.vehicleType !== delivery.vehicleType) {
-    return `Slot ${slot.code} nhận ${slot.vehicleType}, không nhận xe ${delivery.vehicleType}.`;
-  }
-  return null;
 }
 
 async function getDeliveryHomeLocationId(
@@ -138,16 +132,6 @@ export async function manualCallDelivery(args: {
       };
     }
 
-    const mismatch = getSlotMismatchMessage(delivery, slot);
-    if (mismatch) {
-      return {
-        outcome: 'slot_mismatch',
-        delivery,
-        slot,
-        message: mismatch,
-      };
-    }
-
     const crossUnit = slot.assignedUnit !== delivery.receivingUnit;
     const deliveryLocationId = await getDeliveryHomeLocationId(tx, delivery);
     if (!deliveryLocationId || slot.zone.unitConfig.businessLocationId !== deliveryLocationId) {
@@ -206,6 +190,7 @@ export async function manualCallDelivery(args: {
         slot,
         message,
         historyEventCreated: true,
+        notificationOccurredAt: recalledAt,
         activeCount,
       };
     }
@@ -256,6 +241,7 @@ export async function manualCallDelivery(args: {
       slot,
       message,
       historyEventCreated: true,
+      notificationOccurredAt: calledTime,
       activeCount,
     };
   });

@@ -2,7 +2,7 @@ export type Role = 'SUPERADMIN' | 'ADMIN_LOC' | 'ADMIN_OPE' | 'RECEIVING' | 'CHE
 export type SlotStatus = 'AVAILABLE' | 'OCCUPIED' | 'RESERVED' | 'MAINTENANCE';
 export type ReceivingUnit = string;
 export type GoodsType = 'FRESH_FOOD' | 'AUTO_WAREHOUSE' | 'GENERAL_GOODS' | 'THI_CONG';
-export type VehicleType = 'TRUCK' | 'MOTORBIKE' | 'OTHER';
+export type VehicleType = 'TRUCK' | 'MOTORBIKE';
 export type DeliveryStatus =
   | 'REGISTERED'
   | 'WAITING'

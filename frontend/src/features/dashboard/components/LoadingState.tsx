@@ -1,8 +1,4 @@
+import { Spin } from 'antd';
 export default function LoadingState() {
-  return (
-    <div className="py-20 text-center text-thiso-400">
-      <div className="text-4xl mb-3">⏳</div>
-      Đang tải dữ liệu điều phối...
-    </div>
-  );
+  return <div className="py-20 text-center"><Spin tip="Đang tải dữ liệu điều phối"><div style={{ minHeight: 60 }} /></Spin></div>;
 }

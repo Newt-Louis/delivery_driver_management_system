@@ -39,6 +39,6 @@ tsconfig.tsbuildinfo
 .claude-notes/
 .claude/
 .claude/*
-.codex
-.agents
+.codex/
+.agents/
 

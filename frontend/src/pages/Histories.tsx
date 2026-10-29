@@ -1,3 +1,5 @@
+import { Alert, Button, DatePicker, Input, Select, Space, Tabs, Typography } from 'antd';
+import dayjs from 'dayjs';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
@@ -61,36 +63,22 @@ export default function Histories() {
   }, [auditVisible]);
 
   const tabs: { id: HistoryTab; label: string }[] = [
-    { id: 'access', label: '🔍 Truy cập' },
-    { id: 'delivery', label: '📦 Giao/Nhận' },
-    { id: 'audit', label: '📋 Audit' },
+    { id: 'access', label: 'Truy cập' },
+    { id: 'delivery', label: 'Giao/Nhận' },
+    { id: 'audit', label: 'Audit' },
   ];
 
   return (
-    <div className="min-h-screen bg-thiso-50/50 p-4 md:p-6">
+    <div className="p-4 md:p-6">
       <div className="max-w-screen-xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-black text-thiso-800">Lịch sử</h1>
+          <Typography.Title level={2}>Lịch sử</Typography.Title>
           <p className="text-sm text-thiso-500 mt-0.5">Truy cập, giao/nhận hàng và nhật ký thao tác</p>
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1 mb-6 bg-white border border-thiso-100 rounded-2xl p-1.5 w-fit shadow-sm flex-wrap">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
-                tab === t.id
-                  ? 'bg-thiso-800 text-white shadow-sm'
-                  : 'text-thiso-500 hover:text-thiso-700 hover:bg-thiso-50'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <Tabs activeKey={tab} onChange={(key) => setTab(key as HistoryTab)} items={tabs.map(t => ({ key: t.id, label: t.label }))} />
 
         {/* ─── Access Tab ──────────────────────────────────────────────── */}
         {tab === 'access' && <PlaceholderTab />}
@@ -99,52 +87,18 @@ export default function Histories() {
         {tab === 'delivery' && (
           <div className="space-y-4">
             {/* Filters */}
-            <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5 min-w-[220px]">
-                <span className="text-thiso-400 text-sm">🔍</span>
-                <input
-                  type="text"
-                  placeholder="Tìm mã chuyến, nhà CC, tài xế, biển số..."
-                  value={delivery.search}
-                  onChange={(e) => delivery.setSearch(e.target.value)}
-                  className="flex-1 text-sm text-thiso-700 bg-transparent outline-none placeholder:text-thiso-300"
-                />
-                {delivery.search && (
-                  <button onClick={() => delivery.setSearch('')} className="text-thiso-300 hover:text-thiso-500 text-xs">✕</button>
-                )}
-              </div>
-              <select className="input text-sm py-1.5 min-w-[160px]" value={delivery.filters.finalStatus} onChange={(e) => delivery.setFilter('finalStatus', e.target.value)}>
-                <option value="">Tất cả trạng thái</option>
-                {Object.entries({ COMPLETED: 'Hoàn tất', CANCELLED: 'Đã hủy', EXPIRED: 'Hết hạn', INCOMPLETED: 'Chưa hoàn tất' }).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select className="input text-sm py-1.5 min-w-[140px]" value={delivery.filters.receivingUnit} onChange={(e) => delivery.setFilter('receivingUnit', e.target.value)}>
-                <option value="">Tất cả đơn vị</option>
-                {units.map((unit) => (
-                  <option key={unit.id} value={unit.unit}>{unit.shortName || unit.displayName || unit.unit}</option>
-                ))}
-              </select>
-              <select className="input text-sm py-1.5 min-w-[140px]" value={delivery.filters.goodsType} onChange={(e) => delivery.setFilter('goodsType', e.target.value)}>
-                <option value="">Tất cả loại hàng</option>
-                {Object.entries(GOODS_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <select className="input text-sm py-1.5 min-w-[120px]" value={delivery.filters.vehicleType} onChange={(e) => delivery.setFilter('vehicleType', e.target.value)}>
-                <option value="">Tất cả xe</option>
-                {Object.entries(VEHICLE_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-              </select>
-              <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5">
-                <span className="text-xs text-thiso-400">Từ</span>
-                <input type="date" value={delivery.filters.from} onChange={(e) => delivery.setFilter('from', e.target.value)}
-                  className="text-sm text-thiso-700 bg-transparent outline-none" />
-              </div>
-              <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5">
-                <span className="text-xs text-thiso-400">Đến</span>
-                <input type="date" value={delivery.filters.to} onChange={(e) => delivery.setFilter('to', e.target.value)}
-                  className="text-sm text-thiso-700 bg-transparent outline-none" />
-              </div>
-              <ColumnToggle columns={DELIVERY_COLUMNS} visibleKeys={deliveryVisible} onChange={setDeliveryVisible} />
-              {delivery.data && <span className="text-xs text-thiso-400 self-center">Tổng: {delivery.data.total.toLocaleString()}</span>}
-            </div>
+            <Space wrap>
+              <Input allowClear aria-label="Tìm lịch sử giao hàng" placeholder="Tìm mã chuyến, nhà CC, tài xế, biển số..." value={delivery.search} onChange={e => delivery.setSearch(e.target.value)} style={{ width: 260 }} />
+              <Select aria-label="Trạng thái" value={delivery.filters.finalStatus} onChange={v => delivery.setFilter('finalStatus', v)} style={{ minWidth: 160 }} options={[{value:'',label:'Tất cả trạng thái'}, ...Object.entries({ COMPLETED:'Hoàn tất', CANCELLED:'Đã hủy', EXPIRED:'Hết hạn', INCOMPLETED:'Chưa hoàn tất' }).map(([value,label]) => ({value,label}))]} />
+              <Select aria-label="Đơn vị" value={delivery.filters.receivingUnit} onChange={v => delivery.setFilter('receivingUnit', v)} style={{ minWidth: 160 }} options={[{value:'',label:'Tất cả đơn vị'}, ...units.map(u => ({value:u.unit,label:u.shortName || u.displayName || u.unit}))]} />
+              <Select aria-label="Loại hàng" value={delivery.filters.goodsType} onChange={v => delivery.setFilter('goodsType', v)} style={{ minWidth: 160 }} options={[{value:'',label:'Tất cả loại hàng'}, ...Object.entries(GOODS_LABEL).map(([value,label]) => ({value,label}))]} />
+              <Select aria-label="Loại xe" value={delivery.filters.vehicleType} onChange={v => delivery.setFilter('vehicleType', v)} style={{ minWidth: 140 }} options={[{value:'',label:'Tất cả xe'}, ...Object.entries(VEHICLE_LABEL).map(([value,label]) => ({value,label}))]} />
+              <DatePicker aria-label="Từ ngày" value={delivery.filters.from ? dayjs(delivery.filters.from) : null} onChange={d => delivery.setFilter('from', d ? d.format('YYYY-MM-DD') : '')} />
+              <DatePicker aria-label="Đến ngày" value={delivery.filters.to ? dayjs(delivery.filters.to) : null} onChange={d => delivery.setFilter('to', d ? d.format('YYYY-MM-DD') : '')} />
+              <ColumnToggle columns={DELIVERY_COLUMNS} visibleKeys={deliveryVisible} onChange={setDeliveryVisible} />{delivery.data && <Typography.Text type="secondary">Tổng: {delivery.data.total.toLocaleString()}</Typography.Text>}
+            </Space>
 
+            {delivery.isError && <Alert type="error" showIcon message="Không thể tải lịch sử giao hàng" action={<Button onClick={() => delivery.refetch()}>Thử lại</Button>} />}
             <DeliveryTable
               items={delivery.data?.items ?? []}
               isLoading={delivery.isLoading}
@@ -167,55 +121,17 @@ export default function Histories() {
         {tab === 'audit' && (
           <div className="space-y-4">
             {/* Filters */}
-            <div className="flex flex-wrap gap-2">
-              <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5 min-w-[220px]">
-                <span className="text-thiso-400 text-sm">🔍</span>
-                <input
-                  type="text"
-                  placeholder="Tìm actor, hành động, đối tượng..."
-                  value={audit.search}
-                  onChange={(e) => audit.setSearch(e.target.value)}
-                  className="flex-1 text-sm text-thiso-700 bg-transparent outline-none placeholder:text-thiso-300"
-                />
-                {audit.search && (
-                  <button onClick={() => audit.setSearch('')} className="text-thiso-300 hover:text-thiso-500 text-xs">✕</button>
-                )}
-              </div>
-              <select className="input text-sm py-1.5 min-w-[140px]" value={audit.filters.actorType} onChange={(e) => audit.setFilter('actorType', e.target.value)}>
-                <option value="">Tất cả actor</option>
-                <option value="USER">Người dùng</option>
-                <option value="STAFF">Nhân viên</option>
-                <option value="DEVICE">Thiết bị</option>
-                <option value="SYSTEM">Hệ thống</option>
-              </select>
-              <input
-                type="text"
-                placeholder="Hành động..."
-                value={audit.filters.action}
-                onChange={(e) => audit.setFilter('action', e.target.value)}
-                className="input text-sm py-1.5 min-w-[160px]"
-              />
-              <input
-                type="text"
-                placeholder="Đối tượng..."
-                value={audit.filters.targetType}
-                onChange={(e) => audit.setFilter('targetType', e.target.value)}
-                className="input text-sm py-1.5 min-w-[160px]"
-              />
-              <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5">
-                <span className="text-xs text-thiso-400">Từ</span>
-                <input type="date" value={audit.filters.from} onChange={(e) => audit.setFilter('from', e.target.value)}
-                  className="text-sm text-thiso-700 bg-transparent outline-none" />
-              </div>
-              <div className="flex items-center gap-2 bg-white border border-thiso-200 rounded-xl px-3 py-1.5">
-                <span className="text-xs text-thiso-400">Đến</span>
-                <input type="date" value={audit.filters.to} onChange={(e) => audit.setFilter('to', e.target.value)}
-                  className="text-sm text-thiso-700 bg-transparent outline-none" />
-              </div>
-              <ColumnToggle columns={AUDIT_COLUMNS} visibleKeys={auditVisible} onChange={setAuditVisible} />
-              {audit.data && <span className="text-xs text-thiso-400 self-center">Tổng: {audit.data.total.toLocaleString()}</span>}
-            </div>
+            <Space wrap>
+              <Input allowClear aria-label="Tìm audit" placeholder="Tìm actor, hành động, đối tượng..." value={audit.search} onChange={e => audit.setSearch(e.target.value)} style={{ width: 250 }} />
+              <Select aria-label="Loại actor" value={audit.filters.actorType} onChange={v => audit.setFilter('actorType', v)} style={{ minWidth: 150 }} options={[{value:'',label:'Tất cả actor'}, {value:'USER',label:'Người dùng'}, {value:'STAFF',label:'Nhân viên'}, {value:'DEVICE',label:'Thiết bị'}, {value:'SYSTEM',label:'Hệ thống'}]} />
+              <Input aria-label="Hành động" placeholder="Hành động..." value={audit.filters.action} onChange={e => audit.setFilter('action', e.target.value)} style={{ width: 160 }} />
+              <Input aria-label="Đối tượng" placeholder="Đối tượng..." value={audit.filters.targetType} onChange={e => audit.setFilter('targetType', e.target.value)} style={{ width: 160 }} />
+              <DatePicker aria-label="Từ ngày" value={audit.filters.from ? dayjs(audit.filters.from) : null} onChange={d => audit.setFilter('from', d ? d.format('YYYY-MM-DD') : '')} />
+              <DatePicker aria-label="Đến ngày" value={audit.filters.to ? dayjs(audit.filters.to) : null} onChange={d => audit.setFilter('to', d ? d.format('YYYY-MM-DD') : '')} />
+              <ColumnToggle columns={AUDIT_COLUMNS} visibleKeys={auditVisible} onChange={setAuditVisible} />{audit.data && <Typography.Text type="secondary">Tổng: {audit.data.total.toLocaleString()}</Typography.Text>}
+            </Space>
 
+            {audit.isError && <Alert type="error" showIcon message="Không thể tải nhật ký" action={<Button onClick={() => audit.refetch()}>Thử lại</Button>} />}
             <AuditTable
               items={audit.data?.items ?? []}
               isLoading={audit.isLoading}

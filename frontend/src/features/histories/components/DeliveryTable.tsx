@@ -1,7 +1,8 @@
+import { Button, Table, Tag } from 'antd';
 import type { DeliveryHistoryItem, DeliverySortField, SortDir } from '../types';
-import { STATUS_LABEL, STATUS_COLOR, GOODS_LABEL, VEHICLE_LABEL } from '../constants';
+import { STATUS_LABEL, GOODS_LABEL, VEHICLE_LABEL } from '../constants';
 import { formatDateTime } from '../formatters';
-import { CellHeader, EmptyStateRow, Pagination, SortHeader } from './TableParts';
+import { CellHeader, Pagination, SortHeader } from './TableParts';
 import { unitPresentation } from '../../../lib/unitPresentation';
 
 interface DeliveryTableProps {
@@ -33,7 +34,7 @@ export default function DeliveryTable({
     },
     goodsType: { header: <SortHeader field="goodsType" label="Loại hàng" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{GOODS_LABEL[d.goodsType] ?? d.goodsType}</span> },
     vehicleType: { header: <SortHeader field="vehicleType" label="Loại xe" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType}</span> },
-    finalStatus: { header: <SortHeader field="finalStatus" label="Trạng thái" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${STATUS_COLOR[d.finalStatus] ?? 'bg-thiso-100 text-thiso-600'}`}>{STATUS_LABEL[d.finalStatus] ?? d.finalStatus}</span> },
+    finalStatus: { header: <SortHeader field="finalStatus" label="Trạng thái" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <Tag color={d.finalStatus === 'COMPLETED' ? 'success' : 'default'}>{STATUS_LABEL[d.finalStatus] ?? d.finalStatus}</Tag> },
     ticketNumber: { header: <SortHeader field="ticketNumber" label="Số phiếu" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs font-mono">{d.ticketNumber ?? '—'}</span> },
     assignedSlotCode: { header: <CellHeader label="Slot" />, render: (d) => <span className="text-xs font-mono text-thiso-500">{d.assignedSlotCode ?? '—'}</span> },
     callCount: { header: <SortHeader field="callCount" label="Số lần gọi" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{d.callCount}</span> },
@@ -46,40 +47,5 @@ export default function DeliveryTable({
     archivedAt: { header: <SortHeader field="archivedAt" label="Thời gian lưu trữ" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.archivedAt)}</span> },
   };
 
-  return (
-    <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden shadow-sm">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-thiso-50 text-xs text-thiso-400 uppercase border-b border-thiso-100 text-left">
-              {visibleColumns.map((key) => (
-                <th key={key} className="px-3 py-3 hover:bg-thiso-100">{COL_MAP[key]?.header}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading && (
-              <EmptyStateRow colSpan={visibleColumns.length}>Đang tải...</EmptyStateRow>
-            )}
-            {!isLoading && items.length === 0 && (
-              <EmptyStateRow colSpan={visibleColumns.length}>Không có dữ liệu</EmptyStateRow>
-            )}
-            {items.map((d) => (
-              <tr
-                key={d.id}
-                className="border-b border-thiso-50 last:border-0 hover:bg-thiso-50/40 transition-colors cursor-pointer"
-                onDoubleClick={() => onRowDoubleClick(d)}
-                title="Double-click để xem timeline"
-              >
-                {visibleColumns.map((key) => (
-                  <td key={key} className="px-3 py-2.5">{COL_MAP[key]?.render(d)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <Pagination page={page} pages={pages} total={total} onPageChange={onPageChange} />
-    </div>
-  );
+  return <div><Table<DeliveryHistoryItem> rowKey="id" loading={isLoading} dataSource={items} pagination={false} scroll={{ x: 'max-content' }} columns={[...visibleColumns.filter(key => COL_MAP[key]).map(key => ({ key, title: COL_MAP[key].header, render: (_: unknown, item: DeliveryHistoryItem) => COL_MAP[key].render(item) })), { key: 'detail', title: 'Chi tiết', render: (_: unknown, item: DeliveryHistoryItem) => <Button onClick={() => onRowDoubleClick(item)}>Xem</Button> }]} /><Pagination page={page} pages={pages} total={total} onPageChange={onPageChange} /></div>;
 }

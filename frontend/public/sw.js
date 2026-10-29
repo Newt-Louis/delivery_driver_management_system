@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'mall-delivery-pwa-v3';
+const CACHE_VERSION = 'mall-delivery-pwa-v4';
 const APP_SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -44,7 +44,7 @@ self.addEventListener('activate', (event) => {
     caches.keys()
       .then((keys) => Promise.all(
         keys
-          .filter((key) => ![APP_SHELL_CACHE, RUNTIME_CACHE].includes(key))
+          .filter((key) => ![APP_SHELL_CACHE, RUNTIME_CACHE, 'driver-notice-receipts-v1'].includes(key))
           .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
@@ -92,66 +92,66 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
-self.addEventListener('push', (event) => {
-  if (!event.data) {
-    console.warn('[SW Push] No data in push event');
+// Serialise push receipts: delayed WAITING must never replace a newer CALLED.
+let pushWork = Promise.resolve();
+const RECEIPTS_CACHE = 'driver-notice-receipts-v1';
+
+async function selectedCode(client) {
+  return new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const timer = setTimeout(() => { channel.port1.close(); resolve(null); }, 400);
+    channel.port1.onmessage = (event) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      resolve(event.data?.code ?? null);
+    };
+    client.postMessage({ type: 'driver-notification-context' }, [channel.port2]);
+  });
+}
+
+async function handleDriverPush(payload) {
+  const code = payload.deliveryCode;
+  if (!code) return;
+  const receiptUrl = new URL('/__driver-notice/' + encodeURIComponent(code), self.location.origin).href;
+  const cache = await caches.open(RECEIPTS_CACHE);
+  const previousResponse = await cache.match(receiptUrl);
+  const previous = previousResponse ? await previousResponse.json() : null;
+  const obsolete = previous && (previous.eventId === payload.eventId
+    || (previous.occurredAt && payload.occurredAt && previous.occurredAt > payload.occurredAt)
+    || ['COMPLETED', 'CANCELLED', 'EXPIRED', 'INCOMPLETED'].includes(previous.status));
+  if (obsolete) {
+    // Every received push must remain user-visible on Safari. Re-present the
+    // latest notice silently instead of sounding/replacing it with stale data.
+    await self.registration.showNotification(previous.title, {
+      body: previous.body, tag: 'delivery:' + code, silent: true,
+      icon: '/icons/icon-192.png', data: { url: '/track/' + encodeURIComponent(code), deliveryCode: code },
+    });
     return;
   }
+  const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const focused = windows.find((client) => client.focused && client.visibilityState === 'visible');
+  const personalForeground = focused && await selectedCode(focused) === code;
+  windows.forEach((client) => client.postMessage({ type: 'driver-push-received', payload }));
+  await self.registration.showNotification(payload.title || 'Thông báo chuyến giao hàng', {
+    body: payload.body || '', icon: '/icons/icon-192.png', badge: '/icons/maskable-192.png',
+    tag: 'delivery:' + code, renotify: !personalForeground,
+    requireInteraction: payload.status === 'CALLED',
+    ...(personalForeground ? { silent: true } : { vibrate: [300, 120, 300, 120, 600] }),
+    data: { url: '/track/' + encodeURIComponent(code), deliveryCode: code },
+  });
+  await cache.put(receiptUrl, new Response(JSON.stringify({
+    eventId: payload.eventId, occurredAt: payload.occurredAt, status: payload.status,
+    title: payload.title || 'Thông báo chuyến giao hàng', body: payload.body || '',
+  }), { headers: { 'Content-Type': 'application/json' } }));
+  await trimCache(RECEIPTS_CACHE, 30);
+}
 
+self.addEventListener('push', (event) => {
+  if (!event.data) return;
   let payload;
-  try {
-    payload = event.data.json();
-    console.log('[SW Push] Received push payload:', payload);
-  } catch {
-    payload = { title: 'Mall Delivery', body: event.data.text() };
-    console.log('[SW Push] Fallback text payload:', payload);
-  }
-
-  const {
-    title = 'Mall Delivery',
-    body = '',
-    url,
-    tag,
-    icon = '/icons/icon-192.png',
-    badge = '/icons/maskable-192.png',
-    vibrate = [300, 120, 300, 120, 600],
-  } = payload;
-
-  const notificationTag = tag ?? 'mall-delivery';
-
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then((windowClients) => {
-        const focusedTrackClient = windowClients.find((client) => {
-          try {
-            const clientUrl = new URL(client.url);
-            return client.focused && clientUrl.origin === self.location.origin && clientUrl.pathname.startsWith(TRACK_PATH);
-          } catch {
-            return false;
-          }
-        });
-
-        if (focusedTrackClient) {
-          console.log('[SW Push] Track page focused, skipping system notification:', { title, body });
-          focusedTrackClient.postMessage({ type: 'track-push-received', payload });
-          return undefined;
-        }
-
-        console.log('[SW Push] Showing notification:', { title, body, tag: notificationTag, vibrate });
-        return self.registration.showNotification(title, {
-          body,
-          icon,
-          badge,
-          tag: notificationTag,
-          renotify: true,
-          requireInteraction: true,
-          data: { url: url ?? '/' },
-          vibrate,
-        });
-      })
-      .then(() => console.log('[SW Push] Push handled successfully'))
-      .catch((err) => console.error('[SW Push] Failed to show notification:', err))
-  );
+  try { payload = event.data.json(); } catch { return; }
+  pushWork = pushWork.catch(() => {}).then(() => handleDriverPush(payload));
+  event.waitUntil(pushWork);
 });
 
 self.addEventListener('notificationclick', (event) => {

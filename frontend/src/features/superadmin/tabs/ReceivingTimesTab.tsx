@@ -1,16 +1,17 @@
-import { FormEvent, useState } from 'react';
+import { useState } from 'react';
+import { Alert, Button, Form, InputNumber, Modal, Popconfirm, Select, Space, Tooltip } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
+import ReadOnlyMasterList, { type ReadOnlyScope } from '../components/ReadOnlyMasterList';
 import type { GoodsType, ReceivingTimeConfig, UnitConfig, VehicleType } from '../../../lib/types';
 import { unitPresentation } from '../../../lib/unitPresentation';
 import { superadminApi } from '../api';
-import { EmptyState, TableShell } from './shared';
 
-const VEHICLE_TYPES: VehicleType[] = ['TRUCK', 'MOTORBIKE', 'OTHER'];
+const VEHICLE_TYPES: VehicleType[] = ['TRUCK', 'MOTORBIKE'];
 const GOODS_TYPES: GoodsType[] = ['FRESH_FOOD', 'GENERAL_GOODS', 'AUTO_WAREHOUSE', 'THI_CONG'];
 
 const VEHICLE_LABELS: Record<VehicleType, string> = {
   TRUCK: 'Xe tải',
   MOTORBIKE: 'Xe máy',
-  OTHER: 'Khác',
 };
 
 const GOODS_LABELS: Record<GoodsType, string> = {
@@ -52,12 +53,13 @@ function ReceivingTimeForm({
   units,
   editing,
   onCancel,
-  onDone,
+  onDone, onSavingChange,
 }: {
   units: UnitConfig[];
   editing?: ReceivingTimeConfig | null;
   onCancel?: () => void;
   onDone: () => void;
+  onSavingChange: (saving: boolean) => void;
 }) {
   const [form, setForm] = useState<TimeForm>(() => formFromItem(editing ?? undefined, units));
   const [error, setError] = useState('');
@@ -67,64 +69,14 @@ function ReceivingTimeForm({
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    try {
-      const payload = payloadFromForm(form);
-      if (editing) {
-        await superadminApi.updateReceivingTime(editing.id, {
-          configuredMinutes: payload.configuredMinutes,
-          recommendedMinutes: payload.recommendedMinutes,
-        });
-      } else {
-        await superadminApi.createReceivingTime(payload);
-      }
-      onDone();
-      if (!isEdit) setForm(formFromItem(undefined, units));
-    } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được cấu hình thời gian.');
-    }
+  const [saving, setSaving] = useState(false);
+  async function submit() {
+    setError(''); setSaving(true); onSavingChange(true);
+    try { const payload = payloadFromForm(form); if (editing) await superadminApi.updateReceivingTime(editing.id, { configuredMinutes: payload.configuredMinutes, recommendedMinutes: payload.recommendedMinutes }); else await superadminApi.createReceivingTime(payload); onDone(); if (!isEdit) setForm(formFromItem(undefined, units)); }
+    catch (err) { setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được cấu hình thời gian.'); } finally { setSaving(false); onSavingChange(false); }
   }
+  return <Form layout="vertical" onFinish={submit}><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-4"><Form.Item label="Đơn vị" required><Select value={form.unitConfigId || undefined} onChange={v => set('unitConfigId', v)} disabled={isEdit} options={units.map(u => { const meta = unitPresentation(u.unit, u); return { value: u.id, label: `${meta.shortName} - ${meta.label}` }; })} /></Form.Item><Form.Item label="Phương tiện"><Select value={form.vehicleType} disabled={isEdit} onChange={v => set('vehicleType', v)} options={VEHICLE_TYPES.map(v => ({ value: v, label: VEHICLE_LABELS[v] }))} /></Form.Item><Form.Item label="Loại hàng"><Select value={form.goodsType} disabled={isEdit} onChange={v => set('goodsType', v)} options={GOODS_TYPES.map(v => ({ value: v, label: GOODS_LABELS[v] }))} /></Form.Item><Form.Item label="Phút cấu hình" required><InputNumber min={1} max={1440} value={Number(form.configuredMinutes) || null} onChange={v => set('configuredMinutes', v === null ? '' : String(v))} /></Form.Item><Form.Item label="Phút đề xuất"><InputNumber min={1} max={1440} value={form.recommendedMinutes ? Number(form.recommendedMinutes) : null} onChange={v => set('recommendedMinutes', v === null ? '' : String(v))} /></Form.Item></div>{error && <Alert type="error" message={error} />}<Space><Button type="primary" htmlType="submit" loading={saving} disabled={!units.length || !form.unitConfigId || !form.configuredMinutes}>{isEdit ? 'Lưu' : 'Tạo cấu hình'}</Button><Button onClick={onCancel} disabled={saving}>Hủy</Button></Space></Form>;
 
-  return (
-    <form onSubmit={submit} className="grid md:grid-cols-6 gap-3 items-end">
-      <label className="grid gap-1 md:col-span-2">
-        <span className="label">Đơn vị</span>
-        <select className="input" value={form.unitConfigId} onChange={(e) => set('unitConfigId', e.target.value)} disabled={isEdit} required>
-          {units.map((unit) => {
-            const unitInfo = unitPresentation(unit.unit, unit);
-            return <option key={unit.id} value={unit.id}>{unitInfo.shortName} - {unitInfo.label}</option>;
-          })}
-        </select>
-      </label>
-      <label className="grid gap-1">
-        <span className="label">Phương tiện</span>
-        <select className="input" value={form.vehicleType} onChange={(e) => set('vehicleType', e.target.value as VehicleType)} disabled={isEdit}>
-          {VEHICLE_TYPES.map((type) => <option key={type} value={type}>{VEHICLE_LABELS[type]}</option>)}
-        </select>
-      </label>
-      <label className="grid gap-1">
-        <span className="label">Loại hàng</span>
-        <select className="input" value={form.goodsType} onChange={(e) => set('goodsType', e.target.value as GoodsType)} disabled={isEdit}>
-          {GOODS_TYPES.map((type) => <option key={type} value={type}>{GOODS_LABELS[type]}</option>)}
-        </select>
-      </label>
-      <label className="grid gap-1">
-        <span className="label">Phút cấu hình</span>
-        <input className="input" type="number" min={1} max={1440} value={form.configuredMinutes} onChange={(e) => set('configuredMinutes', e.target.value)} required />
-      </label>
-      <label className="grid gap-1">
-        <span className="label">Phút đề xuất</span>
-        <input className="input" type="number" min={1} max={1440} value={form.recommendedMinutes} onChange={(e) => set('recommendedMinutes', e.target.value)} placeholder="-" />
-      </label>
-      <div className="md:col-span-6 flex gap-2">
-        <button className="btn btn-primary" type="submit" disabled={units.length === 0}>{isEdit ? 'Lưu' : 'Tạo cấu hình'}</button>
-        {isEdit && <button className="btn btn-secondary" type="button" onClick={onCancel}>Hủy</button>}
-      </div>
-      {error && <div className="md:col-span-6 text-sm text-red-600">{error}</div>}
-    </form>
-  );
 }
 
 function fmtDate(value?: string | null) {
@@ -132,92 +84,44 @@ function fmtDate(value?: string | null) {
   return new Date(value).toLocaleString('vi-VN');
 }
 
+const getReceivingTimeName = (item: ReceivingTimeConfig) => unitPresentation(item.unit, item.unitConfig).label;
+
 export default function ReceivingTimesTab({
   receivingTimes,
   units,
-  onRefresh,
+  onRefresh, scope,
 }: {
   receivingTimes: ReceivingTimeConfig[];
   units: UnitConfig[];
   onRefresh: () => void;
+  scope: ReadOnlyScope;
 }) {
   const [editing, setEditing] = useState<ReceivingTimeConfig | null>(null);
   const [error, setError] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   async function remove(item: ReceivingTimeConfig) {
-    if (!window.confirm('Xóa cấu hình thời gian nhận hàng này?')) return;
-    setError('');
+    setError(''); setDeleting(item.id);
     try {
       await superadminApi.deleteReceivingTime(item.id);
       if (editing?.id === item.id) setEditing(null);
       onRefresh();
     } catch (err) {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không xóa được cấu hình thời gian.');
-    }
+    } finally { setDeleting(null); }
   }
 
-  return (
-    <section className="space-y-4">
-      <div className="card">
-        <h2 className="section-heading mb-4">{editing ? 'Chỉnh cấu hình thời gian' : 'Tạo cấu hình thời gian'}</h2>
-        <ReceivingTimeForm
-          key={editing?.id ?? 'create'}
-          units={units}
-          editing={editing}
-          onCancel={() => setEditing(null)}
-          onDone={() => {
-            setEditing(null);
-            onRefresh();
-          }}
-        />
-      </div>
-      {error && <div className="text-sm text-red-600">{error}</div>}
-      {receivingTimes.length === 0 ? (
-        <EmptyState />
-      ) : (
-        <TableShell>
-          <table className="w-full text-sm">
-            <thead className="bg-thiso-50 text-left text-thiso-500">
-              <tr>
-                <th className="p-3 font-medium">Đơn vị</th>
-                <th className="p-3 font-medium">Phương tiện</th>
-                <th className="p-3 font-medium">Loại hàng</th>
-                <th className="p-3 font-medium">Cấu hình</th>
-                <th className="p-3 font-medium">Đề xuất</th>
-                <th className="p-3 font-medium">Mẫu</th>
-                <th className="p-3 font-medium">Phân tích</th>
-                <th className="p-3 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {receivingTimes.map((item) => {
-                const unit = item.unitConfig ?? units.find((config) => config.id === item.unitConfigId);
-                const unitInfo = unitPresentation(item.unit, unit);
-                return (
-                  <tr key={item.id} className="border-t border-thiso-100">
-                    <td className="p-3">
-                      <div className="font-medium text-thiso-800">{unitInfo.shortName}</div>
-                      <div className="text-xs text-thiso-400">{unitInfo.label}</div>
-                    </td>
-                    <td className="p-3">{VEHICLE_LABELS[item.vehicleType] ?? item.vehicleType}</td>
-                    <td className="p-3">{GOODS_LABELS[item.goodsType] ?? item.goodsType}</td>
-                    <td className="p-3">{item.configuredMinutes} phút</td>
-                    <td className="p-3">{item.recommendedMinutes ? `${item.recommendedMinutes} phút` : '-'}</td>
-                    <td className="p-3">{item.sampleCount ?? 0}</td>
-                    <td className="p-3">{fmtDate(item.lastAnalyzedAt)}</td>
-                    <td className="p-3">
-                      <div className="flex gap-2">
-                        <button className="btn btn-secondary btn-sm" type="button" onClick={() => setEditing(item)}>Edit</button>
-                        <button className="btn btn-danger btn-sm" type="button" onClick={() => remove(item)}>Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </TableShell>
-      )}
-    </section>
-  );
+  const fields = [
+    { key: 'unit', title: 'Đơn vị', value: (item: ReceivingTimeConfig) => { const u = unitPresentation(item.unit, item.unitConfig ?? units.find(c => c.id === item.unitConfigId)); return `${u.shortName} - ${u.label}`; } },
+    { key: 'vehicle', title: 'Phương tiện', value: (item: ReceivingTimeConfig) => VEHICLE_LABELS[item.vehicleType] ?? item.vehicleType },
+    { key: 'goods', title: 'Loại hàng', value: (item: ReceivingTimeConfig) => GOODS_LABELS[item.goodsType] ?? item.goodsType },
+    { key: 'configured', title: 'Cấu hình', value: (item: ReceivingTimeConfig) => `${item.configuredMinutes} phút` },
+    { key: 'recommended', title: 'Đề xuất', value: (item: ReceivingTimeConfig) => item.recommendedMinutes ? `${item.recommendedMinutes} phút` : '—' },
+    { key: 'sample', title: 'Mẫu', value: (item: ReceivingTimeConfig) => item.sampleCount ?? 0 },
+    { key: 'analyzed', title: 'Phân tích', value: (item: ReceivingTimeConfig) => fmtDate(item.lastAnalyzedAt) },
+  ];
+  function actions(item: ReceivingTimeConfig) { return <Space size="small"><Tooltip title="Chỉnh cấu hình"><Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Sửa cấu hình ${item.unit} ${item.vehicleType} ${item.goodsType}`} onClick={() => setEditing(item)} /></Tooltip><Popconfirm title="Xóa cấu hình thời gian nhận hàng này?" onConfirm={() => remove(item)}><Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa cấu hình ${item.unit} ${item.vehicleType} ${item.goodsType}`} loading={deleting === item.id} /></Popconfirm></Space>; }
+  return <Space orientation="vertical" size="large" className="w-full">{error && <Alert type="error" message={error} showIcon />}<ReadOnlyMasterList items={receivingTimes} scope={scope} fields={fields} getName={getReceivingTimeName} searchLabel="Tìm tên đơn vị" emptyLabel="Không có cấu hình phù hợp" createAction={<Button type="primary" icon={<PlusOutlined />} disabled={!units.length} onClick={() => setCreating(true)}>Thêm cấu hình</Button>} actions={actions} />{(creating || editing) && <Modal open title={editing ? 'Chỉnh cấu hình thời gian' : 'Tạo cấu hình thời gian'} footer={null} onCancel={() => { setCreating(false); setEditing(null); }} closable={!saving} maskClosable={!saving} keyboard={!saving} destroyOnHidden><ReceivingTimeForm key={editing?.id ?? 'create'} units={units} editing={editing} onSavingChange={setSaving} onCancel={() => { setCreating(false); setEditing(null); }} onDone={() => { setCreating(false); setEditing(null); onRefresh(); }} /></Modal>}</Space>;
 }

@@ -7,7 +7,7 @@ const registerSchema = z.object({
   driverName: z.string().default(''),
   driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
   vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),
-  vehicleType: z.nativeEnum(VehicleType).default(VehicleType.OTHER),
+  vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
   receivingUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
   businessLocationId: z.string().min(1).optional(),
   unitConfigId: z.string().min(1).optional(),

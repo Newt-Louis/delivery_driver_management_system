@@ -77,8 +77,8 @@ export function findZoneForUnit(zoneId: string) {
   });
 }
 
-export function findSlotByCode(code: string) {
-  return prisma.slot.findUnique({ where: { code } });
+export function findSlotByCode(zoneId: string, code: string) {
+  return prisma.slot.findUnique({ where: { zoneId_code: { zoneId, code } } });
 }
 
 export function createSlot(data: CreateSlotPayload) {

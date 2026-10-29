@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ApiOutlined, AppstoreOutlined, ClockCircleOutlined, ClusterOutlined, CodeOutlined, DatabaseOutlined, EnvironmentOutlined, SettingOutlined, TeamOutlined, TruckOutlined } from '@ant-design/icons';
+import { Alert, Button, Spin, Typography } from 'antd';
+import AdminSectionFrame, { type AdminSectionItem } from '../components/layout/AdminSectionFrame';
 import { superadminApi } from '../features/superadmin/api';
 import type { SuperadminTab } from '../features/superadmin/types';
 import AppConfigsTab from '../features/superadmin/tabs/AppConfigsTab';
@@ -26,26 +29,40 @@ const TABS: Array<[SuperadminTab, string]> = [
   ['receivingTimes', 'Receiving times'],
 ];
 
+const SECTION_ICONS: Record<SuperadminTab, React.ReactNode> = {
+  locations: <EnvironmentOutlined />,
+  units: <AppstoreOutlined />,
+  zones: <ClusterOutlined />,
+  slots: <DatabaseOutlined />,
+  users: <TeamOutlined />,
+  goods: <AppstoreOutlined />,
+  windows: <ClockCircleOutlined />,
+  awvendors: <TruckOutlined />,
+  devices: <ApiOutlined />,
+  appconfigs: <SettingOutlined />,
+  apiconfigs: <CodeOutlined />,
+  receivingTimes: <ClockCircleOutlined />,
+};
+
 export default function Superadmin() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<SuperadminTab>('locations');
   const [businessLocationId, setBusinessLocationId] = useState('');
   const [unitConfigId, setUnitConfigId] = useState('');
 
-  const needsLocations = ['locations', 'units', 'users', 'goods', 'windows', 'devices', 'receivingTimes'].includes(activeTab);
+  const needsLocations = ['locations', 'units', 'users', 'goods', 'windows', 'awvendors', 'devices', 'receivingTimes'].includes(activeTab);
   const needsUnitOptions = ['units', 'goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
-  const showsLocationFilter = ['goods', 'windows', 'awvendors', 'devices', 'receivingTimes'].includes(activeTab);
-  const showsUnitFilter = ['goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
 
   const locations = useQuery({
     queryKey: ['superadmin', 'locations'],
     queryFn: superadminApi.locations,
-    enabled: needsLocations || showsLocationFilter,
+    enabled: needsLocations,
   });
   const units = useQuery({
     queryKey: ['superadmin', 'units', businessLocationId],
     queryFn: () => superadminApi.units({ businessLocationId: businessLocationId || undefined }),
-    enabled: needsUnitOptions || showsUnitFilter,
+    placeholderData: (previous) => previous,
+    enabled: needsUnitOptions,
   });
   const userUnits = useQuery({
     queryKey: ['superadmin', 'units', 'users-all'],
@@ -56,29 +73,45 @@ export default function Superadmin() {
   const goodsTypes = useQuery({
     queryKey: ['superadmin', 'goods', businessLocationId, unitConfigId],
     queryFn: () => superadminApi.goodsTypes({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
+    placeholderData: (previous) => previous,
     enabled: activeTab === 'goods',
   });
   const timeWindows = useQuery({
     queryKey: ['superadmin', 'windows', businessLocationId, unitConfigId],
     queryFn: () => superadminApi.timeWindows({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
+    placeholderData: (previous) => previous,
     enabled: activeTab === 'windows',
   });
   const vendors = useQuery({
     queryKey: ['superadmin', 'vendors', businessLocationId, unitConfigId],
     queryFn: () => superadminApi.autoWarehouseVendors({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
+    placeholderData: (previous) => previous,
     enabled: activeTab === 'awvendors',
   });
   const devices = useQuery({
     queryKey: ['superadmin', 'devices', businessLocationId],
     queryFn: () => superadminApi.devices({ businessLocationId: businessLocationId || undefined }),
+    placeholderData: (previous) => previous,
     enabled: activeTab === 'devices',
   });
   const appConfigs = useQuery({ queryKey: ['superadmin', 'appconfigs'], queryFn: superadminApi.appConfigs, enabled: activeTab === 'appconfigs' || activeTab === 'apiconfigs' });
   const receivingTimes = useQuery({
     queryKey: ['superadmin', 'receiving-times', businessLocationId, unitConfigId],
     queryFn: () => superadminApi.receivingTimeConfigs({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
+    placeholderData: (previous) => previous,
     enabled: activeTab === 'receivingTimes',
   });
+
+  const tabQueries = {
+    locations: [locations], units: [locations, units], users: [locations, userUnits, users],
+    goods: [locations, units, goodsTypes], windows: [locations, units, timeWindows],
+    awvendors: [locations, units, vendors], devices: [locations, devices],
+    appconfigs: [appConfigs], apiconfigs: [appConfigs], receivingTimes: [locations, units, receivingTimes],
+    zones: [], slots: [],
+  };
+  const currentQueries = tabQueries[activeTab].filter(query => query.fetchStatus !== 'idle' || query.data !== undefined || query.isError);
+  const loadingTab = currentQueries.some(query => query.isLoading);
+  const failedQueries = currentQueries.filter(query => query.isError);
 
   const allLocations = locations.data ?? [];
   const allUnits = units.data ?? [];
@@ -86,6 +119,7 @@ export default function Superadmin() {
     () => allUnits.filter((unit) => !businessLocationId || unit.businessLocationId === businessLocationId),
     [allUnits, businessLocationId],
   );
+  const sectionItems: AdminSectionItem[] = TABS.map(([key, label]) => ({ key, label, icon: SECTION_ICONS[key] }));
 
   function refreshActiveTab() {
     switch (activeTab) {
@@ -142,62 +176,39 @@ export default function Superadmin() {
       case 'users':
         return <UsersTab users={users.data ?? []} locations={allLocations} units={userUnits.data ?? []} onRefresh={refreshActiveTab} />;
       case 'goods':
-        return <GoodsTypesTab goodsTypes={goodsTypes.data ?? []} />;
+        return <GoodsTypesTab goodsTypes={goodsTypes.data ?? []} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'windows':
-        return <TimeWindowsTab timeWindows={timeWindows.data ?? []} />;
+        return <TimeWindowsTab timeWindows={timeWindows.data ?? []} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'awvendors':
-        return <AwVendorsTab vendors={vendors.data ?? []} units={allUnits} onRefresh={refreshActiveTab} />;
+        return <AwVendorsTab vendors={vendors.data ?? []} units={allUnits} onRefresh={refreshActiveTab} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'devices':
-        return <DevicesTab devices={devices.data ?? []} locations={allLocations} onRefresh={refreshActiveTab} />;
+        return <DevicesTab devices={devices.data ?? []} locations={allLocations} onRefresh={refreshActiveTab} scope={{ locations: allLocations, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'appconfigs':
         return <AppConfigsTab appConfigs={(appConfigs.data ?? []).filter((c) => !c.key.startsWith('api.settings.'))} onRefresh={refreshActiveTab} />;
       case 'apiconfigs':
         return <ApiConfigsTab apiConfigs={(appConfigs.data ?? []).filter((c) => c.key.startsWith('api.settings.'))} onRefresh={refreshActiveTab} />;
       case 'receivingTimes':
-        return <ReceivingTimesTab receivingTimes={receivingTimes.data ?? []} units={allUnits} onRefresh={refreshActiveTab} />;
+        return <ReceivingTimesTab receivingTimes={receivingTimes.data ?? []} units={allUnits} onRefresh={refreshActiveTab} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       default:
         return null;
     }
   }
 
   return (
-    <div className="max-w-7xl mx-auto py-6 px-4 space-y-6">
+    <AdminSectionFrame title="Superadmin" items={sectionItems} selectedKey={activeTab} onSelect={(key) => setActiveTab(key as SuperadminTab)}>
+    <div className="px-4 py-6 space-y-6">
       <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
-          <h1 className="page-title">Superadmin</h1>
-          <p className="text-sm text-thiso-400 mt-1">Master data toàn hệ thống, chỉ dành cho tài khoản SUPERADMIN duy nhất.</p>
+          <Typography.Title level={1} className="!mb-1 !text-2xl">Superadmin</Typography.Title>
+          <Typography.Text type="secondary">Master data toàn hệ thống, chỉ dành cho tài khoản SUPERADMIN duy nhất.</Typography.Text>
         </div>
-        {(showsLocationFilter || showsUnitFilter) && (
-          <div className="grid sm:grid-cols-2 gap-3 min-w-[320px]">
-            {showsLocationFilter && (
-              <select className="input" value={businessLocationId} onChange={(e) => changeBusinessLocation(e.target.value)}>
-                <option value="">Tất cả locations</option>
-                {allLocations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
-              </select>
-            )}
-            {showsUnitFilter && (
-              <select className="input" value={unitConfigId} onChange={(e) => setUnitConfigId(e.target.value)}>
-                <option value="">Tất cả units</option>
-                {selectedLocationUnits.map((unit) => <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName}</option>)}
-              </select>
-            )}
-          </div>
-        )}
+
       </div>
 
-      <div className="flex gap-1 border-b border-thiso-200">
-        {TABS.map(([tab, label]) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-4 py-2.5 text-sm font-medium rounded-t-lg transition-colors whitespace-nowrap ${activeTab === tab ? 'bg-white border border-b-white border-thiso-200 text-thiso-800 font-semibold -mb-px' : 'text-thiso-400 hover:text-thiso-700'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {renderTab()}
+      {loadingTab && <Spin tip="Đang tải dữ liệu"><div style={{ minHeight: 100 }} /></Spin>}
+      {failedQueries.length > 0 && <Alert type="error" showIcon message="Không thể tải dữ liệu" action={<Button onClick={() => failedQueries.forEach(query => query.refetch())}>Thử lại</Button>} />}
+      {!loadingTab && failedQueries.length === 0 && <Spin spinning={(activeTab === 'units' && units.isPlaceholderData && units.isFetching) || (activeTab === 'goods' && ((goodsTypes.isPlaceholderData && goodsTypes.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'windows' && ((timeWindows.isPlaceholderData && timeWindows.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'awvendors' && ((vendors.isPlaceholderData && vendors.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'devices' && devices.isPlaceholderData && devices.isFetching) || (activeTab === 'receivingTimes' && ((receivingTimes.isPlaceholderData && receivingTimes.isFetching) || (units.isPlaceholderData && units.isFetching)))} tip="Đang tải đơn vị">{renderTab()}</Spin>}
     </div>
+    </AdminSectionFrame>
   );
 }

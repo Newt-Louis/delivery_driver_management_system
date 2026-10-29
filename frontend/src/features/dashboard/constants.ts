@@ -4,13 +4,11 @@ import type { StatusFilter, VehicleTypeFilter } from './types';
 export const VEHICLE_LABEL: Record<VehicleType, string> = {
   TRUCK: '🚛 Tải',
   MOTORBIKE: '🛵 Xe máy',
-  OTHER: '🚗 Khác',
 };
 
 export const VEHICLE_FULL: Record<VehicleType, string> = {
   TRUCK: '🚛 Xe Tải',
   MOTORBIKE: '🛵 Xe Máy',
-  OTHER: '🚗 Khác',
 };
 
 export const GOODS_LABEL: Record<GoodsType, string> = {

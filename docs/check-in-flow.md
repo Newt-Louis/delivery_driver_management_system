@@ -22,15 +22,16 @@ File:
 API đang dùng:
 
 - `PATCH /api/deliveries/check-in-lookup`
-- `GET /api/deliveries?status=WAITING`
+- `GET /api/deliveries?status=REGISTERED` và `GET /api/deliveries?status=WAITING`.
 
 Chức năng:
 
 - Quét/nhập mã đăng ký.
 - Tìm bằng biển số.
 - Check-in lượt hợp lệ.
-- Xem danh sách xe đang chờ.
-- Export CSV danh sách waiting.
+- Xem danh sách đăng ký của ngày hiện tại theo giờ Việt Nam và danh sách xe đã check-in đang chờ gọi (`WAITING`), theo thứ tự check-in. Xe đã được gọi và mọi trạng thái khác không xuất hiện trong danh sách này.
+- Export CSV danh sách xe đã check-in đang chờ gọi.
+- Sau khi đăng nhập, `CHECKIN` đi tới `/check-in`; các route nội bộ khác không cho role này truy cập, còn các route public vẫn sử dụng bình thường.
 - Label/màu/ticket prefix đơn vị trên kết quả check-in và danh sách waiting đi qua `frontend/src/lib/unitPresentation.ts`, ưu tiên `delivery.unitConfig` và fallback generic theo `receivingUnit` nếu payload legacy thiếu metadata.
 
 Route:

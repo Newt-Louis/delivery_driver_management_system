@@ -148,9 +148,9 @@ export async function createSlot(body: CreateSlotPayload, user: AuthUser | undef
   assertCanAccessOperationalLocation(user, zone.unitConfig.businessLocationId);
   assertCanOperateUnit(user, zone.unitConfigId);
 
-  const exists = await slotRepository.findSlotByCode(body.code);
+  const exists = await slotRepository.findSlotByCode(body.zoneId, body.code);
   if (exists) {
-    throw domainError.conflict(`Mã slot "${body.code}" đã tồn tại.`);
+    throw domainError.conflict(`Mã slot "${body.code}" đã tồn tại trong khu này.`);
   }
 
   const zoneError = await slotRepository.validateZoneForUnit(body.zoneId, body.assignedUnit);

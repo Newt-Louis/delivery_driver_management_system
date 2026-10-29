@@ -1,124 +1,34 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { DeleteOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { Alert, Avatar, Button, Card, Col, ColorPicker, Empty, Flex, Form, Input, Result, Row, Space, Tooltip, Typography, Upload } from 'antd';
 import api from '../../../lib/api';
 import { useBranding } from '../../../context/BrandingContext';
 import type { UnitConfig } from '../../../lib/types';
-import DatafileImageUpload, { type DatafileImageValue } from '../../../components/DatafileImageUpload';
 import { hasPendingUploadFile, uploadDatafileAsset } from '../../../lib/datafileUpload';
+import AdaptiveGrid from '../../../components/AdaptiveGrid';
 
-function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
-  const [form, setForm]     = useState({
-    displayName:  unit.displayName  || unit.unit,
-    shortName:    unit.shortName    || unit.displayName || unit.unit,
-    description:  unit.description  || '',
-    icon:         unit.icon         || '',
-    logoUrl:      unit.logoUrl      ?? null as string | null,
-    logoOriginalName: undefined as string | undefined,
-    logoFile: undefined as File | undefined,
-    primaryColor: unit.primaryColor || '#1C1C1C',
-  });
+type BrandForm = {
+  displayName: string;
+  shortName: string;
+  description: string;
+  icon: string;
+  logoUrl: string | null;
+  logoOriginalName?: string;
+  logoFile?: File;
+  primaryColor: string;
+};
 
-  function setField(field: keyof typeof form, value: string | null | undefined) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
+function normalizeHexColor(value: string) {
+  const color = value.trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(color)) return color;
+  if (/^[0-9a-fA-F]{6}$/.test(color)) return `#${color}`;
+  return null;
+}
 
-  async function saveUnit() {
-    setSaving(true);
-    try {
-      const logoUrl = await uploadUnitLogoIfNeeded(unit.id, form.logoUrl, form.logoOriginalName, form.logoFile);
-      const { logoOriginalName: _logoOriginalName, logoFile: _logoFile, ...payload } = { ...form, logoUrl };
-      void _logoOriginalName;
-      void _logoFile;
-      await api.patch(`/api/units/${unit.unit}/config`, payload);
-      setForm((current) => ({ ...current, logoUrl, logoOriginalName: undefined, logoFile: undefined }));
-      onSaved();
-      setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="border rounded-2xl p-5 space-y-4 bg-white border-thiso-100">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl border border-thiso-100 flex items-center justify-center overflow-hidden" style={{ background: `${form.primaryColor}12` }}>
-          {form.logoUrl
-            ? <img src={form.logoUrl} alt="" className="w-full h-full object-contain p-1" />
-            : <span className="text-2xl">{form.icon || '🏬'}</span>}
-        </div>
-        <div>
-          <h4 className="font-bold text-thiso-800">{form.displayName || unit.unit}</h4>
-          <p className="text-xs text-thiso-400 font-mono">{unit.unit}</p>
-        </div>
-      </div>
-
-      <DatafileImageUpload
-        label="Logo đơn vị"
-        value={{ url: form.logoUrl, originalName: form.logoOriginalName }}
-        onChange={(v: DatafileImageValue) => setForm((current) => ({ ...current, logoUrl: v.url, logoOriginalName: v.originalName, logoFile: v.file }))}
-        buttonLabel="Tải lên logo"
-      />
-
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Tên hiển thị đầy đủ</label>
-          <input className="input bg-white" value={form.displayName} onChange={(e) => setField('displayName', e.target.value)} placeholder={unit.unit} />
-        </div>
-        <div>
-          <label className="label">Tên rút gọn</label>
-          <input className="input bg-white" value={form.shortName} onChange={(e) => setField('shortName', e.target.value)} placeholder={unit.unit} />
-          <p className="text-[11px] text-thiso-400 mt-1">Dùng trên màn hình TV hàng chờ</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div>
-          <label className="label">Icon</label>
-          <input
-            className="input bg-white"
-            value={form.icon}
-            onChange={(e) => setField('icon', e.target.value)}
-            placeholder="🏬"
-            maxLength={40}
-          />
-          <p className="text-[11px] text-thiso-400 mt-1">Emoji hoặc class icon, có thể để trống</p>
-        </div>
-        <div className="col-span-2">
-          <label className="label">Mô tả / địa chỉ cổng</label>
-          <input className="input bg-white" value={form.description} onChange={(e) => setField('description', e.target.value)} placeholder="Ví dụ: Siêu thị - Cửa B3" />
-          <p className="text-[11px] text-thiso-400 mt-1">Ví dụ: Siêu thị — Cửa B3, tầng hầm</p>
-        </div>
-        <div>
-          <label className="label">Màu thương hiệu</label>
-          <div className="flex items-center gap-2">
-            <input
-              type="color"
-              value={form.primaryColor}
-              onChange={(e) => setField('primaryColor', e.target.value)}
-              className="w-10 h-10 rounded-lg border border-thiso-200 cursor-pointer bg-white p-0.5"
-            />
-            <input
-              className="input bg-white font-mono text-sm flex-1"
-              value={form.primaryColor}
-              onChange={(e) => setField('primaryColor', e.target.value)}
-              placeholder="#1C1C1C"
-              pattern="^#[0-9a-fA-F]{6}$"
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="flex items-center justify-end gap-3 pt-1">
-        {saved && <span className="text-xs text-sky-600 font-semibold">✓ Đã lưu</span>}
-        <button className="btn-primary text-sm px-5" onClick={saveUnit} disabled={saving}>
-          {saving ? 'Đang lưu...' : `Lưu ${form.displayName || unit.unit}`}
-        </button>
-      </div>
-    </div>
-  );
+function errorMessage(error: unknown, fallback = 'Không thể lưu nhận diện đơn vị.') {
+  const response = error as { response?: { data?: { error?: string; message?: string } } };
+  return response.response?.data?.error ?? response.response?.data?.message ?? fallback;
 }
 
 async function uploadUnitLogoIfNeeded(unitConfigId: string, value: string | null, originalName: string | undefined, file?: File) {
@@ -133,34 +43,110 @@ async function uploadUnitLogoIfNeeded(unitConfigId: string, value: string | null
   return uploaded.publicUrl;
 }
 
+function UnitBrandCard({ unit, onSaved }: { unit: UnitConfig; onSaved: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [form, setForm] = useState<BrandForm>({
+    displayName: unit.displayName || unit.unit,
+    shortName: unit.shortName || unit.displayName || unit.unit,
+    description: unit.description || '',
+    icon: unit.icon || '',
+    logoUrl: unit.logoUrl,
+    primaryColor: unit.primaryColor,
+  });
+
+  function setField<Key extends keyof BrandForm>(field: Key, value: BrandForm[Key]) {
+    setForm((current) => ({ ...current, [field]: value }));
+    setNotice(null);
+  }
+
+  async function saveUnit() {
+    const primaryColor = normalizeHexColor(form.primaryColor);
+    if (!primaryColor) {
+      setNotice({ type: 'error', message: 'Màu thương hiệu phải có dạng #RRGGBB.' });
+      return;
+    }
+    setSaving(true);
+    setNotice(null);
+    try {
+      const logoUrl = await uploadUnitLogoIfNeeded(unit.id, form.logoUrl, form.logoOriginalName, form.logoFile);
+      const { logoOriginalName: _logoOriginalName, logoFile: _logoFile, ...payload } = { ...form, logoUrl, primaryColor };
+      void _logoOriginalName;
+      void _logoFile;
+      await api.patch(`/api/units/${unit.unit}/config`, payload);
+      setForm((current) => ({ ...current, primaryColor, logoUrl, logoOriginalName: undefined, logoFile: undefined }));
+      onSaved();
+      setNotice({ type: 'success', message: 'Đã lưu nhận diện đơn vị.' });
+    } catch (error) {
+      setNotice({ type: 'error', message: errorMessage(error) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function selectLogo(file: File) {
+    if (file.size > 102400 * 1000) {
+      setNotice({ type: 'error', message: 'File logo vượt quá giới hạn 100MB.' });
+      return Upload.LIST_IGNORE;
+    }
+    setForm((current) => ({ ...current, logoUrl: URL.createObjectURL(file), logoOriginalName: file.name, logoFile: file }));
+    setNotice(null);
+    return false;
+  }
+
+  function clearLogo() {
+    setForm((current) => ({ ...current, logoUrl: null, logoOriginalName: undefined, logoFile: undefined }));
+    setNotice(null);
+  }
+
+  const title = form.displayName || unit.unit;
+
+  return (
+    <Card
+      size="small"
+      className="h-full"
+      cover={<div aria-hidden className="h-6 lg:h-8" style={{ backgroundColor: form.primaryColor }} />}
+    >
+      <Form layout="vertical" requiredMark={false}>
+        <Form.Item label="Logo đơn vị">
+          <Flex gap="middle" align="center" wrap="wrap">
+            <Avatar shape="square" size={64} src={form.logoUrl || undefined} alt={`Logo ${title}`} style={{ backgroundColor: 'transparent' }}>{form.icon || '🏬'}</Avatar>
+            <Space orientation="vertical" size="small">
+              <Upload accept="image/png,image/jpeg,image/webp,image/gif" showUploadList={false} beforeUpload={selectLogo}>
+                <Button icon={<UploadOutlined />}>{form.logoUrl ? 'Thay logo' : 'Tải lên logo'}</Button>
+              </Upload>
+              {form.logoUrl && <Button type="text" danger size="small" icon={<DeleteOutlined />} onClick={clearLogo}>Xóa logo</Button>}
+            </Space>
+            <Typography.Text type="secondary" className="text-xs">PNG, JPG, WebP, GIF · tối đa 100MB. Ảnh được tải lên khi lưu.</Typography.Text>
+          </Flex>
+        </Form.Item>
+        <Row gutter={[12, 0]}>
+          <Col xs={24} sm={12}><Form.Item label="Tên hiển thị đầy đủ"><Input value={form.displayName} placeholder={unit.unit} onChange={(event) => setField('displayName', event.target.value)} /></Form.Item></Col>
+          <Col xs={24} sm={12}><Form.Item label="Tên rút gọn" extra="Dùng trên màn hình TV hàng chờ."><Input value={form.shortName} placeholder={unit.unit} onChange={(event) => setField('shortName', event.target.value)} /></Form.Item></Col>
+          <Col xs={24} sm={8}><Form.Item label="Icon" extra="Emoji hoặc class icon, có thể để trống."><Input value={form.icon} placeholder="🏬" maxLength={40} onChange={(event) => setField('icon', event.target.value)} /></Form.Item></Col>
+          <Col xs={24} sm={16}><Form.Item label="Mô tả / địa chỉ cổng" extra="Ví dụ: Siêu thị — Cửa B3, tầng hầm."><Input value={form.description} placeholder="Ví dụ: Siêu thị - Cửa B3" onChange={(event) => setField('description', event.target.value)} /></Form.Item></Col>
+          <Col xs={24} sm={12}><Form.Item label="Màu thương hiệu"><Space.Compact className="w-full"><ColorPicker value={normalizeHexColor(form.primaryColor) ?? unit.primaryColor} format="hex" disabledAlpha onChange={(color) => setField('primaryColor', color.toHexString())} /><Input value={form.primaryColor} placeholder={unit.primaryColor} onChange={(event) => setField('primaryColor', event.target.value)} /></Space.Compact></Form.Item></Col>
+        </Row>
+        {notice && <Alert className="mb-4" type={notice.type} showIcon title={notice.message} closable onClose={() => setNotice(null)} />}
+        <Flex justify="end"><Button type="primary" loading={saving} onClick={saveUnit}>Lưu {title}</Button></Flex>
+      </Form>
+    </Card>
+  );
+}
+
 export default function BrandTab() {
   const { refresh } = useBranding();
   const queryClient = useQueryClient();
-  const { data: unitConfigs = [], isLoading: unitsLoading } = useQuery<UnitConfig[]>({
-    queryKey: ['unit-configs'],
-    queryFn: async () => (await api.get('/api/units/configs')).data,
-  });
+  const { data: unitConfigs = [], isLoading, isError, refetch } = useQuery<UnitConfig[]>({ queryKey: ['unit-configs'], queryFn: async () => (await api.get('/api/units/configs')).data });
 
   function refreshUnits() {
     refresh();
     queryClient.invalidateQueries({ queryKey: ['unit-configs'] });
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="space-y-5">
-        <h3 className="font-bold text-thiso-700">Thương hiệu từng đơn vị</h3>
-        <p className="text-sm text-thiso-400">Cấu hình logo và tên hiển thị cho từng đơn vị vận hành. Logo xuất hiện trên màn hình chờ và phiếu in.</p>
-        {unitsLoading && <p className="text-sm text-thiso-400">Đang tải đơn vị...</p>}
-        {!unitsLoading && unitConfigs.length === 0 && (
-          <div className="border border-thiso-100 bg-white rounded-2xl p-5 text-sm text-thiso-400">
-            Khu vực hiện tại chưa có đơn vị nào.
-          </div>
-        )}
-        {unitConfigs.map((unit) => (
-          <UnitBrandCard key={unit.id} unit={unit} onSaved={refreshUnits} />
-        ))}
-      </div>
-    </div>
-  );
+  if (isError) return <Result status="error" title="Không thể tải nhận diện đơn vị" extra={<Button type="primary" icon={<ReloadOutlined />} onClick={() => refetch()}>Thử lại</Button>} />;
+  if (isLoading) return <Card size="small" loading />;
+  if (unitConfigs.length === 0) return <Empty description="Khu vực hiện tại chưa có đơn vị nào." image={Empty.PRESENTED_IMAGE_SIMPLE} />;
+
+  return <AdaptiveGrid minColumnWidth={320} maxColumnWidth={520}>{unitConfigs.map((unit) => <UnitBrandCard key={unit.id} unit={unit} onSaved={refreshUnits} />)}</AdaptiveGrid>;
 }

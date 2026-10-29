@@ -1,90 +1,82 @@
+import { ArrowRightOutlined, NotificationOutlined } from '@ant-design/icons';
+import { Badge, Empty, Table, Typography, theme, type TableColumnsType } from 'antd';
 import type { DeliveryRegistration } from '../../../../lib/types';
 import { formatTicketForDelivery } from '../../utils';
 
-type SectionStatus = 'called' | 'waiting';
+export type WaitingVehicleSectionStatus = 'called' | 'waiting';
 
-export default function BrightVehicleSection({ items, primaryColor, highlightId, isCalled, status, compact = false }: {
-  items: DeliveryRegistration[]; primaryColor: string; highlightId: string | null;
-  isCalled?: boolean; status?: SectionStatus; compact?: boolean;
-}) {
-  if (items.length === 0) return null;
+type BrightVehicleSectionProps = {
+  items: DeliveryRegistration[];
+  highlightId: string | null;
+  status: WaitingVehicleSectionStatus;
+  waitingCount?: number;
+};
 
-  const sectionStatus = status ?? (isCalled ? 'called' : 'waiting');
-  const showsSlot = sectionStatus === 'called';
-  const isWaiting = sectionStatus === 'waiting';
-  const statusColor = sectionStatus === 'waiting' ? '#f59e0b' : primaryColor;
-  const sectionLabel = {
-    called: `Đang gọi vào (${items.length})`,
-    waiting: `Đang chờ (${items.length})`,
-  }[sectionStatus];
-
-  const deskCols = showsSlot ? '6rem 1fr 3.5rem' : '6rem 1fr';
-  const mobCols  = showsSlot ? '7.5rem 1fr 4rem' : '7.5rem 1fr';
-  const cols     = compact ? mobCols : deskCols;
-  const colGap   = compact ? '1rem' : '0.75rem';
-  const sectionBg = sectionStatus === 'called' ? `${primaryColor}14` : '#fefce8';
-  const sectionBdr = sectionStatus === 'called' ? `${primaryColor}30` : '#fde68a';
+export default function BrightVehicleSection({ items, highlightId, status, waitingCount = 0 }: BrightVehicleSectionProps) {
+  const { token } = theme.useToken();
+  const isWaiting = status === 'waiting';
+  const emptyText = isWaiting
+    ? 'Chưa có xe CHECK-IN'
+    : waitingCount > 0 ? 'Chưa có khu vực giao hàng TRỐNG' : 'Không tìm thấy xe sẵn sàng';
+  const sectionLabel = isWaiting ? `Đã check-in và đang chờ (${items.length})` : `Đang gọi vào (${items.length})`;
+  const statusColor = isWaiting ? token.colorWarning : token.colorPrimary;
+  const columns: TableColumnsType<DeliveryRegistration> = [
+    {
+      title: 'Số thứ tự',
+      key: 'ticket',
+      width: '35%',
+      render: (_, delivery) => {
+        const ticket = formatTicketForDelivery(delivery) ?? delivery.registrationCode;
+        const isNext = isWaiting && items[0]?.id === delivery.id;
+        return (
+          <Typography.Text strong className="break-words" title={ticket}>
+            {isNext && <ArrowRightOutlined className="mr-1 text-[var(--ant-color-warning)]" />}
+            {ticket}
+          </Typography.Text>
+        );
+      },
+    },
+    {
+      title: 'Biển số xe',
+      dataIndex: 'vehiclePlate',
+      key: 'vehiclePlate',
+      width: '45%',
+      render: (plate: string) => <Typography.Text strong className="break-words text-base" title={plate}>{plate}</Typography.Text>,
+    },
+    {
+      title: 'Vị trí',
+      key: 'slot',
+      width: '20%',
+      render: (_, delivery) => {
+        const slotCode = delivery.assignedSlot?.code;
+        return slotCode ? <Typography.Text strong className="break-words" title={slotCode}>{slotCode}</Typography.Text> : <Typography.Text type="secondary">—</Typography.Text>;
+      },
+    },
+  ];
 
   return (
-    <div>
-      <div className="flex items-center gap-2 px-4 border-b"
-           style={{ background: sectionBg, borderColor: sectionBdr, paddingTop: compact ? '0.6rem' : '0.5rem', paddingBottom: compact ? '0.6rem' : '0.5rem' }}>
-        <span className="rounded-full shrink-0 animate-pulse"
-              style={{ width: compact ? 8 : 7, height: compact ? 8 : 7, background: statusColor,
-                       animationPlayState: sectionStatus === 'called' ? 'running' : 'paused' }} />
-        <span className="font-black uppercase tracking-widest"
-              style={{ fontSize: compact ? '0.75rem' : '0.78rem', color: sectionStatus === 'waiting' ? '#92400e' : statusColor }}>
+    <section className="border-t border-[var(--ant-color-border-secondary)] first:border-t-0">
+      <div className="flex items-center gap-2 px-3 py-3">
+        <Badge status={isWaiting ? 'warning' : 'processing'} />
+        <Typography.Text strong style={{ color: statusColor, fontSize: 'clamp(1rem, 2.5vw, 1.3125rem)' }} className="!inline-flex !items-center !leading-none">
+          {!isWaiting && <NotificationOutlined className="mr-1" style={{ fontSize: '1em' }} />}
           {sectionLabel}
-        </span>
+        </Typography.Text>
       </div>
-
-      <div className="grid items-center px-4 bg-gray-50 border-b border-gray-200"
-           style={{ gridTemplateColumns: cols, columnGap: colGap, paddingTop: compact ? '0.45rem' : '0.4rem', paddingBottom: compact ? '0.45rem' : '0.4rem' }}>
-        <span className="font-black text-gray-400 uppercase tracking-wide" style={{ fontSize: compact ? '0.68rem' : '0.72rem' }}>Số thẻ</span>
-        <span className="font-black text-gray-400 uppercase tracking-wide" style={{ fontSize: compact ? '0.68rem' : '0.72rem' }}>Biển số</span>
-        {showsSlot && <span className="font-black text-gray-400 uppercase tracking-wide text-right" style={{ fontSize: compact ? '0.68rem' : '0.72rem' }}>Vị trí</span>}
-      </div>
-
-      {items.map((d, i) => {
-        const ticket = formatTicketForDelivery(d) ?? `#${i + 1}`;
-        const isHl   = d.id === highlightId;
-        const isNext = isWaiting && i === 0;
-        return (
-          <div key={d.id}
-               className="grid items-center px-4 border-b border-gray-100 last:border-0"
-               style={{
-                 gridTemplateColumns: cols, columnGap: colGap,
-                 paddingTop:    compact ? '0.85rem' : '0.7rem',
-                 paddingBottom: compact ? '0.85rem' : '0.7rem',
-                 background: isHl
-                   ? (sectionStatus === 'called' ? `${primaryColor}1a` : 'rgba(251,191,36,0.18)')
-                   : isNext ? '#fffbeb'
-                   : sectionStatus === 'called' ? `${primaryColor}07`
-                   : 'white',
-               }}>
-            <div className="flex items-center gap-1 min-w-0">
-              {isNext && (
-                <span className="font-black bg-amber-400 text-white rounded shrink-0"
-                      style={{ fontSize: compact ? '0.6rem' : '0.55rem', padding: '2px 4px' }}>▶</span>
-              )}
-              <span className="font-mono font-bold leading-none"
-                    style={{ fontSize: compact ? '0.8rem' : '0.88rem', color: sectionStatus === 'waiting' ? '#b45309' : statusColor, whiteSpace: 'nowrap' }}>
-                {ticket}
-              </span>
-            </div>
-            <span className="font-black tracking-wider text-gray-900 leading-none truncate"
-                  style={{ fontSize: compact ? '1.15rem' : 'clamp(1.15rem, 2vw, 1.55rem)' }}>
-              {d.vehiclePlate}
-            </span>
-            {showsSlot && (
-              <span className="font-black text-right leading-none"
-                    style={{ color: statusColor, fontSize: compact ? '1.1rem' : 'clamp(1.1rem, 1.9vw, 1.45rem)' }}>
-                {d.assignedSlot?.code ?? '?'}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
+      {items.length ? (
+        <Table
+          className="waiting-vehicle-table"
+          columns={columns}
+          dataSource={items}
+          rowKey="id"
+          pagination={false}
+          size="small"
+          tableLayout="fixed"
+          rowClassName={(delivery) => delivery.id === highlightId ? 'waiting-vehicle-table-highlight' : ''}
+        />
+      ) : (
+        <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyText} className="my-5" />
+      )}
+    </section>
   );
 }

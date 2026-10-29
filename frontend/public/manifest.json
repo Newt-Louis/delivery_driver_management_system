@@ -5,6 +5,8 @@
   "id": "/",
   "start_url": "/",
   "scope": "/",
+  "related_applications": [{ "platform": "webapp", "url": "/manifest.json" }],
+  "prefer_related_applications": false,
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#F6F6F6",

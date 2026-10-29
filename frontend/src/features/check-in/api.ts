@@ -3,7 +3,12 @@ import type { DeliveryRegistration } from '../../lib/types';
 import type { CheckInMode } from './types';
 
 export async function fetchWaitingDeliveries(): Promise<DeliveryRegistration[]> {
-  const response = await api.get('/api/deliveries', { params: { status: 'WAITING' } });
+  const response = await api.get<DeliveryRegistration[]>('/api/deliveries', { params: { status: 'WAITING' } });
+  return response.data;
+}
+
+export async function fetchRegisteredDeliveries(): Promise<DeliveryRegistration[]> {
+  const response = await api.get('/api/deliveries', { params: { status: 'REGISTERED' } });
   return response.data;
 }
 

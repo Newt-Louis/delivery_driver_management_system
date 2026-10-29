@@ -1,53 +1,45 @@
-import type { TrackDelivery, TimelineEvent } from '../types';
+import { CheckCircleFilled, CloseCircleOutlined, InboxOutlined, LoginOutlined, NotificationOutlined, ShoppingOutlined, SolutionOutlined } from '@ant-design/icons';
+import { Card, Steps, Typography, theme } from 'antd';
+import type { CSSProperties, ReactNode } from 'react';
+import type { TrackDelivery } from '../types';
 import { fmtDate } from '../utils';
 
-function buildTimeline(delivery: TrackDelivery): TimelineEvent[] {
-  return [
-    { icon: '📝', label: 'Đăng ký',         time: delivery.createdAt,           done: true,                          detail: null },
-    { icon: '🔐', label: 'Check-in cổng',    time: delivery.checkinTime,          done: !!delivery.checkinTime,        detail: null },
-    {
-      icon: '📢',
-      label: delivery.assignedSlot ? `Được gọi vào ${delivery.assignedSlot.code}` : 'Được gọi vào dock',
-      time: delivery.calledTime, done: !!delivery.calledTime,
-      detail: delivery.assignedSlot
-        ? `${delivery.assignedSlot.name}${delivery.assignedSlot.zone ? ' · ' + delivery.assignedSlot.zone.name : ''}`
-        : null,
-    },
-    { icon: '📦', label: 'Bắt đầu nhận hàng', time: delivery.receivingStartTime, done: !!delivery.receivingStartTime, detail: null },
-    { icon: '✅', label: 'Hoàn thành',         time: delivery.completedTime,       done: !!delivery.completedTime,      detail: null },
-  ];
+type JourneyStep = { title: string; time: string | null; detail?: string | null; icon: ReactNode };
+
+function currentStep(status: string) {
+  if (status === 'REGISTERED') return 0;
+  if (status === 'WAITING') return 1;
+  if (status === 'CALLED') return 2;
+  if (status === 'RECEIVING' || status === 'AUTO_WAREHOUSE_RECEIVING') return 3;
+  return 4;
 }
 
 export default function JourneyTimeline({ delivery }: { delivery: TrackDelivery }) {
-  const timeline = buildTimeline(delivery);
+  const { token } = theme.useToken();
+  const cancelled = delivery.status === 'CANCELLED';
+  const current = currentStep(delivery.status);
+  const steps: JourneyStep[] = [
+    { title: 'Đăng ký giao hàng', time: delivery.createdAt, icon: <SolutionOutlined /> },
+    { title: 'Check-in tại cổng', time: delivery.checkinTime, icon: <LoginOutlined /> },
+    { title: delivery.assignedSlot ? `Được gọi vào ${delivery.assignedSlot.code}` : 'Được gọi vào dock', time: delivery.calledTime, detail: delivery.assignedSlot ? `${delivery.assignedSlot.name}${delivery.assignedSlot.zone ? ` · ${delivery.assignedSlot.zone.name}` : ''}` : null, icon: <NotificationOutlined /> },
+    { title: delivery.status === 'AUTO_WAREHOUSE_RECEIVING' ? 'Đang nhận tại kho tự động' : 'Bắt đầu nhận hàng', time: delivery.receivingStartTime, icon: <ShoppingOutlined /> },
+    cancelled ? { title: 'Chuyến đã hủy', time: null, detail: 'Lượt giao hàng này không tiếp tục xử lý.', icon: <CloseCircleOutlined /> } : { title: 'Hoàn thành giao hàng', time: delivery.completedTime, icon: <CheckCircleFilled /> },
+  ];
+  const style = { '--track-step-finish-color': token.colorSuccess, '--track-step-finish-icon-color': token.colorTextLightSolid } as CSSProperties;
 
   return (
-    <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden">
-      <div className="px-5 py-3 border-b border-thiso-50">
-        <p className="text-[11px] font-semibold text-thiso-400 uppercase tracking-wider">Hành trình</p>
-      </div>
-      <div className="px-5 py-4 space-y-0">
-        {timeline.map((ev, i) => (
-          <div key={i} className="flex gap-3">
-            <div className="flex flex-col items-center">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${ev.done ? 'bg-green-100 text-green-700' : 'bg-thiso-100 text-thiso-300'}`}>
-                {ev.done ? '✓' : <span className="text-base">{ev.icon}</span>}
-              </div>
-              {i < timeline.length - 1 && (
-                <div className={`w-0.5 flex-1 min-h-[18px] my-1 rounded-full ${ev.done ? 'bg-green-200' : 'bg-thiso-100'}`} />
-              )}
-            </div>
-            <div className="pb-4 flex-1 min-w-0">
-              <p className={`text-sm font-semibold leading-tight ${ev.done ? 'text-thiso-800' : 'text-thiso-300'}`}>
-                {ev.label}
-              </p>
-              {ev.detail && <p className="text-xs text-thiso-400 mt-0.5">{ev.detail}</p>}
-              {ev.time   && <p className="text-xs text-thiso-400 mt-0.5">{fmtDate(ev.time)}</p>}
-              {!ev.done && !ev.time && <p className="text-xs text-thiso-300 mt-0.5">Đang chờ…</p>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+    <Card size="small" title="Tiến trình giao hàng">
+      <Steps className="track-journey-steps" style={style} direction="vertical" size="small" current={current} items={steps.map((step, index) => {
+        const done = !cancelled && index < current;
+        const active = index === current;
+        const status = cancelled && index === 4 ? 'error' : done ? 'finish' : active ? 'process' : 'wait';
+        return {
+          title: <Typography.Text strong={active || done}>{step.title}</Typography.Text>,
+          description: <div className="pb-2"><Typography.Text type="secondary" className="block text-xs">{step.time ? fmtDate(step.time) : active ? step.detail ?? 'Đang xử lý' : 'Chưa thực hiện'}</Typography.Text>{step.detail && step.time && <Typography.Text type="secondary" className="block text-xs">{step.detail}</Typography.Text>}</div>,
+          icon: done ? <CheckCircleFilled /> : step.icon,
+          status,
+        };
+      })} />
+    </Card>
   );
 }

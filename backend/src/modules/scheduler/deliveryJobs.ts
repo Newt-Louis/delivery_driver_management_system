@@ -15,6 +15,7 @@ import { triggerAutoAssign } from '../../services/autoAssign';
 import { cancelDelivery } from '../../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../../services/realtimeScope';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
+import { sendPushToDelivery } from '../../services/webPush';
 import { archiveDelivery } from '../history/archiveService';
 import { startSchedulerJobHistory, finishSchedulerJobHistory } from './jobHistory';
 import * as deliveryRepository from '../deliveries/deliveryRepository';
@@ -81,7 +82,7 @@ export async function closeDailyDeliveries(args: {
           : []),
       ],
     },
-    select: { id: true, status: true },
+    select: { id: true, status: true, registrationCode: true, vehiclePlate: true },
   });
 
   let succeeded = 0;
@@ -127,6 +128,12 @@ export async function closeDailyDeliveries(args: {
           ...systemActor('scheduler.close-daily-deliveries'),
         });
       }
+      sendPushToDelivery(candidate.registrationCode, {
+        status: candidate.status === DeliveryStatus.REGISTERED ? 'EXPIRED' : 'INCOMPLETED',
+        occurredAt: now.toISOString(), title: 'Lượt giao hàng đã kết thúc',
+        body: `Xe ${candidate.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
+        url: `/track/${candidate.registrationCode}`,
+      }).catch(console.error);
       succeeded++;
     } catch (error) {
       failed++;
@@ -294,6 +301,11 @@ export async function autoCancelCalledNoShowDeliveries(args: {
         triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
       }
       emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
+      sendPushToDelivery(result.delivery.registrationCode, {
+        status: 'CANCELLED', occurredAt: result.delivery.updatedAt.toISOString(),
+        title: 'Chuyến giao hàng đã hủy', body: `Xe ${result.delivery.vehiclePlate} — ${CALLED_NO_SHOW_REASON}.`,
+        url: `/track/${result.delivery.registrationCode}`,
+      }).catch(console.error);
       succeeded++;
     } catch (error) {
       failed++;

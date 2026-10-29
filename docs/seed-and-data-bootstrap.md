@@ -1,67 +1,52 @@
-# Seed Và Khởi Tạo Dữ Liệu
+# Bootstrap Database Và Khởi Tạo Dữ Liệu
 
 ## Mục Tiêu
 
-Hệ thống cần seed dữ liệu demo/dev và seed dữ liệu IT quản lý cho location/unit/app config. Seed không còn là con đường vận hành duy nhất để tạo master data; production có thể tạo và chỉnh `BusinessLocation`, `UnitConfig`, vendor, device, app config từ trang Superadmin.
+`db:bootstrap` chỉ tạo bộ dữ liệu khởi đầu trên PostgreSQL hoàn toàn mới, sau khi schema đã được deploy. Đây không phải lệnh deploy thường kỳ, không phải công cụ reset, và không dùng để tạo location/unit trong lúc vận hành. Sau bootstrap, Superadmin quản lý `BusinessLocation`, `UnitConfig`, vendor, device và các cấu hình runtime từ ứng dụng.
 
 ## Script Chính
 
 Backend package scripts:
 
-- `npm run seed`
-- `npm run db:seed -- --location:all`
-- `npm run db:seed -- --location:business`
-- `npm run db:seed -- --location:unit --file=prisma/location-seed.json`
+- `npm run db:deploy`
+- `npm run db:bootstrap`
 - `npm run db:seed_app_config`
 
 ## Files
 
 - `backend/prisma/seed.ts`
-- `backend/prisma/locationSeed.ts`
-- `backend/prisma/location-seed.json`
 - `backend/prisma/appConfigSeed.ts`
 - `backend/prisma/app-config-seed.json`
 
-## Demo Seed
+## Bootstrap Master Data
 
-`seed.ts` phục vụ demo/dev, có thể xóa/tạo lại dữ liệu mẫu. Không nên xem là công cụ migration dữ liệu production hoặc workflow tạo master data thường ngày.
+`npm run db:bootstrap` chạy `seed.ts` để khởi tạo master data; không tạo dữ liệu đăng ký, check-in hay receiving giả.
 
-Demo accounts trong `REPORT.md`/lịch sử dự án:
+Lệnh tự kiểm tra trước khi ghi. Chỉ hai trạng thái được chấp nhận:
 
-- `superadmin@mall.com`
-- `admin@mall.com`
-- `operator@mall.com`
-- `receiving@mall.com`
-- `checkin@mall.com`
+- Database không có `BusinessLocation`; hoặc
+- Chỉ có placeholder `singleton` / `DEFAULT` do migration lịch sử tạo ra.
 
-## Location Seed
+Các bảng vận hành và master data phải trống. Chỉ cần tồn tại user, quyền, device, location khác, unit, zone, slot, delivery, history, sequence, file, audit hoặc cấu hình vận hành là bootstrap dừng với lỗi, không xóa bất cứ dữ liệu nào. `AppConfig` độc lập và được giữ nguyên để có thể chạy `db:seed_app_config` trước hoặc sau bootstrap.
 
-`locationSeed.ts` phục vụ IT tạo:
+Khi database chỉ có placeholder migration, bootstrap xóa đúng placeholder này rồi tạo dữ liệu bên dưới. Không còn `deleteMany()` và không có chức năng reset dữ liệu.
 
-- `BusinessLocation`
-- admin location role `ADMIN_LOC`
-- `UnitConfig`
+Seed tạo:
 
-Trong hệ thống hiện tại, `UnitConfig.unit` là code động trong từng `BusinessLocation`. Các code demo `EMART`, `THISKYHALL`, `TENANT` chỉ là dữ liệu khởi tạo mẫu, không phải giới hạn nghiệp vụ.
+- Hai `BusinessLocation`: `SAL` (THISO SALA) và `PVT` (THISO Phan Văn Trị).
+- Mỗi location có ba unit runtime: `THISKYHALL` (hiển thị Thiskyhall), `TENANT` (hiển thị THISO Mall) và `EMART` (hiển thị Emart).
+- Mỗi unit có một zone: `KT-1`, `KM-1`, `KE-1`; mỗi zone chứa các slot tương ứng `T1`–`T3`, `M1`–`M3`, `E1`–`E6`.
+- `T3` và `M3` là xe máy, capacity 5; `E1`–`E6` là xe tải, capacity 5; các slot còn lại là xe tải, capacity 1. Mọi slot nhận ba loại hàng thường theo thứ tự Fresh food, General goods, Thi công.
+- Ba `UnitGoodsType` cho mỗi unit; không tạo `DeliveryTimeWindow` hoặc `ReceivingTimeConfig` để người dùng cấu hình sau.
+- Không tạo, xóa hoặc cập nhật Device. Nếu database đã có Device, bootstrap dừng ngay.
 
-Chế độ:
+Tài khoản tạo sẵn:
 
-- `--location:all`
-  - Tạo business location + admin + units trong file JSON.
-- `--location:business`
-  - Chỉ tạo business location + admin.
-- `--location:unit`
-  - Thêm unit vào business location đã tồn tại, bắt buộc có `businessLocationId`.
-- `--dry-run`
-  - Validate và kiểm tra unique, không ghi DB.
+- `superadmin@mall.com` / `password123`.
+- SAL: `adminloc.sal@mall.com`, `adminope.sal@mall.com`, `receiving.sal@mall.com`, `checkin.sal@mall.com` / `Thiso@123456`.
+- PVT: `adminloc.pvt@mall.com`, `adminope.pvt@mall.com`, `receiving.pvt@mall.com`, `checkin.pvt@mall.com` / `Thiso@123456`.
 
-Rule:
-
-- Không cho trùng `BusinessLocation.id`.
-- Không cho trùng `BusinessLocation.code`.
-- Không cho trùng admin email.
-- Không cho trùng pair `businessLocationId + unit`.
-- Admin email phải unique toàn hệ thống.
+Mỗi tài khoản nghiệp vụ có `UserUnitPermission` trên cả ba unit thuộc location của mình. Mã slot được unique trong zone, không phải toàn hệ thống; do đó SAL và PVT đều có thể có slot `T1`, `M1`, `E1`.
 
 ## App Config Seed
 
@@ -89,6 +74,13 @@ Khi deploy:
 
 ```bash
 cd backend
-npx prisma migrate deploy
-npx prisma generate
+npm run db:deploy
 ```
+
+Trên server/clone hoàn toàn mới, chạy thêm một lần sau đó:
+
+```bash
+npm run db:bootstrap
+```
+
+Không chạy `db:bootstrap` trong mỗi lần cập nhật UAT hoặc production.

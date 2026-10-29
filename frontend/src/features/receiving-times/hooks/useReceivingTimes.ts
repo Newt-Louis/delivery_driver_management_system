@@ -24,7 +24,7 @@ export function useReceivingTimes() {
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
   const [message, setMessage] = useState<FlashMessage>(null);
 
-  const { data, isLoading } = useQuery<AnalyticsData>({
+  const { data, isLoading, isError, refetch } = useQuery<AnalyticsData>({
     queryKey: ['analytics', 'receiving-times'],
     queryFn: fetchReceivingTimes,
     staleTime: 10_000,
@@ -84,7 +84,7 @@ export function useReceivingTimes() {
   return {
     data,
     configs,
-    isLoading,
+    isLoading, isError, refetch,
     analyzing,
     acceptingAll,
     acceptingId,

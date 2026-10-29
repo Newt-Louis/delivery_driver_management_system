@@ -6,7 +6,7 @@ export const GOODS_LABEL: Record<string, string> = {
 };
 
 export const VEHICLE_LABEL: Record<string, string> = {
-  TRUCK: '🚛 Xe tải', MOTORBIKE: '🛵 Xe máy', OTHER: '🚗 Khác',
+  TRUCK: ' Xe tải', MOTORBIKE: ' Xe máy',
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -17,23 +17,23 @@ export const STATUS_LABEL: Record<string, string> = {
 
 export const DOW_LABEL = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
 
-export const SUGGEST_META: Record<string, { label: string; icon: string; bg: string; text: string }> = {
-  ADD_SLOT:            { label: 'Thêm slot',      icon: '➕', bg: 'bg-red-50',    text: 'text-red-700' },
-  REDUCE_SLOT:         { label: 'Giảm slot',      icon: '➖', bg: 'bg-amber-50',  text: 'text-amber-700' },
-  CONVERT_TO_MOTORBIKE:{ label: 'Chuyển xe máy', icon: '🔄', bg: 'bg-purple-50', text: 'text-purple-700' },
-  CONVERT_TO_TRUCK:    { label: 'Chuyển xe tải', icon: '🔄', bg: 'bg-indigo-50', text: 'text-indigo-700' },
-  OPTIMAL:             { label: 'Tối ưu',          icon: '✅', bg: 'bg-green-50',  text: 'text-green-700' },
+export const SUGGEST_META: Record<string, { label: string }> = {
+  ADD_SLOT:            { label: 'Thêm slot' },
+  REDUCE_SLOT:         { label: 'Giảm slot' },
+  CONVERT_TO_MOTORBIKE:{ label: 'Chuyển xe máy' },
+  CONVERT_TO_TRUCK:    { label: 'Chuyển xe tải' },
+  OPTIMAL:             { label: 'Tối ưu' },
 };
 
-export const PRIORITY_META: Record<string, { label: string; color: string }> = {
-  HIGH:   { label: 'Ưu tiên cao', color: 'bg-red-100 text-red-700' },
-  MEDIUM: { label: 'Trung bình',  color: 'bg-amber-100 text-amber-700' },
-  LOW:    { label: 'Thấp',        color: 'bg-thiso-100 text-thiso-500' },
+export const PRIORITY_META: Record<string, { label: string }> = {
+  HIGH:   { label: 'Ưu tiên cao' },
+  MEDIUM: { label: 'Trung bình' },
+  LOW:    { label: 'Thấp' },
 };
 
 export const REPORT_TABS: ReportTab[] = [
-  { id: 'overview',  label: '📊 Tổng quan' },
-  { id: 'breakdown', label: '🗂 Phân tích' },
-  { id: 'slots',     label: '🚪 Hiệu suất Slot' },
-  { id: 'ai',        label: '🤖 AI Đề xuất' },
+  { id: 'overview',  label: ' Tổng quan' },
+  { id: 'breakdown', label: ' Phân tích' },
+  { id: 'slots',     label: ' Hiệu suất Slot' },
+  { id: 'ai',        label: ' AI Đề xuất' },
 ];

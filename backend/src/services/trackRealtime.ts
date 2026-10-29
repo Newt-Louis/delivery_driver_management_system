@@ -53,6 +53,14 @@ export async function getTrackDelivery(registrationCode: string) {
   });
   if (!delivery) return null;
 
+  // Recover the latest recall after a disconnected/hidden client returns.
+  // calledTime remains the operational call time, not the recall timestamp.
+  const latestCall = delivery.status === DeliveryStatus.CALLED
+    ? await prisma.deliveryHistoryEvent.findFirst({
+      where: { deliveryRegistrationId: delivery.id, eventType: { in: ['AUTO_ASSIGNED', 'MANUAL_CALLED', 'RECALLED', 'REASSIGNED_SLOT'] } },
+      orderBy: { occurredAt: 'desc' }, select: { occurredAt: true },
+    }) : null;
+
   let queueInfo = null;
   if (delivery.status === DeliveryStatus.WAITING && delivery.checkinTime) {
     const queueUnitWhere = delivery.unitConfigId
@@ -134,6 +142,7 @@ export async function getTrackDelivery(registrationCode: string) {
 
   return {
     ...delivery,
+    notificationCalledAt: latestCall?.occurredAt ?? delivery.calledTime,
     locationName: delivery.unitConfig?.businessLocation?.locationName ?? null,
     queueInfo,
   };

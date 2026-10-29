@@ -1,10 +1,8 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
-import { Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
-import { useBranding } from '../context/BrandingContext';
+import { ArrowRightOutlined, CameraOutlined, UploadOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Modal, Row, Space, Spin, Steps, Typography } from 'antd';
 import { useToast } from '../context/ToastContext';
-import { CameraIcon, ArrowRightIcon } from '../components/Icon';
 import {
   getDailyRegistrationStats,
   getUnitConfig,
@@ -15,6 +13,7 @@ import {
 } from '../features/register/api';
 import DeliveryDateCalendar from '../features/register/components/DeliveryDateCalendar';
 import SuccessScreen from '../features/register/components/SuccessScreen';
+import SavedTrips from '../features/driver-notifications/SavedTrips';
 import { isSundayDate, todayDate } from '../features/register/utils/date';
 import type { SuccessInfo } from '../features/register/types';
 import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
@@ -48,7 +47,6 @@ const GOODS_LABEL: Record<GoodsType, string> = {
 const VEHICLE_LABEL: Record<VehicleType, string> = {
   TRUCK: 'Xe tải',
   MOTORBIKE: 'Xe máy',
-  OTHER: 'Xe khác',
 };
 
 function normalizeOrderCode(value: string) {
@@ -145,18 +143,7 @@ function emptyForm(): QuickForm {
   };
 }
 
-function ReviewRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-thiso-100 py-2 last:border-b-0">
-      <span className="text-sm text-thiso-400">{label}</span>
-      <span className="max-w-[58%] text-right text-sm font-bold text-thiso-900 break-words">{value || '-'}</span>
-    </div>
-  );
-}
-
 export default function Home() {
-  const { isAuthenticated, user } = useAuth();
-  const { mall } = useBranding();
   const toast = useToast();
   const [step, setStep] = useState<Step>(1);
   const [orderCode, setOrderCode] = useState('');
@@ -182,7 +169,6 @@ export default function Home() {
   const normalizedCode = useMemo(() => normalizeOrderCode(orderCode), [orderCode]);
   const constructionCodeLooksSupported = isConstructionCode(normalizedCode);
   const codeLooksSupported = isPoCode(normalizedCode) || constructionCodeLooksSupported;
-  const staffHomePath = user?.role === 'CHECKIN' ? '/check-in' : '/dashboard';
   const needsCalendar = verified?.kind === 'CONSTRUCTION';
   const effectiveGoodsType = needsCalendar ? form.goodsType : (verified?.goodsType ?? '');
   const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
@@ -408,8 +394,8 @@ export default function Home() {
     setOrderCodeNotFound(false);
   }
 
-  async function handleVerify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleVerify(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
     if (!normalizedCode) {
       setOrderCodeNotFound(false);
       toast.error('Vui lòng nhập mã PO hoặc mã Thi Công.');
@@ -550,333 +536,140 @@ export default function Home() {
 
 
   return (
-    <main className="min-h-screen bg-thiso-50 text-thiso-800">
-      <section className="border-b border-thiso-100 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4">
-          <Link to="/" className="flex min-w-0 items-center gap-3">
-            {mall.logoUrl ? (
-              <img src={mall.logoUrl} alt={mall.mallName} className="h-10 w-10 flex-shrink-0 rounded-lg border border-thiso-100 bg-white object-contain p-1" />
-            ) : (
-              <img src="/truck.svg" alt="Delivery" className="h-10 w-10 flex-shrink-0 rounded-lg" />
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-sm font-black tracking-widest text-thiso-900">{mall.mallName}</p>
-              <p className="truncate text-xs font-semibold text-thiso-400">{mall.tagline ?? 'Delivery Management System'}</p>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-2">
-            <Link to="/cancelled" className="btn btn-ghost h-10 px-3">
-              Hủy chuyến
-            </Link>
-            <Link to="/track" className="btn btn-ghost h-10 px-3">
-              Theo dõi
-            </Link>
-            <Link to="/register" className="btn btn-ghost h-10 px-3">
-              Đăng ký thủ công
-            </Link>
-          </div>
-        </div>
-      </section>
-
-      <section className="mx-auto grid w-full max-w-3xl justify-items-center gap-8 px-4 py-8 sm:px-6 md:py-12 lg:px-8">
-        <div className="w-full space-y-6">
-          <div className="space-y-3">
-            <h1 className="max-w-3xl text-3xl font-black leading-tight text-thiso-900 sm:text-4xl">
-              Hệ thống điều phối giao hàng THISO
-            </h1>
-            <p className="max-w-2xl text-base leading-7 text-thiso-500">
+    <main className="flex flex-1 bg-[var(--dqm-color-bg-layout)] px-4 py-6 sm:px-6 md:py-10">
+      <div className="mx-auto w-full max-w-3xl">
+        <Space orientation="vertical" size="large" className="w-full">
+          <SavedTrips />
+          <div className="justify-items-center">
+            <Typography.Title level={1} className="!mb-2 !text-3xl sm:!text-4xl">Hệ thống điều phối nhận hàng THISO</Typography.Title>
+            <Typography.Paragraph type="secondary" className="!mb-0 !max-w-2xl !text-base ">
               Nhập mã PO hoặc mã Thi Công để hệ thống kiểm tra nhanh thông tin đơn vị nhận, khu vực và loại hàng trước khi đăng ký.
-            </p>
+            </Typography.Paragraph>
           </div>
 
-          <div className="max-w-2xl rounded-lg border border-thiso-100 bg-white p-4 shadow-card-md sm:p-5">
-            <div className="mb-5 grid grid-cols-3 gap-2 text-xs font-bold">
-              {[
-                ['1', 'Kiểm tra mã'],
-                ['2', 'Thông tin xe'],
-                ['3', 'Xác nhận'],
-              ].map(([num, label]) => {
-                const active = Number(num) === step;
-                const done = Number(num) < step;
-                return (
-                  <div key={num} className={`rounded-lg border px-2 py-2 text-center ${active || done ? 'border-thiso-700 bg-thiso-700 text-white' : 'border-thiso-100 bg-thiso-50 text-thiso-400'}`}>
-                    <span className="block text-sm">{num}</span>
-                    <span className="block truncate">{label}</span>
-                  </div>
-                );
-              })}
-            </div>
+          <Card>
+            <Steps
+              current={step - 1}
+              size="small"
+              responsive
+              className="mb-8"
+              items={[{ title: 'Kiểm tra mã' }, { title: 'Thông tin xe' }, { title: 'Xác nhận' }]}
+            />
 
             {step === 1 && (
-              <form onSubmit={handleVerify} className="space-y-4">
-                <div>
-                  <label htmlFor="home-order-code" className="label">
-                    Mã PO / Thi Công
-                  </label>
-                  <div className="space-y-3">
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <input
-                        id="home-order-code"
-                        type="text"
-                        value={orderCode}
-                        onChange={(event) => handleOrderCodeChange(event.target.value)}
-                        placeholder="VD: 4500771144 hoặc AbCdE"
-                        autoComplete="off"
-                        autoCapitalize="none"
-                        className={`input h-12 min-w-0 flex-1 font-mono text-base tracking-wide ${orderCodeNotFound ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-                        style={{ fontSize: '16px' }}
-                      />
-                      <button
-                        type="submit"
-                        className="btn btn-primary h-12 w-full shrink-0 justify-center gap-2 px-4 sm:w-auto"
-                        disabled={verifying}
-                      >
-                        <span>{verifying ? 'Đang kiểm tra...' : 'Kiểm tra'}</span>
-                        <ArrowRightIcon />
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setScannerOpen(true)}
-                      className="group flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-black text-gray-700 shadow-[2px_3px_6px_rgba(15,23,42,0.16),4px_6px_16px_rgba(15,23,42,0.08)] transition-all hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 hover:shadow-[3px_4px_8px_rgba(15,23,42,0.18),5px_8px_18px_rgba(15,23,42,0.09)] active:translate-x-0.5 active:translate-y-0.5 active:bg-gray-100 active:shadow-[1px_1px_4px_rgba(15,23,42,0.10)]"
-                    >
-                      <span className="flex h-8 w-6 items-center justify-center rounded-md bg-gray-100 text-gray-600 transition-colors group-hover:bg-gray-200 group-hover:text-gray-900">
-                        <CameraIcon />
-                      </span>
-                      <span className="truncate leading-tight">
-                        Quét QR hoặc Barcode tại đây
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              </form>
+              <Form layout="vertical" onFinish={() => { void handleVerify(); }} requiredMark={false}>
+                <Form.Item label="Mã PO / Thi Công" validateStatus={orderCodeNotFound ? 'error' : undefined}>
+                  <Space.Compact block>
+                    <Input
+                      id="home-order-code"
+                      size="large"
+                      value={orderCode}
+                      onChange={(event) => handleOrderCodeChange(event.target.value)}
+                      placeholder="VD: 4500771144 hoặc AbCdE"
+                      autoComplete="off"
+                      autoCapitalize="none"
+                      className="font-mono tracking-wide"
+                    />
+                    <Button type="primary" size="large" htmlType="submit" loading={verifying} icon={<ArrowRightOutlined />} iconPlacement="end">
+                      Kiểm tra
+                    </Button>
+                  </Space.Compact>
+                </Form.Item>
+                <Button block size="large" icon={<CameraOutlined />} onClick={() => setScannerOpen(true)}>
+                  Quét QR hoặc Barcode tại đây
+                </Button>
+              </Form>
             )}
 
             {step === 2 && verified && (
-              <div className="space-y-5">
-                <div className="rounded-lg border border-sky-100 bg-sky-50 px-3 py-3">
-                  <p className="text-xs font-black uppercase tracking-wider text-sky-700">
-                    {verified.kind === 'PO' ? 'PO đã xác thực' : 'Mã Thi Công đã xác thực'}
-                  </p>
-                  <p className="mt-1 font-mono text-sm font-black text-thiso-900">{verified.orderCode}</p>
-                  <p className="mt-1 text-sm text-thiso-500">
-                    {verified.unitDisplayName} · {verified.businessLocationName}
-                    {effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}
-                  </p>
-                </div>
+              <Space direction="vertical" size="large" className="w-full">
+                <Alert
+                  type="info"
+                  showIcon
+                  title={verified.kind === 'PO' ? 'PO đã xác thực' : 'Mã Thi Công đã xác thực'}
+                  description={<><Typography.Text code>{verified.orderCode}</Typography.Text><br />{verified.unitDisplayName} · {verified.businessLocationName}{effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}</>}
+                />
 
                 {needsCalendar ? (
-                  <div>
-                    <p className="label">Ngày giao hàng <span className="text-red-400">*</span></p>
-                    {dailyStatsMsg && (
-                      <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                        {dailyStatsMsg}
-                      </div>
-                    )}
-                    <DeliveryDateCalendar
-                      value={form.deliveryDate}
-                      stats={dailyStats}
-                      loading={dailyStatsLoading}
-                      disabledReasonForDate={(date) => (
-                        unitConfig?.sundayFreshFoodOnly && form.goodsType && form.goodsType !== 'FRESH_FOOD' && isSundayDate(date)
-                          ? 'Chủ nhật chỉ nhận hàng tươi sống'
-                          : undefined
-                      )}
-                      onChange={(date) => setField('deliveryDate', date)}
-                    />
-
-                    <div className="mt-4">
-                      <p className="label">Loại hàng bạn giao <span className="text-red-400">*</span></p>
-                      {unitConfigLoading && (
-                        <div className="rounded-lg border border-thiso-100 bg-white px-3 py-3 text-sm text-thiso-400">
-                          Đang tải loại hàng...
-                        </div>
-                      )}
-                      {unitConfigMsg && (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                          {unitConfigMsg}
-                        </div>
-                      )}
-                      {!unitConfigLoading && !unitConfigMsg && goodsOptions.length > 0 && (
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                          {goodsOptions.map((option) => {
-                            const active = form.goodsType === option.value;
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => setField('goodsType', option.value)}
-                                className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                                  active
-                                    ? 'border-sky-400 bg-sky-50 shadow-card-md'
-                                    : 'border-thiso-200 bg-white hover:border-thiso-300'
-                                }`}
-                              >
-                                <div className="mb-2 text-2xl">{option.icon}</div>
-                                <p className="text-sm font-bold text-thiso-800">{option.title}</p>
-                                {option.hint && (
-                                  <span className="mt-1 inline-block rounded-full bg-thiso-100 px-1.5 py-0.5 text-[10px] font-semibold text-thiso-500">
-                                    {option.hint}
-                                  </span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                      {!unitConfigLoading && !unitConfigMsg && goodsOptions.length === 0 && (
-                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-                          Đơn vị này chưa mở loại hàng nào để đăng ký.
-                        </div>
-                      )}
+                  <Space direction="vertical" size="middle" className="w-full">
+                    {dailyStatsMsg && <Alert type="warning" showIcon title={dailyStatsMsg} />}
+                    <div>
+                      <Typography.Text strong>Ngày giao hàng</Typography.Text>
+                      <div className="mt-2"><DeliveryDateCalendar value={form.deliveryDate} stats={dailyStats} loading={dailyStatsLoading} disabledReasonForDate={(date) => (
+                        unitConfig?.sundayFreshFoodOnly && form.goodsType && form.goodsType !== 'FRESH_FOOD' && isSundayDate(date) ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined
+                      )} onChange={(date) => setField('deliveryDate', date)} /></div>
                     </div>
-                  </div>
+                    <div>
+                      <Typography.Text strong>Loại hàng bạn giao</Typography.Text>
+                      <div className="mt-2">
+                        {unitConfigLoading && <div className="py-4 text-center"><Spin description="Đang tải loại hàng..." /></div>}
+                        {unitConfigMsg && <Alert type="warning" showIcon title={unitConfigMsg} />}
+                        {!unitConfigLoading && !unitConfigMsg && goodsOptions.length > 0 && (
+                          <Row gutter={[12, 12]}>{goodsOptions.map((option) => (
+                            <Col key={option.value} xs={24} sm={8}>
+                              <Card size="small" hoverable onClick={() => setField('goodsType', option.value)} className={form.goodsType === option.value ? 'border-[var(--dqm-color-primary)]' : undefined}>
+                                <Space direction="vertical" size={2}><Typography.Text className="text-2xl">{option.icon}</Typography.Text><Typography.Text strong>{option.title}</Typography.Text>{option.hint && <Typography.Text type="secondary">{option.hint}</Typography.Text>}</Space>
+                              </Card>
+                            </Col>
+                          ))}</Row>
+                        )}
+                        {!unitConfigLoading && !unitConfigMsg && goodsOptions.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Đơn vị này chưa mở loại hàng nào để đăng ký." />}
+                      </div>
+                    </div>
+                  </Space>
                 ) : (
-                  <div className="rounded-lg border border-thiso-100 bg-thiso-50 px-3 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-thiso-400">Ngày giao từ PO</p>
-                    <p className="mt-1 text-sm font-black text-thiso-900">{formatDate(form.deliveryDate)}</p>
-                  </div>
+                  <Descriptions bordered size="small" column={1} items={[{ key: 'delivery-date', label: 'Ngày giao từ PO', children: formatDate(form.deliveryDate) }]} />
                 )}
 
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="label">Tên tài xế</label>
-                    <input className="input h-11" value={form.driverName} onChange={(e) => setField('driverName', e.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" style={{ fontSize: '16px' }} />
-                  </div>
-                  <div>
-                    <label className="label">Số điện thoại <span className="text-red-400">*</span></label>
-                    <input className="input h-11" value={form.driverPhone} onChange={(e) => setField('driverPhone', e.target.value)} placeholder="090..." inputMode="tel" autoComplete="tel" style={{ fontSize: '16px' }} />
-                  </div>
-                  <div>
-                    <label className="label">Biển số xe <span className="text-red-400">*</span></label>
-                    <input className="input h-11 font-mono uppercase" value={form.vehiclePlate} onChange={(e) => setField('vehiclePlate', e.target.value.toUpperCase())} placeholder="51C12345" autoComplete="off" style={{ fontSize: '16px' }} />
-                  </div>
-                  <div>
-                    <label className="label">Mã NCC</label>
-                    <input className="input h-11 font-mono" value={form.vendorCode} onChange={(e) => setField('vendorCode', e.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="08723875" autoComplete="off" style={{ fontSize: '16px' }} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="label">Tên NCC / Công ty</label>
-                    <input className="input h-11" value={form.vendorName} onChange={(e) => setField('vendorName', e.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" style={{ fontSize: '16px' }} />
-                  </div>
-                </div>
-
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-                  <button type="button" className="btn btn-secondary h-11 justify-center" onClick={() => setStep(1)}>
-                    Nhập mã khác
-                  </button>
-                  <button type="button" className="btn btn-primary h-11 justify-center gap-2" onClick={goReview}>
-                    <span>Tiếp tục</span>
-                    <ArrowRightIcon />
-                  </button>
-                </div>
-              </div>
+                <Form layout="vertical" requiredMark="optional">
+                  <Row gutter={[16, 0]}>
+                    <Col xs={24} sm={12}><Form.Item label="Tên tài xế"><Input value={form.driverName} onChange={(event) => setField('driverName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></Form.Item></Col>
+                    <Col xs={24} sm={12}><Form.Item label="Số điện thoại" required><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', event.target.value)} placeholder="090..." inputMode="tel" autoComplete="tel" /></Form.Item></Col>
+                    <Col xs={24} sm={12}><Form.Item label="Biển số xe" required><Input value={form.vehiclePlate} onChange={(event) => setField('vehiclePlate', event.target.value.toUpperCase())} placeholder="51C12345" autoComplete="off" className="font-mono uppercase" /></Form.Item></Col>
+                    <Col xs={24} sm={12}><Form.Item label="Mã NCC"><Input value={form.vendorCode} onChange={(event) => setField('vendorCode', event.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="08723875" autoComplete="off" className="font-mono" /></Form.Item></Col>
+                    <Col span={24}><Form.Item label="Tên NCC / Công ty"><Input value={form.vendorName} onChange={(event) => setField('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" /></Form.Item></Col>
+                  </Row>
+                </Form>
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button onClick={() => setStep(1)}>Nhập mã khác</Button><Button type="primary" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={goReview}>Tiếp tục</Button></div>
+              </Space>
             )}
 
             {step === 3 && verified && (
-              <div className="space-y-5">
-                <div className="rounded-lg border border-thiso-100 bg-thiso-50 p-4">
-                  <ReviewRow label="Loại đăng ký" value={verified.kind === 'PO' ? 'PO' : 'Thi Công'} />
-                  <ReviewRow label="Mã" value={verified.orderCode} />
-                  <ReviewRow label="Khu vực" value={`${verified.businessLocationName} (${verified.businessLocationCode})`} />
-                  <ReviewRow label="Đơn vị" value={verified.unitDisplayName} />
-                  <ReviewRow label="Ngày giao" value={formatDate(form.deliveryDate)} />
-                  <ReviewRow label="Loại hàng" value={effectiveGoodsType ? GOODS_LABEL[effectiveGoodsType] : 'Chưa chọn'} />
-                  <ReviewRow label="Loại xe" value={VEHICLE_LABEL[verified.vehicleType]} />
-                  <ReviewRow label="Tài xế" value={form.driverName} />
-                  <ReviewRow label="Số điện thoại" value={form.driverPhone} />
-                  <ReviewRow label="Biển số" value={form.vehiclePlate.toUpperCase().replace(/\s+/g, '')} />
-                  <ReviewRow label="Mã NCC" value={form.vendorCode} />
-                  <ReviewRow label="Tên NCC / Công ty" value={form.vendorName} />
-                </div>
-
-                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
-                  <button type="button" className="btn btn-secondary h-11 justify-center" onClick={() => setStep(2)} disabled={submitting}>
-                    Sửa thông tin
-                  </button>
-                  <button type="button" className="btn btn-primary h-11 justify-center gap-2" onClick={submitRegistration} disabled={submitting}>
-                    <span>{submitting ? 'Đang đăng ký...' : 'Hoàn tất đăng ký'}</span>
-                    <ArrowRightIcon />
-                  </button>
-                </div>
-              </div>
+              <Space direction="vertical" size="large" className="w-full">
+                <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} items={[
+                  { key: 'type', label: 'Loại đăng ký', children: verified.kind === 'PO' ? 'PO' : 'Thi Công' },
+                  { key: 'code', label: 'Mã', children: <Typography.Text code>{verified.orderCode}</Typography.Text> },
+                  { key: 'location', label: 'Khu vực', children: `${verified.businessLocationName} (${verified.businessLocationCode})` },
+                  { key: 'unit', label: 'Đơn vị', children: verified.unitDisplayName },
+                  { key: 'date', label: 'Ngày giao', children: formatDate(form.deliveryDate) },
+                  { key: 'goods', label: 'Loại hàng', children: effectiveGoodsType ? GOODS_LABEL[effectiveGoodsType] : 'Chưa chọn' },
+                  { key: 'vehicle', label: 'Loại xe', children: VEHICLE_LABEL[verified.vehicleType] },
+                  { key: 'driver', label: 'Tài xế', children: form.driverName || '—' },
+                  { key: 'phone', label: 'Số điện thoại', children: form.driverPhone },
+                  { key: 'plate', label: 'Biển số', children: <Typography.Text code>{form.vehiclePlate.toUpperCase().replace(/\s+/g, '')}</Typography.Text> },
+                  { key: 'vendor-code', label: 'Mã NCC', children: form.vendorCode || '—' },
+                  { key: 'vendor', label: 'Tên NCC / Công ty', children: form.vendorName || '—' },
+                ]} />
+                <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button disabled={submitting} onClick={() => setStep(2)}>Sửa thông tin</Button><Button type="primary" loading={submitting} onClick={submitRegistration}>Hoàn tất đăng ký</Button></div>
+              </Space>
             )}
-          </div>
+          </Card>
+        </Space>
+      </div>
 
-          {/* <div className="grid max-w-2xl gap-3 sm:grid-cols-2">
-            <Link to="/register" className="rounded-lg border border-thiso-200 bg-white p-4 shadow-card transition-all hover:border-thiso-400 hover:shadow-card-md">
-              <p className="text-sm font-black text-thiso-900">Đăng ký thủ công</p>
-              <p className="mt-1 text-sm leading-6 text-thiso-500">Dùng khi mã chưa có dữ liệu hoặc hệ thống xác thực online gặp sự cố.</p>
-            </Link>
-            <Link to="/track" className="rounded-lg border border-thiso-200 bg-white p-4 shadow-card transition-all hover:border-thiso-400 hover:shadow-card-md">
-              <p className="text-sm font-black text-thiso-900">Theo dõi đơn</p>
-              <p className="mt-1 text-sm leading-6 text-thiso-500">Tra cứu trạng thái bằng mã đăng ký hoặc biển số xe sau khi đăng ký.</p>
-            </Link>
-          </div> */}
-        </div>
-      </section>
-
-      {scannerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="home-scanner-title"
-          onClick={() => {
-            stopScanner();
-            setScannerOpen(false);
-          }}
-        >
-          <div
-            className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-card-lg"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex items-center justify-between border-b border-thiso-100 px-4 py-3">
-              <div>
-                <h2 id="home-scanner-title" className="text-base font-black text-thiso-900">Quét mã</h2>
-                <p className="text-xs font-semibold text-thiso-400">{scannerStatus || 'Đang khởi động...'}</p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary h-9 px-3"
-                onClick={() => {
-                  stopScanner();
-                  setScannerOpen(false);
-                }}
-              >
-                Đóng
-              </button>
-            </div>
-            <div className="relative aspect-[3/4] bg-black sm:aspect-video">
-              <video
-                ref={videoRef}
-                className="h-full w-full object-cover"
-                muted
-                playsInline
-                autoPlay
-              />
-              <div className="pointer-events-none absolute inset-10 rounded-lg border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,0.22)]" />
-            </div>
-            <div className="border-t border-thiso-100 bg-white px-4 py-4">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleImageCodeFile}
-              />
-              <button
-                type="button"
-                className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-thiso-200 bg-thiso-50 px-4 py-3 text-sm font-black text-thiso-700 transition-colors hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Hoặc chọn ảnh mã QR
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={scannerOpen}
+        title="Quét mã"
+        onCancel={() => { stopScanner(); setScannerOpen(false); }}
+        footer={<Button icon={<UploadOutlined />} onClick={() => fileInputRef.current?.click()}>Chọn ảnh mã QR</Button>}
+        destroyOnHidden
+      >
+        <Space orientation="vertical" size="middle" className="w-full">
+          <Typography.Text type="secondary">{scannerStatus || 'Đang khởi động...'}</Typography.Text>
+          <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-black sm:aspect-video"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline autoPlay /><div className="pointer-events-none absolute inset-10 rounded-lg border-2 border-white/90" /></div>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageCodeFile} />
+        </Space>
+      </Modal>
     </main>
   );
 }

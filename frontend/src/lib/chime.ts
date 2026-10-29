@@ -1,4 +1,4 @@
-// Shared bell chime — used by WaitingScreen (TV display) and Track (driver mobile).
+// Personal driver bell chime, owned by the global selected-trip notifications.
 
 // 4-note ding-dong pattern, one cycle ≈ 2.8 s.
 const NOTES = [
@@ -9,7 +9,12 @@ const NOTES = [
 ] as const;
 const CYCLE = 2.8;
 
-function scheduleNotes(ctx: AudioContext, durationSecs: number) {
+type ChimeHandle = {
+  stop: () => void;
+};
+
+function scheduleNotes(ctx: AudioContext, durationSecs: number): ChimeHandle {
+  const nodes: Array<{ osc: OscillatorNode; gain: GainNode }> = [];
   const cycles = Math.ceil(durationSecs / CYCLE);
   for (let c = 0; c < cycles; c++) {
     for (const n of NOTES) {
@@ -22,6 +27,7 @@ function scheduleNotes(ctx: AudioContext, durationSecs: number) {
       gain.connect(ctx.destination);
 
       osc.type = 'sine';
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
       osc.frequency.value = n.freq;
 
       gain.gain.setValueAtTime(0, ctx.currentTime + t);
@@ -30,23 +36,55 @@ function scheduleNotes(ctx: AudioContext, durationSecs: number) {
 
       osc.start(ctx.currentTime + t);
       osc.stop(ctx.currentTime + t + n.dur + 0.05);
+      nodes.push({ osc, gain });
     }
   }
-}
 
-/** WaitingScreen (TV): creates its own AudioContext each call. */
-export function playChime(durationSecs = 10) {
-  try {
-    const ctx = new AudioContext();
-    scheduleNotes(ctx, durationSecs);
-  } catch { /* autoplay blocked */ }
+  let stopped = false;
+  return {
+    stop: () => {
+      if (stopped) return;
+      stopped = true;
+      const now = ctx.currentTime;
+      for (const { osc, gain } of nodes) {
+        try {
+          gain.gain.cancelScheduledValues(now);
+          gain.gain.setValueAtTime(0, now);
+          osc.stop(now);
+        } catch {
+          // An oscillator that has already ended cannot be stopped again.
+        }
+      }
+    },
+  };
 }
 
 /** Track (mobile): use the caller's persistent AudioContext (iOS Safari compat). */
-export function playChimeWithCtx(ctx: AudioContext | null, durationSecs = 10) {
-  if (!ctx) return;
+export function playChimeWithCtx(ctx: AudioContext | null, durationSecs = 10): ChimeHandle | null {
+  if (!ctx) return null;
   try {
-    if (ctx.state === 'suspended') ctx.resume();
-    scheduleNotes(ctx, durationSecs);
-  } catch { /* autoplay blocked */ }
+    if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
+    return scheduleNotes(ctx, durationSecs);
+  } catch {
+    return null;
+  }
+}
+
+/** Repeat only while the owning alert is open; stop cancels both timer and notes. */
+export function playRepeatingChimeWithCtx(ctx: AudioContext | null): ChimeHandle | null {
+  if (!ctx) return null;
+  let current = playChimeWithCtx(ctx, 10);
+  if (!current) return null;
+  const timer = setInterval(() => {
+    current?.stop();
+    current = playChimeWithCtx(ctx, 10);
+  }, 10_000);
+  let stopped = false;
+  return { stop: () => {
+    if (stopped) return;
+    stopped = true;
+    clearInterval(timer);
+    current?.stop();
+    current = null;
+  } };
 }

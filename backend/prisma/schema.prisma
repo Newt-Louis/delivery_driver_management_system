@@ -41,7 +41,6 @@ enum GoodsType {
 enum VehicleType {
   TRUCK
   MOTORBIKE
-  OTHER
 }
 
 enum DeviceType {
@@ -223,7 +222,7 @@ model Zone {
 
 model Slot {
   id                String                 @id @default(cuid())
-  code              String                 @unique // T1, T2, M1, M2 …
+  code              String // T1, T2, M1, M2 …; unique within its zone
   name              String
   assignedUnit      String                 @map("assigned_unit")
   vehicleType       VehicleType            @default(TRUCK) @map("vehicle_type")
@@ -240,6 +239,7 @@ model Slot {
   zone              Zone                   @relation(fields: [zoneId], references: [id])
   deliveries        DeliveryRegistration[] @relation("AssignedSlot")
 
+  @@unique([zoneId, code])
   @@index([zoneId])
   @@index([assignedUnit, vehicleType, status, isActive, autoAssign])
   @@index([zoneId, vehicleType, status, isActive, autoAssign])
@@ -267,7 +267,7 @@ model DeliveryRegistration {
   status             DeliveryStatus         @default(REGISTERED)
   assignedSlotId     String?                @map("assigned_slot_id")
   assignedSlot       Slot?                  @relation("AssignedSlot", fields: [assignedSlotId], references: [id])
-  vehicleType        VehicleType            @default(OTHER) @map("vehicle_type")
+  vehicleType        VehicleType            @map("vehicle_type")
   autoWarehouse      Boolean                @default(false) @map("auto_warehouse")
   ticketNumber       Int?                   @map("ticket_number")
   note               String?

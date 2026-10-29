@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { BusinessLocation, UnitConfig, UnitGoodsType } from '../../../lib/types';
+import { usePublicBusinessLocation } from '../../../context/PublicBusinessLocationContext';
+import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
 import {
   checkAutoWarehouseVendor,
   createManualRegistrationCode,
   getDailyRegistrationStats,
-  getPublicBusinessLocations,
+  getAutoWarehouseVendorSuggestions,
   getPublicUnitConfigs,
   getUnitConfig,
   // getUnitGoodsTypes, ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa
@@ -12,6 +13,7 @@ import {
   registerDelivery,
   type DailyRegistrationStat,
   type DailyRegistrationStatsParams,
+  type AutoWarehouseVendorSuggestion,
   type VehicleAvailabilityOption,
 } from '../api';
 import { LS_KEY } from '../constants';
@@ -26,8 +28,8 @@ const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
 };
 
 export function useRegisterForm() {
+  const { selectedBusinessLocationId, selectedBusinessLocation } = usePublicBusinessLocation();
   const [step, setStep] = useState(1);
-  const [guideOpen, setGuideOpen] = useState(true);
   const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -58,9 +60,6 @@ export function useRegisterForm() {
   });
 
   const [rememberInfo, setRememberInfo] = useState(true);
-  const [publicLocations, setPublicLocations] = useState<BusinessLocation[]>([]);
-  const [publicLocationsLoading, setPublicLocationsLoading] = useState(false);
-  const [publicLocationsMsg, setPublicLocationsMsg] = useState('');
   const [publicUnits, setPublicUnits] = useState<UnitConfig[]>([]);
   const [publicUnitsLoading, setPublicUnitsLoading] = useState(false);
   const [publicUnitsMsg, setPublicUnitsMsg] = useState('');
@@ -74,10 +73,13 @@ export function useRegisterForm() {
   const [vehicleAvailabilityLoading, setVehicleAvailabilityLoading] = useState(false);
   const [awStatus, setAwStatus] = useState<'idle' | 'loading' | 'match' | 'nomatch'>('idle');
   const [awVendorName, setAwVendorName] = useState('');
+  const [awVendorSuggestions, setAwVendorSuggestions] = useState<AutoWarehouseVendorSuggestion[]>([]);
+  const [awVendorSuggestionsLoading, setAwVendorSuggestionsLoading] = useState(false);
   const [manualReferenceLoading, setManualReferenceLoading] = useState(false);
   const [manualReferenceError, setManualReferenceError] = useState('');
   const [manualReferenceRequest, setManualReferenceRequest] = useState(0);
   const awDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const awSuggestionsDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const sundayFreshFoodBlocked = Boolean(
     unitConfig?.sundayFreshFoodOnly
@@ -98,23 +100,26 @@ export function useRegisterForm() {
   }, []);
 
   useEffect(() => {
-    setPublicLocationsLoading(true);
-    setPublicLocationsMsg('');
-    getPublicBusinessLocations()
-      .then((locations) => {
-        setPublicLocations(locations);
-        if (locations.length === 1) {
-          setForm((current) => current.businessLocationId
-            ? current
-            : { ...current, businessLocationId: locations[0].id });
-        }
-      })
-      .catch(() => {
-        setPublicLocations([]);
-        setPublicLocationsMsg('Không thể tải danh sách khu vực giao hàng. Vui lòng thử lại.');
-      })
-      .finally(() => setPublicLocationsLoading(false));
-  }, []);
+    setStep((current) => current > 1 ? 1 : current);
+    setFieldErrors({});
+    setHighlightedField(null);
+    setSubmitError('');
+    setReturnToReviewAfterEdit(false);
+    setForm((current) => {
+      const businessLocationId = selectedBusinessLocationId ?? '';
+      if (current.businessLocationId === businessLocationId) return current;
+      return {
+        ...current,
+        businessLocationId,
+        unitConfigId: '',
+        receivingUnit: '',
+        goodsType: '',
+        unitGoodsTypeId: '',
+        vehicleType: '',
+        timeSlot: '',
+      };
+    });
+  }, [selectedBusinessLocationId]);
 
   useEffect(() => {
     if (!form.businessLocationId) {
@@ -255,9 +260,11 @@ export function useRegisterForm() {
     const receivingUnit = form.receivingUnit;
     const scope = selectedUnitScope;
     setAwStatus('loading');
+    let cancelled = false;
     awDebounceRef.current = setTimeout(async () => {
       try {
         const res = await checkAutoWarehouseVendor(vendorCode, receivingUnit, scope);
+        if (cancelled) return;
         if (res.isAutoWarehouse) {
           setAwStatus('match');
           setAwVendorName(res.vendor?.vendorName ?? '');
@@ -266,13 +273,49 @@ export function useRegisterForm() {
           setAwVendorName('');
         }
       } catch {
-        setAwStatus('idle');
+        if (!cancelled) setAwStatus('idle');
       }
     }, 600);
+    return () => {
+      cancelled = true;
+      if (awDebounceRef.current) clearTimeout(awDebounceRef.current);
+    };
   }, [form.vendorCode, form.receivingUnit, form.businessLocationId, form.unitConfigId]);
 
   useEffect(() => {
-    contentRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    if (awSuggestionsDebounceRef.current) clearTimeout(awSuggestionsDebounceRef.current);
+    const query = form.vendorCode.trim();
+    if (query.length < 2 || !form.businessLocationId || !form.unitConfigId) {
+      setAwVendorSuggestions([]);
+      setAwVendorSuggestionsLoading(false);
+      return;
+    }
+
+    const scope = {
+      businessLocationId: form.businessLocationId,
+      unitConfigId: form.unitConfigId,
+    };
+    let cancelled = false;
+    setAwVendorSuggestionsLoading(true);
+    awSuggestionsDebounceRef.current = setTimeout(async () => {
+      try {
+        const vendors = await getAutoWarehouseVendorSuggestions(query, scope);
+        if (!cancelled) setAwVendorSuggestions(vendors);
+      } catch {
+        if (!cancelled) setAwVendorSuggestions([]);
+      } finally {
+        if (!cancelled) setAwVendorSuggestionsLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      if (awSuggestionsDebounceRef.current) clearTimeout(awSuggestionsDebounceRef.current);
+    };
+  }, [form.vendorCode, form.businessLocationId, form.unitConfigId]);
+
+  useEffect(() => {
+    contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step]);
 
   function scrollToFirstError(errs: RegisterFieldErrors) {
@@ -372,7 +415,6 @@ export function useRegisterForm() {
         deliveryDate: form.deliveryDate,
         note: form.note || undefined,
       });
-      const selectedLocation = publicLocations.find((l) => l.id === form.businessLocationId);
       setSuccess({
         code: res.registrationCode,
         referenceCode: poNumber,
@@ -387,7 +429,7 @@ export function useRegisterForm() {
         goodsTypeName: selectedCustomType ? `${selectedCustomType.emoji} ${selectedCustomType.name}` : '',
         vehicleType: form.vehicleType,
         requestedTime: form.deliveryDate.split('-').reverse().join('/'),
-        locationName: selectedLocation?.locationName ?? '',
+        locationName: selectedBusinessLocation?.locationName ?? '',
       });
     } catch (err: unknown) {
       const d = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
@@ -410,7 +452,7 @@ export function useRegisterForm() {
     setManualReferenceError('');
     setForm(f => ({
       ...f,
-      businessLocationId: '',
+      businessLocationId: selectedBusinessLocationId ?? '',
       unitConfigId: '',
       receivingUnit: '',
       goodsType: '',
@@ -428,19 +470,19 @@ export function useRegisterForm() {
     setManualReferenceRequest((current) => current + 1);
   }, []);
 
+  const selectAutoWarehouseVendor = useCallback((vendor: AutoWarehouseVendorSuggestion) => {
+    set('vendorCode', vendor.vendorCode);
+    set('vendorName', vendor.vendorName);
+  }, [set]);
+
   return {
     step,
-    guideOpen,
-    setGuideOpen,
     fieldErrors,
     highlightedField,
     submitting,
     submitError,
     success,
     form,
-    publicLocations,
-    publicLocationsLoading,
-    publicLocationsMsg,
     publicUnits,
     publicUnitsLoading,
     publicUnitsMsg,
@@ -459,9 +501,12 @@ export function useRegisterForm() {
     sundayFreshFoodBlocked,
     awStatus,
     awVendorName,
+    awVendorSuggestions,
+    awVendorSuggestionsLoading,
     contentRef,
     set,
     retryManualReferenceCode,
+    selectAutoWarehouseVendor,
     next,
     back,
     editStepFromReview,

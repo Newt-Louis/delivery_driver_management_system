@@ -44,6 +44,7 @@ export interface TrackDelivery {
   requestedTime: string | null;
   checkinTime: string | null;
   calledTime: string | null;
+  notificationCalledAt?: string | null;
   receivingStartTime: string | null;
   completedTime: string | null;
   status: string;
@@ -52,15 +53,12 @@ export interface TrackDelivery {
   ticketNumber: number | null;
   note: string | null;
   createdAt: string;
+  updatedAt?: string;
   queueInfo: QueueInfo | null;
 }
 
 export interface StatusInfo {
-  icon: string;
   label: string;
-  color: string;
-  bg: string;
-  border: string;
 }
 
 export interface TimelineEvent {
@@ -69,12 +67,6 @@ export interface TimelineEvent {
   time: string | null;
   done: boolean;
   detail: string | null;
-}
-
-export interface StatusAlert {
-  title: string;
-  body: string;
-  level: 'urgent' | 'info';
 }
 
 export interface QueueBannerState {

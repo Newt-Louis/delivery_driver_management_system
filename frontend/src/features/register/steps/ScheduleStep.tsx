@@ -1,4 +1,6 @@
-import type { DailyRegistrationStat } from '../api';
+import { CalendarOutlined, CheckCircleOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Alert, AutoComplete, Button, Card, Form, Input, Space, Typography } from 'antd';
+import type { AutoWarehouseVendorSuggestion, DailyRegistrationStat } from '../api';
 import DeliveryDateCalendar from '../components/DeliveryDateCalendar';
 import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
@@ -16,99 +18,72 @@ type ScheduleStepProps = {
   manualReferenceError: string;
   sundayFreshFoodBlocked: boolean;
   sundayFreshFoodOnly: boolean;
+  awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
+  awVendorName: string;
+  awVendorSuggestions: AutoWarehouseVendorSuggestion[];
+  awVendorSuggestionsLoading: boolean;
   set: SetFormField;
   onRetryManualReferenceCode: () => void;
+  onSelectAutoWarehouseVendor: (vendor: AutoWarehouseVendorSuggestion) => void;
 };
 
-export default function ScheduleStep({
-  form,
-  fieldErrors,
-  highlightedField,
-  dailyStats,
-  dailyStatsMsg,
-  dailyStatsLoading,
-  manualReferenceLoading,
-  manualReferenceError,
-  sundayFreshFoodBlocked,
-  sundayFreshFoodOnly,
-  set,
-  onRetryManualReferenceCode,
-}: ScheduleStepProps) {
+export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, sundayFreshFoodOnly, awStatus, awVendorName, awVendorSuggestions, awVendorSuggestionsLoading, set, onRetryManualReferenceCode, onSelectAutoWarehouseVendor }: ScheduleStepProps) {
+  const vendorOptions = awVendorSuggestions.map((vendor) => ({
+    value: vendor.vendorCode,
+    label: <div className="py-1"><Typography.Text strong>{vendor.vendorCode}</Typography.Text><Typography.Text type="secondary" className="block text-xs">{vendor.vendorName}</Typography.Text></div>,
+    vendor,
+  }));
+  const vendorSuffix = <span className="inline-flex w-4 justify-center" aria-live="polite">{awStatus === 'loading' ? <LoadingOutlined /> : awStatus === 'match' ? <CheckCircleOutlined /> : null}</span>;
+
   return (
     <div className="space-y-5">
       <FieldFrame field="deliveryDate" highlightedField={highlightedField} variant="choice">
-        <p className="label">Ngày giao hàng <span className="text-red-400">*</span></p>
-
-        {dailyStatsMsg && (
-          <div className="mb-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 flex items-start gap-2">
-            <span className="flex-shrink-0">⚠</span>
-            <span>{dailyStatsMsg}</span>
-          </div>
-        )}
-
-        {sundayFreshFoodBlocked && (
-          <div className="mb-3 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700 flex items-start gap-2">
-            <span className="flex-shrink-0">⚠</span>
-            <span>Chủ nhật chỉ nhận hàng tươi sống</span>
-          </div>
-        )}
-
-        <DeliveryDateCalendar
-          value={form.deliveryDate}
-          stats={dailyStats}
-          loading={dailyStatsLoading}
-          disabledReasonForDate={(date) => (
-            sundayFreshFoodOnly && isSundayDate(date) && form.goodsType !== 'FRESH_FOOD' ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined
-          )}
-          onChange={(date) => set('deliveryDate', date)}
-        />
-
-        {fieldErrors.deliveryDate && <FieldError text={fieldErrors.deliveryDate} />}
+        <Card size="small" title={<><CalendarOutlined /> Ngày giao hàng</>}>
+          {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon title={dailyStatsMsg} />}
+          {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon title="Chủ nhật chỉ nhận hàng tươi sống" />}
+          <DeliveryDateCalendar value={form.deliveryDate} stats={dailyStats} loading={dailyStatsLoading} disabledReasonForDate={(date) => sundayFreshFoodOnly && isSundayDate(date) && form.goodsType !== 'FRESH_FOOD' ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined} onChange={(date) => set('deliveryDate', date)} />
+          {fieldErrors.deliveryDate && <FieldError text={fieldErrors.deliveryDate} />}
+        </Card>
       </FieldFrame>
 
-      <div className="border-t border-thiso-100 pt-1">
-        <p className="text-[11px] text-thiso-400 font-semibold uppercase tracking-wider mb-4">Thông tin đơn hàng</p>
-      </div>
-
-      <FieldFrame field="vendorName" highlightedField={highlightedField}>
-        <label className="label">Tên công ty / Nhà cung cấp <span className="text-red-400">*</span></label>
-        <input
-          type="text"
-          value={form.vendorName}
-          onChange={e => set('vendorName', e.target.value)}
-          placeholder="Công ty TNHH ABC"
-          autoComplete="organization"
-          className={`input py-3 ${fieldErrors.vendorName ? 'border-red-400 ring-1 ring-red-400' : ''}`}
-          style={{ fontSize: '16px' }}
-        />
-        <FieldHint text="Tên công ty hoặc đơn vị bạn đại diện giao hàng" />
-        {fieldErrors.vendorName && <FieldError text={fieldErrors.vendorName} />}
-      </FieldFrame>
-
-      <FieldFrame field="poNumber" highlightedField={highlightedField}>
-        <label className="label">
-          Mã đối chiếu đăng ký <span className="text-thiso-300 font-normal normal-case">(tự động tạo)</span>
-        </label>
-        <input
-          type="text"
-          value={form.poNumber}
-          readOnly
-          placeholder="Đang tạo mã..."
-          autoComplete="off"
-          className="input py-3 bg-thiso-50 font-mono font-bold tracking-[0.2em]"
-          style={{ fontSize: '16px' }}
-        />
-        {manualReferenceLoading && <FieldHint text="Đang tạo mã đối chiếu cho lượt đăng ký này..." />}
-        {manualReferenceError ? (
-          <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2.5">
-            <p className="text-xs font-medium text-red-700">{manualReferenceError}</p>
-            <button type="button" onClick={onRetryManualReferenceCode} className="shrink-0 text-xs font-bold text-red-700 underline">Thử lại</button>
-          </div>
-        ) : !manualReferenceLoading && (
-          <FieldHint text="Mã này được lưu cùng lượt đăng ký để đối chiếu hoặc hủy chuyến khi cần." />
-        )}
-        {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
-      </FieldFrame>
+      <Card size="small" title="Thông tin đơn hàng">
+        <Form layout="vertical" requiredMark={false}>
+          <FieldFrame field="vendorCode" highlightedField={highlightedField}>
+            <Form.Item label="Mã nhà cung cấp (NCC)" className="!mb-4">
+              <AutoComplete
+                value={form.vendorCode}
+                options={vendorOptions}
+                filterOption={false}
+                notFoundContent={awVendorSuggestionsLoading ? <Space><LoadingOutlined />Đang tìm NCC...</Space> : null}
+                onChange={(value) => set('vendorCode', value)}
+                onSelect={(_value, option) => {
+                  const vendor = (option as { vendor?: AutoWarehouseVendorSuggestion }).vendor;
+                  if (vendor) onSelectAutoWarehouseVendor(vendor);
+                }}
+              >
+                <Input size="large" placeholder="VD: Sup001, NccAbc..." autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} suffix={vendorSuffix} />
+              </AutoComplete>
+              <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự gợi ý dữ liệu và xếp vào khu kho tự động khi được phép." />
+              {awStatus === 'match' && <Alert className="mt-3" type="success" showIcon title="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
+            </Form.Item>
+          </FieldFrame>
+          <FieldFrame field="vendorName" highlightedField={highlightedField}>
+            <Form.Item label="Tên công ty / Nhà cung cấp" required validateStatus={fieldErrors.vendorName ? 'error' : undefined} className="!mb-4">
+              <Input size="large" value={form.vendorName} onChange={(event) => set('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" status={fieldErrors.vendorName ? 'error' : undefined} />
+              <FieldHint text="Tên công ty hoặc đơn vị bạn đại diện giao hàng." />
+              {fieldErrors.vendorName && <FieldError text={fieldErrors.vendorName} />}
+            </Form.Item>
+          </FieldFrame>
+          <FieldFrame field="poNumber" highlightedField={highlightedField}>
+            <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu hoặc hủy chuyến khi cần." className="!mb-0">
+              <Input size="large" value={form.poNumber} readOnly placeholder="Đang tạo mã..." autoComplete="off" className="font-mono font-bold tracking-[0.2em]" suffix={manualReferenceLoading ? <LoadingOutlined /> : undefined} />
+              {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
+              {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
+            </Form.Item>
+          </FieldFrame>
+        </Form>
+        <Typography.Text type="secondary" className="text-xs">Mã được tạo tự động, không cần nhập thủ công.</Typography.Text>
+      </Card>
     </div>
   );
 }

@@ -122,7 +122,7 @@ export const SuperadminFormRequest = {
   parseReceivingTimeConfigCreate(body: unknown) {
     return z.object({
       unitConfigId: id,
-      vehicleType: z.nativeEnum(VehicleType),
+      vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
       goodsType: z.nativeEnum(GoodsType),
       configuredMinutes: z.coerce.number().min(1).max(1440),
       recommendedMinutes: z.coerce.number().min(1).max(1440).nullable().optional(),

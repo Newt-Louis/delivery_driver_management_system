@@ -31,6 +31,6 @@ export function buildWaitingCsvRows(deliveries: DeliveryRegistration[]) {
     getUnitMeta(delivery).label,
     GOODS_LABEL[delivery.goodsType] ?? delivery.goodsType,
     VEHICLE_LABEL[delivery.vehicleType] ?? delivery.vehicleType,
-    getWaitingMinutes(delivery, now) ?? '',
+    delivery.status === 'WAITING' ? getWaitingMinutes(delivery, now) ?? '' : '',
   ]);
 }

@@ -225,7 +225,7 @@ Các thao tác đã đi qua helper này gồm check-in lookup, check-in by id, m
 
 Role hiện có:
 
-- `SUPERADMIN`: tài khoản duy nhất, toàn quyền hệ thống, không bắt buộc gắn `BusinessLocation`, có route master data riêng `/superadmin`; CUD `ADMIN_LOC`/`ADMIN_OPE` và gán unit scope cho hai role này.
+- `SUPERADMIN`: tài khoản duy nhất, toàn quyền hệ thống, không bắt buộc gắn `BusinessLocation`, có route master data riêng `/superadmin`; CUD tất cả role cấp dưới. Khi đã chọn BusinessLocation vận hành, Superadmin cũng dùng được tab Nhân viên ở `/backoffice` để tạo/sửa/reset mật khẩu/vô hiệu hóa `ADMIN_OPE`, `RECEIVING` và `CHECKIN` trong location đang chọn.
 - `ADMIN_LOC`: admin của một `BusinessLocation`, CUD `RECEIVING`/`CHECKIN`, được thấy `ADMIN_OPE` và chỉ được chỉnh unit scope của `ADMIN_OPE`.
 - `ADMIN_OPE`: vận hành/điều phối trong khu vực theo unit được gán; không quản trị user và không sở hữu master data system-wide.
 - `RECEIVING`: nhận hàng, bắt đầu và hoàn tất giao hàng theo unit được gán.

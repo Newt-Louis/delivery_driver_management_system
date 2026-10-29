@@ -8,6 +8,7 @@ import { assertCanOperateUnit } from '../domain/permissionAssertions';
 import { canOperateUnit } from '../domain/permissions';
 import { sendDomainError } from '../modules/http/domainErrorResponse';
 import { domainError } from '../modules/shared/domainError';
+import { publicReadLimiter } from '../middleware/rateLimit';
 
 const router = Router();
 
@@ -136,6 +137,43 @@ router.get('/check', asyncHandler(async (req: Request, res: Response) => {
   });
   const vendor = vendors[0] ?? null;
   res.json({ isAutoWarehouse: !!vendor, vendor });
+}));
+
+const publicSuggestionSchema = z.object({
+  businessLocationId: z.string().min(1),
+  unitConfigId: z.string().min(1),
+  q: z.string().trim().min(2).max(50),
+});
+
+// GET /api/aw-vendors/suggestions?... — public, scoped code suggestions for the manual register form
+router.get('/suggestions', publicReadLimiter, asyncHandler(async (req: Request, res: Response) => {
+  const { businessLocationId, unitConfigId, q } = publicSuggestionSchema.parse(req.query);
+  const unitConfig = await prisma.unitConfig.findFirst({
+    where: {
+      id: unitConfigId,
+      businessLocationId,
+      isActive: true,
+      businessLocation: { isActive: true },
+    },
+    select: { id: true },
+  });
+
+  if (!unitConfig) {
+    res.status(404).json({ error: 'Unit config not found' });
+    return;
+  }
+
+  const vendors = await prisma.autoWarehouseVendor.findMany({
+    where: {
+      unitConfigId: unitConfig.id,
+      active: true,
+      vendorCode: { contains: q, mode: 'insensitive' },
+    },
+    select: { vendorCode: true, vendorName: true },
+    orderBy: { vendorCode: 'asc' },
+    take: 10,
+  });
+  res.json({ vendors });
 }));
 
 const createSchema = z.object({

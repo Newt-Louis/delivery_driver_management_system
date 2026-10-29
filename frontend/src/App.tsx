@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -14,13 +14,13 @@ import ReceivingTimes from './pages/ReceivingTimes';
 import Reports from './pages/Reports';
 import Histories from './pages/Histories';
 import Cancelled from './pages/Cancelled';
-import Navbar from './components/Navbar';
+import StaffShell from './components/layout/StaffShell';
+import PublicShell from './components/layout/PublicShell';
 import SuperadminOperationalContextGate from './components/SuperadminOperationalContextGate';
 import ToastContainer from './components/ToastContainer';
 
 function homePathForRole(role?: string) {
-  if (role === 'CHECKIN') return '/check-in';
-  return '/dashboard';
+  return role === 'CHECKIN' ? '/check-in' : '/dashboard';
 }
 
 function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
@@ -31,97 +31,54 @@ function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?
   return <>{children}</>;
 }
 
+function isStaffRoute(pathname: string) {
+  return [
+    '/check-in', '/dashboard', '/docks', '/superadmin', '/backoffice',
+    '/receiving-times', '/reports', '/histories',
+  ].some((path) => pathname === path || pathname.startsWith(`${path}/`));
+}
+
+function isPublicDriverRoute(pathname: string) {
+  return pathname === '/'
+    || pathname === '/register'
+    || pathname === '/track'
+    || pathname.startsWith('/track/')
+    || pathname === '/cancel'
+    || pathname === '/waiting-screen';
+}
+
 export default function App() {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
+  const staffRoute = isStaffRoute(location.pathname);
+  const publicDriverRoute = isPublicDriverRoute(location.pathname);
 
-  // Pages that have their own full-screen layout — hide the global nav
-  const isPublicFullscreen = ['/waiting-screen', '/track', '/cancelled'].some(
-    (p) => location.pathname.startsWith(p),
+  const routes = (
+    <Routes>
+      <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route path="/waiting-screen" element={<WaitingScreen />} />
+      <Route path="/taixe" element={<Navigate to="/register" replace />} />
+      <Route path="/track" element={<Track />} />
+      <Route path="/track/:code" element={<Track />} />
+      <Route path="/cancel" element={<Cancelled />} />
+      <Route path="/check-in" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN']}><CheckIn /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><Dashboard /></ProtectedRoute>} />
+      <Route path="/docks" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><DockManagement /></ProtectedRoute>} />
+      <Route path="/superadmin" element={<ProtectedRoute roles={['SUPERADMIN']}><Superadmin /></ProtectedRoute>} />
+      <Route path="/backoffice" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC']}><Backoffice /></ProtectedRoute>} />
+      <Route path="/receiving-times" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><ReceivingTimes /></ProtectedRoute>} />
+      <Route path="/reports" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}><Reports /></ProtectedRoute>} />
+      <Route path="/histories" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}><Histories /></ProtectedRoute>} />
+      <Route path="/" element={isLoading ? null : <Home />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 
   return (
     <div className="min-h-screen">
-      {isAuthenticated && !isPublicFullscreen && <Navbar />}
-      {/* Offset content: sidebar width on desktop, top bar height on mobile */}
-      <div className={isAuthenticated && !isPublicFullscreen ? 'md:pl-56 pt-14 md:pt-0' : ''}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/waiting-screen" element={<WaitingScreen />} />
-        <Route path="/taixe" element={<Navigate to="/register" replace />} />
-        <Route path="/track" element={<Track />} />
-        <Route path="/track/:code" element={<Track />} />
-        <Route path="/cancelled" element={<Cancelled />} />
-        <Route
-          path="/check-in"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN']}>
-              <CheckIn />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/docks"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
-              <DockManagement />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/superadmin"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN']}>
-              <Superadmin />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/backoffice"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC']}>
-              <Backoffice />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/receiving-times"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}>
-              <ReceivingTimes />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
-              <Reports />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/histories"
-          element={
-            <ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE']}>
-              <Histories />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/" element={isLoading ? null : <Home />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      </div>
-      {isAuthenticated && !isPublicFullscreen && <SuperadminOperationalContextGate />}
+      {isAuthenticated && staffRoute ? <StaffShell>{routes}</StaffShell> : publicDriverRoute ? <PublicShell>{routes}</PublicShell> : routes}
+      {isAuthenticated && staffRoute && <SuperadminOperationalContextGate />}
       <ToastContainer />
     </div>
   );

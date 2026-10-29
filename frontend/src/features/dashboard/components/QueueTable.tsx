@@ -1,4 +1,6 @@
 import { useMemo, useState } from 'react';
+import { Button, Empty, Space, Table, Tag, Typography } from 'antd';
+import type { ColumnsType } from 'antd/es/table';
 import GoodsBadge from '../../../components/GoodsBadge';
 import StatusBadge from '../../../components/StatusBadge';
 import type { DeliveryRegistration, UnitDispatch } from '../../../lib/types';
@@ -6,263 +8,25 @@ import { downloadCsv } from '../../../lib/export';
 import { formatWait } from '../../../lib/utils';
 import { DISPATCH_CSV_HEADERS, VEHICLE_LABEL } from '../constants';
 import type { DeliveryLifecycleAction, StatusFilter, UnitKey, VehicleTypeFilter } from '../types';
-import {
-  buildDispatchCsvRows,
-  filterDispatchDeliveries,
-  getDeliveryWaitState,
-  getTicketCode,
-  getUnitMeta,
-} from '../utils';
+import { buildDispatchCsvRows, filterDispatchDeliveries, getDeliveryWaitState, getTicketCode, getUnitMeta } from '../utils';
 import FilterBar from './FilterBar';
 import UnitBrandMark from './UnitBrandMark';
-
-interface QueueTableProps {
-  deliveries: DeliveryRegistration[];
-  unit?: UnitKey;
-  unitConfig?: UnitDispatch['unitConfig'];
-  unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>;
-  onCall: (delivery: DeliveryRegistration, slotId?: string) => void;
-  onAction: (id: string, action: DeliveryLifecycleAction) => void;
-  onView: (id: string) => void;
-  actionLoading: string | null;
-}
-
-export default function QueueTable({
-  deliveries,
-  unit,
-  unitConfig,
-  unitConfigsByUnit,
-  onCall,
-  onAction,
-  onView,
-  actionLoading,
-}: QueueTableProps) {
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
-  const [vehicleFilter, setVehicleFilter] = useState<VehicleTypeFilter>('ALL');
-
-  const filtered = useMemo(
-    () => filterDispatchDeliveries(deliveries, search, statusFilter, vehicleFilter),
-    [deliveries, search, statusFilter, vehicleFilter],
-  );
-
-  function handleExport() {
-    const exportUnitConfigs = unitConfigsByUnit ?? (unitConfig ? { [unit ?? '']: unitConfig } : undefined);
-    downloadCsv('dieu-phoi-hang-cho', DISPATCH_CSV_HEADERS, buildDispatchCsvRows(filtered, exportUnitConfigs));
-  }
-
-  return (
-    <div>
-      <FilterBar
-        search={search}
-        onSearch={setSearch}
-        statusFilter={statusFilter}
-        onStatus={setStatusFilter}
-        vehicleFilter={vehicleFilter}
-        onVehicle={setVehicleFilter}
-        total={filtered.length}
-        onExport={handleExport}
-      />
-
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-thiso-100 py-12 text-center shadow-sm">
-          <div className="text-3xl mb-2">{deliveries.length === 0 ? '🎉' : '🔍'}</div>
-          <div className="text-thiso-400 text-sm">
-            {deliveries.length === 0 ? 'Không có xe nào đang điều phối' : 'Không tìm thấy kết quả phù hợp'}
-          </div>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl shadow-sm border border-thiso-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-thiso-50 text-xs text-thiso-400 uppercase text-left border-b border-thiso-100">
-                  <th className="px-3 py-3 w-[120px]">Số thẻ</th>
-                  <th className="px-3 py-3">Biển số · Tài xế</th>
-                  {!unit && <th className="px-3 py-3">Đơn vị</th>}
-                  <th className="px-3 py-3">Nhà cung cấp</th>
-                  <th className="px-3 py-3 w-[130px]">Mã ĐK</th>
-                  <th className="px-3 py-3">Hàng · Xe</th>
-                  <th className="px-3 py-3 w-20">Chờ</th>
-                  <th className="px-3 py-3 w-16">Vị trí</th>
-                  <th className="px-3 py-3">Trạng thái</th>
-                  <th className="px-3 py-3 min-w-[220px]">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((delivery) => {
-                  const deliveryUnitConfig = delivery.unitConfig
-                    ?? delivery.assignedSlot?.zone?.unitConfig
-                    ?? unitConfig
-                    ?? unitConfigsByUnit?.[delivery.receivingUnit];
-                  const meta = getUnitMeta(delivery.receivingUnit, deliveryUnitConfig);
-                  const ticket = getTicketCode(delivery, deliveryUnitConfig);
-                  const { calledMin, isCritical, isWarning } = getDeliveryWaitState(delivery);
-
-                  return (
-                    <tr
-                      key={delivery.id}
-                      className={`border-b border-thiso-50 last:border-0 transition-colors border-l-4
-                        ${isCritical ? 'bg-red-50 border-l-red-500'
-                        : isWarning ? 'bg-amber-50 border-l-amber-400'
-                          : 'hover:bg-thiso-50/60'}`}
-                      style={!isCritical && !isWarning ? meta.rowBorderStyle : undefined}
-                    >
-                      <td className="px-3 py-3">
-                        {ticket ? (
-                          <div
-                            className="inline-flex items-center px-2.5 py-1 rounded-lg font-mono font-black text-xs tracking-widest text-white whitespace-nowrap shadow-sm"
-                            style={{ background: meta.color }}
-                          >
-                            🎫 {ticket}
-                          </div>
-                        ) : (
-                          <span className="text-thiso-300 text-xs">—</span>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <div className="font-mono font-black text-thiso-900 text-base leading-none">{delivery.vehiclePlate}</div>
-                        <div className="text-xs text-thiso-500 mt-1 leading-none">{delivery.driverName}</div>
-                        <div className="text-xs text-thiso-400 mt-0.5 font-mono">{delivery.driverPhone}</div>
-                        {delivery.callCount && delivery.callCount > 0 && (
-                          <span className="text-[10px] text-amber-700 font-bold mt-0.5 block">Gọi {delivery.callCount}x</span>
-                        )}
-                      </td>
-
-                      {!unit && (
-                        <td className="px-3 py-3">
-                          <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-xs font-semibold whitespace-nowrap" style={meta.badgeStyle}>
-                            <UnitBrandMark
-                              meta={meta}
-                              className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded bg-white/70"
-                              iconClassName="text-sm leading-none"
-                            />
-                            {meta.label}
-                          </span>
-                        </td>
-                      )}
-
-                      <td className="px-3 py-3">
-                        <div className="text-sm text-thiso-800 font-medium truncate max-w-[150px]" title={delivery.vendorName}>{delivery.vendorName}</div>
-                        {delivery.poNumber && (
-                          <div className="text-[10px] text-thiso-400 font-mono mt-0.5">PO: {delivery.poNumber}</div>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <span className="font-mono text-xs text-thiso-700 font-bold bg-thiso-50 px-2 py-1 rounded-lg whitespace-nowrap select-all">
-                          {delivery.registrationCode}
-                        </span>
-                      </td>
-
-                      <td className="px-3 py-3">
-                        <GoodsBadge type={delivery.goodsType} />
-                        <div className="text-xs text-thiso-500 mt-1">{VEHICLE_LABEL[delivery.vehicleType]}</div>
-                      </td>
-
-                      <td className="px-3 py-3 text-xs whitespace-nowrap">
-                        {delivery.status === 'WAITING' && delivery.checkinTime && (
-                          <div>
-                            <span className={`font-black text-sm ${isCritical ? 'text-red-600' : isWarning ? 'text-amber-700' : 'text-thiso-600'}`}>
-                              {formatWait(delivery.checkinTime)}
-                            </span>
-                            <div className="text-thiso-400 text-[10px] mt-0.5">từ check-in</div>
-                          </div>
-                        )}
-                        {delivery.status === 'CALLED' && (
-                          <div>
-                            <span className={`font-black text-sm ${calledMin >= 15 ? 'text-red-600' : 'text-thiso-700'}`}>
-                              {formatWait(delivery.calledTime)}
-                            </span>
-                            {calledMin >= 15 && (
-                              <div className="text-red-500 font-black text-[10px] mt-0.5 animate-pulse">NO-SHOW</div>
-                            )}
-                          </div>
-                        )}
-                        {['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(delivery.status) && (
-                          <div>
-                            <span className="font-black text-sm text-green-600">{formatWait(delivery.receivingStartTime)}</span>
-                            <div className="text-thiso-400 text-[10px] mt-0.5">đang nhận</div>
-                          </div>
-                        )}
-                      </td>
-
-                      <td className="px-3 py-3">
-                        {delivery.assignedSlot ? (
-                          <div>
-                            <span className="font-black text-base" style={{ color: meta.color }}>{delivery.assignedSlot.code}</span>
-                            {delivery.assignedSlot.zone && <div className="text-[10px] text-thiso-400 font-mono">{delivery.assignedSlot.zone.code}</div>}
-                          </div>
-                        ) : '—'}
-                      </td>
-
-                      <td className="px-3 py-3"><StatusBadge status={delivery.status} /></td>
-
-                      <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-1.5">
-                          <button
-                            type="button"
-                            className="text-xs px-2.5 py-1.5 rounded-lg border border-thiso-200 text-thiso-500 hover:bg-thiso-50 hover:text-thiso-700 transition-colors font-medium"
-                            onClick={() => onView(delivery.id)}
-                          >
-                            🔍 Xem
-                          </button>
-                          {delivery.status === 'WAITING' && (
-                            <button type="button" className="btn-primary text-xs px-3 py-1.5" onClick={() => onCall(delivery)}>
-                              📣 Gọi vào vị trí
-                            </button>
-                          )}
-                          {delivery.status === 'CALLED' && (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-primary text-xs px-3 py-1.5"
-                                disabled={!!actionLoading}
-                                onClick={() => onAction(delivery.id, 'start-receiving')}
-                              >
-                                📦 Bắt đầu nhận
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-secondary text-xs px-2 py-1.5"
-                                disabled={!!actionLoading}
-                                onClick={() => onCall(delivery)}
-                              >
-                                🔁 Gọi lại
-                              </button>
-                            </>
-                          )}
-                          {['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(delivery.status) && (
-                            <button
-                              type="button"
-                              className="btn-success text-xs px-3 py-1.5"
-                              disabled={!!actionLoading}
-                              onClick={() => onAction(delivery.id, 'complete')}
-                            >
-                              ✓ Hoàn tất
-                            </button>
-                          )}
-                          {!['COMPLETED', 'CANCELLED'].includes(delivery.status) && (
-                            <button
-                              type="button"
-                              className="btn-danger text-xs px-2 py-1.5"
-                              disabled={!!actionLoading}
-                              onClick={() => onAction(delivery.id, 'cancel')}
-                            >
-                              Hủy
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-    </div>
-  );
+interface Props { deliveries: DeliveryRegistration[]; unit?: UnitKey; unitConfig?: UnitDispatch['unitConfig']; unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>; onCall: (delivery: DeliveryRegistration, slotId?: string) => void; onAction: (id: string, action: DeliveryLifecycleAction) => void; onView: (id: string) => void; actionLoading: string | null; }
+export default function QueueTable({ deliveries, unit, unitConfig, unitConfigsByUnit, onCall, onAction, onView, actionLoading }: Props) {
+ const [search, setSearch] = useState(''); const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL'); const [vehicleFilter, setVehicleFilter] = useState<VehicleTypeFilter>('ALL');
+ const filtered = useMemo(() => filterDispatchDeliveries(deliveries, search, statusFilter, vehicleFilter), [deliveries, search, statusFilter, vehicleFilter]);
+ const config = (d: DeliveryRegistration) => d.unitConfig ?? d.assignedSlot?.zone?.unitConfig ?? unitConfig ?? unitConfigsByUnit?.[d.receivingUnit];
+ const columns: ColumnsType<DeliveryRegistration> = [
+  { title: 'Số thẻ', key: 'ticket', render: (_, d) => getTicketCode(d, config(d)) ?? '—' },
+  { title: 'Biển số · Tài xế', key: 'driver', render: (_, d) => <><Typography.Text strong>{d.vehiclePlate}</Typography.Text><br />{d.driverName}<br />{d.driverPhone}{!!d.callCount && <div>Gọi {d.callCount} lần</div>}</> },
+  ...(!unit ? [{ title: 'Đơn vị', key: 'unit', render: (_: unknown, d: DeliveryRegistration) => { const meta = getUnitMeta(d.receivingUnit, config(d)); return <Space><UnitBrandMark meta={meta} />{meta.label}</Space>; } }] : []),
+  { title: 'Nhà cung cấp', key: 'vendor', render: (_, d) => <>{d.vendorName}{d.poNumber && <div>PO: {d.poNumber}</div>}</> },
+  { title: 'Mã ĐK', dataIndex: 'registrationCode' },
+  { title: 'Hàng · Xe', key: 'goods', render: (_, d) => <><GoodsBadge type={d.goodsType} /><div>{VEHICLE_LABEL[d.vehicleType]}</div></> },
+  { title: 'Thời gian', key: 'wait', render: (_, d) => { const { calledMin, isCritical, isWarning } = getDeliveryWaitState(d); const time = d.status === 'WAITING' ? d.checkinTime : d.status === 'CALLED' ? d.calledTime : d.receivingStartTime; return <Space direction="vertical" size={0}>{time ? formatWait(time) : '—'}{d.status === 'CALLED' && calledMin >= 15 ? <Tag color="error">NO-SHOW</Tag> : (isCritical || isWarning) ? <Tag color={isCritical ? 'error' : 'warning'}>Chờ lâu</Tag> : null}</Space>; } },
+  { title: 'Vị trí', key: 'slot', render: (_, d) => d.assignedSlot ? <>{d.assignedSlot.code}{d.assignedSlot.zone && <div>{d.assignedSlot.zone.code}</div>}</> : '—' },
+  { title: 'Trạng thái', key: 'status', render: (_, d) => <StatusBadge status={d.status} /> },
+  { title: 'Thao tác', key: 'actions', render: (_, d) => <Space wrap><Button onClick={() => onView(d.id)}>Xem</Button>{d.status === 'WAITING' && <Button type="primary" onClick={() => onCall(d)}>Gọi vào vị trí</Button>}{d.status === 'CALLED' && <><Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'start-receiving'} onClick={() => onAction(d.id, 'start-receiving')}>Bắt đầu nhận</Button><Button disabled={!!actionLoading} onClick={() => onCall(d)}>Gọi lại</Button></>}{['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status) && <Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'complete'} onClick={() => onAction(d.id, 'complete')}>Hoàn tất</Button>}{!['COMPLETED', 'CANCELLED'].includes(d.status) && <Button danger disabled={!!actionLoading} onClick={() => onAction(d.id, 'cancel')}>Hủy</Button>}</Space> },
+ ];
+ return <><FilterBar search={search} onSearch={setSearch} statusFilter={statusFilter} onStatus={setStatusFilter} vehicleFilter={vehicleFilter} onVehicle={setVehicleFilter} total={filtered.length} onExport={() => downloadCsv('dieu-phoi-hang-cho', DISPATCH_CSV_HEADERS, buildDispatchCsvRows(filtered, unitConfigsByUnit ?? (unitConfig ? { [unit ?? '']: unitConfig } : undefined)))} /><Table rowKey="id" columns={columns} dataSource={filtered} pagination={false} scroll={{ x: 1400 }} locale={{ emptyText: <Empty description={deliveries.length ? 'Không tìm thấy kết quả phù hợp' : 'Không có xe nào đang điều phối'} /> }} /></>;
 }

@@ -1,3 +1,4 @@
+import { Card, Descriptions, Typography } from 'antd';
 import { GOODS_LABEL } from '../constants';
 import { getTrackUnit, fmtDateOnly } from '../utils';
 import type { TrackDelivery } from '../types';
@@ -21,20 +22,6 @@ export default function DeliveryInfoCard({ delivery, unitMeta }: {
   ];
 
   return (
-    <div className="bg-white rounded-2xl border border-thiso-100 overflow-hidden">
-      <div className="px-5 py-3 border-b border-thiso-50">
-        <p className="text-[11px] font-semibold text-thiso-400 uppercase tracking-wider">Thông tin giao hàng</p>
-      </div>
-      <div className="divide-y divide-thiso-50">
-        {rows.map(({ label, value, mono }) => (
-          <div key={label} className="flex items-start justify-between gap-3 px-5 py-3">
-            <span className="text-xs text-thiso-400 flex-shrink-0 pt-0.5 min-w-[100px]">{label}</span>
-            <span className={`text-sm font-semibold text-thiso-800 text-right ${mono ? 'font-mono' : ''}`}>
-              {value}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
+    <Card size="small" title="Thông tin giao hàng"><Descriptions size="small" column={1} bordered items={rows.map(({ label, value, mono }) => ({ key: label, label, children: mono ? <Typography.Text className="font-mono" copyable>{value}</Typography.Text> : value }))} /></Card>
   );
 }

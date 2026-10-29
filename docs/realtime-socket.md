@@ -34,6 +34,7 @@ Events server -> client:
 - `slot_updated`
 - `delivery_completed`
 - `track_updated`
+- `driver_notification`: sự kiện cá nhân theo mã chuyến, gồm `deliveryCode/status/occurredAt/eventId/title/body`; emit trước I/O gửi Web Push.
 
 Hàm chính:
 
@@ -57,9 +58,11 @@ File:
 
 - `frontend/src/context/SocketContext.tsx`
 - `frontend/src/pages/Dashboard.tsx` và `frontend/src/features/dashboard/*`
-- `frontend/src/pages/WaitingScreen.tsx` -> `frontend/src/features/waiting-screen/WaitingScreen.tsx`
+- `frontend/src/pages/WaitingScreen.tsx` + `frontend/src/features/waiting-screen/hooks/useWaitingScreen.ts`
 - `frontend/src/pages/DockManagement.tsx` và `frontend/src/features/docks/*`
-- `frontend/src/pages/Track.tsx` -> `frontend/src/features/track/Track.tsx`
+- `frontend/src/pages/Track.tsx` -> `frontend/src/features/track/hooks/useTrackContent.ts`
+- `frontend/src/features/driver-notifications/DriverNotificationsProvider.tsx`: giữ room chuyến được chọn xuyên route.
+- `frontend/src/lib/trackRoom.ts`: room lease chia sẻ giữa provider toàn cục và trang chi tiết; tự join lại sau reconnect.
 
 `SocketContext`:
 
@@ -79,3 +82,4 @@ File:
 ## Lưu Ý
 
 - Track tài xế có room riêng theo `registrationCode`, không dùng dashboard room.
+- Chỉ xem Track không tự chọn nhận thông báo cá nhân. Sau thao tác theo dõi, provider giữ room ngay cả khi sang `/waiting-screen`; event queue toàn khu vực không kích hoạt cảnh báo cá nhân. Chi tiết: `track-pwa-push.md`.

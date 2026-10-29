@@ -16,6 +16,7 @@ import { getIO, initSocket } from '../socket';
 import deliveryRoutes from '../routes/deliveries';
 import { autoCancelCalledNoShowDeliveries, closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
 import { reconcileSlots } from '../modules/slots/slotService';
+import { getVehicleAvailability } from '../modules/units/unitService';
 
 const server = createServer();
 initSocket(server);
@@ -1040,6 +1041,42 @@ test('manual call rejects a same-unit slot from another BusinessLocation', async
       assert.equal(unchanged.status, DeliveryStatus.WAITING);
       assert.equal(unchanged.assignedSlotId, null);
     });
+  });
+});
+
+test('manual call accepts either vehicle type in a different-type slot and still enforces capacity', async () => {
+  await withScope('CROSSVEHICLE', ReceivingUnit.EMART, async (scope) => {
+    const [truckSlot, motorbikeSlot, user] = await Promise.all([
+      createSlot(scope, { suffix: 'T1', vehicleType: VehicleType.TRUCK, maxCapacity: 2 }),
+      createSlot(scope, { suffix: 'M1', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 1 }),
+      createAdminUser(scope),
+    ]);
+    const [truck, motorbikeA, motorbikeB, extra] = await Promise.all([
+      createDelivery(scope, 1, { status: DeliveryStatus.WAITING, vehicleType: VehicleType.TRUCK, checkinTime: new Date() }),
+      createDelivery(scope, 2, { status: DeliveryStatus.WAITING, vehicleType: VehicleType.MOTORBIKE, checkinTime: new Date() }),
+      createDelivery(scope, 3, { status: DeliveryStatus.WAITING, vehicleType: VehicleType.MOTORBIKE, checkinTime: new Date() }),
+      createDelivery(scope, 4, { status: DeliveryStatus.WAITING, vehicleType: VehicleType.TRUCK, checkinTime: new Date() }),
+    ]);
+    const call = (deliveryId: string, slotId: string) => manualCallDelivery({ deliveryId, slotId, calledByUserId: user.id });
+    assert.equal((await call(truck.id, motorbikeSlot.id)).outcome, 'called');
+    assert.equal((await call(motorbikeA.id, truckSlot.id)).outcome, 'called');
+    assert.equal((await call(motorbikeB.id, truckSlot.id)).outcome, 'called');
+    assert.equal((await call(extra.id, truckSlot.id)).outcome, 'slot_full');
+    assert.equal(await prisma.deliveryHistoryEvent.count({ where: { originalDeliveryId: { in: [truck.id, motorbikeA.id, motorbikeB.id] }, eventType: DeliveryHistoryEventType.MANUAL_CALLED } }), 3);
+    const remaining = await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: extra.id } });
+    assert.equal(remaining.status, DeliveryStatus.WAITING);
+    assert.equal(remaining.assignedSlotId, null);
+  });
+});
+
+test('registration offers both vehicle types when the unit has only one slot type', async () => {
+  await withScope('VEHICLEOPTIONS', ReceivingUnit.EMART, async (scope) => {
+    await createSlot(scope, { suffix: 'M1', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 2 });
+    const result = await getVehicleAvailability(ReceivingUnit.EMART, { goodsType: GoodsType.GENERAL_GOODS }, {
+      businessLocationId: scope.businessLocationId, unitConfigId: scope.unitConfigId,
+    });
+    assert.deepEqual(result.vehicles.map((entry) => entry.vehicleType), [VehicleType.TRUCK, VehicleType.MOTORBIKE]);
+    assert.ok(result.vehicles.every((entry) => entry.slotCount === 1 && entry.capacity === 2));
   });
 });
 

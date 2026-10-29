@@ -110,10 +110,11 @@ Service:
 - `manualCallDelivery()`
   - Lock delivery.
   - Lock slot.
-  - Validate slot active, đúng vehicle type, còn capacity.
+  - Validate slot active, cùng khu vực và còn capacity. Người vận hành có thể chỉ định xe tải hoặc xe máy vào slot được cấu hình cho loại xe còn lại; sức chứa vẫn được kiểm tra dưới lock.
   - Cùng đơn vị: slot có thể nhận theo `maxCapacity`.
   - Khác đơn vị: chỉ cho mượn khi slot trống hoàn toàn, cùng business location, và hiện tại không nằm trong khung giờ nhận hàng enabled của đơn vị sở hữu slot.
   - Không cho gọi vào slot `MAINTENANCE`/`RESERVED`.
+  - Chuyển loại xe tại slot chỉ do thao tác gọi thủ công; auto-assign vẫn dùng bộ lọc loại xe của slot và các quy tắc hàng hóa hiện có.
   - Idempotent nếu delivery đã được call vào đúng slot.
 - `completeDelivery()`
   - Lock delivery.

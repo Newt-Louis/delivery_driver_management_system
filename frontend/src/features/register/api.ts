@@ -72,6 +72,11 @@ export type PublicUnitScope = {
   unitConfigId?: string;
 };
 
+export type AutoWarehouseVendorSuggestion = {
+  vendorCode: string;
+  vendorName: string;
+};
+
 export type DailyRegistrationStat = {
   date: string;
   registered: number;
@@ -138,6 +143,13 @@ export async function checkAutoWarehouseVendor(code: string, unit: ReceivingUnit
     isAutoWarehouse: boolean;
     vendor?: { vendorName?: string | null } | null;
   };
+}
+
+export async function getAutoWarehouseVendorSuggestions(query: string, scope: Required<PublicUnitScope>): Promise<AutoWarehouseVendorSuggestion[]> {
+  const res = await api.get('/api/aw-vendors/suggestions', {
+    params: { q: query, ...scope },
+  });
+  return res.data.vendors as AutoWarehouseVendorSuggestion[];
 }
 
 export async function registerDelivery(payload: RegisterDeliveryPayload): Promise<RegisterDeliveryResponse> {

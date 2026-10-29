@@ -1,3 +1,4 @@
+import { Alert, Button, Space } from 'antd';
 import type { UnitDispatch } from '../lib/types';
 import AllTabView from '../features/dashboard/components/AllTabView';
 import CallModal from '../features/dashboard/components/CallModal';
@@ -19,6 +20,7 @@ export default function Dashboard() {
     summary,
     dispatch,
     isLoading,
+    summaryError, dispatchError, retrySummary, retryDispatch,
     callTarget,
     callPreSlot,
     callLoading,
@@ -85,6 +87,10 @@ export default function Dashboard() {
       )}
 
       <DashboardHeader />
+      <Space direction="vertical" style={{ width: '100%' }}>
+        {summaryError && <Alert type="error" showIcon message="Không thể tải số liệu tổng quan" action={<Button onClick={() => retrySummary()}>Thử lại</Button>} />}
+        {dispatchError && <Alert type="error" showIcon message="Không thể tải dữ liệu điều phối" action={<Button onClick={() => retryDispatch()}>Thử lại</Button>} />}
+      </Space>
       <DashboardAlerts summary={summary} onExpireDone={invalidateAll} />
       <KpiSummary summary={summary} />
       <DashboardTabs
