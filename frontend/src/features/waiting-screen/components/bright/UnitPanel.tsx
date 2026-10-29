@@ -1,108 +1,87 @@
-import type { DeliveryRegistration } from '../../../../lib/types';
-import UnitLogo from '../UnitLogo';
+import { NotificationOutlined } from '@ant-design/icons';
+import { Avatar, Card, Space, Typography } from 'antd';
+import type { DeliveryRegistration, VehicleType } from '../../../../lib/types';
 import { compareWaitingScreenQueueOrder, getUnitBrand } from '../../utils';
 import type { BrandConfig, UnitKey } from '../../types';
 import BrightVehicleSection from './VehicleSection';
 
-export default function BrightUnitPanel({ unitKey, deliveries, highlightId, brand, compact = false }: {
-  unitKey: UnitKey; deliveries: DeliveryRegistration[]; highlightId: string | null;
-  brand: BrandConfig | null; compact?: boolean;
-}) {
-  const cfg = getUnitBrand(brand, unitKey);
+type BrightUnitPanelProps = {
+  unitKey: UnitKey;
+  deliveries: DeliveryRegistration[];
+  highlightId: string | null;
+  cooldownSeconds: number | null;
+  brand: BrandConfig | null;
+  desktop: boolean;
+};
 
-  const trucks     = deliveries.filter((d) => d.vehicleType !== 'MOTORBIKE');
-  const motorbikes = deliveries.filter((d) => d.vehicleType === 'MOTORBIKE');
+type VehicleGroupProps = {
+  label: string;
+  vehicleType: VehicleType;
+  deliveries: DeliveryRegistration[];
+  highlightId: string | null;
+};
 
-  const truckCalled  = [...trucks.filter((d) => d.status === 'CALLED')].sort(compareWaitingScreenQueueOrder);
-  const truckWaiting = [...trucks.filter((d) => d.status === 'WAITING')].sort(compareWaitingScreenQueueOrder);
-  const mbCalled     = [...motorbikes.filter((d) => d.status === 'CALLED')].sort(compareWaitingScreenQueueOrder);
-  const mbWaiting    = [...motorbikes.filter((d) => d.status === 'WAITING')].sort(compareWaitingScreenQueueOrder);
+const VEHICLE_GROUPS: Array<Pick<VehicleGroupProps, 'label' | 'vehicleType'>> = [
+  { vehicleType: 'TRUCK', label: 'Xe tải' },
+  { vehicleType: 'MOTORBIKE', label: 'Xe máy' },
+];
 
-  const calledCount  = deliveries.filter((d) => d.status === 'CALLED').length;
-  const activeCount  = deliveries.filter((d) => ['CALLED', 'WAITING'].includes(d.status)).length;
-  const truckCount = truckCalled.length + truckWaiting.length;
-  const motorbikeCount = mbCalled.length + mbWaiting.length;
+function VehicleGroup({ label, vehicleType, deliveries, highlightId }: VehicleGroupProps) {
+  const matching = deliveries.filter((delivery) => delivery.vehicleType === vehicleType);
+  const called = matching.filter((delivery) => delivery.status === 'CALLED').sort(compareWaitingScreenQueueOrder);
+  const waiting = matching.filter((delivery) => delivery.status === 'WAITING').sort(compareWaitingScreenQueueOrder);
 
   return (
-    <div className="flex flex-col h-full bg-white rounded-2xl shadow-sm overflow-hidden border-2"
-         style={{ borderColor: `${cfg.primaryColor}50` }}>
+    <Card
+      size="small"
+      className="min-w-0"
+      styles={{ body: { padding: 0 } }}
+      title={(
+        <Space size={8}>
+          <Typography.Text strong style={{ fontSize: 'clamp(1.25rem, 3.75vw, 2rem)', lineHeight: 1.2 }}>{label}</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 'clamp(1.25rem, 3.75vw, 2rem)' }}>({matching.length})</Typography.Text>
+        </Space>
+      )}
+    >
+      <BrightVehicleSection items={called} highlightId={highlightId} status="called" waitingCount={waiting.length} />
+      <BrightVehicleSection items={waiting} highlightId={highlightId} status="waiting" />
+    </Card>
+  );
+}
 
-      <div className="relative flex items-center flex-shrink-0 px-3"
-           style={{ background: cfg.primaryColor, paddingTop: compact ? '0.9rem' : '0.85rem', paddingBottom: compact ? '0.9rem' : '0.85rem' }}>
-        <div className="absolute inset-0 flex items-center justify-center gap-3 pointer-events-none">
-          <UnitLogo logoUrl={cfg.logoUrl} icon={cfg.icon} px={compact ? 32 : 38} />
-          <span className="leading-none"
-                style={{ fontFamily: "'Inter', sans-serif", fontWeight: 800, color: '#111', fontSize: compact ? '1.25rem' : 'clamp(1.2rem, 2vw, 1.65rem)', letterSpacing: '0.04em' }}>
-            {cfg.displayName}
-          </span>
-        </div>
-        <div className="ml-auto flex items-center gap-2 relative z-10">
-          {calledCount > 0 && (
-            <span className="bg-white/25 text-white font-black px-2.5 py-1 rounded-full animate-pulse"
-                  style={{ fontSize: compact ? '0.82rem' : '0.78rem' }}>📣 {calledCount}</span>
-          )}
-          <span className="bg-black/20 text-white font-bold px-2.5 py-1 rounded-full"
-                style={{ fontSize: compact ? '0.82rem' : '0.78rem' }}>{activeCount}</span>
-        </div>
-      </div>
+export default function BrightUnitPanel({ unitKey, deliveries, highlightId, brand, desktop, cooldownSeconds }: BrightUnitPanelProps) {
+  const config = getUnitBrand(brand, unitKey);
+  const calledCount = deliveries.filter((delivery) => delivery.status === 'CALLED').length;
 
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {compact ? (
-          <div>
-            <div className="flex items-center justify-center gap-3 py-3 bg-gray-100 border-b-2 border-gray-300">
-              <span className="text-2xl leading-none">🚛</span>
-              <span className="text-base font-black text-gray-700 uppercase tracking-widest">Xe Tải</span>
-              <span className="text-sm font-bold text-gray-400 tabular-nums">({truckCount})</span>
-            </div>
-            <BrightVehicleSection items={truckCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled compact />
-            <BrightVehicleSection items={truckWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} compact />
-            {truckCount === 0 && (
-              <div className="flex items-center justify-center py-6 text-gray-300 text-sm border-b border-gray-100">—</div>
-            )}
-            <div className="flex items-center justify-center gap-3 py-3 bg-gray-100 border-y-2 border-gray-300">
-              <span className="text-2xl leading-none">🛵</span>
-              <span className="text-base font-black text-gray-700 uppercase tracking-widest">Xe Máy</span>
-              <span className="text-sm font-bold text-gray-400 tabular-nums">({motorbikeCount})</span>
-            </div>
-            <BrightVehicleSection items={mbCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled compact />
-            <BrightVehicleSection items={mbWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} compact />
-            {motorbikeCount === 0 && (
-              <div className="flex items-center justify-center py-6 text-gray-300 text-sm">—</div>
-            )}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 border-b-2 border-gray-300 bg-gray-100 flex-shrink-0">
-              <div className="flex items-center justify-center gap-2.5 px-3 py-2.5 border-r border-gray-300">
-                <span className="text-xl leading-none">🚛</span>
-                <span className="text-sm font-black text-gray-700 uppercase tracking-widest">Xe Tải</span>
-                <span className="text-sm font-bold text-gray-400">({truckCount})</span>
-              </div>
-              <div className="flex items-center justify-center gap-2.5 px-3 py-2.5">
-                <span className="text-xl leading-none">🛵</span>
-                <span className="text-sm font-black text-gray-700 uppercase tracking-widest">Xe Máy</span>
-                <span className="text-sm font-bold text-gray-400">({motorbikeCount})</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 divide-x divide-gray-200">
-              <div>
-                <BrightVehicleSection items={truckCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled />
-                <BrightVehicleSection items={truckWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} />
-                {truckCount === 0 && (
-                  <div className="flex items-center justify-center py-8 text-gray-300 text-xs">—</div>
-                )}
-              </div>
-              <div>
-                <BrightVehicleSection items={mbCalled}  primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled />
-                <BrightVehicleSection items={mbWaiting} primaryColor={cfg.primaryColor} highlightId={highlightId} isCalled={false} />
-                {motorbikeCount === 0 && (
-                  <div className="flex items-center justify-center py-8 text-gray-300 text-xs">—</div>
-                )}
-              </div>
-            </div>
-          </>
-        )}
+  return (
+    <Card
+      className={`waiting-unit-card min-w-0 overflow-hidden ${desktop ? 'h-full' : ''}`}
+      cover={<div aria-hidden className="h-10" style={{ backgroundColor: config.primaryColor }} />}
+      styles={{ body: desktop ? { height: 'calc(100% - 40px)', overflowY: 'auto', padding: 0 } : { padding: 0 } }}
+    >
+      <div className="flex items-center justify-center px-4 py-3">
+        <Space size={36} wrap className="justify-center">
+          <Space size={10} className="min-w-0">
+            <Avatar
+              size={40}
+              style={{ width: 'clamp(2rem, 5vw, 3rem)', height: 'clamp(2rem, 5vw, 3rem)', fontSize: 'clamp(1rem, 2.5vw, 1.5rem)' }}
+              src={config.logoUrl ?? undefined}
+            >
+              {config.logoUrl ? undefined : config.icon}
+            </Avatar>
+            <Typography.Title level={4} ellipsis className="!mb-0 min-w-0" style={{ fontSize: 'clamp(1.5rem, 5vw, 3rem)', lineHeight: 1.15 }} title={config.displayName ?? undefined}>
+              {config.displayName}
+            </Typography.Title>
+          </Space>
+          <Typography.Text type="danger" className="!leading-none" style={{ fontSize: 'clamp(1.5rem, 5vw, 3rem)' }}><NotificationOutlined className="mr-1" style={{ fontSize: '1em' }} />{calledCount}</Typography.Text>
+          {cooldownSeconds !== null && <Typography.Text type="secondary" className="!leading-none" style={{ fontSize: 'clamp(1.5rem, 5vw, 3rem)' }}>({cooldownSeconds})</Typography.Text>}
+        </Space>
       </div>
-    </div>
+      <div className={desktop ? 'grid grid-cols-2 gap-3 px-3 pb-3' : 'space-y-3 px-3 pb-3'}>
+        {VEHICLE_GROUPS.map((group) => (
+          <VehicleGroup key={group.vehicleType} {...group} deliveries={deliveries} highlightId={highlightId} />
+        ))}
+      </div>
+    </Card>
   );
 }

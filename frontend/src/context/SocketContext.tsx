@@ -4,6 +4,7 @@ import { io, Socket } from 'socket.io-client';
 import api from '../lib/api';
 import { getAuthToken } from '../lib/authCookies';
 import { useAuth } from './AuthContext';
+import { usePublicBusinessLocation } from './PublicBusinessLocationContext';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? '';
 
@@ -22,6 +23,7 @@ async function resolveRealtimeScope(
   pathname: string,
   search: string,
   authenticatedBusinessLocationId?: string,
+  publicBusinessLocationId?: string | null,
 ): Promise<RealtimeScope> {
   const params = new URLSearchParams(search);
   const businessLocationId = params.get('businessLocationId') ?? params.get('locationId') ?? undefined;
@@ -31,18 +33,20 @@ async function resolveRealtimeScope(
   if (flags.dashboard) {
     return { businessLocationId: authenticatedBusinessLocationId, unitConfigId };
   }
+  if (flags.waitingScreen) {
+    return publicBusinessLocationId
+      ? { businessLocationId: publicBusinessLocationId }
+      : { businessLocationId, unitConfigId };
+  }
   if (businessLocationId || unitConfigId) return { businessLocationId, unitConfigId };
-  if (!flags.waitingScreen) return {};
-
-  const res = await api.get('/api/brand');
-  const mall = res.data?.mall;
-  return { businessLocationId: mall?.id };
+  return {};
 }
 
 export function SocketProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const location = useLocation();
   const { user, logout, isLoading: isAuthLoading } = useAuth();
+  const { selectedBusinessLocationId } = usePublicBusinessLocation();
   const [scope, setScope] = useState<RealtimeScope>({});
 
   if (!socketRef.current) {
@@ -84,6 +88,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
           location.pathname,
           location.search,
           user?.businessLocationId ?? undefined,
+          selectedBusinessLocationId,
         );
         if (cancelled) return;
         setScope(nextScope);
@@ -117,7 +122,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       socket.off('connect', onConnect);
       if (joinedPayload) socket.emit('realtime:leave', joinedPayload);
     };
-  }, [isAuthLoading, location.pathname, location.search, user?.businessLocationId]);
+  }, [isAuthLoading, location.pathname, location.search, selectedBusinessLocationId, user?.businessLocationId]);
 
   return (
     <SocketContext.Provider value={socketRef.current}>

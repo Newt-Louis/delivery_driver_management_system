@@ -1,12 +1,15 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --app-font-family: "Be Vietnam Pro", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
 @layer base {
   body {
-    @apply bg-thiso-50 text-thiso-800 font-sans antialiased;
+    @apply bg-thiso-50 text-thiso-800 antialiased;
+    font-family: var(--app-font-family);
   }
 
   * {
@@ -34,6 +37,125 @@
   animation: marquee 35s linear infinite;
 }
 
+/* Keep the desktop header item's interactive bounds compact without changing Drawer menus. */
+.staff-header-menu .ant-menu-submenu-title {
+  padding-inline: 4px;
+}
+
+/* Ant Tooltip inherits the 44px global control height; one-line labels should fit their text. */
+body .ant-tooltip .ant-tooltip-container {
+  min-height: 0;
+}
+
+/* Ant Steps v6 uses per-item CSS variables and a rail, not v5's tail element. */
+.register-progress .ant-steps-item-finish {
+  --ant-cmp-steps-item-icon-bg-color: var(--register-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-border-color: var(--register-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-text-color: var(--register-step-finish-icon-color) !important;
+}
+
+.register-progress .ant-steps-item-rail-finish {
+  --ant-cmp-steps-item-solid-line-color: var(--register-step-finish-color) !important;
+}
+
+.track-journey-steps .ant-steps-item-finish {
+  --ant-cmp-steps-item-icon-bg-color: var(--track-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-border-color: var(--track-step-finish-color) !important;
+  --ant-cmp-steps-item-icon-text-color: var(--track-step-finish-icon-color) !important;
+}
+
+.track-journey-steps .ant-steps-item-rail-finish {
+  --ant-cmp-steps-item-solid-line-color: var(--track-step-finish-color) !important;
+}
+
+/* Rich, single-choice cards are visually distinct from affirmative Buttons and boolean Switches. */
+.selection-card-button.ant-btn {
+  position: relative;
+}
+
+.selection-card-button.ant-btn.selection-card-button-selected {
+  background-color: var(--dqm-color-primary-bg);
+  border-color: var(--dqm-color-primary-border);
+  box-shadow: 0 0 0 1px var(--dqm-color-primary-border);
+}
+
+.selection-card-button.ant-btn.selection-card-button-selected .ant-typography {
+  color: var(--dqm-color-primary);
+}
+
+.selection-card-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  color: var(--dqm-color-primary);
+}
+
+.register-date-calendar .ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner {
+  background-color: var(--register-calendar-selected-bg) !important;
+  border: 1px solid var(--register-calendar-selected-border);
+  color: var(--register-calendar-selected-text) !important;
+}
+
+/* Delivery dates must always be selected from the day grid. The year and
+ * month selects remain available; Calendar's alternative year-only view does not. */
+.register-date-calendar .ant-picker-calendar-mode-switch {
+  display: none;
+}
+
+@media (min-width: 1025px) {
+  .waiting-unit-carousel,
+  .waiting-unit-carousel .slick-slider,
+  .waiting-unit-carousel .slick-list,
+  .waiting-unit-carousel .slick-track,
+  .waiting-unit-carousel .slick-slide,
+  .waiting-unit-carousel .slick-slide > div {
+    height: 100%;
+  }
+}
+
+.waiting-screen-viewport,
+.waiting-unit-carousel,
+.waiting-unit-carousel .slick-list {
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+}
+
+/* Ant Tabs remains the explicit unit selector at every width. Keep a short
+ * list centred, but allow a long unit list to pan horizontally without a
+ * visual scrollbar or the default overflow menu. */
+.waiting-unit-tabs .ant-tabs-nav-wrap {
+  display: block;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-x: contain;
+}
+
+.waiting-unit-tabs .ant-tabs-nav-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+.waiting-unit-tabs .ant-tabs-nav-list {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  justify-content: center;
+  transform: none !important;
+}
+
+.waiting-unit-tabs .ant-tabs-nav-operations {
+  display: none;
+}
+
+.waiting-vehicle-table .ant-table-cell {
+  vertical-align: top;
+}
+
+.waiting-vehicle-table-highlight > td {
+  background: var(--ant-color-info-bg) !important;
+}
+
 @layer components {
 
   /* ── Buttons ── */
@@ -48,18 +170,28 @@
 
   /* Success — green */
   .btn-success {
-    @apply btn bg-sky-600 text-white hover:bg-sky-700 focus:ring-sky-500;
+    @apply btn;
+    background-color: var(--dqm-color-success);
+    color: var(--dqm-color-text-light-solid);
   }
 
   /* Danger — red */
   .btn-danger {
-    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+    @apply btn;
+    background-color: var(--dqm-color-error);
+    color: var(--dqm-color-text-light-solid);
   }
 
   /* Warning — amber */
   .btn-warning {
-    @apply btn bg-amber-500 text-white hover:bg-amber-600 focus:ring-amber-400;
+    @apply btn;
+    background-color: var(--dqm-color-warning);
+    color: var(--dqm-color-text-light-solid);
   }
+
+  .btn-success:hover { background-color: var(--dqm-color-success-hover); }
+  .btn-danger:hover { background-color: var(--dqm-color-error-hover); }
+  .btn-warning:hover { background-color: var(--dqm-color-warning-hover); }
 
   /* Secondary — light gray */
   .btn-secondary {

@@ -11,7 +11,6 @@ export default defineConfig(({ mode }) => {
       allowedHosts: true,
       port: 5173,
       strictPort: true,
-      watch: { usePolling: env.DEV_WATCH_POLLING === 'true' },
       proxy: {
         '/api': { target: proxyTarget, changeOrigin: true },
         '/datafile': { target: proxyTarget, changeOrigin: true },

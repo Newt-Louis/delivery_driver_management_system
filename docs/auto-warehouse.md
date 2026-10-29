@@ -37,6 +37,7 @@ API:
 
 - `GET /api/aw-vendors`
 - `GET /api/aw-vendors/check`
+- `GET /api/aw-vendors/suggestions`
 - `POST /api/aw-vendors`
 - `PATCH /api/aw-vendors/:id`
 - `DELETE /api/aw-vendors/:id`
@@ -64,6 +65,7 @@ Files:
 Register:
 
 - Khi user nhập vendor code sau khi đã chọn `BusinessLocation` và unit, frontend debounce check `/api/aw-vendors/check` với params `{ code, unit, businessLocationId, unitConfigId }`.
+- Từ hai ký tự, frontend còn lấy tối đa 10 gợi ý active qua `/api/aw-vendors/suggestions`. Endpoint bắt buộc cả `businessLocationId` và `unitConfigId`, xác nhận unit active thuộc khu vực đó trước khi query; không trả NCC của khu vực/đơn vị khác.
 - Nếu match, hiển thị thông tin vendor kho tự động và submit delivery với flag liên quan.
 
 Backoffice:

@@ -8,18 +8,19 @@ Ngoài register/check-in/dashboard, hệ thống có các màn hình vận hành
 
 Frontend:
 
-- `frontend/src/pages/WaitingScreen.tsx`: route wrapper.
-- `frontend/src/features/waiting-screen/WaitingScreen.tsx`: implementation.
+- `frontend/src/pages/WaitingScreen.tsx`: route presentation: unit Tabs/Carousel và responsive layout.
+- `frontend/src/features/waiting-screen/hooks/useWaitingScreen.ts`: đọc public scope, query queue, socket refresh và highlight xe gọi; không sở hữu âm báo/overlay.
+- `frontend/src/features/waiting-screen/components/bright/*`: Ant Design unit/vehicle presentation components.
 
 Route:
 
 - `/waiting-screen`
-- Public fullscreen, không hiển thị navbar.
+- Public read-only route, dùng `GlobalHeader` chung với các public route.
 - Có thể truyền scope bằng query:
   - `?businessLocationId=<id>` để TV hiển thị một khu vực kinh doanh cụ thể.
   - `?unitConfigId=<id>` nếu muốn giới hạn vào một unit cụ thể.
-- Nếu URL không truyền scope, `SocketContext` resolve default public brand/location rồi join realtime room theo `businessLocationId` đó.
-- Header Waiting Screen có selector public lấy danh sách `BusinessLocation` active từ `GET /api/units/public/business-locations`. Khi đổi khu vực, frontend cập nhật query `businessLocationId`, bỏ `unitConfigId`, rồi `SocketContext` join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
+- `SocketContext` lấy `businessLocationId` từ `PublicBusinessLocationContext` rồi join realtime room tương ứng. Khi public scope chưa được chọn, waiting screen không join room hoặc tải queue.
+- Chọn khu vực dùng public FloatButton toàn cục; waiting screen không còn selector riêng. Khi public scope đổi, SocketContext join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
 
 Backend/API:
 
@@ -38,8 +39,11 @@ Realtime:
 Mục đích:
 
 - TV/khu chờ hiển thị xe đang chờ, xe được gọi, thông tin ticket/slot.
-- Waiting screen chỉ hiển thị `CALLED` trước rồi `WAITING` sau; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không còn hiển thị trên màn hình chờ vì tài xế đã vào khu nhận hàng.
-- Có chime khi xe được gọi.
+- Waiting screen chỉ hiển thị `CALLED` trước rồi `WAITING` sau; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không còn hiển thị trên màn hình chờ vì tài xế đã vào khu nhận hàng. Mỗi đơn vị có hai nhóm phương tiện `TRUCK` và `MOTORBIKE`; trong mỗi nhóm, phần được gọi đứng trước phần đã check-in đang chờ.
+- Màn hình hiển thị một đơn vị mỗi lần qua Ant Carousel. Ant Tabs luôn cho phép chọn trực tiếp đơn vị; khi danh sách dài, tab bar cuộn ngang bằng chạm/trackpad nhưng không lộ scrollbar. Từ 1025px, Carousel có nút chuyển, tự sang đơn vị kế tiếp sau 60 giây và ba nhóm phương tiện nằm cạnh nhau; Card đơn vị cuộn dọc nội bộ khi danh sách dài. Đến 1024px, người dùng cũng có thể tự vuốt ngang giữa các đơn vị, còn ba nhóm phương tiện xếp dọc và màn hình cuộn dọc theo chiều cao nội dung tự nhiên, kể cả các trạng thái rỗng. Nếu phần gọi xe của một loại xe trống, UI phân biệt không có xe đã check-in sẵn sàng với xe đang chờ nhưng chưa có vị trí nhận hàng trống.
+- Bộ đếm hiển thị và chuyển tự động dùng cùng một mốc thời gian; khi người dùng chọn tab hoặc carousel bắt đầu chuyển bằng nút/vuốt, mốc được đặt lại 60 giây. Tab được đồng bộ lúc bắt đầu chuyển, không dùng callback kết thúc của animation cũ để ghi đè lựa chọn mới.
+- Waiting screen không phát chime hoặc chặn màn hình khi xe được gọi; event realtime chỉ làm mới queue và highlight tạm thời dòng `CALLED` vừa xuất hiện.
+- Cảnh báo cá nhân là feature toàn cục độc lập: nếu thiết bị đã chọn theo dõi một chuyến, overlay/âm báo của đúng chuyến vẫn xuất hiện khi xem waiting screen. TV không chọn theo dõi chuyến chỉ xem bảng hàng chờ. Xem `track-pwa-push.md`.
 
 Quy ước dữ liệu:
 
@@ -54,7 +58,7 @@ Quy ước dữ liệu:
 Frontend:
 
 - `frontend/src/pages/Track.tsx`: route wrapper.
-- `frontend/src/features/track/Track.tsx`: implementation.
+- `frontend/src/features/track/hooks/useTrackContent.ts`: đọc dữ liệu và state trình bày; cảnh báo cá nhân thuộc global `DriverNotificationsProvider`.
 
 Route:
 

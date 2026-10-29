@@ -1,10 +1,6 @@
-# Development with Docker: docker compose up -d
-# Source is bind-mounted; npm ci runs INSIDE each Node container and writes
-# frontend/node_modules and backend/node_modules directly into this checkout.
-# Native Node.js: docker compose up -d postgres redis, then npm run dev in
-# frontend/ and backend/ on your OS (stop the Docker Node services first).
-# Linux: set LOCAL_UID/LOCAL_GID in .env to your host user's id -u / id -g.
-# Create ./datafile as your host user before the first start (see README.md).
+# Local infrastructure for native Node.js development.
+# Run the frontend and backend directly on Windows; Docker only runs PostgreSQL and Redis.
+
 networks:
   mall-net:
     driver: bridge
@@ -19,7 +15,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-malluser}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mallpass}
     volumes:
-      - ./data/postgres:/var/lib/postgresql/data
+      # PostgreSQL owns its data directory as the container's postgres user.
+      # Keep this in a Docker-managed volume rather than a WSL bind mount so
+      # Linux UID mapping cannot make an existing cluster look inaccessible.
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - mall-net
     ports:
@@ -37,7 +36,9 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}
     command: ["sh", "-c", "redis-server --appendonly yes --protected-mode yes --requirepass \"$${REDIS_PASSWORD}\""]
     volumes:
-      - ./data/redis:/data
+      # Keep Redis AOF/RDB persistence out of the WSL bind mount for the same
+      # UID-mapping reason as PostgreSQL above.
+      - redis_data:/data
     networks:
       - mall-net
     restart: unless-stopped
@@ -49,78 +50,10 @@ services:
       timeout: 5s
       retries: 5
 
-  backend:
-    build:
-      context: ./docker
-      dockerfile: Dockerfile.dev
-    container_name: mall_backend
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    init: true
-    working_dir: /app
-    environment:
-      HOME: /tmp
-      DATABASE_URL: postgresql://${POSTGRES_USER:-malluser}:${POSTGRES_PASSWORD:-mallpass}@postgres:5432/${POSTGRES_DB:-malldb}
-      DIRECT_URL: postgresql://${POSTGRES_USER:-malluser}:${POSTGRES_PASSWORD:-mallpass}@postgres:5432/${POSTGRES_DB:-malldb}
-      JWT_SECRET: ${JWT_SECRET:-mall-jwt-secret-local-dev-only}
-      REDIS_URL: redis://:${REDIS_PASSWORD:?Set REDIS_PASSWORD in .env}@redis:6379
-      PORT: 4000
-      NODE_ENV: development
-      TZ: Asia/Ho_Chi_Minh
-      CHOKIDAR_USEPOLLING: ${DEV_WATCH_POLLING:-true}
-      DATAFILE_ROOT: /app/datafile
-      DATAFILE_MAX_UPLOAD_BYTES: ${DATAFILE_MAX_UPLOAD_BYTES:-104857600}
-      JSON_BODY_LIMIT: ${JSON_BODY_LIMIT:-15mb}
-    # The entrypoint runs npm ci (including Prisma generate) before this command.
-    command: ["sh", "-c", "npm run db:migrate && exec npm run dev"]
-    ports:
-      - "${BACKEND_PORT:-4000}:4000"
-    volumes:
-      - ./backend:/app
-      - type: bind
-        source: ./datafile
-        target: /app/datafile
-        bind:
-          create_host_path: false
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
-      interval: 10s
-      timeout: 5s
-      start_period: 10m
-      retries: 5
-    networks:
-      - mall-net
-    restart: unless-stopped
-
-  frontend:
-    build:
-      context: ./docker
-      dockerfile: Dockerfile.dev
-    container_name: mall_frontend
-    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
-    init: true
-    working_dir: /app
-    environment:
-      HOME: /tmp
-      NODE_ENV: development
-      # Browser uses the same origin; Vite proxies to the backend service.
-      VITE_API_URL: ""
-      VITE_SOCKET_URL: ""
-      DEV_PROXY_TARGET: http://backend:4000
-      # Polling detects edits on Windows/WSL Docker Desktop bind mounts.
-      DEV_WATCH_POLLING: ${DEV_WATCH_POLLING:-true}
-    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
-    ports:
-      - "${FRONTEND_PORT:-3000}:5173"
-    volumes:
-      - ./frontend:/app
-    depends_on:
-      backend:
-        condition: service_started
-    networks:
-      - mall-net
-    restart: unless-stopped
+volumes:
+  # An explicit name keeps the development database stable if Compose's project
+  # name changes (for example after the repository directory is renamed).
+  postgres_data:
+    name: delivery_driver_management_postgres_data
+  redis_data:
+    name: delivery_driver_management_redis_data

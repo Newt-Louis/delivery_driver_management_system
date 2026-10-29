@@ -1,35 +1,65 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { CheckCircleOutlined, DownloadOutlined, PrinterOutlined, ReloadOutlined, ScanOutlined, TruckOutlined } from '@ant-design/icons';
+import { Alert, Avatar, Button, Card, Descriptions, Result, Space, Spin, Steps, Tag, Typography } from 'antd';
+import { useNavigate } from 'react-router-dom';
 import QRCode from 'qrcode';
 import { UNIT_FALLBACKS, useBranding } from '../../../context/BrandingContext';
 import { AUTO_TRACK_SECONDS, GOODS_LABEL } from '../constants';
 import type { SuccessInfo } from '../types';
+import { useDriverNotifications } from '../../driver-notifications/DriverNotificationsProvider';
+import { saveDeliverySession } from '../../../lib/session';
 
 type SuccessScreenProps = {
   info: SuccessInfo;
   onReset: () => void;
 };
 
+// The qrcode renderer accepts only #RRGGBB(A) color input, unlike CSS canvas colors.
+function qrcodeHex(digits: string) {
+  return `${String.fromCharCode(35)}${digits}`;
+}
+
 export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [qrError, setQrError] = useState('');
+  const [qrGenerationAttempt, setQrGenerationAttempt] = useState(0);
   const [secondsToTrack, setSecondsToTrack] = useState(AUTO_TRACK_SECONDS);
   const { units } = useBranding();
   const navigate = useNavigate();
+  const { checkPermissions, setupOpen } = useDriverNotifications();
 
   const trackPath = `/track/${info.code}`;
   const trackUrl = `${window.location.origin}${trackPath}`;
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    saveDeliverySession(info.code);
+    checkPermissions();
+  }, [info.code, checkPermissions]);
+
+  useEffect(() => {
+    let disposed = false;
+    setQrDataUrl('');
+    setQrError('');
     QRCode.toDataURL(trackUrl, {
       width: 320,
       margin: 2,
-      color: { dark: '#1C1C1C', light: '#ffffff' },
+      color: { dark: qrcodeHex('1C1C1C'), light: qrcodeHex('ffffff') },
       errorCorrectionLevel: 'M',
-    }).then(setQrDataUrl).catch(console.error);
-  }, [trackUrl]);
+    }).then((dataUrl) => {
+      if (!disposed) setQrDataUrl(dataUrl);
+    }).catch(() => {
+      if (!disposed) setQrError('Không thể tạo mã QR. Vui lòng thử lại.');
+    });
+    return () => { disposed = true; };
+  }, [trackUrl, qrGenerationAttempt]);
 
   useEffect(() => {
     setSecondsToTrack(AUTO_TRACK_SECONDS);
+    if (setupOpen) return;
 
     const interval = window.setInterval(() => {
       setSecondsToTrack((s) => Math.max(0, s - 1));
@@ -42,7 +72,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [navigate, trackPath]);
+  }, [navigate, trackPath, setupOpen]);
 
   function downloadQRWithInfo() {
     if (!qrDataUrl) return;
@@ -70,32 +100,32 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     const ctx = canvas.getContext('2d')!;
     ctx.scale(scale, scale);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = 'white';
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = '#1C1C1C';
+    ctx.strokeStyle = 'black';
     ctx.lineWidth = 2;
     ctx.strokeRect(8, 8, W - 16, H - 16);
 
     let cy = 20;
 
     cy += 30;
-    ctx.fillStyle = '#1C1C1C';
+    ctx.fillStyle = 'black';
     ctx.font = 'bold 17px Arial, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('Phiếu Đăng Ký Giao Hàng', W / 2, cy);
 
     cy += 24;
     ctx.font = '12px Arial, sans-serif';
-    ctx.fillStyle = '#818181';
+    ctx.fillStyle = 'gray';
     ctx.fillText(
       info.locationName ? `${unitDisplayName} · ${info.locationName}` : unitDisplayName,
       W / 2, cy,
     );
 
     cy += 12;
-    ctx.fillStyle = '#FFF6E6';
+    ctx.fillStyle = 'oldlace';
     ctx.fillRect(PAD, cy, W - PAD * 2, 50);
-    ctx.fillStyle = '#1C1C1C';
+    ctx.fillStyle = 'black';
     ctx.font = 'bold 26px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(info.code, W / 2, cy + 33);
@@ -110,7 +140,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 
       let rowY = rowsStartY;
       rows.forEach(([label, value]) => {
-        ctx.strokeStyle = '#ebebeb';
+        ctx.strokeStyle = 'gainsboro';
         ctx.lineWidth = 1;
         ctx.beginPath();
         ctx.moveTo(PAD, rowY);
@@ -118,19 +148,19 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
         ctx.stroke();
 
         ctx.font = '12px Arial, sans-serif';
-        ctx.fillStyle = '#818181';
+        ctx.fillStyle = 'gray';
         ctx.textAlign = 'left';
         ctx.fillText(label, PAD, rowY + 24);
 
         ctx.font = 'bold 12px Arial, sans-serif';
-        ctx.fillStyle = '#1C1C1C';
+        ctx.fillStyle = 'black';
         ctx.textAlign = 'right';
         ctx.fillText(value, W - PAD, rowY + 24);
 
         rowY += ROW_H;
       });
 
-      ctx.strokeStyle = '#ebebeb';
+      ctx.strokeStyle = 'gainsboro';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(PAD, rowY);
@@ -138,7 +168,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
       ctx.stroke();
 
       ctx.font = '11px Arial, sans-serif';
-      ctx.fillStyle = '#ababab';
+      ctx.fillStyle = 'darkgray';
       ctx.textAlign = 'center';
       ctx.fillText('Đưa QR cho bảo vệ scan để check-in', W / 2, rowY + 22);
       ctx.fillText(trackUrl, W / 2, rowY + 38);
@@ -169,16 +199,16 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 <meta charset="utf-8"/>
 <title>Phiếu ${info.code}</title>
 <style>
-  body{font-family:Arial,sans-serif;padding:16px;color:#1C1C1C;margin:0}
-  .ticket{max-width:360px;margin:0 auto;border:2px solid #1C1C1C;border-radius:12px;padding:20px}
+  body{font-family:Arial,sans-serif;padding:16px;color:black;margin:0}
+  .ticket{max-width:360px;margin:0 auto;border:2px solid black;border-radius:12px;padding:20px}
   h2{text-align:center;font-size:17px;margin:0 0 2px}
-  .sub{text-align:center;font-size:11px;color:#818181;margin-bottom:12px}
+  .sub{text-align:center;font-size:11px;color:gray;margin-bottom:12px}
   .code{text-align:center;font-size:30px;font-weight:900;letter-spacing:5px;font-family:monospace;
-        background:#FFF6E6;padding:10px;border-radius:8px;margin:10px 0}
+        background:oldlace;padding:10px;border-radius:8px;margin:10px 0}
   .qr{text-align:center;margin:14px 0}.qr img{width:200px;height:200px}
-  .row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid #ebebeb}
-  .lbl{color:#818181}.val{font-weight:700;text-align:right;max-width:60%}
-  .footer{text-align:center;font-size:10px;color:#ababab;margin-top:14px;line-height:1.6}
+  .row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid gainsboro}
+  .lbl{color:gray}.val{font-weight:700;text-align:right;max-width:60%}
+  .footer{text-align:center;font-size:10px;color:darkgray;margin-top:14px;line-height:1.6}
 </style></head><body><div class="ticket">
 <h2>Phiếu Đăng Ký Giao Hàng</h2>
 <div class="sub">${logoHtml} ${unitDisplayName}</div>
@@ -193,7 +223,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 ${locationRow}
 <div class="footer">
   Đưa QR cho bảo vệ scan để check-in<br>
-  Theo dõi: <span style="font-size:9px;color:#555">${trackUrl}</span>
+  Theo dõi: <span style="font-size:9px;color:dimgray">${trackUrl}</span>
 </div>
 </div></body></html>`);
     win.document.close();
@@ -202,102 +232,53 @@ ${locationRow}
   }
 
   const unitBrand = units[info.receivingUnit] ?? UNIT_FALLBACKS[info.receivingUnit];
-  const unitFb = UNIT_FALLBACKS[info.receivingUnit];
   const unitDisplayName = info.unitDisplayName || unitBrand?.displayName || info.receivingUnit;
-  const unitIcon = info.unitIcon || unitBrand?.icon || unitFb?.icon || '';
 
   return (
-    <div className="min-h-screen bg-thiso-50 flex flex-col">
-      <div className="bg-green-500 px-4 pt-10 pb-6 text-center">
-        <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3">
-          <span className="text-3xl">✅</span>
-        </div>
-        <h2 className="text-xl font-black text-white">Đăng ký thành công!</h2>
-        <p className="text-green-100 text-sm mt-1">{unitIcon} {unitDisplayName}</p>
-      </div>
+    <main className="mx-auto w-full max-w-3xl px-4 py-5 sm:px-6 sm:py-8">
+      <Card>
+        <Result
+          status="success"
+          icon={<CheckCircleOutlined />}
+          title="Đăng ký thành công"
+          subTitle={<Space><Avatar size="small" src={info.unitLogoUrl ?? undefined} icon={<TruckOutlined />} />{unitDisplayName}</Space>}
+        />
 
-      <div className="flex-1 overflow-y-auto px-4 pt-5 pb-6 max-w-sm mx-auto w-full space-y-4">
-        <div className="bg-white rounded-2xl border-2 border-thiso-100 p-5 text-center shadow-card">
-          <p className="text-[11px] font-bold text-thiso-400 uppercase tracking-widest mb-3">
-            Đưa QR này cho bảo vệ scan
-          </p>
-          {qrDataUrl ? (
-            <img src={qrDataUrl} alt={`QR ${info.code}`} className="w-56 h-56 mx-auto rounded-xl" />
-          ) : (
-            <div className="w-56 h-56 mx-auto rounded-xl bg-thiso-50 flex items-center justify-center">
-              <span className="text-2xl animate-pulse">⏳</span>
+        <div className="space-y-5">
+          <Card size="small" title={<Space><ScanOutlined />Mã QR check-in</Space>}>
+            <div className="text-center">
+              <Typography.Paragraph type="secondary">Đưa mã QR này cho bảo vệ tại cổng để check-in.</Typography.Paragraph>
+              {qrDataUrl ? <img src={qrDataUrl} alt={`Mã QR cho ${info.code}`} className="mx-auto h-56 w-56 max-w-full rounded-lg" /> : qrError ? <Alert type="error" showIcon title={qrError} action={<Button size="small" onClick={() => setQrGenerationAttempt((attempt) => attempt + 1)}>Thử lại</Button>} /> : <div className="grid h-56 place-items-center"><Spin description="Đang tạo mã QR..." /></div>}
+              <Typography.Paragraph className="!mb-1 !mt-4"><Typography.Text code copyable className="text-base">{info.code}</Typography.Text></Typography.Paragraph>
+              <Space size={[4, 4]} wrap className="justify-center"><Tag>{info.vehiclePlate}</Tag><Tag>{info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</Tag><Tag>{info.requestedTime.split(' ')[0]}</Tag></Space>
             </div>
-          )}
-          <div className="mt-3 font-mono font-black text-2xl tracking-widest text-thiso-800">
-            {info.code}
+          </Card>
+
+          <Steps size="small" responsive items={[
+            { title: 'Check-in cổng', description: 'Đưa QR cho bảo vệ', icon: <ScanOutlined /> },
+            { title: 'Chờ gọi', description: 'Theo dõi hàng chờ' },
+            { title: 'Vào dock', description: 'Khi được gọi', icon: <TruckOutlined /> },
+          ]} />
+
+          <Descriptions size="small" column={1} bordered items={[
+            { key: 'plate', label: 'Biển số', children: <Typography.Text code>{info.vehiclePlate}</Typography.Text> },
+            { key: 'vendor', label: 'Nhà cung cấp', children: info.vendorName },
+            { key: 'reference', label: 'Mã đối chiếu', children: <Typography.Text code>{info.referenceCode}</Typography.Text> },
+            { key: 'date', label: 'Ngày giao', children: info.requestedTime },
+            ...(info.locationName ? [{ key: 'location', label: 'Khu vực', children: info.locationName }] : []),
+          ]} />
+
+          <Button type="primary" size="large" block icon={<TruckOutlined />} onClick={() => navigate(trackPath)}>
+            Theo dõi hành trình {secondsToTrack > 0 ? `(${secondsToTrack}s)` : ''}
+          </Button>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Button size="large" icon={<DownloadOutlined />} disabled={!qrDataUrl} onClick={downloadQRWithInfo}>Tải QR</Button>
+            <Button size="large" icon={<PrinterOutlined />} disabled={!qrDataUrl} onClick={printTicket}>In phiếu</Button>
           </div>
-          <div className="mt-1 flex items-center justify-center gap-3 text-xs text-thiso-400">
-            <span className="font-mono font-semibold">{info.vehiclePlate}</span>
-            <span>·</span>
-            <span>{info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</span>
-            <span>·</span>
-            <span>{info.requestedTime.split(' ')[0]}</span>
-          </div>
+          <Button size="large" block icon={<ReloadOutlined />} onClick={onReset}>Đăng ký chuyến khác</Button>
+          <div className="text-center"><Button type="link" danger onClick={() => navigate(`/cancelled?code=${encodeURIComponent(info.code)}`)}>Hủy chuyến nếu thông tin không chính xác</Button></div>
         </div>
-
-        <div className="flex gap-0 bg-thiso-50 rounded-2xl overflow-hidden border border-thiso-100">
-          {[
-            { icon: '🔐', label: 'Check-in cổng', desc: 'Đưa QR cho bảo vệ' },
-            { icon: '⏳', label: 'Chờ gọi', desc: 'Theo dõi màn hình' },
-            { icon: '🚚', label: 'Vào dock', desc: 'Khi được gọi số' },
-          ].map((s, i) => (
-            <div key={i} className={`flex-1 text-center px-2 py-3 ${i < 2 ? 'border-r border-thiso-200' : ''}`}>
-              <div className="text-xl mb-1">{s.icon}</div>
-              <p className="text-[11px] font-bold text-thiso-700 leading-tight">{s.label}</p>
-              <p className="text-[10px] text-thiso-400 mt-0.5 leading-tight">{s.desc}</p>
-            </div>
-          ))}
-        </div>
-
-        <a
-          href={trackPath}
-          className="h-13 flex items-center justify-center gap-2 w-full rounded-2xl border border-thiso-200 bg-white text-thiso-800 font-bold text-base hover:bg-thiso-50 transition-colors py-3.5"
-        >
-          📱 Theo dõi hành trình
-          <span className="text-thiso-500 text-sm font-semibold">
-            {secondsToTrack > 0 ? `(${secondsToTrack}s)` : '...'}
-          </span>
-        </a>
-
-        <div className="grid grid-cols-2 gap-2.5">
-          <button
-            onClick={downloadQRWithInfo}
-            disabled={!qrDataUrl}
-            className="h-11 flex items-center justify-center gap-2 bg-thiso-100 text-thiso-700 rounded-xl font-bold text-sm hover:bg-thiso-200 disabled:opacity-40 transition-colors"
-          >
-            ⬇ Tải QR
-          </button>
-          <button
-            onClick={printTicket}
-            disabled={!qrDataUrl}
-            className="h-11 flex items-center justify-center gap-2 bg-thiso-100 text-thiso-700 rounded-xl font-bold text-sm hover:bg-thiso-200 disabled:opacity-40 transition-colors"
-          >
-            🖨 In phiếu
-          </button>
-        </div>
-
-        <button
-          onClick={onReset}
-          className="h-11 w-full border border-thiso-200 text-thiso-500 rounded-xl font-semibold text-sm hover:bg-thiso-50 transition-colors"
-        >
-          Đăng ký chuyến khác
-        </button>
-
-        <p className="text-center text-[11px] text-thiso-400">
-          Lỡ nhập sai thông tin?{' '}
-          <Link
-            to={`/cancelled?code=${encodeURIComponent(info.code)}`}
-            className="text-red-600 underline font-semibold"
-          >
-            Hủy chuyến
-          </Link>
-        </p>
-      </div>
-    </div>
+      </Card>
+    </main>
   );
 }

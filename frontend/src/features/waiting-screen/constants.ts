@@ -9,5 +9,4 @@ export const GOODS_LABEL: Record<string, string> = {
 export const VTYPE: Record<string, { icon: string; label: string }> = {
   TRUCK:     { icon: '🚛', label: 'XE TẢI' },
   MOTORBIKE: { icon: '🛵', label: 'XE MÁY' },
-  OTHER:     { icon: '🚗', label: 'XE KHÁC' },
 };

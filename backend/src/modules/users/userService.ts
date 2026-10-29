@@ -172,7 +172,7 @@ async function assertSingleSuperadmin(targetUserId?: string) {
 function requireLocationAdminScope(user: AuthUser | undefined) {
   const businessLocationId = user?.businessLocationId;
   if (!businessLocationId) {
-    throw domainError.forbidden('Tài khoản ADMIN_LOC chưa được gắn BusinessLocation.');
+    throw domainError.forbidden('Chưa chọn BusinessLocation vận hành.');
   }
   return businessLocationId;
 }

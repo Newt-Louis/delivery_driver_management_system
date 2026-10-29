@@ -54,14 +54,14 @@ const vehicleAvailabilityQuerySchema = z.object({
 const slotsQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   goodsType: z.nativeEnum(GoodsType),
-  vehicleType: z.nativeEnum(VehicleType),
+  vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
   unitGoodsTypeId: z.string().optional(),
 });
 
 const dailyStatsQuerySchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/),
   goodsType: z.nativeEnum(GoodsType),
-  vehicleType: z.nativeEnum(VehicleType),
+  vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
   unitGoodsTypeId: z.string().optional(),
 });
 

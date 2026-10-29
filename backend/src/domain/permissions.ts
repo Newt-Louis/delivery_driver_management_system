@@ -57,7 +57,7 @@ export function roleHasUnitOperationScope(role: string | null | undefined): bool
 }
 
 export function canManageUserRole(actorRole: string | null | undefined, targetRole: string): boolean {
-  if (actorRole === 'SUPERADMIN') return targetRole === 'ADMIN_LOC' || targetRole === 'ADMIN_OPE';
+  if (actorRole === 'SUPERADMIN') return ['ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING', 'CHECKIN'].includes(targetRole);
   if (actorRole === 'ADMIN_LOC') return targetRole === 'RECEIVING' || targetRole === 'CHECKIN';
   return false;
 }
@@ -66,7 +66,7 @@ export const canCreateRole = canManageUserRole;
 export const canUpdateRole = canManageUserRole;
 
 export function canAssignUserScope(actorRole: string | null | undefined, targetRole: string): boolean {
-  if (actorRole === 'SUPERADMIN') return targetRole === 'ADMIN_LOC' || targetRole === 'ADMIN_OPE';
+  if (actorRole === 'SUPERADMIN') return ['ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING', 'CHECKIN'].includes(targetRole);
   if (actorRole === 'ADMIN_LOC') return targetRole === 'ADMIN_OPE' || targetRole === 'RECEIVING' || targetRole === 'CHECKIN';
   return false;
 }

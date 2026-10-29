@@ -15,7 +15,7 @@ export interface StaffUserPayload {
 export type StaffUserCreatePayload = StaffUserPayload & {
   name: string;
   password: string;
-  role: 'RECEIVING' | 'CHECKIN';
+  role: 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
 };
 
 export async function fetchLocationStaffUsers() {

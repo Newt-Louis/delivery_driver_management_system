@@ -1,43 +1,53 @@
 import { useState } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { LockOutlined, MailOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Col, Form, Grid, Input, Layout, Row, Space, Typography } from 'antd';
 import { useAuth } from '../context/AuthContext';
 import { useBranding } from '../context/BrandingContext';
 import api from '../lib/api';
 import { getOrCreateDeviceId } from '../lib/authCookies';
 
+interface LoginValues {
+  email: string;
+  password: string;
+}
+
 function homePathForRole(role?: string) {
-  if (role === 'CHECKIN') return '/check-in';
-  return '/dashboard';
+  return role === 'CHECKIN' ? '/check-in' : '/dashboard';
 }
 
 export default function Login() {
   const { login, isAuthenticated, isLoading, user } = useAuth();
-  const { mall, units } = useBranding();
+  const { mall } = useBranding();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [form] = Form.useForm<LoginValues>();
   const [error, setError] = useState('');
   const [hasActiveSessionConflict, setHasActiveSessionConflict] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const screens = Grid.useBreakpoint();
+
   if (isLoading) return null;
   if (isAuthenticated) return <Navigate to={homePathForRole(user?.role)} replace />;
 
-  async function submitLogin(force = false) {
+  async function submitLogin(values: LoginValues, force = false) {
     setError('');
     setHasActiveSessionConflict(false);
-    setLoading(true);
+    setSubmitting(true);
+
     try {
       const res = await api.post('/api/auth/login', {
-        email,
-        password,
+        email: values.email,
+        password: values.password,
         deviceId: getOrCreateDeviceId(),
         deviceName: navigator.userAgent,
         force,
       });
+
       if (!res.data?.token) {
-        setError('Tài khoản cần bước xác thực bổ sung chưa được hỗ trợ trên giao diện này');
+        setError('Tài khoản cần bước xác thực bổ sung chưa được hỗ trợ trên giao diện này.');
         return;
       }
+
       login(res.data.token, res.data.user, res.data.session?.expiresInSeconds ?? res.data.expiresInSeconds);
       navigate(homePathForRole(res.data.user?.role));
     } catch (err: any) {
@@ -45,122 +55,137 @@ export default function Login() {
         setHasActiveSessionConflict(true);
         setError(err.response.data.message ?? 'Tài khoản này đang đăng nhập ở thiết bị khác.');
       } else {
-        setError('Email hoặc mật khẩu không đúng');
+        setError('Email hoặc mật khẩu không đúng.');
       }
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    await submitLogin(false);
-  }
+  const locationName = mall.locationName || mall.mallName;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      {/* Background texture */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none" style={{
-        backgroundImage: 'radial-gradient(circle at 25% 25%, #fff 1px, transparent 1px), radial-gradient(circle at 75% 75%, #fff 1px, transparent 1px)',
-        backgroundSize: '40px 40px',
-      }} />
+    <Layout className="min-h-screen px-4 py-6 sm:px-6 lg:p-8">
+      <Layout.Content className="m-auto w-full max-w-6xl">
+        <Row align="middle" gutter={screens.lg ? 64 : 0}>
+          {screens.lg && (
+            <Col lg={13}>
+              <Space orientation="vertical" size={24} className="max-w-xl">
+                <img
+                  src="/thiso_logo-full-color.jpg"
+                  alt="THISO"
+                  className="h-16 w-auto object-contain"
+                />
+                <Typography.Title level={1} className="!mb-0">
+                  Vận hành giao nhận, rõ ràng từng lượt
+                </Typography.Title>
+                <Typography.Paragraph type="secondary" className="!mb-0 !text-base">
+                  Đăng nhập để điều phối, check-in và nhận hàng trong cùng một không gian làm việc.
+                </Typography.Paragraph>
+              </Space>
+            </Col>
+          )}
 
-      <div className="relative w-full max-w-sm">
-        {/* Brand header */}
-        <div className="text-center mb-8">
-          <div>
-            <img className="mx-auto h-16 w-auto" src='thiso_logo-full-color.jpg' alt="THISO" />
-            <h1 className="mt-2 text-xl font-bold sm:text-2xl">Delivery Management System</h1>
-          </div>
-        </div>
-
-        {/* Card */}
-        <div className="bg-white rounded-2xl shadow-card-lg p-8">
-          <h2 className="text-lg font-bold text-thiso-800 mb-6">Đăng nhập</h2>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="label">Email</label>
-              <input
-                type="email"
-                className="input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@mall.com"
-                required
-              />
-            </div>
-            <div>
-              <label className="label">Mật khẩu</label>
-              <input
-                type="password"
-                className="input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </div>
-
-            {error && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-                {error}
-                {hasActiveSessionConflict && (
-                  <div className="mt-3 flex gap-2">
-                    <button
-                      type="button"
-                      className="btn-danger flex-1 py-2 text-xs"
-                      disabled={loading}
-                      onClick={() => submitLogin(true)}
-                    >
-                      Đăng nhập thiết bị này
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary flex-1 py-2 text-xs"
-                      disabled={loading}
-                      onClick={() => {
-                        setHasActiveSessionConflict(false);
-                        setError('');
-                      }}
-                    >
-                      Hủy
-                    </button>
+          <Col xs={24} lg={11}>
+            <Card className="mx-auto w-full max-w-md" styles={{ body: { padding: screens.sm ? 32 : 24 } }}>
+              <Space orientation="vertical" size={24} className="w-full">
+                <Space orientation="vertical" size={12} className="w-full">
+                  {!screens.lg && (
+                    <div className="w-full">
+                      <img
+                        src="/thiso_logo-full-color.jpg"
+                        alt="THISO"
+                        className="block h-auto w-full object-contain"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <Typography.Title level={2} className="!mb-1">
+                      Đăng nhập
+                    </Typography.Title>
+                    <Typography.Text type="secondary">
+                      {locationName}
+                    </Typography.Text>
                   </div>
+                </Space>
+
+                {error && (
+                  <Alert
+                    type="error"
+                    showIcon
+                    title={error}
+                    action={hasActiveSessionConflict ? (
+                      <Space wrap size={8}>
+                        <Button
+                          danger
+                          size="small"
+                          loading={submitting}
+                          onClick={() => void submitLogin(form.getFieldsValue(), true)}
+                        >
+                          Đăng nhập tại đây
+                        </Button>
+                        <Button
+                          size="small"
+                          disabled={submitting}
+                          onClick={() => {
+                            setHasActiveSessionConflict(false);
+                            setError('');
+                          }}
+                        >
+                          Hủy
+                        </Button>
+                      </Space>
+                    ) : undefined}
+                  />
                 )}
-              </div>
-            )}
 
-            <button type="submit" className="btn-primary w-full py-2.5 mt-2" disabled={loading}>
-              {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
-            </button>
-          </form>
-
-          <div className="mt-6 pt-5 border-t border-thiso-100">
-            <p className="text-xs font-semibold text-thiso-400 uppercase tracking-wide mb-3">Tài khoản demo</p>
-            <div className="space-y-1.5">
-              {[
-                { label: 'Superadmin', email: 'superadmin@mall.com' },
-                { label: 'Admin khu vực', email: 'admin@mall.com' },
-                { label: 'Vận hành', email: 'operator@mall.com' },
-                { label: 'Nhận hàng', email: 'receiving@mall.com' },
-                { label: 'Check-in', email: 'checkin@mall.com' },
-              ].map((a) => (
-                <button
-                  key={a.email}
-                  type="button"
-                  onClick={() => { setEmail(a.email); setPassword('password123'); }}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-thiso-50 hover:bg-thiso-100 transition-colors text-xs text-left"
+                <Form<LoginValues>
+                  form={form}
+                  layout="vertical"
+                  requiredMark={false}
+                  onFinish={(values) => void submitLogin(values)}
+                  onValuesChange={() => {
+                    if (error) setError('');
+                    if (hasActiveSessionConflict) setHasActiveSessionConflict(false);
+                  }}
                 >
-                  <span className="font-semibold text-thiso-700">{a.label}</span>
-                  <span className="text-thiso-400 font-mono">{a.email}</span>
-                </button>
-              ))}
-              <p className="text-xs text-thiso-300 text-center mt-2">Mật khẩu: password123</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+                  <Form.Item
+                    label="Email"
+                    name="email"
+                    rules={[
+                      { required: true, message: 'Nhập email để tiếp tục.' },
+                      { type: 'email', message: 'Nhập đúng định dạng email.' },
+                    ]}
+                  >
+                    <Input
+                      autoComplete="email"
+                      inputMode="email"
+                      prefix={<MailOutlined />}
+                      placeholder="name@company.com"
+                    />
+                  </Form.Item>
+                  <Form.Item
+                    label="Mật khẩu"
+                    name="password"
+                    rules={[{ required: true, message: 'Nhập mật khẩu để tiếp tục.' }]}
+                  >
+                    <Input.Password
+                      autoComplete="current-password"
+                      prefix={<LockOutlined />}
+                      placeholder="Nhập mật khẩu"
+                    />
+                  </Form.Item>
+                  <Form.Item className="!mb-0 !mt-8">
+                    <Button type="primary" htmlType="submit" size="large" block loading={submitting}>
+                      Đăng nhập
+                    </Button>
+                  </Form.Item>
+                </Form>
+              </Space>
+            </Card>
+          </Col>
+        </Row>
+      </Layout.Content>
+    </Layout>
   );
 }

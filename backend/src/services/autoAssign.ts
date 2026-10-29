@@ -319,7 +319,8 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCod
   );
 
   sendPushToDelivery(result.delivery.registrationCode, {
-    title: `🚛 Mời vào ${result.slot.code}`,
+    status: 'CALLED', occurredAt: result.delivery.calledTime?.toISOString(),
+    title: `Mời xe vào ${result.slot.code}`,
     body: `Xe ${result.delivery.vehiclePlate} — ${result.slot.name}. Vui lòng vào ngay!`,
     tag: 'delivery-called',
     url: `/track/${result.delivery.registrationCode}`,

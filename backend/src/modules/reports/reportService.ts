@@ -128,11 +128,7 @@ export async function getAiSlotRecommendationsReport(query: ReportQuery, scope: 
     const relevantPeak = peakRows.find((row) => row.unit === group.unit && row.vehicleType === group.vehicleType);
     const peakHour = relevantPeak ? Number(relevantPeak.peakHour) : null;
     const util = Math.round(group.avgUtil);
-    const vehicleLabel = group.vehicleType === 'TRUCK'
-      ? 'xe tải'
-      : group.vehicleType === 'MOTORBIKE'
-        ? 'xe máy'
-        : 'xe khác';
+    const vehicleLabel = group.vehicleType === 'TRUCK' ? 'xe tải' : 'xe máy';
     const unitLabel = scope.unitMeta?.[group.unit]?.displayName ?? group.unit;
 
     if (util >= 85 || backlog >= 5) {
