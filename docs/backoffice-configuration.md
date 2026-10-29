@@ -144,9 +144,9 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 Trong tab Users:
 
 - Nút `Tạo tài khoản` mở modal tạo mới với thông tin tên, email, mật khẩu, role, location, department và unit operation scope.
-- Hàng công cụ phía trên bảng có filter độc lập theo location, unit, role, status và ô tìm kiếm tên/email. Các filter chạy client-side trên dữ liệu đã load của tab Users, không gọi lại API theo từng lần chọn hoặc gõ.
+- Toolbar responsive dùng chung với Backoffice: filter location, unit, role, status và tìm tên/email trên dữ liệu đã load. Tìm kiếm được áp dụng khi nhấn tìm kiếm; sắp xếp tổng quát trong toolbar là placeholder vô hiệu.
 - Role filter lấy các role có trong response `/api/users`; status filter được suy ra từ `isActive` và `deletedAt`.
-- Bảng có multi-sort theo từng cột; mỗi cột có lựa chọn `Cao đến thấp`, `Thấp đến cao`, `Bỏ chọn`. Nhiều cột được sort theo thứ tự người dùng chọn.
+- Danh sách dùng bảng từ breakpoint `lg`; dưới `lg` dùng Collapse theo từng tài khoản với action ở đầu dòng và thông tin còn lại bên trong. Cả hai có phân trang. Tiêu đề cột không còn select sắp xếp; trên màn hình nhỏ vẫn có vùng `Sắp xếp theo cột` với multi-sort hiện tại. Ô sắp xếp trong toolbar dành cho chức năng sẽ được bổ sung sau.
 - Bảng phân trang client-side, cho chọn 20, 50 hoặc 100 dòng mỗi trang ở cuối danh sách.
 - Nút `Edit` mở lại cùng modal ở chế độ chỉnh sửa cho `ADMIN_LOC`/`ADMIN_OPE`; mật khẩu không nằm trong modal edit, đổi mật khẩu đi qua API reset password riêng.
 - Cột `Status` hiển thị `Active`, `Disabled` hoặc `Deleted`.
@@ -170,3 +170,19 @@ Các thao tác delete với dữ liệu đã có liên kết lịch sử đượ
 - Tab `App configs` chỉ load `/api/superadmin/app-configs`.
 
 Các callback refresh trong tab không invalidate cả namespace `['superadmin']`; chúng chỉ invalidate query key của tab hiện tại để tránh mỗi thao tác CRUD kéo lại toàn bộ API của các tab khác.
+
+### Locations và Unit configs trong Superadmin
+
+Hai tab dùng toolbar responsive chung: tìm tên chỉ áp dụng khi nhấn tìm kiếm, lọc trạng thái và lọc location cho unit; điều khiển sắp xếp hiện là placeholder vô hiệu giống Backoffice. Danh sách dùng bảng từ breakpoint `lg`; dưới `lg` dùng Collapse theo từng dòng, với thao tác ở đầu dòng và thông tin còn lại trong phần mở rộng. Hai chế độ đều phân trang và không có hàng thống kê. Tạo/sửa mở modal; các API, xác nhận deactivate và quy trình upload logo/avatar vẫn dùng luồng hiện có. Khi thay đổi location filter, danh sách unit hiển thị trạng thái tải trong khi query theo location mới chạy.
+
+### Goods types và Time windows trong Superadmin
+
+Hai tab chỉ đọc, dùng toolbar responsive chung với tìm kiếm theo tên và bộ lọc location/unit hiện có; sort vẫn là placeholder. Từ `lg` hiển thị bảng, dưới `lg` hiển thị Collapse từng dòng, cả hai có phân trang. Đổi bộ lọc tiếp tục dùng query API theo `businessLocationId`/`unitConfigId`; danh sách bị che trong khi dữ liệu phạm vi mới đang tải. Không có thao tác tạo, sửa hoặc xóa tại đây.
+
+### AW vendors và Devices trong Superadmin
+
+Hai tab dùng toolbar responsive chung với tìm kiếm theo tên và lọc location; AW vendors có thêm lọc unit. Các bộ lọc location/unit tiếp tục điều khiển API theo scope hiện có. Từ `lg` danh sách là bảng, dưới `lg` là Collapse theo từng dòng; cả hai có phân trang và thao tác ở cuối dòng hoặc đầu Collapse. Tạo và sửa mở modal, xóa có xác nhận. Vendor khi sửa không đổi unit; thiết bị chỉ gửi secret mới nếu có nhập.
+
+### API tích hợp và Receiving time configs trong Superadmin
+
+Hai tab dùng toolbar responsive với tìm kiếm theo tên; Receiving time configs giữ thêm lọc location/unit ở toolbar và query theo cùng scope. Danh sách dùng bảng từ `lg`, Collapse từng dòng dưới `lg` và phân trang ở cả hai chế độ. Tạo/sửa mở modal và xóa có xác nhận; không có hàng thống kê. API config chỉ hiển thị loại xác thực trên danh sách, không hiển thị thông tin secret; thao tác cấu hình và xử lý sensitive vẫn theo API hiện có. Khi sửa receiving time config, unit, loại xe và loại hàng vẫn bị khóa.

@@ -1,7 +1,10 @@
-import { Fragment, FormEvent, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
+import { Alert, AutoComplete, Avatar, Button, Card, Checkbox, Collapse, Descriptions, Empty, Flex, Grid, Input, Modal, Pagination, Popconfirm, Select, Space, Table, Tooltip, Typography, message } from 'antd';
+import { EditOutlined, DeleteOutlined, PlusOutlined } from '@ant-design/icons';
+import ResponsiveDataToolbar, { SearchButton } from '../../backoffice/components/ResponsiveDataToolbar';
 import { superadminApi } from '../api';
 import type { BusinessLocation } from '../types';
-import { StatusBadge, TableShell } from './shared';
+import { StatusBadge } from './shared';
 import DatafileImageUpload, { type DatafileImageValue } from '../../../components/DatafileImageUpload';
 import { hasPendingUploadFile, uploadDatafileAsset } from '../../../lib/datafileUpload';
 
@@ -35,10 +38,11 @@ function fromLocation(item: BusinessLocation): LocationFormState {
   };
 }
 
-function LocationForm({ item, onDone, onCancel }: {
+function LocationForm({ item, onDone, onCancel, onSavingChange }: {
   item?: BusinessLocation;
   onDone: () => void;
   onCancel?: () => void;
+  onSavingChange: (saving: boolean) => void;
 }) {
   const [form, setForm] = useState<LocationFormState>(item ? fromLocation(item) : emptyForm());
   const [error, setError] = useState('');
@@ -52,6 +56,7 @@ function LocationForm({ item, onDone, onCancel }: {
     e.preventDefault();
     setError('');
     setSaving(true);
+    onSavingChange(true);
     try {
       const basePayload = {
         ...form,
@@ -90,77 +95,14 @@ function LocationForm({ item, onDone, onCancel }: {
       setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được location.');
     } finally {
       setSaving(false);
+      onSavingChange(false);
     }
   }
 
   const isEdit = !!item;
 
-  return (
-    <form onSubmit={submit} className="border border-thiso-200 rounded-2xl p-5 bg-white space-y-4">
-      <div className="flex items-center justify-between">
-        <h4 className="font-bold text-thiso-800">{isEdit ? `Chỉnh sửa: ${item.locationName}` : 'Tạo location mới'}</h4>
-        {onCancel && (
-          <button type="button" className="text-sm text-thiso-400 hover:text-thiso-700" onClick={onCancel}>Huỷ</button>
-        )}
-      </div>
+  return <form onSubmit={submit}><div className="grid sm:grid-cols-2 gap-4"><label>Code *<Input placeholder="VD: THT or PVT or SALA" value={form.code} onChange={e => set('code', e.target.value)} required disabled={isEdit} />{isEdit && <Typography.Text type="secondary">Code không thể thay đổi sau khi tạo.</Typography.Text>}</label><label>Tên location *<Input placeholder="Tên khu vực" value={form.locationName} onChange={e => set('locationName', e.target.value)} required /></label><label>Địa chỉ<Input value={form.address} onChange={e => set('address', e.target.value)} /></label><label>Tagline<Input value={form.tagline} onChange={e => set('tagline', e.target.value)} /><Typography.Text type="secondary">Hiển thị dưới tên trên màn hình chờ và đăng ký.</Typography.Text></label><DatafileImageUpload label="Logo chính (navbar, màn hình chờ)" value={{ url: form.logoUrl, originalName: form.logoOriginalName }} onChange={(v: DatafileImageValue) => setForm(current => ({ ...current, logoUrl: v.url, logoOriginalName: v.originalName, logoFile: v.file }))} buttonLabel="Tải lên logo" /><DatafileImageUpload label="Avatar (trang đăng ký, phiếu in)" value={{ url: form.avatarUrl, originalName: form.avatarOriginalName }} onChange={(v: DatafileImageValue) => setForm(current => ({ ...current, avatarUrl: v.url, avatarOriginalName: v.originalName, avatarFile: v.file }))} buttonLabel="Tải lên avatar" /></div><Space wrap className="mt-4"><Checkbox checked={form.isActive} onChange={e => set('isActive', e.target.checked)}>Active</Checkbox>{onCancel && <Button onClick={onCancel} disabled={saving}>Huỷ</Button>}<Button type="primary" htmlType="submit" loading={saving}>{isEdit ? 'Lưu thay đổi' : 'Tạo location'}</Button></Space>{error && <Alert type="error" message={error} className="mt-3" />}</form>;
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="label">Code *</label>
-          <input className="input" placeholder="VD: THT or PVT or SALA" value={form.code}
-                 onChange={(e) => set('code', e.target.value)} required disabled={isEdit} />
-          {isEdit && <p className="text-[11px] text-thiso-400 mt-1">Code không thể thay đổi sau khi tạo.</p>}
-        </div>
-        <div>
-          <label className="label">Tên location *</label>
-          <input className="input" placeholder="Tên khu vực" value={form.locationName}
-                 onChange={(e) => set('locationName', e.target.value)} required />
-        </div>
-        <div className="col-span-2">
-          <label className="label">Địa chỉ</label>
-          <input className="input" placeholder="Địa chỉ cụ thể của khu vực" value={form.address}
-                 onChange={(e) => set('address', e.target.value)} />
-        </div>
-        <div className="col-span-2">
-          <label className="label">Tagline</label>
-          <input className="input" placeholder="Hệ thống điều phối giao-nhận hàng thông minh" value={form.tagline}
-                 onChange={(e) => set('tagline', e.target.value)} />
-          <p className="text-[11px] text-thiso-400 mt-1">Hiển thị dưới tên trên màn hình chờ và đăng ký.</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-5">
-        <DatafileImageUpload
-          label="Logo chính (navbar, màn hình chờ)"
-          value={{ url: form.logoUrl, originalName: form.logoOriginalName }}
-          onChange={(v: DatafileImageValue) => setForm((current) => ({ ...current, logoUrl: v.url, logoOriginalName: v.originalName, logoFile: v.file }))}
-          buttonLabel="Tải lên logo"
-        />
-        <DatafileImageUpload
-          label="Avatar (trang đăng ký, phiếu in)"
-          value={{ url: form.avatarUrl, originalName: form.avatarOriginalName }}
-          onChange={(v: DatafileImageValue) => setForm((current) => ({ ...current, avatarUrl: v.url, avatarOriginalName: v.originalName, avatarFile: v.file }))}
-          buttonLabel="Tải lên avatar"
-        />
-      </div>
-
-      <div className="flex items-center gap-5 pt-1">
-        <label className="flex items-center gap-2 text-sm text-thiso-600 cursor-pointer">
-          <input type="checkbox" checked={form.isActive} onChange={(e) => set('isActive', e.currentTarget.checked)} />
-          Active
-        </label>
-        {error && <span className="text-sm text-red-600 flex-1">{error}</span>}
-        <div className="ml-auto flex items-center gap-3">
-          {onCancel && (
-            <button type="button" className="btn btn-secondary" onClick={onCancel}>Huỷ</button>
-          )}
-          <button className="btn btn-primary" type="submit" disabled={saving}>
-            {saving ? 'Đang lưu...' : isEdit ? 'Lưu thay đổi' : 'Tạo location'}
-          </button>
-        </div>
-      </div>
-    </form>
-  );
 }
 
 async function uploadLocationImageIfNeeded(
@@ -183,74 +125,48 @@ async function uploadLocationImageIfNeeded(
 
 export default function LocationsTab({ locations, onRefresh }: { locations: BusinessLocation[]; onRefresh: () => void }) {
   const [creating, setCreating]     = useState(false);
+  const [modalSaving, setModalSaving] = useState(false);
   const [editingId, setEditingId]   = useState<string | null>(null);
 
   async function removeLocation(id: string) {
-    if (!confirm('Deactivate hoặc xóa location này?')) return;
-    await superadminApi.deleteLocation(id);
-    onRefresh();
+    try { await superadminApi.deleteLocation(id); onRefresh(); } catch { message.error('Không thể vô hiệu hóa location.'); }
   }
 
   function doneCreate() { setCreating(false); onRefresh(); }
   function doneEdit()   { setEditingId(null); onRefresh(); }
 
-  return (
-    <section className="space-y-4">
-      {creating ? (
-        <LocationForm onDone={doneCreate} onCancel={() => setCreating(false)} />
-      ) : (
-        <button className="btn btn-primary" onClick={() => setCreating(true)}>+ Tạo location mới</button>
-      )}
+  const [searchDraft, setSearchDraft] = useState('');
+  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [status, setStatus] = useState<string>('');
+  const screens = Grid.useBreakpoint();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const selected = locations.find(location => location.id === editingId);
+  const visible = useMemo(() => locations.filter(location => (!search || location.locationName.toLocaleLowerCase('vi-VN').includes(search.toLocaleLowerCase('vi-VN'))) && (!status || (status === 'active') === location.isActive)), [locations, search, status]);
+  const names = [...new Set(locations.map(location => location.locationName))].map(value => ({ value }));
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(visible.length / pageSize)));
+  const paged = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  function updatePagination(nextPage: number, nextSize = pageSize) { setPage(nextPage); setPageSize(nextSize); }
+  function actions(location: BusinessLocation) {
+    return <Space size="small" onClick={event => event.stopPropagation()}>
+      <Tooltip title="Chỉnh sửa location"><Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Sửa location ${location.code}`} onClick={() => setEditingId(location.id)} /></Tooltip>
+      <Popconfirm title="Deactivate hoặc xóa location này?" onConfirm={() => removeLocation(location.id)}><Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Vô hiệu hóa location ${location.code}`} /></Popconfirm>
+    </Space>;
+  }
+  const columns: import('antd').TableColumnsType<BusinessLocation> = [
+    { title: 'Code', dataIndex: 'code', width: 150, render: (code: string) => <Typography.Text strong code>{code}</Typography.Text> },
+    { title: 'Tên location', key: 'name', width: 240, render: (_, location) => <Space><Avatar src={location.logoUrl || undefined}>{location.code.charAt(0)}</Avatar><Typography.Text>{location.locationName}</Typography.Text></Space> },
+    { title: 'Tagline', key: 'tagline', render: (_, location) => location.tagline || '—' },
+    { title: 'Địa chỉ', key: 'address', render: (_, location) => location.address || '—' },
+    { title: 'Liên kết', key: 'linked', render: (_, location) => `${location._count?.unitConfigs ?? 0} units · ${location._count?.users ?? 0} users` },
+    { title: 'Trạng thái', key: 'status', render: (_, location) => <StatusBadge active={location.isActive} /> },
+    { title: 'Thao tác', key: 'actions', fixed: 'right', width: 120, render: (_, location) => actions(location) },
+  ];
 
-      <TableShell>
-        <table className="w-full text-sm">
-          <thead className="bg-thiso-50 text-thiso-500">
-            <tr>
-              <th className="text-left p-3">Logo</th>
-              <th className="text-left p-3">Code</th>
-              <th className="text-left p-3">Tên / Tagline</th>
-              <th className="text-left p-3">Liên kết</th>
-              <th className="text-left p-3">Trạng thái</th>
-              <th className="p-3" />
-            </tr>
-          </thead>
-          <tbody>
-            {locations.map((location) => (
-              <Fragment key={location.id}>
-                <tr key={location.id} className="border-t border-thiso-100">
-                  <td className="p-3">
-                    {location.logoUrl
-                      ? <img src={location.logoUrl} alt="" className="h-8 w-8 object-contain rounded" />
-                      : <div className="h-8 w-8 rounded-lg bg-thiso-100 flex items-center justify-center text-thiso-400 text-xs font-black">{location.code.charAt(0)}</div>}
-                  </td>
-                  <td className="p-3 font-mono text-xs">{location.code}</td>
-                  <td className="p-3">
-                    <div className="font-semibold text-thiso-800">{location.locationName}</div>
-                    {location.tagline && <div className="text-xs text-thiso-400 mt-0.5">{location.tagline}</div>}
-                  </td>
-                  <td className="p-3 text-thiso-500">{location._count?.unitConfigs ?? 0} units · {location._count?.users ?? 0} users</td>
-                  <td className="p-3"><StatusBadge active={location.isActive} /></td>
-                  <td className="p-3 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button className="btn btn-secondary text-xs" onClick={() => setEditingId(editingId === location.id ? null : location.id)}>
-                        {editingId === location.id ? 'Đóng' : 'Sửa'}
-                      </button>
-                      <button className="btn btn-danger text-xs" onClick={() => removeLocation(location.id)}>Deactivate</button>
-                    </div>
-                  </td>
-                </tr>
-                {editingId === location.id && (
-                  <tr key={`${location.id}-edit`} className="border-t border-thiso-100 bg-thiso-50/40">
-                    <td colSpan={6} className="p-3">
-                      <LocationForm item={location} onDone={doneEdit} onCancel={() => setEditingId(null)} />
-                    </td>
-                  </tr>
-                )}
-              </Fragment>
-            ))}
-          </tbody>
-        </table>
-      </TableShell>
-    </section>
-  );
+  return <Space orientation="vertical" size="large" className="w-full">
+    <ResponsiveDataToolbar filters={<><Space orientation="vertical" size={4} className="w-full sm:w-auto"><Typography.Text type="secondary">Tìm tên location</Typography.Text><AutoComplete className="w-full sm:w-64" value={searchDraft} options={names} open={searchOpen && Boolean(searchDraft.trim())} onFocus={() => setSearchOpen(Boolean(searchDraft.trim()))} onBlur={() => setSearchOpen(false)} onChange={value => { setSearchDraft(value); setSearchOpen(Boolean(value.trim())); }} onSelect={value => { setSearchDraft(value); setSearchOpen(false); }} filterOption={(input, option) => String(option?.value ?? '').toLocaleLowerCase('vi-VN').includes(input.toLocaleLowerCase('vi-VN'))}><Input.Search aria-label="Tìm tên location" allowClear placeholder="Nhập tên location" enterButton={<SearchButton />} onSearch={value => { setSearch(value.trim()); setSearchOpen(false); setPage(1); }} /></AutoComplete></Space><Space orientation="vertical" size={4}><Typography.Text type="secondary">Trạng thái</Typography.Text><Select aria-label="Trạng thái location" className="min-w-44" allowClear placeholder="Tất cả trạng thái" value={status || undefined} onChange={value => { setStatus(value ?? ''); setPage(1); }} options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} /></Space></>} createAction={<Button type="primary" icon={<PlusOutlined />} onClick={() => setCreating(true)}>Thêm location</Button>} />
+    {screens.lg ? <Card size="small" styles={{ body: { padding: 0 } }}><Table<BusinessLocation> rowKey="id" columns={columns} dataSource={visible} scroll={{ x: 1150 }} locale={{ emptyText: <Empty description="Không có location phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} pagination={{ position: ['bottomCenter'], size: 'small', current: currentPage, pageSize, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: total => `${total} location`, onChange: updatePagination }} /></Card> : paged.length === 0 ? <Empty description="Không có location phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : <Space orientation="vertical" size="middle" className="w-full"><Collapse items={paged.map(location => ({ key: location.id, label: <Space orientation="vertical" size={0} className="min-w-0"><Typography.Text strong code>{location.code}</Typography.Text><Typography.Text style={{ overflowWrap: 'anywhere' }}>{location.locationName}</Typography.Text></Space>, extra: actions(location), children: <Descriptions size="small" column={1} items={[{ key: 'logo', label: 'Logo', children: <Avatar src={location.logoUrl || undefined}>{location.code.charAt(0)}</Avatar> }, { key: 'tagline', label: 'Tagline', children: location.tagline || '—' }, { key: 'address', label: 'Địa chỉ', children: location.address || '—' }, { key: 'linked', label: 'Liên kết', children: `${location._count?.unitConfigs ?? 0} units · ${location._count?.users ?? 0} users` }, { key: 'status', label: 'Trạng thái', children: <StatusBadge active={location.isActive} /> }]} /> }))} /><Flex justify="center"><Pagination current={currentPage} pageSize={pageSize} total={visible.length} size="small" showSizeChanger={false} showTotal={total => `${total} location`} onChange={updatePagination} /></Flex></Space>}
+    {(creating || selected) && <Modal open title={selected ? `Chỉnh sửa: ${selected.locationName}` : 'Tạo location mới'} footer={null} width={800} closable={!modalSaving} maskClosable={!modalSaving} keyboard={!modalSaving} onCancel={() => { setCreating(false); setEditingId(null); }} destroyOnHidden><LocationForm onSavingChange={setModalSaving} key={selected?.id ?? 'create'} item={selected} onDone={selected ? doneEdit : doneCreate} onCancel={() => { setCreating(false); setEditingId(null); }} /></Modal>}
+  </Space>;
 }

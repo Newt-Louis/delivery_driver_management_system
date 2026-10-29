@@ -3,7 +3,9 @@ import type { Role, UnitConfig, User } from '../../../lib/types';
 import { canManageUserRole } from '../../../lib/permissions';
 import { superadminApi } from '../api';
 import type { BusinessLocation } from '../types';
-import { TableShell } from './shared';
+import { Alert, AutoComplete, Avatar, Button, Card, Checkbox, Collapse, Descriptions, Empty, Flex, Grid, Input, Modal, Pagination, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, type TableColumnsType } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, StopOutlined, CheckOutlined } from '@ant-design/icons';
+import ResponsiveDataToolbar, { SearchButton } from '../../backoffice/components/ResponsiveDataToolbar';
 
 type UserRow = User & {
   isActive?: boolean;
@@ -66,9 +68,9 @@ function Highlight({ text, query }: { text: string; query: string }) {
   while (index !== -1) {
     if (index > cursor) parts.push(text.slice(cursor, index));
     parts.push(
-      <mark key={`${index}-${lowerQuery}`} className="bg-gray-200 text-inherit rounded px-0.5">
+      <Typography.Text mark key={`${index}-${lowerQuery}`}>
         {text.slice(index, index + lowerQuery.length)}
-      </mark>,
+      </Typography.Text>,
     );
     cursor = index + lowerQuery.length;
     index = lowerText.indexOf(lowerQuery, cursor);
@@ -76,55 +78,6 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
   if (cursor < text.length) parts.push(text.slice(cursor));
   return <>{parts.map((part, idx) => <Fragment key={idx}>{part}</Fragment>)}</>;
-}
-
-function SortIcon({ direction }: { direction?: SortDirection }) {
-  if (direction === 'asc') return <span className="text-[11px] leading-none">↑</span>;
-  if (direction === 'desc') return <span className="text-[11px] leading-none">↓</span>;
-  return <span className="text-[10px] leading-none">≡</span>;
-}
-
-function SortMenu({
-  value,
-  open,
-  onOpenChange,
-  onChange,
-}: {
-  value?: SortDirection;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onChange: (direction: SortDirection | '') => void;
-}) {
-  function choose(direction: SortDirection | '') {
-    onChange(direction);
-    onOpenChange(false);
-  }
-
-  return (
-    <span className="relative inline-flex align-middle">
-      <button
-        type="button"
-        className={`ml-1 inline-flex h-5 w-5 items-center justify-center rounded border text-thiso-500 transition-colors ${value ? 'border-sky-300 bg-sky-50 text-sky-700' : 'border-thiso-200 bg-white hover:bg-thiso-50'}`}
-        onClick={() => onOpenChange(!open)}
-        aria-label="Sắp xếp"
-      >
-        <SortIcon direction={value} />
-      </button>
-      {open && (
-        <div className="absolute left-1 top-6 z-30 min-w-[116px] rounded-md border border-thiso-100 bg-white py-1 shadow-lg">
-          <button type="button" className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-thiso-50 ${!value ? 'font-semibold text-thiso-800' : 'text-thiso-500'}`} onClick={() => choose('')}>
-            ≡ Bỏ chọn
-          </button>
-          <button type="button" className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-thiso-50 ${value === 'desc' ? 'font-semibold text-sky-700' : 'text-thiso-500'}`} onClick={() => choose('desc')}>
-            ↓ Cao đến thấp
-          </button>
-          <button type="button" className={`block w-full px-3 py-1.5 text-left text-xs hover:bg-thiso-50 ${value === 'asc' ? 'font-semibold text-sky-700' : 'text-thiso-500'}`} onClick={() => choose('asc')}>
-            ↑ Thấp đến cao
-          </button>
-        </div>
-      )}
-    </span>
-  );
 }
 
 function userFormInitialState(locations: BusinessLocation[], user?: UserRow): UserFormState {
@@ -143,20 +96,7 @@ function userFormInitialState(locations: BusinessLocation[], user?: UserRow): Us
   };
 }
 
-function UserStatusBadge({ user }: { user: UserRow }) {
-  if (user.deletedAt) {
-    return (
-      <span className="inline-flex px-2 py-1 rounded text-xs font-semibold bg-blue-50 text-blue-700">
-        Deleted
-      </span>
-    );
-  }
-  return (
-    <span className={`inline-flex px-2 py-1 rounded text-xs font-semibold ${user.isActive ? 'bg-emerald-50 text-emerald-700' : 'bg-thiso-100 text-thiso-500'}`}>
-      {user.isActive ? 'Active' : 'Disabled'}
-    </span>
-  );
-}
+function UserStatusBadge({ user }: { user: UserRow }) { return <Tag color={user.deletedAt ? 'default' : user.isActive ? 'success' : 'default'}>{userStatusLabel(userStatus(user))}</Tag>; }
 
 function UserFormModal({
   mode,
@@ -226,60 +166,15 @@ function UserFormModal({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-thiso-900/40 px-4">
-      <div className="w-full max-w-4xl rounded-lg bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-thiso-100 px-5 py-4">
-          <h2 className="text-lg font-semibold text-thiso-800">
-            {mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản'}
-          </h2>
-          <button type="button" className="btn btn-ghost" onClick={onClose}>Đóng</button>
-        </div>
+  return <Modal open title={mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản'} onCancel={onClose} footer={null} width={900} maskClosable={!saving} closable={!saving} keyboard={!saving}><form onSubmit={submit} className="space-y-4"><div className="grid sm:grid-cols-2 gap-3"><Input aria-label="Họ tên" placeholder="Họ tên" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required /><Input aria-label="Email" type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />{mode === 'create' && <Input.Password aria-label="Mật khẩu" placeholder="Mật khẩu" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required minLength={6} />}<Select aria-label="Role" value={form.role} onChange={v => setForm({ ...form, role: v })} options={ROLE_OPTIONS.map(v => ({ value: v, label: v }))} /><Select aria-label="Location" value={form.businessLocationId || undefined} onChange={v => setForm({ ...form, businessLocationId: v, unitConfigIds: [] })} options={locations.map(l => ({ value: l.id, label: `${l.code} - ${l.locationName}` }))} /><Input aria-label="Bộ phận hoặc ghi chú" placeholder="Bộ phận/ghi chú" value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} /></div><Space wrap>{locationUnits.map(unit => <Checkbox key={unit.id} checked={form.unitConfigIds.includes(unit.id)} onChange={() => toggleUnit(unit.id)}>{unit.unit} - {unit.displayName}</Checkbox>)}{!locationUnits.length && <Typography.Text type="secondary">Location này chưa có unit active.</Typography.Text>}</Space>{error && <Alert type="error" message={error} />}<div className="flex justify-end gap-2"><Button onClick={onClose} disabled={saving}>Hủy</Button><Button type="primary" htmlType="submit" loading={saving}>Lưu</Button></div></form></Modal>;
 
-        <form onSubmit={submit} className="space-y-4 p-5">
-          <div className="grid md:grid-cols-6 gap-3">
-            <input className="input md:col-span-2" placeholder="Họ tên" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
-            <input className="input md:col-span-2" type="email" placeholder="Email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-            {mode === 'create' && (
-              <input className="input" type="password" placeholder="Mật khẩu" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required minLength={6} />
-            )}
-            <select className={`input ${mode === 'edit' ? 'md:col-span-2' : ''}`} value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as 'ADMIN_LOC' | 'ADMIN_OPE' })}>
-              {ROLE_OPTIONS.map((role) => <option key={role} value={role}>{role}</option>)}
-            </select>
-            <select
-              className="input md:col-span-3"
-              value={form.businessLocationId}
-              onChange={(e) => setForm({ ...form, businessLocationId: e.target.value, unitConfigIds: [] })}
-              required
-            >
-              {locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
-            </select>
-            <input className="input md:col-span-3" placeholder="Bộ phận/ghi chú" value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })} />
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {locationUnits.map((unit) => (
-              <label key={unit.id} className={`px-3 py-2 rounded border text-sm cursor-pointer ${form.unitConfigIds.includes(unit.id) ? 'border-sky-400 bg-sky-50 text-sky-700' : 'border-thiso-200 text-thiso-600'}`}>
-                <input type="checkbox" className="sr-only" checked={form.unitConfigIds.includes(unit.id)} onChange={() => toggleUnit(unit.id)} />
-                {unit.unit} - {unit.displayName}
-              </label>
-            ))}
-            {locationUnits.length === 0 && <span className="text-sm text-thiso-400">Location này chưa có unit active.</span>}
-          </div>
-
-          {error && <div className="text-sm text-red-600">{error}</div>}
-          <div className="flex justify-end gap-2 border-t border-thiso-100 pt-4">
-            <button className="btn btn-secondary" type="button" onClick={onClose}>Hủy</button>
-            <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? 'Đang lưu...' : 'Lưu'}</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 export default function UsersTab({ users, locations, units, onRefresh }: { users: UserRow[]; locations: BusinessLocation[]; units: UnitConfig[]; onRefresh: () => void }) {
   const [modal, setModal] = useState<UserModalState | null>(null);
+  const screens = Grid.useBreakpoint();
+  const [searchDraft, setSearchDraft] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
   const [actionError, setActionError] = useState('');
   const [filters, setFilters] = useState({
@@ -290,7 +185,6 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
     search: '',
   });
   const [sortRules, setSortRules] = useState<SortRule[]>([]);
-  const [openSortKey, setOpenSortKey] = useState<SortKey | null>(null);
   const [pageSize, setPageSize] = useState(20);
   const [page, setPage] = useState(1);
   const locationNames = useMemo(() => new Map(locations.map((location) => [location.id, `${location.code} - ${location.locationName}`])), [locations]);
@@ -366,20 +260,6 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
     return sortRules.find((rule) => rule.key === key)?.direction;
   }
 
-  function header(label: string, key: SortKey) {
-    return (
-      <th className="text-left p-3 whitespace-nowrap overflow-visible">
-        <span>{label}</span>
-        <SortMenu
-          value={sortDirectionFor(key)}
-          open={openSortKey === key}
-          onOpenChange={(open) => setOpenSortKey(open ? key : null)}
-          onChange={(direction) => setSort(key, direction)}
-        />
-      </th>
-    );
-  }
-
   async function mutateUser(id: string, action: () => Promise<unknown>) {
     try {
       setActionError('');
@@ -398,150 +278,42 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
     onRefresh();
   }
 
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-col xl:flex-row gap-3 xl:items-end xl:justify-between">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 flex-1">
-          <select className="input" value={filters.businessLocationId} onChange={(e) => updateFilter('businessLocationId', e.target.value)}>
-            <option value="">Tất cả locations</option>
-            {locations.map((location) => <option key={location.id} value={location.id}>{location.code} - {location.locationName}</option>)}
-          </select>
-          <select className="input" value={filters.unitConfigId} onChange={(e) => updateFilter('unitConfigId', e.target.value)}>
-            <option value="">Tất cả units</option>
-            {filteredUnitOptions.map((unit) => <option key={unit.id} value={unit.id}>{unit.unit} - {unit.displayName}</option>)}
-          </select>
-          <select className="input" value={filters.role} onChange={(e) => updateFilter('role', e.target.value)}>
-            <option value="">Tất cả roles</option>
-            {roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}
-          </select>
-          <select className="input" value={filters.status} onChange={(e) => updateFilter('status', e.target.value)}>
-            <option value="">Tất cả status</option>
-            {statusOptions.map((status) => <option key={status} value={status}>{userStatusLabel(status)}</option>)}
-          </select>
-          <input
-            className="input"
-            value={filters.search}
-            onChange={(e) => updateFilter('search', e.target.value)}
-            placeholder="Tìm tên hoặc email"
-          />
-        </div>
-        <button className="btn btn-primary" type="button" onClick={() => setModal({ mode: 'create' })}>
-          Tạo tài khoản
-        </button>
-      </div>
-      {actionError && <div className="text-sm text-red-600">{actionError}</div>}
-
-      <TableShell>
-        <table className="w-full text-sm">
-          <thead className="bg-thiso-50 text-thiso-500">
-            <tr>
-              {header('Tên', 'name')}
-              {header('Email', 'email')}
-              {header('Role', 'role')}
-              {header('Location', 'location')}
-              {header('Units', 'units')}
-              {header('Status', 'status')}
-              {header('Tạo mới', 'createdAt')}
-              {header('Cập nhật', 'updatedAt')}
-              {header('Xóa', 'deletedAt')}
-              <th className="text-left p-3">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pagedUsers.length === 0 && (
-              <tr>
-                <td className="p-6 text-center text-thiso-400" colSpan={10}>
-                  Không tìm thấy thông tin.
-                </td>
-              </tr>
-            )}
-            {pagedUsers.map((user) => {
-              const isDeleted = Boolean(user.deletedAt);
-              const isBusy = busyUserId === user.id;
-              const isSuperadmin = user.role === 'SUPERADMIN';
-              const canManage = canManageUserRole('SUPERADMIN', user.role);
-              return (
-                <tr key={user.id} className="border-t border-thiso-100">
-                  <td className="p-3"><Highlight text={user.name} query={filters.search} /></td>
-                  <td className="p-3"><Highlight text={user.email} query={filters.search} /></td>
-                  <td className="p-3">{user.role}</td>
-                  <td className="p-3">{user.businessLocationId ? locationNames.get(user.businessLocationId) ?? user.businessLocationId : '-'}</td>
-                  <td className="p-3">{(user.unitPermissions ?? []).map((unit) => unit.code ?? unit.unit).join(', ') || '-'}</td>
-                  <td className="p-3"><UserStatusBadge user={user} /></td>
-                  <td className="p-3 whitespace-nowrap">{formatDateTime(user.createdAt)}</td>
-                  <td className="p-3 whitespace-nowrap">{formatDateTime(user.updatedAt)}</td>
-                  <td className="p-3 whitespace-nowrap">{formatDateTime(user.deletedAt)}</td>
-                  <td className="p-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button className="btn btn-secondary px-3 py-1.5 text-xs" type="button" disabled={!canManage || isDeleted || isSuperadmin || isBusy} onClick={() => setModal({ mode: 'edit', user })}>
-                        Edit
-                      </button>
-                      {!isDeleted && (
-                        <button
-                          className={`btn px-3 py-1.5 text-xs ${user.isActive ? 'btn-danger' : 'btn-success'}`}
-                          type="button"
-                          disabled={!canManage || isSuperadmin || isBusy}
-                          onClick={() => mutateUser(user.id, () => superadminApi.updateUser(user.id, { isActive: !user.isActive }))}
-                        >
-                          {user.isActive ? 'Disable' : 'Active'}
-                        </button>
-                      )}
-                      <button
-                        className={`btn px-3 py-1.5 text-xs ${isDeleted ? 'bg-blue-600 text-white hover:bg-blue-700' : 'btn-danger'}`}
-                        type="button"
-                        disabled={!canManage || isSuperadmin || isBusy}
-                        onClick={() => {
-                          if (isDeleted) {
-                            mutateUser(user.id, () => superadminApi.regenerateUser(user.id));
-                            return;
-                          }
-                          if (window.confirm(`Xóa mềm tài khoản ${user.email}?`)) {
-                            mutateUser(user.id, () => superadminApi.deleteUser(user.id));
-                          }
-                        }}
-                      >
-                        {isDeleted ? 'Regenerate' : 'Delete'}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </TableShell>
-
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-sm text-thiso-500">
-        <div>
-          Hiển thị {filteredUsers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
-          -{Math.min(currentPage * pageSize, filteredUsers.length)} / {filteredUsers.length} tài khoản
-        </div>
-        <div className="flex items-center gap-2">
-          <span>Số dòng</span>
-          <select className="input py-1.5 w-24" value={pageSize} onChange={(e) => { setPageSize(Number(e.target.value)); setPage(1); }}>
-            {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
-          </select>
-          <button className="btn btn-secondary px-3 py-1.5" type="button" disabled={currentPage <= 1} onClick={() => setPage(Math.max(1, currentPage - 1))}>
-            Trước
-          </button>
-          <span>Trang {currentPage}/{totalPages}</span>
-          <button className="btn btn-secondary px-3 py-1.5" type="button" disabled={currentPage >= totalPages} onClick={() => setPage(Math.min(totalPages, currentPage + 1))}>
-            Sau
-          </button>
-        </div>
-      </div>
-
-      {modal && (
-        <UserFormModal
-          key={modal.mode === 'edit' ? modal.user.id : 'create'}
-          mode={modal.mode}
-          user={modal.user}
-          locations={locations}
-          units={units}
-          onClose={() => setModal(null)}
-          onDone={closeModalAndRefresh}
-        />
-      )}
-    </section>
-  );
+  const nameOptions = [...new Set(users.map(user => user.name.trim()).filter(Boolean))].map(value => ({ value }));
+  function updatePagination(nextPage: number, nextSize = pageSize) { setPage(nextPage); setPageSize(nextSize); }
+  function actions(user: UserRow) {
+    const deleted = Boolean(user.deletedAt);
+    const busy = busyUserId === user.id;
+    const disabled = !canManageUserRole('SUPERADMIN', user.role) || user.role === 'SUPERADMIN' || busy;
+    return <Space size="small" onClick={event => event.stopPropagation()}>
+      <Tooltip title="Chỉnh sửa"><Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa ${user.name}`} disabled={disabled || deleted} onClick={() => setModal({ mode: 'edit', user })} /></Tooltip>
+      {!deleted && <Tooltip title={user.isActive ? 'Disable' : 'Active'}><Button color={user.isActive ? 'danger' : 'primary'} variant="solid" size="small" icon={user.isActive ? <StopOutlined /> : <CheckOutlined />} aria-label={`${user.isActive ? 'Disable' : 'Active'} ${user.name}`} disabled={disabled} loading={busy} onClick={() => mutateUser(user.id, () => superadminApi.updateUser(user.id, { isActive: !user.isActive }))} /></Tooltip>}
+      {deleted ? <Tooltip title="Regenerate"><Button type="primary" size="small" icon={<ReloadOutlined />} aria-label={`Regenerate ${user.name}`} disabled={disabled} loading={busy} onClick={() => mutateUser(user.id, () => superadminApi.regenerateUser(user.id))} /></Tooltip> : <Popconfirm title={`Xóa mềm tài khoản ${user.email}?`} onConfirm={() => mutateUser(user.id, () => superadminApi.deleteUser(user.id))}><Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Delete ${user.name}`} disabled={disabled} loading={busy} /></Popconfirm>}
+    </Space>;
+  }
+  const columns: TableColumnsType<UserRow> = [
+    { title: 'Tên', key: 'name', fixed: 'left', width: 235, render: (_, u) => <Space><Avatar>{u.name.charAt(0)}</Avatar><Typography.Text><Highlight text={u.name} query={filters.search} /></Typography.Text></Space> },
+    { title: 'Email', key: 'email', width: 250, render: (_, u) => <Highlight text={u.email} query={filters.search} /> },
+    { title: 'Role', dataIndex: 'role', width: 220 },
+    { title: 'Location', key: 'location', width: 240, render: (_, u) => u.businessLocationId ? locationNames.get(u.businessLocationId) ?? u.businessLocationId : '—' },
+    { title: 'Units', key: 'units', width: 230, render: (_, u) => (u.unitPermissions ?? []).map(x => x.code ?? x.unit).join(', ') || '—' },
+    { title: 'Status', key: 'status', width: 220, render: (_, u) => <UserStatusBadge user={u} /> },
+    { title: 'Tạo mới', key: 'created', width: 230, render: (_, u) => formatDateTime(u.createdAt) },
+    { title: 'Cập nhật', key: 'updated', width: 230, render: (_, u) => formatDateTime(u.updatedAt) },
+    { title: 'Xóa', key: 'deleted', width: 230, render: (_, u) => formatDateTime(u.deletedAt) },
+    { title: 'Thao tác', key: 'actions', fixed: 'right', align: 'right', width: 140, render: (_, u) => actions(u) },
+  ];
+  const sortFields: Array<[SortKey, string]> = [['name', 'Tên'], ['email', 'Email'], ['role', 'Role'], ['location', 'Location'], ['units', 'Units'], ['status', 'Status'], ['createdAt', 'Tạo mới'], ['updatedAt', 'Cập nhật'], ['deletedAt', 'Xóa']];
+  return <Space orientation="vertical" size="large" className="w-full">
+    <ResponsiveDataToolbar filters={<>
+      <Space orientation="vertical" size={4} className="w-full sm:w-auto"><Typography.Text type="secondary">Tìm kiếm</Typography.Text><AutoComplete className="w-full sm:w-64" value={searchDraft} options={nameOptions} open={searchOpen && Boolean(searchDraft.trim())} notFoundContent="Không có dữ liệu" onFocus={() => setSearchOpen(Boolean(searchDraft.trim()))} onBlur={() => setSearchOpen(false)} onChange={v => { setSearchDraft(v); setSearchOpen(Boolean(v.trim())); }} onSelect={v => { setSearchDraft(v); setSearchOpen(false); }} filterOption={(input, option) => String(option?.value ?? '').toLocaleLowerCase('vi-VN').includes(input.toLocaleLowerCase('vi-VN'))}><Input.Search aria-label="Tìm tên hoặc email" allowClear placeholder="Tìm tên hoặc email" enterButton={<SearchButton />} onSearch={v => { updateFilter('search', v.trim()); setSearchOpen(false); }} /></AutoComplete></Space>
+      <Space orientation="vertical" size={4}><Typography.Text type="secondary">Location</Typography.Text><Select aria-label="Location" className="min-w-44" value={filters.businessLocationId || undefined} allowClear placeholder="Tất cả locations" onChange={v => updateFilter('businessLocationId', v ?? '')} options={locations.map(l => ({ value: l.id, label: `${l.code} - ${l.locationName}` }))} /></Space>
+      <Space orientation="vertical" size={4}><Typography.Text type="secondary">Unit</Typography.Text><Select aria-label="Unit" className="min-w-44" value={filters.unitConfigId || undefined} allowClear placeholder="Tất cả units" onChange={v => updateFilter('unitConfigId', v ?? '')} options={filteredUnitOptions.map(u => ({ value: u.id, label: `${u.unit} - ${u.displayName}` }))} /></Space>
+      <Space orientation="vertical" size={4}><Typography.Text type="secondary">Role</Typography.Text><Select aria-label="Role" className="min-w-36" value={filters.role || undefined} allowClear placeholder="Tất cả roles" onChange={v => updateFilter('role', v ?? '')} options={roleOptions.map(v => ({ value: v, label: v }))} /></Space>
+      <Space orientation="vertical" size={4}><Typography.Text type="secondary">Status</Typography.Text><Select aria-label="Status" className="min-w-36" value={filters.status || undefined} allowClear placeholder="Tất cả status" onChange={v => updateFilter('status', v ?? '')} options={statusOptions.map(v => ({ value: v, label: userStatusLabel(v) }))} /></Space>
+    </>} createAction={<Button type="primary" icon={<PlusOutlined />} onClick={() => setModal({ mode: 'create' })}>Tạo tài khoản</Button>} />
+    {!screens.lg && <Collapse items={[{ key: 'sort', label: 'Sắp xếp theo cột', children: <Space wrap>{sortFields.map(([key, label]) => <Space orientation="vertical" size={4} key={key}><Typography.Text type="secondary">{label}</Typography.Text><Select<SortDirection | ''> aria-label={`Sắp xếp ${label}`} value={sortDirectionFor(key) ?? ''} onChange={v => setSort(key, v)} options={[{ value: '', label: 'Không sắp xếp' }, { value: 'desc', label: 'Cao đến thấp' }, { value: 'asc', label: 'Thấp đến cao' }]} style={{ width: 150 }} /></Space>)}</Space> }]} />}
+    {actionError && <Alert type="error" message={actionError} showIcon />}
+    {screens.lg ? <Card size="small" styles={{ body: { padding: 0 } }}><Table<UserRow> rowKey="id" dataSource={filteredUsers} columns={columns} scroll={{ x: 2100 }} locale={{ emptyText: <Empty description="Không có tài khoản phù hợp" /> }} pagination={{ position: ['bottomCenter'], size: 'small', current: currentPage, pageSize, showSizeChanger: true, pageSizeOptions: PAGE_SIZE_OPTIONS, showTotal: total => `Tổng ${total} tài khoản`, onChange: updatePagination }} /></Card> : pagedUsers.length === 0 ? <Empty description="Không có tài khoản phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : <Space orientation="vertical" size="middle" className="w-full"><Collapse items={pagedUsers.map(user => ({ key: user.id, label: <Space size="small" className="min-w-0" align="start"><Avatar>{user.name.charAt(0)}</Avatar><Space orientation="vertical" size={0} className="min-w-0"><Typography.Text strong ellipsis={{ tooltip: user.name }} className="block max-w-32">{user.name}</Typography.Text><Typography.Text type="secondary" ellipsis={{ tooltip: user.email }} className="block max-w-32">{user.email}</Typography.Text></Space></Space>, extra: actions(user), children: <Descriptions size="small" column={1} items={[{ key: 'email', label: 'Email', children: <Typography.Text style={{ overflowWrap: 'anywhere' }}>{user.email}</Typography.Text> }, { key: 'role', label: 'Role', children: user.role }, { key: 'location', label: 'Location', children: user.businessLocationId ? locationNames.get(user.businessLocationId) ?? user.businessLocationId : '—' }, { key: 'units', label: 'Units', children: (user.unitPermissions ?? []).map(x => x.code ?? x.unit).join(', ') || '—' }, { key: 'status', label: 'Status', children: <UserStatusBadge user={user} /> }, { key: 'created', label: 'Tạo mới', children: formatDateTime(user.createdAt) }, { key: 'updated', label: 'Cập nhật', children: formatDateTime(user.updatedAt) }, { key: 'deleted', label: 'Xóa', children: formatDateTime(user.deletedAt) }]} /> }))} /><Flex justify="center"><Pagination current={currentPage} pageSize={pageSize} total={filteredUsers.length} size="small" showSizeChanger={false} showTotal={total => `Tổng ${total} tài khoản`} onChange={updatePagination} /></Flex></Space>}
+    {modal && <UserFormModal key={modal.mode === 'edit' ? modal.user.id : 'create'} mode={modal.mode} user={modal.user} locations={locations} units={units} onClose={() => setModal(null)} onDone={closeModalAndRefresh} />}
+  </Space>;
 }

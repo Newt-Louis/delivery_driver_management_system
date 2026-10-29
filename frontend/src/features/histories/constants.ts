@@ -39,12 +39,6 @@ export const STATUS_LABEL: Record<string, string> = {
   INCOMPLETED: 'Chưa hoàn tất',
 };
 
-export const STATUS_COLOR: Record<string, string> = {
-  COMPLETED: 'bg-green-100 text-green-700',
-  CANCELLED: 'bg-red-100 text-red-600',
-  EXPIRED: 'bg-purple-100 text-purple-600',
-  INCOMPLETED: 'bg-orange-100 text-orange-700',
-};
 
 export const GOODS_LABEL: Record<string, string> = {
   FRESH_FOOD: 'Hàng tươi sống',
@@ -66,20 +60,20 @@ export const ACTOR_TYPE_LABEL: Record<string, string> = {
 };
 
 export const EVENT_LABEL: Record<string, { label: string; icon: string; accent?: string }> = {
-  REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
-  CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
-  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-sky-700' },
-  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-sky-700' },
-  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-sky-700' },
-  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-sky-700' },
-  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' },
-  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
-  COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
-  CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },
-  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '⌛', accent: 'text-red-600' },
-  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '⌛', accent: 'text-red-600' },
-  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-orange-600' },
-  ARCHIVED: { label: 'Đã lưu lịch sử', icon: '🗄️', accent: 'text-thiso-500' },
+  REGISTERED: { label: 'Đăng ký giao hàng', icon: '' },
+  CHECKED_IN: { label: 'Check-in tại cổng', icon: '' },
+  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '' },
+  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '' },
+  RECALLED: { label: 'Gọi lại', icon: '' },
+  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '' },
+  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '' },
+  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '' },
+  COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '' },
+  CANCELLED: { label: 'Đã hủy', icon: '' },
+  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '' },
+  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '' },
+  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '' },
+  ARCHIVED: { label: 'Đã lưu lịch sử', icon: '' },
 };
 
 export const DEFAULT_PAGE_SIZE = 50;

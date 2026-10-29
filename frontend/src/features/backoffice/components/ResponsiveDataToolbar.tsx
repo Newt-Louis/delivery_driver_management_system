@@ -4,7 +4,7 @@ import { Button, Card, Collapse, Flex, Grid, Select, Space, Typography } from 'a
 
 type ResponsiveDataToolbarProps = {
   filters: ReactNode;
-  createAction: ReactNode;
+  createAction?: ReactNode;
 };
 
 export function SearchButton() {
@@ -38,11 +38,11 @@ export default function ResponsiveDataToolbar({ filters, createAction }: Respons
         <Collapse
           items={[{
             key: 'sort-and-create',
-            label: 'Sắp xếp / Thêm',
+            label: createAction ? 'Sắp xếp / Thêm' : 'Sắp xếp',
             children: (
               <Flex vertical gap="middle" className="w-full">
                 {sortControl}
-                <Flex justify="end">{createAction}</Flex>
+                {createAction && <Flex justify="end">{createAction}</Flex>}
               </Flex>
             ),
           }]}
