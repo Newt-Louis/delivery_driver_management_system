@@ -37,14 +37,14 @@ export function useDashboard() {
     queryClient.invalidateQueries({ queryKey: ['slots'] });
   }, [queryClient]);
 
-  const { data: summary } = useQuery<DashboardSummary>({
+  const { data: summary, isError: summaryError, refetch: retrySummary } = useQuery<DashboardSummary>({
     queryKey: ['dashboard', 'summary', user?.businessLocationId],
     queryFn: fetchDashboardSummary,
     enabled: !!user?.businessLocationId,
     refetchInterval: 30_000,
   });
 
-  const { data: dispatch, isLoading } = useQuery<DispatchData>({
+  const { data: dispatch, isLoading, isError: dispatchError, refetch: retryDispatch } = useQuery<DispatchData>({
     queryKey: ['dashboard', 'dispatch', user?.businessLocationId],
     queryFn: fetchDashboardDispatch,
     enabled: !!user?.businessLocationId,
@@ -136,6 +136,7 @@ export function useDashboard() {
     summary,
     dispatch,
     isLoading,
+    summaryError, dispatchError, retrySummary, retryDispatch,
     callTarget,
     callPreSlot,
     callLoading,

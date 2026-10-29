@@ -1,3 +1,4 @@
+import { message } from 'antd';
 import { useCallback, useEffect, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../../context/AuthContext';
@@ -13,7 +14,7 @@ export function useDockManagement() {
   const { hasRole, user } = useAuth();
   const canEdit = hasRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING');
 
-  const { data: slots = [] } = useQuery<Slot[]>({
+  const { data: slots = [], isLoading, isError, refetch } = useQuery<Slot[]>({
     queryKey: ['slots', user?.businessLocationId],
     queryFn: fetchSlots,
     enabled: !!user?.businessLocationId,
@@ -37,8 +38,12 @@ export function useDockManagement() {
   }, [socket, refreshSlots]);
 
   async function handleStatusChange(slotId: string, status: string) {
-    await updateSlotStatus(slotId, status as SlotStatusValue);
-    refreshSlots();
+    try {
+      await updateSlotStatus(slotId, status as SlotStatusValue);
+      refreshSlots();
+    } catch {
+      message.error("Không thể cập nhật trạng thái slot");
+    }
   }
 
   const stats = useMemo(() => buildDockStats(slots), [slots]);
@@ -46,6 +51,7 @@ export function useDockManagement() {
 
   return {
     canEdit,
+    isLoading, isError, retry: refetch,
     stats,
     slotGroups,
     handleStatusChange,
