@@ -101,12 +101,6 @@ API lifecycle:
   - Chỉ áp dụng cho delivery đang `CALLED` và unit bật `autoCancelCalledEnabled`.
   - Nếu quá `autoCancelCalledAfterMinutes` từ lần gọi/recall/chuyển slot gần nhất mà chưa vào `RECEIVING`, hệ thống tự gọi `cancelDelivery()` với lý do `Tài xế check-in rồi nhưng không vào`.
   - Sau khi hủy, slot được release, dashboard/docks/waiting screen/track nhận realtime update và auto-assign được trigger tiếp nếu còn xe phù hợp.
-- `POST /api/deliveries/public-cancel`
-  - Public route dành cho tài xế tự hủy tại `/cancelled`.
-  - Chỉ cho hủy khi delivery còn `REGISTERED`; sau check-in (`WAITING` trở đi), tài xế không được tự hủy public nữa.
-  - Đối chiếu đúng 5 thông tin: biển số xe, số điện thoại, mã PO/Thi Công, mã đăng ký, ngày giao.
-  - Sai bất kỳ thông tin nào trả message chung để tránh lộ dữ liệu.
-  - Khi đúng, hủy với lý do `Tài xế thao tác hủy`, ghi history/events, reconcile slot và xóa row operational.
 
 Service:
 

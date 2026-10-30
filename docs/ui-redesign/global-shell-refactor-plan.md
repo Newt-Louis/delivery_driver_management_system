@@ -8,7 +8,7 @@ Replace the current authenticated global sidebar and manual mobile drawer with a
 
 | Shell | Routes | Desktop | Tablet and phone |
 | --- | --- | --- | --- |
-| Public driver | `/`, `/register`, `/track`, `/cancelled` | Compact brand header with Register and Track actions; modest public footer | Same actions in a compact header or approved short footer navigation |
+| Public driver | `/`, `/register`, `/track` | Compact brand header with Register and Track actions; modest public footer | Same actions in a compact header or approved short footer navigation |
 | Immersive | `/login`, `/track/:code`, `/waiting-screen` | Route-owned full-screen presentation | Route-owned full-screen presentation |
 | Staff operations | `/dashboard`, `/docks`, `/check-in`, `/receiving-times`, `/reports`, `/histories`, `/backoffice`, `/superadmin` | Header-first grouped navigation and a fluid content region | Header plus Ant Design Drawer; all permitted routes remain reachable |
 | Contextual administration | Backoffice and Superadmin only | Secondary `Sider` for configuration sections, supplied by the owning page | Drawer or selector for the same sections |

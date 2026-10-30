@@ -73,7 +73,7 @@ Mock order code public:
 
 - `GET /api/units/order-codes`
   - Tạm trả 20 mã `PO##########` và 20 mã `TC##########` trong lúc chưa có API thật từ hệ thống ngoài.
-  - Endpoint cũ vẫn tồn tại để tương thích, nhưng luồng thủ công `/register` hiện không còn dùng danh sách này để gợi ý hoặc đối chiếu Số PO/Mã số thi công.
+  - Endpoint cũ vẫn tồn tại để tương thích, nhưng luồng thủ công `/register-manual` hiện không còn dùng danh sách này để gợi ý hoặc đối chiếu Số PO/Mã số thi công.
 
 Zones:
 
@@ -148,12 +148,13 @@ Backoffice:
 
 Register:
 
-- `frontend/src/pages/Home.tsx`
-- `frontend/src/features/register/steps/UnitGoodsVehicleStep.tsx`
-- `frontend/src/features/register/steps/ScheduleStep.tsx`
-- `frontend/src/features/register/hooks/useRegisterForm.ts`
+- `frontend/src/pages/Register.tsx`
+- `frontend/src/pages/RegisterManual.tsx`
+- `frontend/src/features/register-manual/steps/UnitGoodsVehicleStep.tsx`
+- `frontend/src/features/register-manual/steps/ScheduleStep.tsx`
+- `frontend/src/features/register-manual/hooks/useRegisterForm.ts`
 
-`Home.tsx` là trang chủ public tại `/` và là điểm đặt luồng đăng ký online mới bằng mã PO/Thi Công. Các file trong `frontend/src/features/register/*` hiện thuộc luồng đăng ký thủ công tại `/register`.
+`Home.tsx` là trang chủ public tại `/`; `Register.tsx` xử lý đăng ký bằng mã PO/Thi Công tại `/register` và `RegisterManual.tsx` xử lý wizard thủ công tại `/register-manual`. Các API, component và helper trong `features/register-manual` có phần được dùng chung.
 
 Shared presentation:
 
@@ -176,9 +177,9 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 
 ## Quy Tắc Hiện Tại
 
-- `/register` thủ công không còn chọn khung giờ. Calendar tháng hiện tại dùng `daily-registration-stats` để hiển thị số xe đã đăng ký và mật độ theo ngày.
-- Capacity ngày của `/register` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
-- API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register`.
+- `/register-manual` thủ công không còn chọn khung giờ. Calendar tháng hiện tại dùng `daily-registration-stats` để hiển thị số xe đã đăng ký và mật độ theo ngày.
+- Capacity ngày của `/register-manual` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
+- API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register-manual`.
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
 - Ticket prefix ưu tiên `UnitConfig.shortName`, sau đó `displayName`, sau đó mã `unit`; frontend không tự giữ bảng prefix cố định theo ba unit demo.
 - `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.

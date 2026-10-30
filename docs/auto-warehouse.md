@@ -59,7 +59,7 @@ Rule:
 
 Files:
 
-- `frontend/src/features/register/hooks/useRegisterForm.ts`
+- `frontend/src/features/register-manual/hooks/useRegisterForm.ts`
 - `frontend/src/features/backoffice/tabs/AWVendorTab.tsx`
 
 Register:

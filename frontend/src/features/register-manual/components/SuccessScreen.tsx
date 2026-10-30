@@ -276,7 +276,6 @@ ${locationRow}
             <Button size="large" icon={<PrinterOutlined />} disabled={!qrDataUrl} onClick={printTicket}>In phiếu</Button>
           </div>
           <Button size="large" block icon={<ReloadOutlined />} onClick={onReset}>Đăng ký chuyến khác</Button>
-          <div className="text-center"><Button type="link" danger onClick={() => navigate(`/cancelled?code=${encodeURIComponent(info.code)}`)}>Hủy chuyến nếu thông tin không chính xác</Button></div>
         </div>
       </Card>
     </main>

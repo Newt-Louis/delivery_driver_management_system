@@ -20,7 +20,7 @@ export default function PwaInstallGuide({ blocked }: { blocked: boolean }) {
   const [prompt, setPrompt] = useState<InstallEvent | null>(null);
   const [installing, setInstalling] = useState(false);
   const [error, setError] = useState('');
-  const publicRoute = ['/', '/register', '/track', '/waiting-screen', '/cancel'].includes(pathname) || pathname.startsWith('/track/');
+  const publicRoute = ['/', '/register', '/register-manual', '/track', '/waiting-screen'].includes(pathname) || pathname.startsWith('/track/');
 
   useEffect(() => {
     let disposed = false;

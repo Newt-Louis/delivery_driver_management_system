@@ -75,7 +75,7 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
             </Form.Item>
           </FieldFrame>
           <FieldFrame field="poNumber" highlightedField={highlightedField}>
-            <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu hoặc hủy chuyến khi cần." className="!mb-0">
+            <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu khi cần." className="!mb-0">
               <Input size="large" value={form.poNumber} readOnly placeholder="Đang tạo mã..." autoComplete="off" className="font-mono font-bold tracking-[0.2em]" suffix={manualReferenceLoading ? <LoadingOutlined /> : undefined} />
               {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
               {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}

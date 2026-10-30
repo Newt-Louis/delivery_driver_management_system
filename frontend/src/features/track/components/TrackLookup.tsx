@@ -62,7 +62,6 @@ export default function TrackLookup() {
         </Form>
         <div className="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-3 text-center text-base">
           <Typography.Text type="secondary">Chưa đăng ký? <Link to="/register" className="font-semibold underline underline-offset-4" style={{ color: token.colorPrimary }}>Đăng ký ngay</Link></Typography.Text>
-          <Typography.Text type="secondary">Nhập sai thông tin? <Link to="/cancelled" className="font-semibold underline underline-offset-4" style={{ color: token.colorError }}>Hủy chuyến</Link></Typography.Text>
         </div>
       </Card></div>
     </main>

@@ -2,10 +2,11 @@
 
 ## Mục Tiêu
 
-Tài xế/NCC có hai điểm vào public, không cần đăng nhập:
+Tài xế/NCC sử dụng các trang public, không cần đăng nhập:
 
-- `/`: trang chủ mặc định của domain, hiện là luồng đăng ký nhanh bằng mã PO/Thi Công và API Config.
-- `/register`: luồng đăng ký thủ công hiện có, giữ nguyên để dùng khi nhập từ bản giấy hoặc khi hệ thống/API online gặp sự cố.
+- `/`: trang chủ với hai nút đăng ký giao hàng và theo dõi chuyến.
+- `/register`: luồng đăng ký mặc định bằng mã PO/Thi Công và API Config.
+- `/register-manual`: luồng đăng ký thủ công, dùng khi nhập từ bản giấy hoặc khi hệ thống/API online gặp sự cố.
 
 Sau khi đăng ký thành công qua luồng thủ công hiện tại, tài xế nhận:
 
@@ -19,26 +20,28 @@ Files:
 
 - `frontend/src/pages/Home.tsx`
 - `frontend/src/pages/Register.tsx`
-- `frontend/src/features/register/hooks/useRegisterForm.ts`
-- `frontend/src/features/register/api.ts`
-- `frontend/src/features/register/types.ts`
-- `frontend/src/features/register/constants.ts`
-- `frontend/src/features/register/steps/UnitGoodsVehicleStep.tsx`
-- `frontend/src/features/register/steps/ScheduleStep.tsx`
-- `frontend/src/features/register/steps/DriverInfoStep.tsx`
-- `frontend/src/features/register/steps/ReviewSubmitStep.tsx`
-- `frontend/src/features/register/components/SuccessScreen.tsx`
-- `frontend/src/features/register/components/FieldFrame.tsx`
-- `frontend/src/features/register/components/FieldFeedback.tsx`
-- `frontend/src/features/register/components/DeliveryDateCalendar.tsx`
+- `frontend/src/pages/RegisterManual.tsx`
+- `frontend/src/features/register-manual/hooks/useRegisterForm.ts`
+- `frontend/src/features/register-manual/api.ts`
+- `frontend/src/features/register-manual/types.ts`
+- `frontend/src/features/register-manual/constants.ts`
+- `frontend/src/features/register-manual/steps/UnitGoodsVehicleStep.tsx`
+- `frontend/src/features/register-manual/steps/ScheduleStep.tsx`
+- `frontend/src/features/register-manual/steps/DriverInfoStep.tsx`
+- `frontend/src/features/register-manual/steps/ReviewSubmitStep.tsx`
+- `frontend/src/features/register-manual/components/SuccessScreen.tsx`
+- `frontend/src/features/register-manual/components/FieldFrame.tsx`
+- `frontend/src/features/register-manual/components/FieldFeedback.tsx`
+- `frontend/src/features/register-manual/components/DeliveryDateCalendar.tsx`
 
 Routes:
 
-- `/` render `Home.tsx`. Đây không còn redirect sang `/register`.
-- `/register` render `Register.tsx` và giữ wizard thủ công cũ.
+- `/` render `Home.tsx` với hai nút dẫn đến `/register` và `/track`.
+- `/register` render `Register.tsx` cho đăng ký bằng mã PO/Thi Công.
+- `/register-manual` render `RegisterManual.tsx` và giữ wizard thủ công.
 - `/taixe` hiện vẫn redirect sang `/register`.
 
-Homepage `/` hiện có:
+Trang đăng ký `/register` hiện có:
 
 - Lời chào `Hệ thống điều phối nhận hàng THISO`.
 - Ô nhập mã PO/Thi Công.
@@ -50,10 +53,8 @@ Homepage `/` hiện có:
 - Step 2 PO nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO; chỉ số điện thoại và biển số xe là bắt buộc.
 - Step 2 Thi Công nhập thông tin tài xế/xe/NCC và chọn ngày giao bằng calendar tháng hiện tại; chỉ số điện thoại và biển số xe là bắt buộc.
 - Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký.
-- Link sang `/register` cho đăng ký thủ công/bản giấy.
-- Link sang `/track` để theo dõi đơn.
 
-Wizard thủ công `/register`:
+Wizard thủ công `/register-manual`:
 
 1. Dùng `BusinessLocation` đã chọn bằng FloatButton toàn cục trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
 2. Chọn ngày giao hàng từ hôm nay trở đi bằng calendar; ngày đã qua là ô trống, lịch chỉ hiển thị số ngày và cho phép đi tới các tháng tương lai. Khi Header quay lại tháng hiện tại từ một ngày tương lai có ngày-tháng đã qua, lịch neo tại hôm nay để tháng hiện tại vẫn mở được. Công suất vẫn được dùng để disable ngày hết chỗ, nhưng không hiển thị như số thứ hai trong ô ngày. Người dùng có thể nhập hoặc chọn Mã NCC trước Tên công ty / Nhà cung cấp; mã giữ nguyên chữ hoa/thường đã nhập. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
@@ -76,7 +77,7 @@ Logic trong `useRegisterForm.ts`:
 - Scroll tới field lỗi đầu tiên khi validate fail.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
 
-Lưu ý: các logic trong `frontend/src/features/register/*` hiện thuộc luồng thủ công `/register`. Luồng online mới trên `/` không nên sửa trực tiếp các step này nếu mục tiêu là giữ `/register` ổn định cho đăng ký bản giấy.
+Các step trong `frontend/src/features/register-manual/*` thuộc wizard thủ công; một số API, component và helper được trang đăng ký mặc định dùng chung.
 
 ## Backend
 
@@ -95,14 +96,13 @@ API chính:
 - `GET /api/units/order-codes`
 - `GET /api/aw-vendors/check`
 - `GET /api/aw-vendors/suggestions`
-- `POST /api/deliveries/public-cancel`
 
 Module backend:
 
 - `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint đăng ký và lifecycle delivery.
-- `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, public cancel, check-in lookup, call/cancel và query list.
+- `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, check-in lookup, call/cancel và query list.
 - `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, resolve `UnitConfig`, capacity ước lượng theo ngày, duplicate theo ngày giao và auto-warehouse vendor.
-- `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao khi có mã PO/Thi Công, public cancel, capacity lock theo ngày, Sunday fresh-food-only, history event và response.
+- `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao khi có mã PO/Thi Công, capacity lock theo ngày, Sunday fresh-food-only, history event và response.
 - `backend/src/modules/deliveries/quickRegistrationService.ts`: đọc API Config, gọi API PO/Thi Công bên thứ 3, log response thật, chuẩn hóa location/unit/goods/date và phát token xác thực ngắn hạn cho submit cuối.
 - `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
@@ -115,7 +115,6 @@ Hàm quan trọng trong module:
 - `normalizeVehiclePlate()` trong `deliveryRepository.ts`.
 - `normalizeDriverPhone()` và `normalizeOrderCode()` trong `deliveryRepository.ts`.
 - `findDuplicateRegistration()` trong `deliveryRepository.ts`.
-- `findDeliveryForPublicCancel()` trong `deliveryRepository.ts`.
 - `ensureRegistrationDailyCapacity()` trong `deliveryService.ts`.
 - `isSundayDeliveryDate()` trong `deliveryService.ts`.
 - `getDailyRegistrationStats()`, `getAvailableSlots()` legacy/public và `getVehicleAvailability()` trong `modules/units/unitService.ts`.
@@ -129,15 +128,14 @@ Service:
 
 - Biển số xe được normalize uppercase và bỏ khoảng trắng.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
-- Luồng thủ công `/register` không nhập mã PO/Mã thi công. Ở step 2, API sinh Mã đối chiếu gồm 7 ký tự chữ/số in hoa và frontend lưu mã đó vào `poNumber` của delivery; không có bảng sequence hoặc kiểm tra trùng riêng cho mã này.
-- Mã đối chiếu được hiển thị ở step review, màn hình thành công, trang track và dùng cùng với biển số, số điện thoại, mã đăng ký, ngày giao khi tài xế tự hủy trước check-in.
+- Luồng thủ công `/register-manual` không nhập mã PO/Mã thi công. Ở step 2, API sinh Mã đối chiếu gồm 7 ký tự chữ/số in hoa và frontend lưu mã đó vào `poNumber` của delivery; không có bảng sequence hoặc kiểm tra trùng riêng cho mã này.
+- Mã đối chiếu được hiển thị ở step review, màn hình thành công và trang track.
 - Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
 - `registrationCode` có format `BUSINESSLOCATIONCODE + 4 ký tự cuối của UnitConfig.id + YYMMDD + số thứ tự ba chữ số`. Số thứ tự reset theo ngày và `UnitConfig`; mã location và suffix UnitConfig giữ mã đăng ký unique toàn cục để `/track/:code` và check-in không cần thêm scope.
-- `BusinessLocation` public là phạm vi chung của các route public, không phải field trong wizard `/register`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn toàn cục.
+- `BusinessLocation` public là phạm vi chung của các route public, không phải field trong wizard `/register-manual`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn toàn cục.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
 - Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`. Với luồng thủ công, `poNumber` là Mã đối chiếu tự sinh.
 - Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/Mã đối chiếu.
-- Tài xế chỉ có thể tự hủy chuyến tại `/cancelled` trước khi check-in, tức delivery còn `REGISTERED`; endpoint public đối chiếu đúng 5 trường `vehiclePlate`, `driverPhone`, `poNumber`, `registrationCode`, `deliveryDate` theo ngày giao, sau đó archive lịch sử với lý do `Tài xế thao tác hủy` và xóa row operational. Endpoint vẫn nhận `requestedTime` từ client cũ và quy đổi về ngày giao để tương thích.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale.
 - Capacity ngày tính theo:
@@ -146,12 +144,12 @@ Service:
   - vehicleType
   - deliveryDate
   - active statuses: `REGISTERED`, `WAITING`, `CALLED`, `RECEIVING`, `AUTO_WAREHOUSE_RECEIVING`
-- Capacity ngày lấy từ `DeliveryTimeWindow` enabled cộng với `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`. `DeliveryTimeWindow` không còn sinh các ô giờ cho `/register`; nó chỉ còn phục vụ ước lượng công suất ngày và đo lường vận hành.
+- Capacity ngày lấy từ `DeliveryTimeWindow` enabled cộng với `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`. `DeliveryTimeWindow` không còn sinh các ô giờ cho `/register-manual`; nó chỉ còn phục vụ ước lượng công suất ngày và đo lường vận hành.
 - Capacity không tách theo `goodsType` khi đếm lượt đã đăng ký; `goodsType` dùng để chọn đúng nhóm time window ước lượng và rule eligibility.
 - `UnitGoodsType`, `DeliveryTimeWindow` và `AutoWarehouseVendor` có `unitConfigId` là scope chính; cột `unit` là code snapshot/compat cho API theo `:unit`.
 - Nếu unit có custom goods type enabled, frontend hiển thị danh mục custom đó; nếu không có time window riêng cho custom type thì backend/frontend fallback về time window base goods type của cùng unit.
 
-## Luồng Online Trên `/`
+## Luồng Online Trên `/register`
 
 Endpoint verify:
 
@@ -190,7 +188,7 @@ Thi Công normalization:
 `POST /api/deliveries/register` trả delivery đã tạo, gồm `registrationCode`. Frontend `SuccessScreen`:
 
 - Hiển thị QR/mã đăng ký.
-- Hiển thị Mã đối chiếu để tài xế có thể hủy chuyến hoặc đối chiếu khi cần.
+- Hiển thị Mã đối chiếu để tài xế có thể đối chiếu khi cần.
 - Cho nút theo dõi.
 - Khi màn thành công mở, tự cuộn về đầu trang để tài xế thấy thông báo. Nút theo dõi tự động đếm ngược 15 giây rồi điều hướng sang `/track/:code`.
 - Lưu mã chuyến ngay vào danh sách gần đây và kiểm tra notification/âm báo. Nếu chưa sẵn sàng, mở Ant Modal để người dùng bấm xin quyền; bộ đếm 15 giây tạm dừng khi modal mở. Đăng ký không tự gán thông báo cá nhân: tài xế chọn **Theo dõi chuyến giao hàng này** trong Track. Sau đó provider giữ cảnh báo xuyên route; xem `track-pwa-push.md`.

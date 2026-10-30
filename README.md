@@ -77,8 +77,9 @@ Navicat vẫn kết nối PostgreSQL tại `127.0.0.1:5434` với database/user 
 
 | Trang                  | URL               | Mô tả                                           |
 | ---------------------- | ----------------- | ----------------------------------------------- |
-| Trang chủ              | `/`               | Công khai – điểm vào mặc định, đăng ký online mới |
-| Đăng ký thủ công       | `/register`       | Công khai – nhập đăng ký thủ công/bản giấy      |
+| Trang chủ              | `/`               | Công khai – chọn đăng ký hoặc theo dõi chuyến |
+| Đăng ký bằng mã PO/Thi Công | `/register` | Công khai – đăng ký mặc định                   |
+| Đăng ký thủ công       | `/register-manual` | Công khai – nhập đăng ký thủ công/bản giấy      |
 | Màn hình chờ           | `/waiting-screen` | Công khai – TV display, realtime                |
 | Check-in               | `/check-in`       | Bảo vệ check-in xe vào cổng                     |
 | Dashboard              | `/dashboard`      | Nhân viên Receiving điều phối                   |

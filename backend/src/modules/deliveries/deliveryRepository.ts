@@ -401,40 +401,6 @@ export function findDeliveryByLookup(args: { registrationCode?: string; vehicleP
   });
 }
 
-export async function findDeliveryForPublicCancel(args: {
-  registrationCode: string;
-  vehiclePlate: string;
-  driverPhone: string;
-  poNumber: string;
-  requestedTime?: Date | null;
-  deliveryDate?: string;
-}) {
-  const range = args.requestedTime
-    ? (() => {
-        const start = new Date(args.requestedTime);
-        start.setSeconds(0, 0);
-        return { start, end: new Date(start.getTime() + 60_000) };
-      })()
-    : localDayRange(parseDeliveryDateStartVN(args.deliveryDate) ?? new Date());
-
-  const candidates = await prisma.deliveryRegistration.findMany({
-    where: {
-      registrationCode: args.registrationCode.toUpperCase().trim(),
-      vehiclePlate: args.vehiclePlate,
-      status: DeliveryStatus.REGISTERED,
-      requestedTime: { gte: range.start, lt: range.end },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
-
-  const phone = normalizeDriverPhone(args.driverPhone);
-  const orderCode = normalizeOrderCode(args.poNumber);
-  return candidates.find((delivery) => (
-    normalizeDriverPhone(delivery.driverPhone) === phone
-    && normalizeOrderCode(delivery.poNumber ?? '') === orderCode
-  )) ?? null;
-}
-
 export function findDeliveryWithSlot(id: string) {
   return prisma.deliveryRegistration.findUnique({
     where: { id },

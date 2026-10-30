@@ -59,7 +59,6 @@ const PUBLIC_NAVIGATION = [
   { key: 'register', to: '/', label: 'Đăng ký giao hàng' },
   { key: 'manual-register', to: '/register', label: 'Đăng ký thủ công' },
   { key: 'track', to: '/track', label: 'Theo dõi chuyến' },
-  { key: 'cancel', to: '/cancel', label: 'Hủy chuyến' },
   { key: 'waiting-screen', to: '/waiting-screen', label: 'Màn hình chờ' },
 ];
 
@@ -81,7 +80,6 @@ function pathIsActive(pathname: string, destination: string) {
 function publicActiveKey(pathname: string) {
   if (pathname === '/register') return 'manual-register';
   if (pathname === '/track' || pathname.startsWith('/track/')) return 'track';
-  if (pathname === '/cancel') return 'cancel';
   if (pathname === '/waiting-screen') return 'waiting-screen';
   return 'register';
 }

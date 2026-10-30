@@ -457,68 +457,6 @@ test('same active vehicle plate can register again with different phone or PO in
   });
 });
 
-test('public cancel rejects deliveries that have already checked in', async () => {
-  await withRegisterServer(async (baseUrl) => {
-    await withScope('PUBCANCELWAITING', ReceivingUnit.EMART, async (scope) => {
-      const requestedTime = new Date();
-      requestedTime.setSeconds(0, 0);
-      const delivery = await createDelivery(scope, 1, {
-        status: DeliveryStatus.WAITING,
-        checkinTime: new Date(),
-        requestedTime,
-        poNumber: 'PO0473829156',
-      });
-
-      const response = await fetch(`${baseUrl}/api/deliveries/public-cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehiclePlate: delivery.vehiclePlate,
-          driverPhone: delivery.driverPhone,
-          poNumber: delivery.poNumber,
-          registrationCode: delivery.registrationCode,
-          requestedTime: requestedTime.toISOString(),
-        }),
-      });
-
-      assert.equal(response.status, 400);
-      const unchanged = await prisma.deliveryRegistration.findUnique({ where: { id: delivery.id } });
-      assert.equal(unchanged?.status, DeliveryStatus.WAITING);
-    });
-  });
-});
-
-test('public cancel accepts deliveryDate for date-only registrations', async () => {
-  await withRegisterServer(async (baseUrl) => {
-    await withScope('PUBCANCELDATE', ReceivingUnit.EMART, async (scope) => {
-      const deliveryDate = localDateTimeAfterDays(45, 0, 0).slice(0, 10);
-      const delivery = await createDelivery(scope, 1, {
-        status: DeliveryStatus.REGISTERED,
-        requestedTime: new Date(`${deliveryDate}T00:00:00+07:00`),
-        poNumber: 'PO0473829156',
-      });
-
-      const response = await fetch(`${baseUrl}/api/deliveries/public-cancel`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vehiclePlate: delivery.vehiclePlate,
-          driverPhone: delivery.driverPhone,
-          poNumber: delivery.poNumber,
-          registrationCode: delivery.registrationCode,
-          deliveryDate,
-        }),
-      });
-
-      assert.equal(response.status, 200);
-      const removed = await prisma.deliveryRegistration.findUnique({ where: { id: delivery.id } });
-      assert.equal(removed, null);
-      const history = await prisma.deliveryHistory.findFirstOrThrow({ where: { originalDeliveryId: delivery.id } });
-      assert.equal(history.closeReason, 'Tài xế thao tác hủy');
-    });
-  });
-});
-
 test('50 concurrent registrations for one day respect estimated daily capacity', async () => {
   await withRegisterServer(async (baseUrl) => {
     await withScope('REGDAY50', ReceivingUnit.EMART, async (scope) => {

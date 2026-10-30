@@ -23,7 +23,7 @@ import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
 import { verifyQuickRegistrationToken } from './quickRegistrationService';
 import { generateManualRegistrationCode } from './manualRegistrationCode';
-import type { CheckInLookupPayload, PublicCancelPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
+import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
 
 class SlotFullError extends Error {
@@ -170,9 +170,6 @@ function duplicateRegistrationLockKey(args: {
     args.poNumber,
   ].join(':');
 }
-
-const PUBLIC_CANCEL_REASON = 'Tài xế thao tác hủy';
-const PUBLIC_CANCEL_MISMATCH_MESSAGE = 'Có thông tin bạn nhập không đúng, vui lòng nhập lại';
 
 function parseRequestedTime(value: string | undefined, deliveryDate?: string): Date | null {
   const requestedTime = value ? new Date(value) : deliveryRepository.parseDeliveryDateStartVN(deliveryDate);
@@ -392,82 +389,6 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
     throw error;
   }
-}
-
-export async function publicCancel(body: PublicCancelPayload) {
-  const vehiclePlate = deliveryRepository.normalizeVehiclePlate(body.vehiclePlate);
-  const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
-  const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
-  const requestedTime = parseRequestedTime(body.requestedTime);
-  const deliveryDate = body.deliveryDate ?? (requestedTime ? deliveryRepository.localDateKey(requestedTime) : undefined);
-
-  if ((!requestedTime && !deliveryDate) || !vehiclePlate || !driverPhone || !poNumber) {
-    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
-  }
-
-  const delivery = await deliveryRepository.findDeliveryForPublicCancel({
-    registrationCode: body.registrationCode,
-    vehiclePlate,
-    driverPhone,
-    poNumber,
-    requestedTime,
-    deliveryDate,
-  });
-  if (!delivery) {
-    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
-  }
-
-  const actor = systemActor('public-driver-cancel');
-  const result = await cancelDelivery(delivery.id, PUBLIC_CANCEL_REASON, actor);
-  if (!result.delivery || result.outcome === 'invalid_status') {
-    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
-  }
-
-  const scope = await getScopeForDelivery(result.delivery);
-  await recordAuditLog({
-    ...actor,
-    action: 'delivery.public_cancel',
-    targetType: 'DeliveryRegistration',
-    targetId: result.delivery.id,
-    businessLocationId: scope.businessLocationId,
-    unitConfigId: scope.unitConfigId,
-    after: {
-      status: result.delivery.status,
-      registrationCode: result.delivery.registrationCode,
-      vehiclePlate: result.delivery.vehiclePlate,
-      cancelReason: PUBLIC_CANCEL_REASON,
-    },
-    metadata: { source: 'deliveries.public-cancel' },
-  });
-
-  sendPushToDelivery(result.delivery.registrationCode, {
-    status: 'CANCELLED', occurredAt: result.delivery.updatedAt.toISOString(),
-    title: 'Chuyến giao hàng đã hủy', body: `Xe ${result.delivery.vehiclePlate} — đã dừng theo dõi chuyến.`,
-    url: `/track/${result.delivery.registrationCode}`,
-  }).catch(console.error);
-
-  await archiveDelivery({
-    deliveryId: result.delivery.id,
-    finalStatus: DeliveryHistoryFinalStatus.CANCELLED,
-    archiveReason: 'CANCELLED',
-    ...actor,
-    closeReason: PUBLIC_CANCEL_REASON,
-    deleteOperationalRow: true,
-  });
-
-  const [queue, slots] = await Promise.all([
-    deliveryRepository.getFullQueue(scope),
-    deliveryRepository.getAllSlots(scope),
-  ]);
-  emitQueueUpdated(queue, scope);
-  emitSlotUpdated(slots, scope);
-  emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
-  if (result.releasedSlotId) {
-    triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
-  }
-
-  return { success: true, message: 'Hủy thành công' };
 }
 
 export function listDeliveries(args: Parameters<typeof deliveryRepository.listDeliveries>[0]) {
