@@ -18,7 +18,7 @@ Lifecycle chuẩn:
 
 File:
 
-- `frontend/src/pages/Dashboard.tsx`: page layout gốc, compose header, alert, KPI, tabs, modal và tab content.
+- `frontend/src/pages/Dashboard.tsx`: page layout gốc, compose header, alert, tabs, modal và tab content.
 - `frontend/src/features/dashboard/api.ts`: API helper cho summary, dispatch, delivery detail và lifecycle action.
 - `frontend/src/features/dashboard/hooks/useDashboard.ts`: state/orchestration cho query, socket invalidation, modal và lifecycle action.
 - `frontend/src/features/dashboard/components/*`: modal, table/filter, unit/all tab view, KPI, alert và header.
@@ -29,9 +29,10 @@ File:
 Ghi chú kiến trúc frontend:
 
 - Dashboard page giữ layout gốc; feature folder chỉ chứa các trách nhiệm con để page compose lại.
-- Tab `Tất cả` aggregate từ các unit backend trả về.
+- Tab `Tất cả` tổng hợp các unit backend trả về và có bốn ô: lượt đăng ký hôm nay, lượt check-in hôm nay, số dòng cảnh báo và số dòng xử lý gấp. Hai ô cảnh báo mở danh sách tương ứng; số đếm là số thông báo hiển thị, gồm cả dòng tổng hợp và dòng theo xe nên một xe có thể xuất hiện trong nhiều thông báo. Lỗi tải dữ liệu vẫn được hiển thị riêng ngay trên tab. Các tab đơn vị giữ cảnh báo và thao tác hiện có.
 - Unit label/icon/color/ticket prefix dùng `frontend/src/lib/unitPresentation.ts`, ưu tiên metadata từ `UnitConfig` trong payload backend.
-- Dashboard không còn tự dựng UI bằng danh sách unit demo cố định; backend trả unit nào trong scope thì frontend sinh tab/card tương ứng.
+- Dashboard không còn tự dựng UI bằng danh sách unit demo cố định; backend trả unit nào trong scope thì frontend sinh tab tương ứng. Danh sách xe đang điều phối và đã đặt dùng Ant Table từ breakpoint `lg` và Collapse theo từng chuyến bên dưới `lg`; mỗi danh sách hiển thị 40 lượt đầu và tự mở thêm 40 khi cuộn gần cuối, có nút xem thêm dự phòng. Đây là phân đoạn hiển thị phía client: API vẫn trả toàn bộ dữ liệu. Bộ lọc hoặc chuyển đơn vị đặt lại số dòng; cập nhật realtime không đặt lại giới hạn đã mở.
+- Badge trên tab đếm các lượt trong danh sách đang điều phối của đơn vị (`WAITING`, `CALLED`, `RECEIVING`, `AUTO_WAREHOUSE_RECEIVING`); tab `Tất cả` cộng các đơn vị trong scope. Số này không phụ thuộc bộ lọc hoặc giới hạn số dòng đang hiển thị, và không bao gồm lượt đã hủy, hoàn tất hay chưa check-in.
 
 API:
 
@@ -74,6 +75,8 @@ Files:
 - Delivery chưa assigned slot được scope bằng `delivery_registrations.unit_config_id`. Legacy row thiếu `unitConfigId` không phải nguồn scope an toàn khi nhiều location có thể trùng unit code, nên cần được migrate/map trước khi kỳ vọng xuất hiện trong dashboard dynamic.
 
 Backend không build dashboard bằng mảng enum unit cố định. Nếu user không có unit scope hợp lệ, summary count trả 0 và dispatch không có unit nào.
+
+Hai số `totalRegisteredToday` và `totalCheckedInToday` của summary đếm theo ngày hiện tại của backend, theo thời điểm đăng ký hoặc check-in tương ứng. Nguồn gồm delivery vận hành và delivery history trong scope đơn vị, loại trùng theo `originalDeliveryId` khi bản vận hành còn tồn tại. Đăng ký mới phát `queue_updated` sau khi giao dịch thành công để dashboard làm mới; các socket và polling dự phòng hiện có tiếp tục hoạt động.
 
 API lifecycle:
 
@@ -132,6 +135,7 @@ Service:
 - `RECEIVING` được thực hiện receiving lifecycle.
 - `ADMIN_OPE` được điều phối và xử lý sự cố.
 - `ADMIN_OPE` không chỉnh cấu hình Backoffice; dashboard/docks là bề mặt làm việc chính của role này.
+- Tab `Tất cả` chỉ hiển thị cho `ADMIN_LOC` và `SUPERADMIN`. `ADMIN_OPE` và `RECEIVING` bắt đầu tại đơn vị đầu tiên được cấp quyền và chỉ có các tab đơn vị trong phạm vi backend trả về; nếu không có đơn vị thì màn hình báo không có đơn vị được phân quyền. `ADMIN_LOC` vẫn chỉ tổng hợp các đơn vị trong operation scope của tài khoản, còn `SUPERADMIN` theo khu vực vận hành đã chọn.
 - Mọi action delivery/slot phải enforce `unitConfigId` hoặc resolve được unit từ delivery/slot trước khi cho thao tác.
 
 ## Lưu Ý

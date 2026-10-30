@@ -364,6 +364,13 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
       return created;
     });
 
+    // A new registration changes dashboard totals and upcoming deliveries even
+    // though it has not entered the waiting queue yet.
+    const scope = { businessLocationId: unitConfig.businessLocationId, unitConfigId: unitConfig.id };
+    deliveryRepository.getFullQueue(scope)
+      .then((queue) => emitQueueUpdated(queue, scope))
+      .catch((error) => console.error('Failed to emit registration queue update:', error));
+
     return delivery;
   } catch (error) {
     if (error instanceof SlotFullError) {

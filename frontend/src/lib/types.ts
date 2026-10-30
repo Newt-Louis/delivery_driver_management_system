@@ -261,6 +261,8 @@ export interface DashboardSummary {
   urgentFreshFood: number;
   registeredToday: number;
   expiredToday: number;
+  totalRegisteredToday: number;
+  totalCheckedInToday: number;
 }
 
 export interface UnitStats {

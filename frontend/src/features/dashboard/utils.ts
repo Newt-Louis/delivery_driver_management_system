@@ -229,21 +229,21 @@ export function getUnitTabs(dispatch?: DispatchData) {
   if (!dispatch) return [];
   return Object.entries(dispatch).map(([key, value]) => {
     const meta = getUnitMeta(key, value.unitConfig);
-    return { key, label: meta.label, icon: meta.icon, unitConfig: value.unitConfig };
+    return { key, label: meta.label, unitConfig: value.unitConfig };
   });
 }
 
-export function getDashboardTabs(dispatch?: DispatchData): { key: TabKey; label: string; icon: string; unitConfig?: UnitDispatch['unitConfig'] }[] {
+export function getDashboardTabs(dispatch?: DispatchData): { key: TabKey; label: string; unitConfig?: UnitDispatch['unitConfig'] }[] {
   return [
-    { key: 'ALL', label: 'Tất cả', icon: '📊' },
+    { key: 'ALL', label: 'Tất cả' },
     ...getUnitTabs(dispatch),
   ];
 }
 
-export function getTotalWaiting(dispatch?: DispatchData): number {
+export function getTotalActive(dispatch?: DispatchData): number {
   if (!dispatch) return 0;
   return Object.keys(dispatch).reduce(
-    (sum, unit) => sum + (dispatch[unit]?.insights.stats.waiting ?? 0),
+    (sum, unit) => sum + (dispatch[unit]?.active.length ?? 0),
     0,
   );
 }

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { DeliveryStatus, SchedulerJobTrigger, SlotStatus, GoodsType, VehicleType } from '@prisma/client';
+import { DeliveryStatus, SchedulerJobTrigger, SlotStatus, GoodsType, VehicleType, Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope } from '../middleware/auth';
@@ -86,18 +86,47 @@ function scopedSlotWhere(units: DashboardUnitConfig[], base: Record<string, unkn
   };
 }
 
+async function dashboardDailyTotals(units: DashboardUnitConfig[], start: Date, end: Date) {
+  if (!units.length) return { registered: 0, checkedIn: 0 };
+  const ids = Prisma.join(units.map((unit) => unit.id));
+  const [totals] = await prisma.$queryRaw<{ registered: bigint; checkedIn: bigint }[]>(Prisma.sql`
+    WITH scoped_deliveries AS (
+      SELECT d.created_at AS registered_at, d.checkin_time
+      FROM delivery_registrations d
+      LEFT JOIN slots s ON s.id = d.assigned_slot_id
+      LEFT JOIN zones z ON z.id = s.zone_id
+      WHERE (d.unit_config_id IN (${ids}) OR z.unit_config_id IN (${ids}))
+        AND (d.created_at >= ${start} AND d.created_at < ${end}
+          OR d.checkin_time >= ${start} AND d.checkin_time < ${end})
+      UNION ALL
+      SELECT h.registered_at, h.checkin_time
+      FROM delivery_history h
+      WHERE h.unit_config_id IN (${ids}) AND h.business_location_id = ${units[0].businessLocationId}
+        AND (h.registered_at >= ${start} AND h.registered_at < ${end}
+          OR h.checkin_time >= ${start} AND h.checkin_time < ${end})
+        AND NOT EXISTS (SELECT 1 FROM delivery_registrations d WHERE d.id = h.original_delivery_id)
+    )
+    SELECT COUNT(*) FILTER (WHERE registered_at >= ${start} AND registered_at < ${end}) AS registered,
+      COUNT(*) FILTER (WHERE checkin_time >= ${start} AND checkin_time < ${end}) AS "checkedIn"
+    FROM scoped_deliveries
+  `);
+  return { registered: Number(totals.registered), checkedIn: Number(totals.checkedIn) };
+}
+
 // GET /api/dashboard/summary
 router.get('/summary', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const units = await resolveDashboardUnits(req);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
 
   const [
     waitingCount, freshFoodWaiting, receivingCount,
     slotsOccupied, slotsAvailable,
     totalToday, completedToday, cancelledToday,
     noShowRisk, urgentFreshFood,
-    registeredToday, expiredToday,
+    registeredToday, expiredToday, dailyTotals,
   ] = await Promise.all([
     prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.WAITING }) }),
     prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.WAITING, goodsType: GoodsType.FRESH_FOOD }) }),
@@ -117,6 +146,7 @@ router.get('/summary', authenticate, enforceScope, requireRole('SUPERADMIN', 'AD
     }),
     prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: DeliveryStatus.REGISTERED, createdAt: { gte: today } }) }),
     prisma.deliveryRegistration.count({ where: scopedDeliveryWhere(units, { status: 'EXPIRED' as DeliveryStatus, updatedAt: { gte: today } }) }),
+    dashboardDailyTotals(units, today, tomorrow),
   ]);
 
   res.json({
@@ -126,6 +156,7 @@ router.get('/summary', authenticate, enforceScope, requireRole('SUPERADMIN', 'AD
     docksOccupied: slotsOccupied, docksAvailable: slotsAvailable,
     totalToday, completedToday, cancelledToday,
     noShowRisk, urgentFreshFood, registeredToday, expiredToday,
+    totalRegisteredToday: dailyTotals.registered, totalCheckedInToday: dailyTotals.checkedIn,
   });
 }));
 
@@ -196,8 +227,8 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       if (!d.checkinTime) continue;
       const waitMin = (now.getTime() - d.checkinTime.getTime()) / 60000;
       if (d.goodsType === GoodsType.FRESH_FOOD) {
-        if (waitMin >= 30) alerts.push({ level: 'critical', message: `🚨 ${d.vehiclePlate} tươi sống chờ ${Math.round(waitMin)} phút — GỌI NGAY`, deliveryId: d.id });
-        else if (waitMin >= 20) alerts.push({ level: 'warning', message: `⚠️ ${d.vehiclePlate} tươi sống chờ ${Math.round(waitMin)} phút`, deliveryId: d.id });
+        if (waitMin >= 30) alerts.push({ level: 'critical', message: `${d.vehiclePlate} tươi sống chờ ${Math.round(waitMin)} phút — GỌI NGAY`, deliveryId: d.id });
+        else if (waitMin >= 20) alerts.push({ level: 'warning', message: `${d.vehiclePlate} tươi sống chờ ${Math.round(waitMin)} phút`, deliveryId: d.id });
       }
       if (waitMin > 45 && d.goodsType !== GoodsType.FRESH_FOOD) {
         alerts.push({ level: 'warning', message: `⚠️ ${d.vehiclePlate} chờ ${Math.round(waitMin)} phút (hàng thường)`, deliveryId: d.id });
@@ -210,7 +241,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       if (calledMin >= 15) {
         alerts.push({
           level: 'warning',
-          message: `📞 NO-SHOW: ${d.vehiclePlate} gọi vào ${(d as typeof d & { assignedSlot?: { code: string } }).assignedSlot?.code ?? '?'} chưa vào slot (${Math.round(calledMin)} phút)`,
+          message: `Chưa vào: ${d.vehiclePlate} gọi vào ${(d as typeof d & { assignedSlot?: { code: string } }).assignedSlot?.code ?? '?'} chưa vào slot (${Math.round(calledMin)} phút)`,
           deliveryId: d.id,
         });
       }
@@ -226,12 +257,12 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       const bestSlot   = matchSlot ?? availableSlots[0];
 
       if (bestSlot) {
-        const match = bestSlot.vehicleType === topVehicle.vehicleType ? '✅ khớp loại xe' : '⚡ khác loại xe';
+        const match = bestSlot.vehicleType === topVehicle.vehicleType ? 'Cùng loại xe' : 'Khác loại xe';
         const waitStr = topVehicle.checkinTime
           ? `chờ ${Math.round((now.getTime() - topVehicle.checkinTime.getTime()) / 60000)} phút`
           : '';
         recommendations.push({
-          message: `💡 Gọi ngay: ${topVehicle.vehiclePlate}${waitStr ? ' (' + waitStr + ')' : ''} → ${bestSlot.code} [${match}]`,
+          message: `Gọi ngay: ${topVehicle.vehiclePlate}${waitStr ? ' (' + waitStr + ')' : ''} → ${bestSlot.code} [${match}]`,
           deliveryId: topVehicle.id,
           slotId: bestSlot.id,
         });
@@ -254,7 +285,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
           }
         }
       } else {
-        recommendations.push({ message: `⏳ ${waiting.length} xe chờ — không còn slot trống. Ưu tiên hoàn tất nhận hàng.` });
+        recommendations.push({ message: `${waiting.length} xe chờ — không còn slot trống. Ưu tiên hoàn tất nhận hàng.` });
       }
     }
 
@@ -264,7 +295,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
     const mbSlotsAvail    = availableSlots.filter((s) => s.vehicleType === VehicleType.MOTORBIKE).length;
 
     if (truckWaiting > truckSlotsAvail && mbSlotsAvail > 0) {
-      recommendations.push({ message: `🔀 Slot xe tải đầy (${truckSlotsAvail} trống), có ${mbSlotsAvail} slot xe máy khả dụng` });
+      recommendations.push({ message: `Khu vực nhận hàng xe tải đầy (${truckSlotsAvail} trống), có ${mbSlotsAvail} khu vực nhận hàng xe máy còn trống` });
     }
 
     const nextHourVehicles = upcoming.filter((d) => d.requestedTime && new Date(d.requestedTime) <= oneHourLater);
@@ -275,7 +306,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       const truckCount = nextHourVehicles.filter((d) => d.vehicleType === VehicleType.TRUCK).length;
       const mbCount    = nextHourVehicles.filter((d) => d.vehicleType === VehicleType.MOTORBIKE).length;
       recommendations.push({
-        message: `📅 Dự báo 1h tới: ${nextHourVehicles.length} xe đến (🚛${truckCount} + 🛵${mbCount}), slot đầu ${hh}:${mm}`,
+        message: `Dự báo 1h tới: ${nextHourVehicles.length} xe đến (${truckCount} xe tải + ${mbCount} xe máy), khu vực nhận hàng đầu ${hh}:${mm}`,
       });
     }
 

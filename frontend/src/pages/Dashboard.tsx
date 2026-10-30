@@ -1,4 +1,4 @@
-import { Alert, Button, Space } from 'antd';
+import { Alert, Button, Empty, Space } from 'antd';
 import type { UnitDispatch } from '../lib/types';
 import AllTabView from '../features/dashboard/components/AllTabView';
 import CallModal from '../features/dashboard/components/CallModal';
@@ -8,7 +8,6 @@ import DashboardHeader from '../features/dashboard/components/DashboardHeader';
 import DashboardLegend from '../features/dashboard/components/DashboardLegend';
 import DashboardTabs from '../features/dashboard/components/DashboardTabs';
 import DeliveryDetailModal from '../features/dashboard/components/DeliveryDetailModal';
-import KpiSummary from '../features/dashboard/components/KpiSummary';
 import LoadingState from '../features/dashboard/components/LoadingState';
 import UnitTabView from '../features/dashboard/components/UnitTabView';
 import { useDashboard } from '../features/dashboard/hooks/useDashboard';
@@ -29,7 +28,7 @@ export default function Dashboard() {
     cancelTargetId,
     allSlots,
     tabs,
-    totalWaiting,
+    totalActive,
     invalidateAll,
     doCall,
     doAction,
@@ -41,7 +40,7 @@ export default function Dashboard() {
     closeCancelModal,
   } = useDashboard();
 
-  const activeUnitDispatch = activeTab !== 'ALL' && dispatch
+  const activeUnitDispatch = activeTab && activeTab !== 'ALL' && dispatch
     ? dispatch[activeTab] as UnitDispatch | undefined
     : undefined;
   const unitConfigsByUnit = dispatch
@@ -91,21 +90,22 @@ export default function Dashboard() {
         {summaryError && <Alert type="error" showIcon message="Không thể tải số liệu tổng quan" action={<Button onClick={() => retrySummary()}>Thử lại</Button>} />}
         {dispatchError && <Alert type="error" showIcon message="Không thể tải dữ liệu điều phối" action={<Button onClick={() => retryDispatch()}>Thử lại</Button>} />}
       </Space>
-      <DashboardAlerts summary={summary} onExpireDone={invalidateAll} />
-      <KpiSummary summary={summary} />
       <DashboardTabs
         tabs={tabs}
         activeTab={activeTab}
         dispatch={dispatch}
-        totalWaiting={totalWaiting}
+        totalActive={totalActive}
         onChange={setActiveTab}
       />
+      <DashboardAlerts summary={summary} onExpireDone={invalidateAll} showOperationalAlerts={activeTab !== 'ALL'} />
 
       {isLoading && <LoadingState />}
 
       {!isLoading && activeTab === 'ALL' && dispatch && (
         <AllTabView
           dispatch={dispatch}
+          summary={summary}
+          onSuggestionAction={openCallBySuggestion}
           onCall={openCallModal}
           onAction={doAction}
           onView={setViewId}
@@ -113,7 +113,11 @@ export default function Dashboard() {
         />
       )}
 
-      {!isLoading && activeTab !== 'ALL' && (
+      {!isLoading && !dispatchError && dispatch && !activeTab && (
+        <Empty description="Không có đơn vị được phân quyền" />
+      )}
+
+      {!isLoading && activeTab && activeTab !== 'ALL' && (
         <UnitTabView
           unit={activeTab}
           unitDispatch={activeUnitDispatch}

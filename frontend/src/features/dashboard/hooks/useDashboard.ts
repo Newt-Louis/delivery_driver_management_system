@@ -11,14 +11,14 @@ import {
   runDeliveryAction,
 } from '../api';
 import type { DeliveryLifecycleAction, TabKey } from '../types';
-import { getDashboardTabs, getDispatchSlots, getTotalWaiting } from '../utils';
+import { getDashboardTabs, getDispatchSlots, getTotalActive } from '../utils';
 
 export function useDashboard() {
   const queryClient = useQueryClient();
   const socket = useSocket();
   const { user } = useAuth();
   const toast = useToast();
-  const [activeTab, setActiveTab] = useState<TabKey>('ALL');
+  const [selectedTab, setSelectedTab] = useState<TabKey>('ALL');
   const [callTarget, setCallTarget] = useState<DeliveryRegistration | null>(null);
   const [callPreSlot, setCallPreSlot] = useState<string | undefined>(undefined);
   const [callLoading, setCallLoading] = useState(false);
@@ -50,6 +50,13 @@ export function useDashboard() {
     enabled: !!user?.businessLocationId,
     refetchInterval: 15_000,
   });
+
+  const canViewAll = user?.role === 'ADMIN_LOC' || user?.role === 'SUPERADMIN';
+  const tabs = getDashboardTabs(dispatch).filter((tab) => canViewAll || tab.key !== 'ALL');
+  const activeTab = tabs.some((tab) => tab.key === selectedTab) ? selectedTab : tabs[0]?.key;
+  function setActiveTab(tab: TabKey) {
+    if (tabs.some((item) => item.key === tab)) setSelectedTab(tab);
+  }
 
   useEffect(() => {
     socket.on('queue_updated', invalidateAll);
@@ -144,8 +151,8 @@ export function useDashboard() {
     viewId,
     cancelTargetId,
     allSlots: getDispatchSlots(dispatch),
-    tabs: getDashboardTabs(dispatch),
-    totalWaiting: getTotalWaiting(dispatch),
+    tabs,
+    totalActive: getTotalActive(dispatch),
     invalidateAll,
     doCall,
     doAction,

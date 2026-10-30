@@ -148,6 +148,36 @@ body .ant-tooltip .ant-tooltip-container {
   display: none;
 }
 
+@media (max-width: 1023px) {
+  html.dashboard-scroll-scope,
+  html.dashboard-scroll-scope body {
+    overscroll-behavior-x: none;
+  }
+
+  .dashboard-unit-tabs .ant-tabs-nav-wrap {
+    display: block;
+    overflow-x: auto !important;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .dashboard-unit-tabs .ant-tabs-nav-wrap::-webkit-scrollbar {
+    display: none;
+  }
+
+  .dashboard-unit-tabs .ant-tabs-nav-list {
+    width: max-content;
+    min-width: 100%;
+    transform: none !important;
+  }
+
+  .dashboard-unit-tabs .ant-tabs-nav-operations {
+    display: none;
+  }
+}
+
 .waiting-vehicle-table .ant-table-cell {
   vertical-align: top;
 }
