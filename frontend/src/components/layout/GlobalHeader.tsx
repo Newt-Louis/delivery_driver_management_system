@@ -56,8 +56,8 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
 ];
 
 const PUBLIC_NAVIGATION = [
-  { key: 'register', to: '/', label: 'Đăng ký giao hàng' },
-  { key: 'manual-register', to: '/register', label: 'Đăng ký thủ công' },
+  { key: 'register', to: '/register', label: 'Đăng ký giao hàng' },
+  { key: 'manual-register', to: '/register-manual', label: 'Đăng ký thủ công' },
   { key: 'track', to: '/track', label: 'Theo dõi chuyến' },
   { key: 'waiting-screen', to: '/waiting-screen', label: 'Màn hình chờ' },
 ];
@@ -75,13 +75,6 @@ function initials(name: string) {
 
 function pathIsActive(pathname: string, destination: string) {
   return pathname === destination || pathname.startsWith(`${destination}/`);
-}
-
-function publicActiveKey(pathname: string) {
-  if (pathname === '/register') return 'manual-register';
-  if (pathname === '/track' || pathname.startsWith('/track/')) return 'track';
-  if (pathname === '/waiting-screen') return 'waiting-screen';
-  return 'register';
 }
 
 export default function GlobalHeader({ area }: { area: HeaderArea }) {
@@ -102,6 +95,8 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
   const publicEndRef = useRef<HTMLDivElement | null>(null);
   const publicMenuMeasureRef = useRef<HTMLDivElement | null>(null);
   const isPublic = area === 'public';
+  const publicActiveItem = PUBLIC_NAVIGATION.find((item) => pathIsActive(pathname, item.to));
+  const publicSelectedKeys = publicActiveItem ? [publicActiveItem.key] : [];
 
   const groups = useMemo(() => NAVIGATION_GROUPS.map((group) => ({
     ...group,
@@ -116,7 +111,7 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
   })), [groups]);
   const publicHeaderItems = useMemo<MenuItem[]>(() => PUBLIC_NAVIGATION.map((item) => ({
     key: item.key,
-    label: <Link to={item.to}>{item.label}</Link>,
+    label: <Link to={item.to} style={{ textDecoration: 'none' }}>{item.label}</Link>,
   })), []);
 
   function go(destination: string) {
@@ -194,24 +189,22 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
     <>
       <Layout.Header
         className="sticky top-0 z-50 flex items-center gap-2 px-3 sm:px-5"
-        style={{ height: STAFF_HEADER_HEIGHT, lineHeight: `${STAFF_HEADER_HEIGHT}px`, background: token.colorBgContainer, borderBottom: `1px solid ${token.colorBorderSecondary}` }}
+        style={{ height: isPublic ? 'auto' : STAFF_HEADER_HEIGHT, minHeight: STAFF_HEADER_HEIGHT, lineHeight: `${STAFF_HEADER_HEIGHT}px`, background: token.colorBgContainer, borderBottom: `1px solid ${token.colorBorderSecondary}` }}
       >
         {isPublic ? (
-          <div ref={publicHeaderRef} className="relative mx-auto flex h-full w-full min-w-0 max-w-7xl items-center gap-2">
-            <div ref={publicStartRef} className="flex min-w-0 max-w-36 items-center gap-2.5 sm:max-w-48 lg:max-w-60">
+          <div ref={publicHeaderRef} className="relative mx-auto flex w-full min-w-0 max-w-7xl items-center gap-2">
+            <div ref={publicStartRef} className="flex min-w-0 items-center gap-2.5 py-2" style={{ maxWidth: publicMenuWide ? 'calc(50% - 60px)' : undefined }}>
               {!publicMenuWide && <Button type="text" icon={<MenuOutlined />} aria-label="Mở menu" onClick={() => setDrawerOpen(true)} />}
               <Link to="/" aria-label="Về trang chủ" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                 <Avatar shape="square" size={36} src={selectedBusinessLocation?.logoUrl || undefined} icon={<HomeOutlined />}>{selectedBusinessLocation?.code.slice(0, 2).toUpperCase()}</Avatar>
               </Link>
-              <Tooltip title={selectedBusinessLocation?.locationName ?? 'Chọn khu vực'}>
-                <Typography.Text strong ellipsis className="min-w-0 max-w-24 text-sm sm:text-base lg:max-w-48">{selectedBusinessLocation?.locationName ?? 'Chọn khu vực'}</Typography.Text>
-              </Tooltip>
+              <Typography.Text strong className="min-w-0 text-sm sm:text-base" style={{ overflowWrap: 'anywhere', lineHeight: 1.25 }}>{selectedBusinessLocation?.locationName ?? 'Chọn khu vực'}</Typography.Text>
             </div>
             {publicMenuWide && <div className="absolute left-1/2 -translate-x-1/2">
               {publicMenuFits ? (
-                <Menu mode="horizontal" selectedKeys={[publicActiveKey(pathname)]} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
+                <Menu mode="horizontal" selectedKeys={publicSelectedKeys} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
               ) : (
-                <Dropdown menu={{ items: publicHeaderItems }} trigger={publicMenuTriggers} placement="bottom">
+                <Dropdown menu={{ items: publicHeaderItems, selectable: true, selectedKeys: publicSelectedKeys }} trigger={publicMenuTriggers} placement="bottom">
                   <Button type="text" icon={<MenuOutlined />}>Menu</Button>
                 </Dropdown>
               )}
@@ -237,7 +230,7 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
       </Layout.Header>
 
       {isPublic && <Drawer title="Điều hướng" placement="right" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={304} styles={{ body: { padding: 0 } }}>
-        <Menu mode="inline" selectedKeys={[publicActiveKey(pathname)]} items={publicHeaderItems} onClick={() => setDrawerOpen(false)} />
+        <Menu mode="inline" selectedKeys={publicSelectedKeys} items={publicHeaderItems} onClick={() => setDrawerOpen(false)} />
       </Drawer>}
       {!isPublic && <Drawer title="Điều hướng" placement="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={304} styles={{ body: { padding: 0 } }}>
         <Menu mode="inline" selectedKeys={activeItem ? [activeItem.to] : []} items={staffDrawerItems} onClick={({ key }) => go(key)} />

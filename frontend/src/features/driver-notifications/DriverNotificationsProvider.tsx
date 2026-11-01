@@ -20,6 +20,7 @@ interface NotificationsContextValue {
   pushState: PushState;
   audioReady: boolean;
   setupOpen: boolean;
+  guideReady: boolean;
   error: string;
   follow: (delivery: TrackDelivery) => void;
   stopFollowing: () => void;
@@ -33,6 +34,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
   const current = useRef(followed);
   const [notice, setNotice] = useState<DriverNotice | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [guideReady, setGuideReady] = useState(false);
   const [switchTo, setSwitchTo] = useState<TrackDelivery | null>(null);
   const [audioReady, setAudioReady] = useState(false);
   const audioReadyRef = useRef(false);
@@ -345,12 +347,12 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     return () => window.clearTimeout(timer);
   }, [notice, silence]);
 
-  return <Context.Provider value={{ followed, pushState, audioReady, setupOpen, error, follow: (delivery) => {
+  return <Context.Provider value={{ followed, pushState, audioReady, setupOpen, guideReady: guideReady && !setupOpen && !notice && !switchTo, error, follow: (delivery) => {
     if (current.current && current.current.code !== delivery.registrationCode) setSwitchTo(delivery);
     else selectTrip(delivery);
   }, stopFollowing, checkPermissions }}>
     {children}
-    <PwaInstallGuide blocked={setupOpen || !!notice || !!switchTo} />
+    <PwaInstallGuide blocked={setupOpen || !!notice || !!switchTo} onReadyChange={setGuideReady} />
     <Modal open={!!switchTo} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} onOk={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }} okText="Theo dõi chuyến mới" cancelText="Giữ chuyến hiện tại">
       <Typography.Paragraph>Điện thoại đang nhận thông báo cho xe {followed?.plate}. Chuyển sang xe {switchTo?.vehiclePlate} ({switchTo?.registrationCode})?</Typography.Paragraph>
     </Modal>

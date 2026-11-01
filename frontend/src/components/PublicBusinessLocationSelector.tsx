@@ -3,6 +3,7 @@ import { EnvironmentOutlined } from '@ant-design/icons';
 import { FloatButton } from 'antd';
 import { usePublicBusinessLocation } from '../context/PublicBusinessLocationContext';
 import BusinessLocationSelectorModal from './BusinessLocationSelectorModal';
+import { useHomeTour } from '../context/HomeTourContext';
 
 export default function PublicBusinessLocationSelector() {
   const {
@@ -14,21 +15,24 @@ export default function PublicBusinessLocationSelector() {
     selectPublicBusinessLocation,
   } = usePublicBusinessLocation();
   const [open, setOpen] = useState(false);
+  const { setSelectorOpen, locationSelected } = useHomeTour();
 
   function handleSelect(businessLocationId: string) {
     selectPublicBusinessLocation(businessLocationId);
+    locationSelected();
     setOpen(false);
   }
 
   return (
     <>
       <FloatButton
+        className="public-location-button"
         type="primary"
         shape="square"
         icon={<EnvironmentOutlined />}
         content={selectedBusinessLocation?.code ?? 'Chọn'}
         tooltip="Chọn khu vực hiển thị"
-        onClick={() => setOpen(true)}
+        onClick={() => { setSelectorOpen(true); setOpen(true); }}
         aria-label="Chọn khu vực hiển thị"
       />
       <BusinessLocationSelectorModal
@@ -41,6 +45,7 @@ export default function PublicBusinessLocationSelector() {
         error={error}
         onSelect={handleSelect}
         onClose={() => setOpen(false)}
+        afterOpenChange={(visible) => { if (!visible) setSelectorOpen(false); }}
       />
     </>
   );

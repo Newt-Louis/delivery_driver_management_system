@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
+import { Link } from 'react-router-dom';
 import { ArrowRightOutlined, CameraOutlined, UploadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Modal, Row, Space, Spin, Steps, Typography } from 'antd';
 import { useToast } from '../context/ToastContext';
@@ -17,6 +18,7 @@ import SavedTrips from '../features/driver-notifications/SavedTrips';
 import { isSundayDate, todayDate } from '../features/register-manual/utils/date';
 import type { SuccessInfo } from '../features/register-manual/types';
 import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
+import { canOfferManualRegistration } from '../features/register-manual/quickVerifyErrors';
 
 type Step = 1 | 2 | 3;
 
@@ -161,6 +163,7 @@ export default function Register() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState('');
   const [orderCodeNotFound, setOrderCodeNotFound] = useState(false);
+  const [manualFallback, setManualFallback] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
@@ -283,6 +286,7 @@ export default function Register() {
 
     setOrderCode(scannedCode);
     setOrderCodeNotFound(false);
+    setManualFallback(false);
     setVerified(null);
     setDailyStats([]);
     setDailyStatsMsg('');
@@ -392,10 +396,12 @@ export default function Register() {
   function handleOrderCodeChange(value: string) {
     setOrderCode(value.replace(/\s/g, ''));
     setOrderCodeNotFound(false);
+    setManualFallback(false);
   }
 
   async function handleVerify(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
+    setManualFallback(false);
     if (!normalizedCode) {
       setOrderCodeNotFound(false);
       toast.error('Vui lòng nhập mã PO hoặc mã Thi Công.');
@@ -427,6 +433,7 @@ export default function Register() {
       toast.success(data.kind === 'PO' ? 'Mã PO hợp lệ.' : 'Mã Thi Công hợp lệ.');
     } catch (err) {
       setVerified(null);
+      setManualFallback(canOfferManualRegistration(err));
       const message = errorMessage(err, 'Không thể kiểm tra mã lúc này. Vui lòng thử lại.');
       setOrderCodeNotFound(/không tồn tại/i.test(message));
       toast.error(message);
@@ -521,6 +528,7 @@ export default function Register() {
     setStep(1);
     setOrderCode('');
     setOrderCodeNotFound(false);
+    setManualFallback(false);
     setVerified(null);
     setForm(emptyForm());
     setDailyStats([]);
@@ -558,6 +566,8 @@ export default function Register() {
 
             {step === 1 && (
               <Form layout="vertical" onFinish={() => { void handleVerify(); }} requiredMark={false}>
+                {manualFallback && <Alert className="mb-4" type="warning" showIcon title="Chưa thể kiểm tra mã lúc này"
+                  description={<Space orientation="vertical" size="small"><Typography.Text>Bạn có thể tiếp tục bằng cách đăng ký thủ công.</Typography.Text><Link to="/register-manual"><Button color="cyan" variant="solid" size="large">Đăng ký thủ công</Button></Link></Space>} />}
                 <Form.Item label="Mã PO / Thi Công" validateStatus={orderCodeNotFound ? 'error' : undefined}>
                   <Space.Compact block>
                     <Input

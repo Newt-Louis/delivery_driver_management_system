@@ -65,7 +65,7 @@ VAPID dùng `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Không đ�
 
 - Quyền notification phải xin từ thao tác bấm; app tự mở modal giải thích nhưng không tự cấp/ép quyền. Sau reload, khi đã có chuyến theo dõi, lần chạm/click/bấm phím thật tiếp theo trên bất kỳ route nào sẽ thử chuẩn bị lại AudioContext; nếu chưa thành công thì có thể thử lại bằng tương tác tiếp theo. Không tự xin quyền notification trong thao tác chuẩn bị âm thanh. Rung tùy API/thiết bị, không có hộp xin quyền rung thống nhất.
 - Android có nút cài khi nhận `beforeinstallprompt`; nếu không hướng dẫn menu.
-- iOS/iPadOS Web Push cần Home Screen web app từ 16.4 trở lên. Safari hướng dẫn thêm Màn hình chính rồi mở app, tìm/chọn chuyến và bật thông báo.
+- iOS/iPadOS không hỗ trợ `beforeinstallprompt`: nút **Cài đặt ứng dụng** hiển thị hướng dẫn ngắn, người dùng tự chọn Chia sẻ → Thêm vào Màn hình chính → Thêm trong trình duyệt; website không thể tự mở hộp thoại cài đặt đó. Web Push cần Home Screen web app từ 16.4 trở lên, sau đó mở app, tìm/chọn chuyến và bật thông báo.
 - Hướng dẫn không hiện trong standalone, sau `appinstalled`, khi related-apps xác nhận hoặc đã chọn không hiện lại. Không thể kiểm tra tuyệt đối từ Safari một PWA đã cài trong kho khác; localStorage chỉ nhớ điều đã quan sát. Fresh `beforeinstallprompt` có thể xóa dấu cài cũ.
 - Khóa màn hình/đóng app: không có React overlay/Web Audio. System notification/âm lượng/rung tùy OS, quyền, chế độ im lặng và tiết kiệm pin; không cam kết như cuộc gọi native.
 

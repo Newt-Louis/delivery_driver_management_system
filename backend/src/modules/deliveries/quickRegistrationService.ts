@@ -3,6 +3,7 @@ import { GoodsType, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getRawAppConfig } from '../../services/appConfig';
 import { domainError } from '../shared/domainError';
+import { externalVerificationHttpError } from './externalVerificationError';
 
 export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
 
@@ -110,7 +111,7 @@ async function readApiConfig(key: string): Promise<ApiConfig> {
   const raw = await getRawAppConfig(key);
   const endpoint = asString(raw.endpoint);
   if (!endpoint) {
-    throw domainError.badRequest(`Chưa cấu hình API kiểm tra mã trong app_configs với key ${key}.`);
+    throw domainError.badRequest(`Chưa cấu hình API kiểm tra mã trong app_configs với key ${key}.`, 'ExternalApiConfigMissing');
   }
 
   const auth = asRecord(raw.auth);
@@ -259,15 +260,8 @@ async function callExternalApi(kind: QuickRegistrationKind, code: string): Promi
     body,
   });
 
-  if (response.status >= 500) {
-    throw domainError.badRequest(CONNECTIVITY_MESSAGE, 'ExternalApiServerError');
-  }
-  if (response.status === 401 || response.status === 403) {
-    throw domainError.badRequest('API kiểm tra từ chối xác thực. Vui lòng kiểm tra Authorization trong cấu hình API.', 'ExternalApiUnauthorized');
-  }
-  if (response.status >= 400) {
-    throw domainError.notFound(kind === 'PO' ? 'Mã PO không tồn tại' : 'Mã Thi Công không tồn tại');
-  }
+  const httpError = externalVerificationHttpError(response.status, kind);
+  if (httpError) throw httpError;
   if (!response.ok) {
     throw domainError.badRequest('Không thể kiểm tra mã lúc này. Vui lòng thử lại sau.');
   }

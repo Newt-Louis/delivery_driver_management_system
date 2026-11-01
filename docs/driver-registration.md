@@ -4,7 +4,7 @@
 
 Tài xế/NCC sử dụng các trang public, không cần đăng nhập:
 
-- `/`: trang chủ với hai nút đăng ký giao hàng và theo dõi chuyến.
+- `/`: trang chủ với hai nút đăng ký giao hàng và theo dõi chuyến. Sau khi hướng dẫn cài PWA đóng hoặc không cần hiện, Tour chỉ nút chọn khu vực, rồi chỉ hai nút này sau khi tài xế chọn khu vực. Tour có thể đóng và chạy lại khi quay về trang chủ.
 - `/register`: luồng đăng ký mặc định bằng mã PO/Thi Công và API Config.
 - `/register-manual`: luồng đăng ký thủ công, dùng khi nhập từ bản giấy hoặc khi hệ thống/API online gặp sự cố.
 
@@ -165,6 +165,7 @@ Endpoint verify:
 - Auth lấy từ `value.auth.header` trong `app_configs`.
 - Backend log response thật của API bên thứ 3 để đối chiếu trong giai đoạn tích hợp.
 - Backend không trả raw response của bên thứ 3 xuống frontend; frontend chỉ nhận dữ liệu đã chuẩn hóa.
+- Lỗi kết nối, cấu hình, HTTP 400/401/403/5xx hoặc phản hồi thiếu dữ liệu của API kiểm tra được phân loại bằng mã lỗi riêng; `/register` đưa ra nút **Đăng ký thủ công**. HTTP 404 từ API đối tác vẫn được xem là mã không tồn tại; phản hồi Thi Công HTTP 200 với `success: false` vẫn là xác thực không thành công và không hiện nút. HTTP 400 của đối tác không đủ thông tin trong contract hiện tại để phân biệt mã sai với lỗi request, nên được xem là không thể kiểm tra.
 
 PO normalization:
 
