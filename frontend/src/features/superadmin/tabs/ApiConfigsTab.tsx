@@ -29,6 +29,10 @@ interface FormState {
 }
 
 const EMPTY_AUTH: AuthState = { type: 'none', username: '', password: '', token: '', keyName: '', keyValue: '' };
+const API_TYPE_OPTIONS = [
+  { value: 'po_verify', label: 'Xác thực mã PO' },
+  { value: 'thi_cong_verify', label: 'Xác thực mã thi công' },
+];
 
 const EMPTY_FORM: FormState = {
   name: '',
@@ -121,8 +125,16 @@ function ApiConfigModal({ editItem, onClose, onDone }: ApiConfigModalProps) {
   const [keyInput, setKeyInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [authChanged, setAuthChanged] = useState(false);
+  const [methodChanged, setMethodChanged] = useState(false);
+  const [payloadChanged, setPayloadChanged] = useState(false);
+  const masked = isEdit && editItem.isSensitive;
+  const apiTypeOptions = isEdit && !API_TYPE_OPTIONS.some((option) => option.value === getNameFromKey(editItem.key))
+    ? [...API_TYPE_OPTIONS, { value: getNameFromKey(editItem.key), label: getNameFromKey(editItem.key) }]
+    : API_TYPE_OPTIONS;
 
   function setAuth(patch: Partial<AuthState>) {
+    setAuthChanged(true);
     setForm((f) => ({ ...f, auth: { ...f.auth, ...patch } }));
   }
 
@@ -130,38 +142,38 @@ function ApiConfigModal({ editItem, onClose, onDone }: ApiConfigModalProps) {
     const k = keyInput.trim();
     if (!k || form.payloadKeys.includes(k)) { setKeyInput(''); return; }
     setForm((f) => ({ ...f, payloadKeys: [...f.payloadKeys, k] }));
+    setPayloadChanged(true);
     setKeyInput('');
   }
 
   function removeKey(k: string) {
+    setPayloadChanged(true);
     setForm((f) => ({ ...f, payloadKeys: f.payloadKeys.filter((x) => x !== k) }));
   }
 
   async function save() {
     setError('');
-    if (!form.endpoint) { setError('Endpoint không được để trống.'); return; }
-    if (form.auth.type === 'basic' && (!form.auth.username || !form.auth.password)) {
+    if (!form.name) { setError('Vui lòng chọn loại API.'); return; }
+    if (!masked && !form.endpoint) { setError('Endpoint không được để trống.'); return; }
+    if ((!masked || authChanged) && form.auth.type === 'basic' && (!form.auth.username || !form.auth.password)) {
       setError('Basic Auth yêu cầu username và password.'); return;
     }
-    if (form.auth.type === 'bearer' && !form.auth.token) {
+    if ((!masked || authChanged) && form.auth.type === 'bearer' && !form.auth.token) {
       setError('Bearer Token yêu cầu token.'); return;
     }
-    if (form.auth.type === 'api_key' && (!form.auth.keyName || !form.auth.keyValue)) {
+    if ((!masked || authChanged) && form.auth.type === 'api_key' && (!form.auth.keyName || !form.auth.keyValue)) {
       setError('API Key yêu cầu header name và value.'); return;
     }
-
-    const apiValue = {
-      endpoint: form.endpoint,
-      method: form.method,
-      payload_keys: form.payloadKeys,
-      auth: computeAuthObject(form.auth),
-    };
 
     try {
       setLoading(true);
       if (isEdit) {
-        await superadminApi.updateAppConfig(editItem!.key, {
-          value: apiValue,
+        await superadminApi.updateApiConfig(getNameFromKey(editItem!.key), {
+          name: form.name,
+          ...(!masked || form.endpoint ? { endpoint: form.endpoint } : {}),
+          ...(!masked || methodChanged ? { method: form.method } : {}),
+          ...(!masked || payloadChanged ? { payload_keys: form.payloadKeys } : {}),
+          ...(!masked || authChanged ? { auth: computeAuthObject(form.auth) } : {}),
           category: form.category,
           description: form.description,
           isSensitive: form.isSensitive,
@@ -198,7 +210,42 @@ function ApiConfigModal({ editItem, onClose, onDone }: ApiConfigModalProps) {
     { key: 'api_key', label: 'API Key' },
   ];
 
-  return <Modal open title={isEdit ? 'Chỉnh sửa API Config' : 'Thêm API Config mới'} onCancel={onClose} onOk={save} okText={isEdit ? 'Lưu thay đổi' : 'Tạo API Config'} cancelText="Hủy" confirmLoading={loading} maskClosable={!loading} closable={!loading} keyboard={!loading} cancelButtonProps={{ disabled: loading }}><Space direction="vertical" style={{ width: '100%' }}>{!isEdit && <label>Tên API (slug)<Input addonBefore="api.settings." placeholder="po_sala_verify" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') }))} /></label>}<label>Endpoint<Space.Compact style={{ width: '100%' }}><Select aria-label="Phương thức" value={form.method} onChange={v => setForm(f => ({ ...f, method: v }))} options={[{ value: 'POST', label: 'POST' }, { value: 'GET', label: 'GET' }]} /><Input aria-label="Endpoint" placeholder="https://api.example.com/verify" value={form.endpoint} onChange={e => setForm(f => ({ ...f, endpoint: e.target.value }))} /></Space.Compact></label><label>Payload keys<Space.Compact style={{ width: '100%' }}><Input aria-label="Payload key" value={keyInput} onChange={e => setKeyInput(e.target.value)} onPressEnter={addKey} /><Button onClick={addKey}>Thêm</Button></Space.Compact></label><Space wrap>{form.payloadKeys.map(k => <Tag key={k} closable onClose={() => removeKey(k)}>{k}</Tag>)}</Space><Typography.Text>Xác thực (Authorization)</Typography.Text><Radio.Group value={form.auth.type} onChange={e => setAuth({ type: e.target.value })} options={AUTH_TYPES.map(t => ({ value: t.key, label: t.label }))} /><div className="space-y-2">{form.auth.type === 'basic' && <><Input aria-label="Username" placeholder="Username" value={form.auth.username} onChange={e => setAuth({ username: e.target.value })} /><Input.Password aria-label="Password" placeholder="Password" value={form.auth.password} onChange={e => setAuth({ password: e.target.value })} /></>}{form.auth.type === 'bearer' && <Input.Password aria-label="Token" placeholder="Token" value={form.auth.token} onChange={e => setAuth({ token: e.target.value })} />}{form.auth.type === 'api_key' && <><Input aria-label="Header name" placeholder="Header name (vd: X-API-Key)" value={form.auth.keyName} onChange={e => setAuth({ keyName: e.target.value })} /><Input.Password aria-label="Value" placeholder="Value" value={form.auth.keyValue} onChange={e => setAuth({ keyValue: e.target.value })} /></>}</div><div className="grid sm:grid-cols-2 gap-3"><label>Category<Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} /></label><label>Description<Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label></div><Space wrap><Checkbox checked={form.isSensitive} onChange={e => setForm(f => ({ ...f, isSensitive: e.target.checked }))}>isSensitive</Checkbox><Checkbox checked={form.isRuntimeEditable} onChange={e => setForm(f => ({ ...f, isRuntimeEditable: e.target.checked }))}>isRuntimeEditable</Checkbox></Space>{error && <Alert type="error" message={error} />}</Space></Modal>;
+  return <Modal open title={isEdit ? 'Chỉnh sửa API Config' : 'Thêm API Config mới'} onCancel={onClose} onOk={save} okText={isEdit ? 'Lưu thay đổi' : 'Tạo API Config'} cancelText="Hủy" confirmLoading={loading} mask={{closable: !loading}} closable={!loading} keyboard={!loading} cancelButtonProps={{ disabled: loading }}>
+          <Space orientation="vertical" style={{ width: '100%' }}>
+            <label>
+              Loại API<Select aria-label="Loại API" placeholder="Chọn loại API" style={{ width: '100%' }} value={form.name || undefined} options={apiTypeOptions} onChange={value => setForm(f => ({ ...f, name: value }))} />
+            </label>
+            {masked && <Alert type="info" showIcon title="Thông tin API đang được ẩn" description="Các trường endpoint, phương thức, payload và xác thực chỉ thay đổi khi bạn nhập hoặc chọn lại." />}
+            <label>
+              Endpoint
+              <Space.Compact style={{ width: '100%' }}><Select aria-label="Phương thức" placeholder="Giữ nguyên" value={masked && !methodChanged ? undefined : form.method} onChange={v => { setMethodChanged(true); setForm(f => ({ ...f, method: v })); }} options={[{ value: 'POST', label: 'POST' }, { value: 'GET', label: 'GET' }]} />
+                <Input aria-label="Endpoint" placeholder="https://api.example.com/verify" value={form.endpoint} onChange={e => setForm(f => ({ ...f, endpoint: e.target.value }))} />
+              </Space.Compact>
+            </label>
+            <label>
+              Payload keys
+              <Space.Compact style={{ width: '100%' }}>
+                <Input aria-label="Payload key" value={keyInput} onChange={e => setKeyInput(e.target.value)} onPressEnter={addKey} />
+                <Button onClick={addKey}>Thêm</Button>
+              </Space.Compact>
+            </label>
+            <Space wrap>{form.payloadKeys.map(k => <Tag key={k} closable onClose={() => removeKey(k)}>{k}</Tag>)}</Space>
+            <Typography.Text>Xác thực (Authorization)</Typography.Text>
+            <Radio.Group value={masked && !authChanged ? undefined : form.auth.type} onChange={e => setAuth({ type: e.target.value })} options={AUTH_TYPES.map(t => ({ value: t.key, label: t.label }))} />
+            <div className="space-y-2">
+              {form.auth.type === 'basic' && <><Input aria-label="Username" placeholder="Username" value={form.auth.username} onChange={e => setAuth({ username: e.target.value })} /><Input.Password aria-label="Password" placeholder="Password" value={form.auth.password} onChange={e => setAuth({ password: e.target.value })} /></>}
+              {form.auth.type === 'bearer' && <Input.Password aria-label="Token" placeholder="Token" value={form.auth.token} onChange={e => setAuth({ token: e.target.value })} />}
+              {form.auth.type === 'api_key' && <><Input aria-label="Header name" placeholder="Header name (vd: X-API-Key)" value={form.auth.keyName} onChange={e => setAuth({ keyName: e.target.value })} /><Input.Password aria-label="Value" placeholder="Value" value={form.auth.keyValue} onChange={e => setAuth({ keyValue: e.target.value })} /></>}
+            </div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label>Category<Input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} /></label>
+              <label>Description<Input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></label>
+            </div>
+            <Space wrap>
+              <Checkbox checked={form.isSensitive} onChange={e => setForm(f => ({ ...f, isSensitive: e.target.checked }))}>isSensitive</Checkbox>
+              <Checkbox checked={form.isRuntimeEditable} onChange={e => setForm(f => ({ ...f, isRuntimeEditable: e.target.checked }))}>isRuntimeEditable</Checkbox>
+            </Space>{error && <Alert type="error" title={error} />}</Space>
+        </Modal>;
 
 }
 

@@ -17,7 +17,6 @@
 - `model.ts`: persistence, kiểm tra mã chuyến, chống event trùng/cũ; lưu yêu cầu gỡ push đang chờ khi mất mạng.
 - `FollowTripCard.tsx`: một nút chọn/dừng theo dõi theo mã chuyến đã lưu; trạng thái quyền và push không quyết định chuyến đã chọn.
 - `SavedTrips.tsx`: danh sách gần đây trên `/` và `/track`; không xóa mã vì lỗi mạng tạm thời.
-- `PwaInstallGuide.tsx`: hướng dẫn Android/iOS bằng Ant Modal.
 - `frontend/src/features/track/hooks/useTrackContent.ts`: chỉ đọc và trình bày chuyến, QR, hàng chờ, wake lock; không sở hữu cảnh báo cá nhân.
 - `frontend/src/lib/trackRoom.ts`: đếm chủ sở hữu room; rời trang chi tiết không làm provider toàn cục rời room; tự join lại sau reconnect.
 - `frontend/src/lib/chime.ts`: âm báo có điểm kết thúc và hàm dừng mọi oscillator đã lên lịch.
@@ -39,8 +38,6 @@
 - `dqm_followed_trip_v1`: mã/biển số/trạng thái, tối đa 30 event ID và thời điểm gần nhất.
 - `qms_active_deliveries`: tối đa 5 mã gần đây; không phải danh sách đăng ký push.
 - `dqm_pending_push_detach_v1`: mã cần gỡ khi dừng/đổi lúc mất mạng; thử lại khởi động/focus/online. Gỡ luôn kèm mã để không xóa binding chuyến mới.
-- `dqm_pwa_guide_hidden`: checkbox không hiện lại, chỉ lưu khi đóng modal.
-- `dqm_pwa_installed`: bằng chứng cài đặt đã quan sát, không phải khả năng kiểm kê app trên mọi OS.
 
 Dữ liệu gắn với browser/profile/origin; browser và PWA có thể có kho riêng. Hệ thống liên kết thiết bị tự nguyện với mã chuyến, không suy danh tính tài xế từ đăng nhập. Xóa dữ liệu/đổi thiết bị có thể cần nhập mã hoặc biển số và chọn theo dõi lại.
 
@@ -64,12 +61,10 @@ VAPID dùng `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Không đ�
 `frontend/public/sw.js` nhận push toàn app. Worker hỏi cửa sổ đang focus theo dõi mã nào, không suy từ URL. Nếu đúng chuyến, system notification im lặng để overlay/âm báo foreground xử lý; nếu không, OS xử lý notification và âm/rung. Worker luôn gọi `showNotification` cho push, phù hợp yêu cầu user-visible Safari. Cache receipt tối đa 30 chuyến chống push trùng/đảo thứ tự; push cũ chỉ trình bày lại thông báo mới nhất im lặng. Bấm notification mở đúng `/track/:code`.
 
 - Quyền notification phải xin từ thao tác bấm; app tự mở modal giải thích nhưng không tự cấp/ép quyền. Sau reload, khi đã có chuyến theo dõi, lần chạm/click/bấm phím thật tiếp theo trên bất kỳ route nào sẽ thử chuẩn bị lại AudioContext; nếu chưa thành công thì có thể thử lại bằng tương tác tiếp theo. Không tự xin quyền notification trong thao tác chuẩn bị âm thanh. Rung tùy API/thiết bị, không có hộp xin quyền rung thống nhất.
-- Android có nút cài khi nhận `beforeinstallprompt`; nếu không hướng dẫn menu.
-- iOS/iPadOS không hỗ trợ `beforeinstallprompt`: nút **Cài đặt ứng dụng** hiển thị hướng dẫn ngắn, người dùng tự chọn Chia sẻ → Thêm vào Màn hình chính → Thêm trong trình duyệt; website không thể tự mở hộp thoại cài đặt đó. Web Push cần Home Screen web app từ 16.4 trở lên, sau đó mở app, tìm/chọn chuyến và bật thông báo.
-- Hướng dẫn không hiện trong standalone, sau `appinstalled`, khi related-apps xác nhận hoặc đã chọn không hiện lại. Không thể kiểm tra tuyệt đối từ Safari một PWA đã cài trong kho khác; localStorage chỉ nhớ điều đã quan sát. Fresh `beforeinstallprompt` có thể xóa dấu cài cũ.
+- Ứng dụng không tự mở popup hướng dẫn cài PWA hoặc Tour. Trên iOS/iPadOS, Web Push cần Home Screen web app từ 16.4 trở lên; sau đó mở app, tìm/chọn chuyến và bật thông báo.
 - Khóa màn hình/đóng app: không có React overlay/Web Audio. System notification/âm lượng/rung tùy OS, quyền, chế độ im lặng và tiết kiệm pin; không cam kết như cuộc gọi native.
 
-Nguồn: [WebKit iOS/iPadOS](https://webkit.org/blog/13878/), [WebKit user-visible push](https://webkit.org/blog/12945/meet-web-push/), [Chrome installed related apps](https://developer.chrome.com/docs/capabilities/get-installed-related-apps), [MDN Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API).
+Nguồn: [WebKit iOS/iPadOS](https://webkit.org/blog/13878/), [WebKit user-visible push](https://webkit.org/blog/12945/meet-web-push/), [MDN Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API).
 
 ## Kiểm tra
 

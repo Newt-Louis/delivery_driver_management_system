@@ -588,6 +588,12 @@ export default function Register() {
                 <Button block size="large" icon={<CameraOutlined />} onClick={() => setScannerOpen(true)}>
                   Quét QR hoặc Barcode tại đây
                 </Button>
+                <div className="mt-6 text-center">
+                  <Typography.Title level={4}>Hoặc</Typography.Title>
+                  <Link to="/register-manual" className="block">
+                    <Button color="purple" variant="solid" size="large" block style={{ minHeight: 64 }}>Đăng ký thủ công</Button>
+                  </Link>
+                </div>
               </Form>
             )}
 

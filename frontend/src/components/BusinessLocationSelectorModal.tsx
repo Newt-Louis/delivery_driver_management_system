@@ -14,7 +14,6 @@ interface BusinessLocationSelectorModalProps {
   error?: string | null;
   onSelect: (businessLocationId: string) => void;
   onClose?: () => void;
-  afterOpenChange?: (open: boolean) => void;
 }
 
 export default function BusinessLocationSelectorModal({
@@ -29,7 +28,6 @@ export default function BusinessLocationSelectorModal({
   error,
   onSelect,
   onClose,
-  afterOpenChange,
 }: BusinessLocationSelectorModalProps) {
   const { token } = theme.useToken();
 
@@ -45,7 +43,6 @@ export default function BusinessLocationSelectorModal({
       width="min(760px, calc(100vw - 32px))"
       styles={{ body: { maxHeight: 'calc(100dvh - 180px)', overflowY: 'auto' } }}
       onCancel={onClose}
-      afterOpenChange={afterOpenChange}
     >
       <Space orientation="vertical" size="large" className="w-full">
         <Typography.Paragraph type="secondary" className="!mb-0">{description}</Typography.Paragraph>

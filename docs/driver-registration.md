@@ -4,7 +4,7 @@
 
 Tài xế/NCC sử dụng các trang public, không cần đăng nhập:
 
-- `/`: trang chủ với hai nút đăng ký giao hàng và theo dõi chuyến. Sau khi hướng dẫn cài PWA đóng hoặc không cần hiện, Tour chỉ nút chọn khu vực, rồi chỉ hai nút này sau khi tài xế chọn khu vực. Tour có thể đóng và chạy lại khi quay về trang chủ.
+- `/`: trang chủ với hai nút đăng ký giao hàng và theo dõi chuyến.
 - `/register`: luồng đăng ký mặc định bằng mã PO/Thi Công và API Config.
 - `/register-manual`: luồng đăng ký thủ công, dùng khi nhập từ bản giấy hoặc khi hệ thống/API online gặp sự cố.
 
@@ -36,16 +36,18 @@ Files:
 
 Routes:
 
-- `/` render `Home.tsx` với hai nút dẫn đến `/register` và `/track`.
+- `/` render `Home.tsx` với hai nút dẫn đến `/register` và `/track`. Nếu chưa có khu vực public được lưu, người chưa đăng nhập và `SUPERADMIN` thấy modal chọn khu vực; modal có thể đóng và xuất hiện lại khi quay về trang chủ nếu vẫn chưa chọn.
 - `/register` render `Register.tsx` cho đăng ký bằng mã PO/Thi Công.
 - `/register-manual` render `RegisterManual.tsx` và giữ wizard thủ công.
 - `/taixe` hiện vẫn redirect sang `/register`.
+- Header public không có nút đăng nhập hoặc menu tài khoản. Nhân sự truy cập `/login` trực tiếp để đăng nhập; menu tài khoản nội bộ không có mục chuyển khu vực public/nội bộ.
 
 Trang đăng ký `/register` hiện có:
 
 - Lời chào `Hệ thống điều phối nhận hàng THISO`.
 - Ô nhập mã PO/Thi Công.
 - Nút lớn `Quét QR hoặc Barcode tại đây` mở scanner thật; trong dialog quét có thêm nút chọn ảnh mã QR từ thư viện. Cả hai cách đều tách mã PO/Thi Công từ nội dung quét và tự điền vào ô nhập mã, không tự submit.
+- Bên dưới phần kiểm tra mã có nút **Đăng ký thủ công** dẫn đến `/register-manual`; mục này không nằm trong menu public.
 - Validate format cơ bản phía client:
   - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
   - Thi Công: đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số, không có khoảng trắng.
@@ -56,7 +58,7 @@ Trang đăng ký `/register` hiện có:
 
 Wizard thủ công `/register-manual`:
 
-1. Dùng `BusinessLocation` đã chọn bằng FloatButton toàn cục trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
+1. Dùng `BusinessLocation` đã chọn qua tên khu vực trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Người chưa đăng nhập và `SUPERADMIN` có thể mở bộ chọn; các role đăng nhập khác chỉ xem tên. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
 2. Chọn ngày giao hàng từ hôm nay trở đi bằng calendar; ngày đã qua là ô trống, lịch chỉ hiển thị số ngày và cho phép đi tới các tháng tương lai. Khi Header quay lại tháng hiện tại từ một ngày tương lai có ngày-tháng đã qua, lịch neo tại hôm nay để tháng hiện tại vẫn mở được. Công suất vẫn được dùng để disable ngày hết chỗ, nhưng không hiển thị như số thứ hai trong ô ngày. Người dùng có thể nhập hoặc chọn Mã NCC trước Tên công ty / Nhà cung cấp; mã giữ nguyên chữ hoa/thường đã nhập. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
 3. Nhập thông tin tài xế và phương tiện.
 4. Review và hoàn tất đăng ký.

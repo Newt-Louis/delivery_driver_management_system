@@ -1,9 +1,9 @@
-import { useState } from 'react';
-import { EnvironmentOutlined } from '@ant-design/icons';
-import { FloatButton } from 'antd';
+import { useEffect, useState } from 'react';
+import { DownOutlined } from '@ant-design/icons';
+import { Dropdown, Typography, type MenuProps } from 'antd';
+import { useAuth } from '../context/AuthContext';
 import { usePublicBusinessLocation } from '../context/PublicBusinessLocationContext';
-import BusinessLocationSelectorModal from './BusinessLocationSelectorModal';
-import { useHomeTour } from '../context/HomeTourContext';
+import { canSelectPublicLocation } from '../lib/publicLocationAccess';
 
 export default function PublicBusinessLocationSelector() {
   const {
@@ -14,39 +14,32 @@ export default function PublicBusinessLocationSelector() {
     error,
     selectPublicBusinessLocation,
   } = usePublicBusinessLocation();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
   const [open, setOpen] = useState(false);
-  const { setSelectorOpen, locationSelected } = useHomeTour();
+  const canSelect = canSelectPublicLocation(authLoading, isAuthenticated, user?.role);
+  const name = selectedBusinessLocation?.locationName ?? 'Chọn khu vực';
+
+  useEffect(() => { if (!canSelect) setOpen(false); }, [canSelect]);
 
   function handleSelect(businessLocationId: string) {
+    if (!canSelect) return;
     selectPublicBusinessLocation(businessLocationId);
-    locationSelected();
     setOpen(false);
   }
 
+  const items: MenuProps['items'] = isLoading
+    ? [{ key: 'loading', label: 'Đang tải khu vực...', disabled: true }]
+    : error ? [{ key: 'error', label: error, disabled: true }]
+      : locations.length ? locations.map((location) => ({ key: location.id, label: <span style={{ whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{location.locationName}</span> }))
+        : [{ key: 'empty', label: 'Không có khu vực đang hoạt động', disabled: true }];
+
   return (
-    <>
-      <FloatButton
-        className="public-location-button"
-        type="primary"
-        shape="square"
-        icon={<EnvironmentOutlined />}
-        content={selectedBusinessLocation?.code ?? 'Chọn'}
-        tooltip="Chọn khu vực hiển thị"
-        onClick={() => { setSelectorOpen(true); setOpen(true); }}
-        aria-label="Chọn khu vực hiển thị"
-      />
-      <BusinessLocationSelectorModal
-        open={open}
-        title="Chọn khu vực"
-        description="Chọn BusinessLocation cho dữ liệu hiển thị ở các trang public trên thiết bị này."
-        locations={locations}
-        currentId={selectedBusinessLocationId}
-        loading={isLoading}
-        error={error}
-        onSelect={handleSelect}
-        onClose={() => setOpen(false)}
-        afterOpenChange={(visible) => { if (!visible) setSelectorOpen(false); }}
-      />
-    </>
+      canSelect ? <Dropdown trigger={['click']} open={open} onOpenChange={setOpen} overlayStyle={{ maxWidth: 'calc(100vw - 24px)' }}
+        menu={{ items, selectable: true, selectedKeys: selectedBusinessLocationId ? [selectedBusinessLocationId] : [], onClick: ({ key }) => handleSelect(key) }}>
+        <button type="button" className="flex min-w-0 items-center gap-1.5 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label={`Chọn khu vực hiển thị, hiện tại: ${name}`} aria-haspopup="menu" aria-expanded={open}>
+        <Typography.Text strong className="min-w-0 text-sm sm:text-base" style={{ overflowWrap: 'anywhere', lineHeight: 1.25 }}>{name}</Typography.Text>
+        <DownOutlined className="shrink-0 text-xs" />
+        </button>
+      </Dropdown> : <Typography.Text strong className="min-w-0 text-sm sm:text-base" style={{ overflowWrap: 'anywhere', lineHeight: 1.25 }}>{name}</Typography.Text>
   );
 }

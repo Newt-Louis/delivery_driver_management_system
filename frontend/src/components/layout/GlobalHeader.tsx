@@ -6,7 +6,6 @@ import {
   BulbOutlined,
   DownOutlined,
   FileTextOutlined,
-  GlobalOutlined,
   HistoryOutlined,
   HomeOutlined,
   LoginOutlined,
@@ -23,6 +22,7 @@ import { usePublicBusinessLocation } from '../../context/PublicBusinessLocationC
 import { useThemeMode } from '../../context/ThemeModeContext';
 import { STAFF_HEADER_HEIGHT } from '../../theme/antTheme';
 import PublicBusinessLocationSelector from '../PublicBusinessLocationSelector';
+import SuperadminOperationalContextGate from '../SuperadminOperationalContextGate';
 
 type HeaderArea = 'public' | 'staff';
 type NavigationItem = { to: string; label: string; icon: ReactNode; roles: string[] };
@@ -57,7 +57,6 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
 
 const PUBLIC_NAVIGATION = [
   { key: 'register', to: '/register', label: 'Đăng ký giao hàng' },
-  { key: 'manual-register', to: '/register-manual', label: 'Đăng ký thủ công' },
   { key: 'track', to: '/track', label: 'Theo dõi chuyến' },
   { key: 'waiting-screen', to: '/waiting-screen', label: 'Màn hình chờ' },
 ];
@@ -126,14 +125,11 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
 
   const accountMenu: MenuProps = {
     items: [
-      { key: 'switch-area', label: isPublic ? 'Khu vực nội bộ' : 'Khu vực bên ngoài', icon: isPublic ? <AppstoreOutlined /> : <GlobalOutlined /> },
-      { type: 'divider' },
       { key: 'role', label: ROLE_LABELS[user?.role ?? ''] ?? user?.role, disabled: true },
       { type: 'divider' },
       { key: 'logout', label: 'Đăng xuất', icon: <LoginOutlined /> },
     ],
     onClick: ({ key }) => {
-      if (key === 'switch-area') go(isPublic ? (user?.role === 'CHECKIN' ? '/check-in' : '/dashboard') : '/');
       if (key === 'logout') void handleLogout();
     },
   };
@@ -198,7 +194,7 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
               <Link to="/" aria-label="Về trang chủ" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
                 <Avatar shape="square" size={36} src={selectedBusinessLocation?.logoUrl || undefined} icon={<HomeOutlined />}>{selectedBusinessLocation?.code.slice(0, 2).toUpperCase()}</Avatar>
               </Link>
-              <Typography.Text strong className="min-w-0 text-sm sm:text-base" style={{ overflowWrap: 'anywhere', lineHeight: 1.25 }}>{selectedBusinessLocation?.locationName ?? 'Chọn khu vực'}</Typography.Text>
+              <PublicBusinessLocationSelector />
             </div>
             {publicMenuWide && <div className="absolute left-1/2 -translate-x-1/2">
               {publicMenuFits ? (
@@ -209,7 +205,7 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
                 </Dropdown>
               )}
             </div>}
-            <div ref={publicEndRef} className="ml-auto shrink-0"><HeaderAccount isAuthenticated={isAuthenticated} userName={user?.name} mode={mode} onToggleMode={toggleMode} accountMenu={accountMenu} onLogin={() => navigate('/login')} /></div>
+            <div ref={publicEndRef} className="ml-auto shrink-0"><HeaderAccount showAccount={false} mode={mode} onToggleMode={toggleMode} accountMenu={accountMenu} /></div>
             <div ref={publicMenuMeasureRef} aria-hidden="true" className="pointer-events-none absolute -z-10 h-0 overflow-hidden opacity-0" style={{ width: 'max-content' }}>
               <Menu mode="horizontal" selectedKeys={[]} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
             </div>
@@ -217,14 +213,15 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
         ) : (
           <div className="flex h-full w-full min-w-0 items-center gap-2">
             <Button type="text" icon={<MenuOutlined />} aria-label="Mở menu" className="xl:hidden" onClick={() => setDrawerOpen(true)} />
-            <Link to={user?.role === 'CHECKIN' ? '/check-in' : '/dashboard'} className="flex min-w-0 items-center gap-2.5 no-underline" aria-label="Trang chủ vận hành">
+            <Link to={user?.role === 'CHECKIN' ? '/check-in' : '/dashboard'} className="flex shrink-0 items-center gap-2.5 no-underline" aria-label="Trang chủ vận hành">
               {mall.logoUrl ? <img src={mall.logoUrl} alt={mall.mallName} className="h-9 w-9 rounded-lg object-contain" /> : <Avatar shape="square" size={36} icon={<HomeOutlined />} />}
-              <span className="hidden max-w-48 truncate text-sm font-bold sm:block" style={{ color: token.colorText }}>{mall.mallName}</span>
+              {user?.role !== 'SUPERADMIN' && <span className="hidden max-w-48 truncate text-sm font-bold sm:block" style={{ color: token.colorText }}>{mall.mallName}</span>}
             </Link>
+            {user?.role === 'SUPERADMIN' && <SuperadminOperationalContextGate />}
             <div className="hidden min-w-0 flex-1 items-center xl:flex" style={{ height: STAFF_HEADER_HEIGHT }}>
               <Menu mode="horizontal" selectedKeys={activeItem ? [activeItem.to] : []} items={staffHeaderItems} triggerSubMenuAction="hover" onClick={({ key }) => go(key)} className="staff-header-menu min-w-0 flex-1 justify-center" style={{ background: 'transparent', borderBottom: 0 }} />
             </div>
-            <HeaderAccount isAuthenticated={isAuthenticated} userName={user?.name} mode={mode} onToggleMode={toggleMode} accountMenu={accountMenu} onLogin={() => navigate('/login')} activeItemLabel={!screens.xl ? activeItem?.label : undefined} />
+            <HeaderAccount showAccount={isAuthenticated} userName={user?.name} mode={mode} onToggleMode={toggleMode} accountMenu={accountMenu} activeItemLabel={!screens.xl ? activeItem?.label : undefined} />
           </div>
         )}
       </Layout.Header>
@@ -235,18 +232,16 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
       {!isPublic && <Drawer title="Điều hướng" placement="left" open={drawerOpen} onClose={() => setDrawerOpen(false)} size={304} styles={{ body: { padding: 0 } }}>
         <Menu mode="inline" selectedKeys={activeItem ? [activeItem.to] : []} items={staffDrawerItems} onClick={({ key }) => go(key)} />
       </Drawer>}
-      {isPublic && <PublicBusinessLocationSelector />}
     </>
   );
 }
 
-function HeaderAccount({ isAuthenticated, userName, mode, onToggleMode, accountMenu, onLogin, activeItemLabel }: {
-  isAuthenticated: boolean;
+function HeaderAccount({ showAccount, userName, mode, onToggleMode, accountMenu, activeItemLabel }: {
+  showAccount: boolean;
   userName?: string;
   mode: 'light' | 'dark';
   onToggleMode: () => void;
   accountMenu: MenuProps;
-  onLogin: () => void;
   activeItemLabel?: string;
 }) {
   return (
@@ -255,12 +250,10 @@ function HeaderAccount({ isAuthenticated, userName, mode, onToggleMode, accountM
       <Tooltip title={mode === 'light' ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'}>
         <Button type="text" icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />} onClick={onToggleMode} aria-label={mode === 'light' ? 'Chuyển sang giao diện tối' : 'Chuyển sang giao diện sáng'} />
       </Tooltip>
-      {isAuthenticated ? (
+      {showAccount && (
         <Dropdown menu={accountMenu} trigger={['click']}>
           <Button type="text" className="h-auto px-1"><Space size={8}><Avatar size="small" icon={<UserOutlined />}>{userName ? initials(userName) : undefined}</Avatar><span className="hidden max-w-32 truncate text-sm font-medium lg:inline">{userName}</span><DownOutlined className="hidden text-xs sm:inline" /></Space></Button>
         </Dropdown>
-      ) : (
-        <Button type="text" className="h-auto px-1" aria-label="Đăng nhập hệ thống" onClick={onLogin}><Avatar size="small" icon={<UserOutlined />} /></Button>
       )}
     </div>
   );

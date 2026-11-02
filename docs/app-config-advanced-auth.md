@@ -87,6 +87,8 @@ Key được backend dùng cố định:
 - PO: `api.settings.po_verify`
 - Thi Công: `api.settings.thi_cong_verify`
 
+Khi tạo hoặc chỉnh sửa API Config trong Superadmin, chọn **Xác thực mã PO** hoặc **Xác thực mã thi công**; backend thêm tiền tố `api.settings.`. Khi đổi loại, key đích không được trùng, bản ghi giữ nguyên ID và các trường JSON bổ sung, Redis cache của cả key cũ và mới được xóa. Với cấu hình nhạy cảm đã ẩn, các trường endpoint, method, payload và auth chỉ được thay khi nhập hoặc chọn lại. Danh mục này hiện khai báo trong frontend; khi phát triển tích hợp mới cần cập nhật danh mục, xác thực backend và phần xử lý tích hợp.
+
 Value JSON hỗ trợ:
 
 ```json

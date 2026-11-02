@@ -12,7 +12,6 @@ import { fetchDeliveryByCode, fetchVapidKey, postPushSubscription } from '../tra
 import { buzz, ensureAudio, isDeviceAudioReady, unlockIOSAudio } from './audio';
 import type { TrackDelivery } from '../track/types';
 import { acceptsNotice, FOLLOW_CHANGED, FOLLOW_KEY, noticeFromDelivery, pendingPushDetaches, readFollowedTrip, savePendingPushDetaches, TERMINAL_STATUSES, writeFollowedTrip, type DriverNotice, type FollowedTrip } from './model';
-import PwaInstallGuide from './PwaInstallGuide';
 
 type PushState = 'off' | 'connecting' | 'ready' | 'error';
 interface NotificationsContextValue {
@@ -20,7 +19,6 @@ interface NotificationsContextValue {
   pushState: PushState;
   audioReady: boolean;
   setupOpen: boolean;
-  guideReady: boolean;
   error: string;
   follow: (delivery: TrackDelivery) => void;
   stopFollowing: () => void;
@@ -34,7 +32,6 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
   const current = useRef(followed);
   const [notice, setNotice] = useState<DriverNotice | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
-  const [guideReady, setGuideReady] = useState(false);
   const [switchTo, setSwitchTo] = useState<TrackDelivery | null>(null);
   const [audioReady, setAudioReady] = useState(false);
   const audioReadyRef = useRef(false);
@@ -347,19 +344,18 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     return () => window.clearTimeout(timer);
   }, [notice, silence]);
 
-  return <Context.Provider value={{ followed, pushState, audioReady, setupOpen, guideReady: guideReady && !setupOpen && !notice && !switchTo, error, follow: (delivery) => {
+  return <Context.Provider value={{ followed, pushState, audioReady, setupOpen, error, follow: (delivery) => {
     if (current.current && current.current.code !== delivery.registrationCode) setSwitchTo(delivery);
     else selectTrip(delivery);
   }, stopFollowing, checkPermissions }}>
     {children}
-    <PwaInstallGuide blocked={setupOpen || !!notice || !!switchTo} onReadyChange={setGuideReady} />
     <Modal open={!!switchTo} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} onOk={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }} okText="Theo dõi chuyến mới" cancelText="Giữ chuyến hiện tại">
       <Typography.Paragraph>Điện thoại đang nhận thông báo cho xe {followed?.plate}. Chuyển sang xe {switchTo?.vehiclePlate} ({switchTo?.registrationCode})?</Typography.Paragraph>
     </Modal>
     <Modal open={setupOpen && !notice} focusable={{ focusTriggerAfterClose: !notice }} centered title="Bật thông báo cho chuyến giao hàng" onCancel={() => setSetupOpen(false)} footer={<Space wrap><Button size="large" onClick={() => setSetupOpen(false)}>Để sau</Button><Button size="large" type="primary" icon={<BellOutlined />} loading={busy} onClick={() => void enableDevice()}>Bật thông báo và âm báo</Button></Space>}>
       <Space orientation="vertical" size="middle" className="w-full">
         <Typography.Paragraph>Nhận báo check-in thành công, gọi vào khu vực nhận hàng và hoàn tất chuyến. Chạm nút bên dưới rồi chọn Cho phép nếu thiết bị hỏi.</Typography.Paragraph>
-        {support.reason === 'ios_needs_pwa' && <Alert type="info" showIcon title="Nhận thông báo khi khóa màn hình trên iPhone/iPad" description="Thêm website vào Màn hình chính, mở ứng dụng vừa thêm, chọn lại chuyến và bật thông báo. Trong trình duyệt, hãy giữ ứng dụng mở để xem cảnh báo." />}
+        {support.reason === 'ios_needs_pwa' && <Alert type="info" showIcon title="Nhận thông báo trên iPhone/iPad" description="Thông báo đẩy chỉ hoạt động khi mở ứng dụng từ Màn hình chính. Trong trình duyệt, hãy giữ trang mở để xem cảnh báo." />}
         {support.reason === 'missing_browser_api' && <Alert type="warning" showIcon title="Trình duyệt chưa hỗ trợ thông báo đẩy" description="Hãy giữ trang mở hoặc sử dụng trình duyệt hỗ trợ thông báo trên kết nối HTTPS." />}
         {error && <Alert type="warning" showIcon title={error} />}
         <Typography.Text type="secondary">Âm thanh và rung còn phụ thuộc chế độ im lặng và khả năng của thiết bị. Bạn vẫn có thể theo dõi chuyến nếu chưa cấp quyền.</Typography.Text>

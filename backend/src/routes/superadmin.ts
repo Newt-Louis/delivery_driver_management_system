@@ -136,6 +136,11 @@ router.post('/api-configs', asyncHandler(async (req, res) => {
   await respond(res, superadminService.createApiConfig(body, req.user), 201);
 }));
 
+router.patch('/api-configs/:name', asyncHandler(async (req, res) => {
+  const body = SuperadminFormRequest.parseApiConfigUpdate(req.body);
+  await respond(res, superadminService.updateApiConfig(req.params.name, body, req.user));
+}));
+
 router.delete('/api-configs/:name', asyncHandler(async (req, res) => {
   await respond(res, superadminService.deleteApiConfig(req.params.name, req.user));
 }));

@@ -119,6 +119,25 @@ export const SuperadminFormRequest = {
     }).parse(body);
   },
 
+  parseApiConfigUpdate(body: unknown) {
+    return z.object({
+      name: z.string().trim().min(1).max(100).regex(/^[a-z0-9_-]+$/),
+      endpoint: z.string().url('Endpoint phải là URL hợp lệ').optional(),
+      method: z.enum(['GET', 'POST']).optional(),
+      payload_keys: z.array(z.string().trim().min(1)).optional(),
+      auth: z.discriminatedUnion('type', [
+        z.object({ type: z.literal('none') }),
+        z.object({ type: z.literal('basic'), header: z.string().min(1) }),
+        z.object({ type: z.literal('bearer'), header: z.string().min(1) }),
+        z.object({ type: z.literal('api_key'), header: z.string().min(1) }),
+      ]).optional(),
+      category: z.string().trim().min(1).max(80).optional(),
+      description: z.string().trim().max(500).optional(),
+      isSensitive: z.boolean().optional(),
+      isRuntimeEditable: z.boolean().optional(),
+    }).parse(body);
+  },
+
   parseReceivingTimeConfigCreate(body: unknown) {
     return z.object({
       unitConfigId: id,

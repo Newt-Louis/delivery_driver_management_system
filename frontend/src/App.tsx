@@ -16,7 +16,6 @@ import Reports from './pages/Reports';
 import Histories from './pages/Histories';
 import StaffShell from './components/layout/StaffShell';
 import PublicShell from './components/layout/PublicShell';
-import SuperadminOperationalContextGate from './components/SuperadminOperationalContextGate';
 import ToastContainer from './components/ToastContainer';
 
 function homePathForRole(role?: string) {
@@ -78,7 +77,6 @@ export default function App() {
   return (
     <div className="min-h-screen">
       {isAuthenticated && staffRoute ? <StaffShell>{routes}</StaffShell> : publicDriverRoute ? <PublicShell>{routes}</PublicShell> : routes}
-      {isAuthenticated && staffRoute && <SuperadminOperationalContextGate />}
       <ToastContainer />
     </div>
   );
