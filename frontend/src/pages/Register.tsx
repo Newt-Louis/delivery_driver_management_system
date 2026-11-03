@@ -2,7 +2,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 're
 import type { IScannerControls } from '@zxing/browser';
 import { Link } from 'react-router-dom';
 import { ArrowRightOutlined, CameraOutlined, UploadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, Descriptions, Empty, Form, Input, Modal, Row, Space, Spin, Steps, Typography } from 'antd';
+import { Alert, Button, Card, Col, ConfigProvider, Descriptions, Empty, Form, Input, Modal, Radio, Row, Space, Spin, Steps, Typography, theme } from 'antd';
 import { useToast } from '../context/ToastContext';
 import {
   getDailyRegistrationStats,
@@ -12,10 +12,9 @@ import {
   type DailyRegistrationStat,
   type QuickVerifyResponse,
 } from '../features/register-manual/api';
-import DeliveryDateCalendar from '../features/register-manual/components/DeliveryDateCalendar';
 import SuccessScreen from '../features/register-manual/components/SuccessScreen';
 import SavedTrips from '../features/driver-notifications/SavedTrips';
-import { isSundayDate, todayDate } from '../features/register-manual/utils/date';
+import { isSundayDate } from '../features/register-manual/utils/date';
 import type { SuccessInfo } from '../features/register-manual/types';
 import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
 import { canOfferManualRegistration } from '../features/register-manual/quickVerifyErrors';
@@ -26,6 +25,7 @@ type QuickForm = {
   driverName: string;
   driverPhone: string;
   vehiclePlate: string;
+  vehicleType: VehicleType | '';
   vendorCode: string;
   vendorName: string;
   deliveryDate: string;
@@ -140,13 +140,15 @@ function emptyForm(): QuickForm {
     vehiclePlate: '',
     vendorCode: '',
     vendorName: '',
-    deliveryDate: todayDate(),
+    deliveryDate: '',
+    vehicleType: 'TRUCK',
     goodsType: '',
   };
 }
 
 export default function Register() {
   const toast = useToast();
+  const { token } = theme.useToken();
   const [step, setStep] = useState<Step>(1);
   const [orderCode, setOrderCode] = useState('');
   const [verified, setVerified] = useState<QuickVerifyResponse | null>(null);
@@ -172,8 +174,8 @@ export default function Register() {
   const normalizedCode = useMemo(() => normalizeOrderCode(orderCode), [orderCode]);
   const constructionCodeLooksSupported = isConstructionCode(normalizedCode);
   const codeLooksSupported = isPoCode(normalizedCode) || constructionCodeLooksSupported;
-  const needsCalendar = verified?.kind === 'CONSTRUCTION';
-  const effectiveGoodsType = needsCalendar ? form.goodsType : (verified?.goodsType ?? '');
+  const isConstruction = verified?.kind === 'CONSTRUCTION';
+  const effectiveGoodsType = isConstruction ? form.goodsType : (verified?.goodsType ?? '');
   const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
   const goodsOptions = useMemo(() => {
     if (!unitConfig) return [];
@@ -191,7 +193,7 @@ export default function Register() {
   }, [unitConfig]);
 
   useEffect(() => {
-    if (!verified || !needsCalendar) {
+    if (!verified || !isConstruction) {
       setUnitConfig(null);
       setUnitConfigMsg('');
       setUnitConfigLoading(false);
@@ -221,10 +223,10 @@ export default function Register() {
     return () => {
       cancelled = true;
     };
-  }, [needsCalendar, verified]);
+  }, [isConstruction, verified]);
 
   useEffect(() => {
-    if (!verified || !needsCalendar || !effectiveGoodsType) {
+    if (!verified || !isConstruction || !effectiveGoodsType || !form.vehicleType) {
       setDailyStats([]);
       setDailyStatsMsg('');
       setDailyStatsLoading(false);
@@ -233,6 +235,7 @@ export default function Register() {
 
     const month = form.deliveryDate.slice(0, 7);
     let cancelled = false;
+    setDailyStats([]);
     setDailyStatsLoading(true);
     setDailyStatsMsg('');
     getDailyRegistrationStats(
@@ -240,7 +243,7 @@ export default function Register() {
       {
         month,
         goodsType: effectiveGoodsType,
-        vehicleType: verified.vehicleType,
+        vehicleType: form.vehicleType,
       },
       {
         businessLocationId: verified.businessLocationId,
@@ -264,7 +267,7 @@ export default function Register() {
     return () => {
       cancelled = true;
     };
-  }, [effectiveGoodsType, form.deliveryDate, needsCalendar, verified]);
+  }, [effectiveGoodsType, form.deliveryDate, form.vehicleType, isConstruction, verified]);
 
   function stopScanner() {
     scannerControlsRef.current?.stop();
@@ -422,7 +425,7 @@ export default function Register() {
         ...emptyForm(),
         vendorCode: data.vendorCode ?? '',
         vendorName: data.vendorName ?? '',
-        deliveryDate: data.deliveryDate ?? todayDate(),
+        deliveryDate: data.deliveryDate,
         goodsType: data.kind === 'CONSTRUCTION' ? '' : data.goodsType,
       });
       setDailyStats([]);
@@ -444,11 +447,11 @@ export default function Register() {
 
   function validateDetails() {
     if (!verified) return false;
-    if (needsCalendar && !form.deliveryDate) {
-      toast.error('Vui lòng chọn ngày giao hàng.');
+    if (!form.deliveryDate) {
+      toast.error('Không xác định được ngày giao hàng. Vui lòng kiểm tra lại mã.');
       return false;
     }
-    if (needsCalendar && !form.goodsType) {
+    if (isConstruction && !form.goodsType) {
       toast.error('Vui lòng chọn loại hàng giao.');
       return false;
     }
@@ -456,7 +459,11 @@ export default function Register() {
       toast.error('Chủ nhật chỉ nhận hàng tươi sống.');
       return false;
     }
-    if (needsCalendar && selectedDayStats?.available === false) {
+    if (!form.vehicleType) {
+      toast.error('Vui lòng chọn loại xe giao hàng.');
+      return false;
+    }
+    if (isConstruction && selectedDayStats?.available === false) {
       toast.error(selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký.');
       return false;
     }
@@ -490,7 +497,7 @@ export default function Register() {
         driverName: form.driverName.trim(),
         driverPhone: form.driverPhone.trim(),
         vehiclePlate: plate,
-        vehicleType: verified.vehicleType,
+        vehicleType: form.vehicleType,
         receivingUnit: verified.receivingUnit,
         goodsType: submitGoodsType,
         poNumber: verified.orderCode,
@@ -512,7 +519,7 @@ export default function Register() {
         unitLogoUrl: verified.unitLogoUrl,
         goodsType: submitGoodsType,
         goodsTypeName: GOODS_LABEL[submitGoodsType],
-        vehicleType: verified.vehicleType,
+        vehicleType: form.vehicleType,
         requestedTime: formatDate(form.deliveryDate),
         locationName: verified.businessLocationName,
       });
@@ -591,30 +598,27 @@ export default function Register() {
                 <div className="mt-6 text-center">
                   <Typography.Title level={4}>Hoặc</Typography.Title>
                   <Link to="/register-manual" className="block">
-                    <Button color="purple" variant="solid" size="large" block style={{ minHeight: 64 }}>Đăng ký thủ công</Button>
+                    <Button color="cyan" variant="solid" size="large" block style={{ minHeight: 64 }}>Đăng ký thủ công</Button>
                   </Link>
                 </div>
               </Form>
             )}
 
             {step === 2 && verified && (
-              <Space direction="vertical" size="large" className="w-full">
+              <Space orientation="vertical" size="large" className="w-full">
                 <Alert
-                  type="info"
+                  type="success"
                   showIcon
                   title={verified.kind === 'PO' ? 'PO đã xác thực' : 'Mã Thi Công đã xác thực'}
                   description={<><Typography.Text code>{verified.orderCode}</Typography.Text><br />{verified.unitDisplayName} · {verified.businessLocationName}{effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}</>}
                 />
 
-                {needsCalendar ? (
-                  <Space direction="vertical" size="middle" className="w-full">
+                <Descriptions bordered size="small" column={1} items={[{ key: 'delivery-date', label: 'Ngày giao hàng', children: formatDate(form.deliveryDate) }]} />
+                {isConstruction && (
+                  <Space orientation="vertical" size="middle" className="w-full">
                     {dailyStatsMsg && <Alert type="warning" showIcon title={dailyStatsMsg} />}
-                    <div>
-                      <Typography.Text strong>Ngày giao hàng</Typography.Text>
-                      <div className="mt-2"><DeliveryDateCalendar value={form.deliveryDate} stats={dailyStats} loading={dailyStatsLoading} disabledReasonForDate={(date) => (
-                        unitConfig?.sundayFreshFoodOnly && form.goodsType && form.goodsType !== 'FRESH_FOOD' && isSundayDate(date) ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined
-                      )} onChange={(date) => setField('deliveryDate', date)} /></div>
-                    </div>
+                    {dailyStatsLoading && <Spin size="small" description="Đang kiểm tra công suất đăng ký..." />}
+                    {selectedDayStats?.available === false && <Alert type="warning" showIcon title={selectedDayStats.reason ?? 'Hôm nay đã đạt công suất đăng ký.'} />}
                     <div>
                       <Typography.Text strong>Loại hàng bạn giao</Typography.Text>
                       <div className="mt-2">
@@ -624,7 +628,7 @@ export default function Register() {
                           <Row gutter={[12, 12]}>{goodsOptions.map((option) => (
                             <Col key={option.value} xs={24} sm={8}>
                               <Card size="small" hoverable onClick={() => setField('goodsType', option.value)} className={form.goodsType === option.value ? 'border-[var(--dqm-color-primary)]' : undefined}>
-                                <Space direction="vertical" size={2}><Typography.Text className="text-2xl">{option.icon}</Typography.Text><Typography.Text strong>{option.title}</Typography.Text>{option.hint && <Typography.Text type="secondary">{option.hint}</Typography.Text>}</Space>
+                                <Space orientation="vertical" size={2}><Typography.Text className="text-2xl">{option.icon}</Typography.Text><Typography.Text strong>{option.title}</Typography.Text>{option.hint && <Typography.Text type="secondary">{option.hint}</Typography.Text>}</Space>
                               </Card>
                             </Col>
                           ))}</Row>
@@ -633,11 +637,21 @@ export default function Register() {
                       </div>
                     </div>
                   </Space>
-                ) : (
-                  <Descriptions bordered size="small" column={1} items={[{ key: 'delivery-date', label: 'Ngày giao từ PO', children: formatDate(form.deliveryDate) }]} />
                 )}
 
                 <Form layout="vertical" requiredMark="optional">
+                  <Form.Item required className="!mb-0">
+                    <ConfigProvider theme={{ components: { Radio: form.vehicleType === 'MOTORBIKE' ? {
+                      buttonSolidCheckedBg: token.volcano6,
+                      buttonSolidCheckedHoverBg: token.volcano5,
+                      buttonSolidCheckedActiveBg: token.volcano7,
+                    } : {} } }}>
+                      <Radio.Group block aria-label="Loại xe giao hàng" value={form.vehicleType || undefined} onChange={(event) => setField('vehicleType', event.target.value)} options={[
+                        { label: 'Giao bằng Xe tải', value: 'TRUCK', style: { flex: 1, textAlign: 'center' } },
+                        { label: 'Giao bằng Xe máy', value: 'MOTORBIKE', style: { flex: 1, textAlign: 'center' } },
+                      ]} optionType="button" buttonStyle="solid" />
+                    </ConfigProvider>
+                  </Form.Item>
                   <Row gutter={[16, 0]}>
                     <Col xs={24} sm={12}><Form.Item label="Tên tài xế"><Input value={form.driverName} onChange={(event) => setField('driverName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Số điện thoại" required><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', event.target.value)} placeholder="090..." inputMode="tel" autoComplete="tel" /></Form.Item></Col>
@@ -651,7 +665,7 @@ export default function Register() {
             )}
 
             {step === 3 && verified && (
-              <Space direction="vertical" size="large" className="w-full">
+              <Space orientation="vertical" size="large" className="w-full">
                 <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} items={[
                   { key: 'type', label: 'Loại đăng ký', children: verified.kind === 'PO' ? 'PO' : 'Thi Công' },
                   { key: 'code', label: 'Mã', children: <Typography.Text code>{verified.orderCode}</Typography.Text> },
@@ -659,7 +673,7 @@ export default function Register() {
                   { key: 'unit', label: 'Đơn vị', children: verified.unitDisplayName },
                   { key: 'date', label: 'Ngày giao', children: formatDate(form.deliveryDate) },
                   { key: 'goods', label: 'Loại hàng', children: effectiveGoodsType ? GOODS_LABEL[effectiveGoodsType] : 'Chưa chọn' },
-                  { key: 'vehicle', label: 'Loại xe', children: VEHICLE_LABEL[verified.vehicleType] },
+                  { key: 'vehicle', label: 'Loại xe', children: form.vehicleType ? VEHICLE_LABEL[form.vehicleType] : 'Chưa chọn' },
                   { key: 'driver', label: 'Tài xế', children: form.driverName || '—' },
                   { key: 'phone', label: 'Số điện thoại', children: form.driverPhone },
                   { key: 'plate', label: 'Biển số', children: <Typography.Text code>{form.vehiclePlate.toUpperCase().replace(/\s+/g, '')}</Typography.Text> },

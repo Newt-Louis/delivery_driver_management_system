@@ -20,8 +20,9 @@ export default function Home() {
           Hệ thống điều phối nhận hàng THISO
         </Typography.Title>
         <div className="flex w-full max-w-sm flex-col gap-3">
-          <Link to="/register" className="mb-2"><Button color="primary" variant="solid" size="large" block style={{ height: '80px' }}>Đăng ký giao hàng</Button></Link>
-          <Link to="/track"><Button color="cyan" variant="solid" size="large" block style={{ height: '80px' }}>Theo dõi chuyến giao hàng</Button></Link>
+          <Link to="/register" className="mb-2"><Button color="primary" variant="solid" size="large" block style={{ height: '80px', fontSize: '24px' }}>Đăng ký giao hàng</Button></Link>
+          <Link to="/track" className="mb-2"><Button color="pink" variant="solid" size="large" block style={{ height: '80px', fontSize: '24px' }}>Theo dõi chuyến giao hàng</Button></Link>
+          <Link to="/waiting-screen"><Button color="purple" variant="solid" size="large" block style={{ height: '80px', fontSize: '24px' }}>Màn hình gọi số</Button></Link>
         </div>
       </div>
     </main>

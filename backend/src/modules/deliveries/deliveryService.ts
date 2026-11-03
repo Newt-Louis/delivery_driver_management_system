@@ -2,7 +2,7 @@ import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../do
 import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, Prisma } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
-import { formatVNDate, isScheduledForToday } from '../../lib/dateVN';
+import { formatVNDate, getVNDateKey, isScheduledForToday } from '../../lib/dateVN';
 import { emitDeliveryCalled, emitDeliveryCompleted, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, systemActor, userActor } from '../../services/auditLog';
 import { triggerAutoAssign } from '../../services/autoAssign';
@@ -22,6 +22,7 @@ import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/hi
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
 import { verifyQuickRegistrationToken } from './quickRegistrationService';
+import { assertQuickRegistrationDate, assertRegistrationDateIsToday, requiresQuickVerification } from './quickRegistrationPolicy';
 import { generateManualRegistrationCode } from './manualRegistrationCode';
 import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
@@ -45,7 +46,7 @@ const DELIVERY_UNIT_CONFIG_SELECT = {
 } as const;
 
 export function createManualRegistrationCode() {
-  return { code: generateManualRegistrationCode() };
+  return { code: generateManualRegistrationCode(), deliveryDate: getVNDateKey() };
 }
 
 async function assertUnitPermission(
@@ -89,12 +90,11 @@ async function ensureDeliveryAccess(
 }
 
 function isSundayDeliveryDate(requestedTime?: Date | null, deliveryDate?: string): boolean {
-  if (requestedTime) return requestedTime.getDay() === 0;
-  if (!deliveryDate) return false;
-
-  const [year, month, day] = deliveryDate.split('-').map(Number);
+  const dateKey = requestedTime ? getVNDateKey(requestedTime) : deliveryDate;
+  if (!dateKey) return false;
+  const [year, month, day] = dateKey.split('-').map(Number);
   if (!year || !month || !day) return false;
-  return new Date(year, month - 1, day).getDay() === 0;
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 0;
 }
 
 async function ensureRegistrationDailyCapacity(
@@ -215,6 +215,9 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   const poNumber = body.poNumber?.trim() ?? '';
   const normalizedOrderCode = deliveryRepository.normalizeOrderCode(poNumber);
   const quickVerification = verifyQuickRegistrationToken(body.quickVerificationToken);
+  if (!quickVerification && (body.quickVerificationToken || requiresQuickVerification(poNumber))) {
+    throw domainError.badRequest('Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại mã.', 'QuickVerificationRequired');
+  }
   if (!driverPhone || driverPhone.length < 9) {
     throw domainError.badRequest('Số điện thoại không hợp lệ');
   }
@@ -225,7 +228,10 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     throw domainError.badRequest('Thông tin đăng ký không khớp với lượt kiểm tra mã. Vui lòng kiểm tra lại mã.');
   }
 
-  const requestedTime = parseRequestedTime(body.requestedTime, body.deliveryDate);
+  const deliveryDate = body.deliveryDate ?? getVNDateKey();
+  const requestedTime = parseRequestedTime(body.requestedTime, deliveryDate);
+  assertRegistrationDateIsToday(deliveryDate, requestedTime);
+  if (quickVerification) assertQuickRegistrationDate(body.deliveryDate, requestedTime, quickVerification.deliveryDate);
   const unitConfig = await deliveryRepository.resolveRegistrationUnitConfig({
     receivingUnit: body.receivingUnit,
     unitConfigId: body.unitConfigId,
@@ -253,7 +259,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         poNumber,
         unitConfigId: unitConfig.id,
         requestedTime,
-        deliveryDate: body.deliveryDate,
+        deliveryDate,
       })
     : null;
   if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
@@ -273,7 +279,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
 
   if (
     unitConfig.sundayFreshFoodOnly
-    && isSundayDeliveryDate(requestedTime, body.deliveryDate)
+    && isSundayDeliveryDate(requestedTime, deliveryDate)
     && resolvedGoodsType !== GoodsType.FRESH_FOOD
   ) {
     throw domainError.unprocessable('Chủ nhật chỉ nhận hàng tươi sống', 'SundayFreshFoodOnly');
@@ -298,7 +304,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           driverPhone,
           poNumber,
           requestedTime,
-          deliveryDate: body.deliveryDate,
+          deliveryDate,
         });
         await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
 
@@ -308,7 +314,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           poNumber,
           unitConfigId: unitConfig.id,
           requestedTime,
-          deliveryDate: body.deliveryDate,
+          deliveryDate,
           client: tx,
         });
         if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
@@ -330,6 +336,8 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         receivingUnit: body.receivingUnit,
       });
 
+      assertRegistrationDateIsToday(deliveryDate, requestedTime);
+      if (quickVerification) assertQuickRegistrationDate(body.deliveryDate, requestedTime, quickVerification.deliveryDate);
       const created = await tx.deliveryRegistration.create({
         data: {
           registrationCode,
@@ -382,7 +390,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           poNumber,
           unitConfigId: unitConfig.id,
           requestedTime,
-          deliveryDate: body.deliveryDate,
+          deliveryDate,
         });
         if (activeDuplicate) return duplicateRegistration(vehiclePlate, activeDuplicate);
       }

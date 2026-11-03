@@ -1,9 +1,11 @@
 import crypto from 'crypto';
-import { GoodsType, VehicleType } from '@prisma/client';
+import { GoodsType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getRawAppConfig } from '../../services/appConfig';
 import { domainError } from '../shared/domainError';
 import { externalVerificationHttpError } from './externalVerificationError';
+import { getVNDateKey } from '../../lib/dateVN';
+import { assertPoDateIsToday } from './quickRegistrationPolicy';
 
 export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
 
@@ -29,8 +31,7 @@ type NormalizedQuickRegistration = {
   unitIcon: string | null;
   unitLogoUrl: string | null;
   goodsType: GoodsType;
-  vehicleType: VehicleType;
-  deliveryDate?: string;
+  deliveryDate: string;
   vendorCode?: string;
   vendorName?: string;
   title?: string;
@@ -405,6 +406,7 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
   if (!deliveryDate) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoDeliveryDateMissing');
   }
+  assertPoDateIsToday(deliveryDate);
 
   return withToken({
     kind: 'PO',
@@ -418,7 +420,6 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
     unitIcon: unitConfig.icon,
     unitLogoUrl: unitConfig.logoUrl,
     goodsType: mapPoGoodsType(item),
-    vehicleType: VehicleType.TRUCK,
     deliveryDate,
     vendorCode: asString(item.LIFNR),
     vendorName: asString(item.VENDORNA) ?? asString(item.PLACEHOLDER_VENDOR_NAME),
@@ -475,7 +476,7 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
     unitIcon: unitConfig.icon,
     unitLogoUrl: unitConfig.logoUrl,
     goodsType: GoodsType.THI_CONG,
-    vehicleType: VehicleType.TRUCK,
+    deliveryDate: getVNDateKey(),
     vendorName: asString(customer.name),
     title: asString(data.name),
     externalMessage: asString(record.message),

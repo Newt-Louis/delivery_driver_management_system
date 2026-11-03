@@ -177,7 +177,7 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 
 ## Quy Tắc Hiện Tại
 
-- `/register-manual` thủ công không còn chọn khung giờ. Calendar tháng hiện tại dùng `daily-registration-stats` để hiển thị số xe đã đăng ký và mật độ theo ngày.
+- `/register-manual` không chọn ngày hoặc khung giờ; ngày hiện tại được backend cung cấp, còn `daily-registration-stats` kiểm tra công suất của ngày đó.
 - Capacity ngày của `/register-manual` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
 - API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register-manual`.
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.

@@ -32,7 +32,6 @@ Files:
 - `frontend/src/features/register-manual/components/SuccessScreen.tsx`
 - `frontend/src/features/register-manual/components/FieldFrame.tsx`
 - `frontend/src/features/register-manual/components/FieldFeedback.tsx`
-- `frontend/src/features/register-manual/components/DeliveryDateCalendar.tsx`
 
 Routes:
 
@@ -52,14 +51,14 @@ Trang đăng ký `/register` hiện có:
   - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
   - Thi Công: đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số, không có khoảng trắng.
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
-- Step 2 PO nhập thông tin tài xế/xe/NCC, ngày giao lấy từ API PO; chỉ số điện thoại và biển số xe là bắt buộc.
-- Step 2 Thi Công nhập thông tin tài xế/xe/NCC và chọn ngày giao bằng calendar tháng hiện tại; chỉ số điện thoại và biển số xe là bắt buộc.
+- Step 2 PO nhập thông tin tài xế/xe/NCC và chọn xe tải hoặc xe máy, mặc định xe tải; ngày từ API PO phải là ngày hiện tại theo giờ Việt Nam. Số điện thoại, biển số và loại xe là bắt buộc.
+- Step 2 Thi Công nhập thông tin tài xế/xe/NCC, chọn loại xe (mặc định xe tải) và loại hàng; ngày giao là ngày hiện tại do backend xác định theo giờ Việt Nam, không chọn ngày trên lịch.
 - Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký.
 
 Wizard thủ công `/register-manual`:
 
 1. Dùng `BusinessLocation` đã chọn qua tên khu vực trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Người chưa đăng nhập và `SUPERADMIN` có thể mở bộ chọn; các role đăng nhập khác chỉ xem tên. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
-2. Chọn ngày giao hàng từ hôm nay trở đi bằng calendar; ngày đã qua là ô trống, lịch chỉ hiển thị số ngày và cho phép đi tới các tháng tương lai. Khi Header quay lại tháng hiện tại từ một ngày tương lai có ngày-tháng đã qua, lịch neo tại hôm nay để tháng hiện tại vẫn mở được. Công suất vẫn được dùng để disable ngày hết chỗ, nhưng không hiển thị như số thứ hai trong ô ngày. Người dùng có thể nhập hoặc chọn Mã NCC trước Tên công ty / Nhà cung cấp; mã giữ nguyên chữ hoa/thường đã nhập. Khi vào bước này, hệ thống tạo một Mã đối chiếu 7 ký tự chữ/số in hoa cho riêng lượt đăng ký thủ công.
+2. Ngày giao hàng là ngày hiện tại theo giờ Việt Nam do backend trả cùng Mã đối chiếu 7 ký tự; tài xế không chọn ngày. Công suất của ngày hiện tại vẫn được kiểm tra. Người dùng có thể nhập hoặc chọn Mã NCC trước Tên công ty / Nhà cung cấp; mã giữ nguyên chữ hoa/thường đã nhập.
 3. Nhập thông tin tài xế và phương tiện.
 4. Review và hoàn tất đăng ký.
 
@@ -74,8 +73,8 @@ Logic trong `useRegisterForm.ts`:
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
 - Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
 - Gợi ý mã NCC ở step thông tin đơn hàng: `GET /api/aw-vendors/suggestions?q=...&businessLocationId=...&unitConfigId=...`. Endpoint chỉ trả tối đa 10 NCC active thuộc đúng `UnitConfig` public đang chọn; chọn một gợi ý sẽ điền lại cả mã lẫn tên NCC; mã người dùng nhập không bị ép đổi hoa/thường.
-- Tạo mã đối chiếu thủ công: `POST /api/deliveries/manual-registration-code`. Frontend gọi một lần khi vào step 2 của session đăng ký, giữ mã trong form và gọi lại cho lượt mới sau khi hoàn tất/reset.
-- Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend tự lưu `requestedTime` tại `00:00` của ngày giao theo giờ Việt Nam nếu payload không gửi giờ.
+- Tạo mã đối chiếu thủ công: `POST /api/deliveries/manual-registration-code` trả mã và `deliveryDate` theo ngày Việt Nam của server. Frontend gọi khi vào step 2, giữ trong form và gọi lại cho lượt mới sau khi hoàn tất/reset.
+- Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend kiểm tra ngày hiện tại và tự lưu `requestedTime` tại `00:00` giờ Việt Nam nếu payload không gửi giờ. Nếu client không gửi ngày, backend tự dùng ngày hiện tại.
 - Scroll tới field lỗi đầu tiên khi validate fail.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
 
@@ -173,7 +172,7 @@ PO normalization:
 
 - `WERKS` map sang `BusinessLocation.code`: `1001 -> PVT`, `1002 -> SALA`, `1003 -> PHI`, `2001 -> THT`.
 - Unit PO hiện match biến cấu hình nội bộ `EMART` với `unit_configs.unit` sau khi normalize để dễ mở rộng unit khác về sau.
-- `EINDT` dạng `yyyyMMdd` được đổi thành `deliveryDate`.
+- `EINDT` dạng `yyyyMMdd` được đổi thành `deliveryDate` và phải trùng ngày hiện tại theo giờ Việt Nam; nếu không, mã không được xác thực thành công.
 - Backend lấy dòng đầu tiên trong `ITEMS`; `LIFNR` điền `vendorCode`, `VENDORNA` điền `vendorName` nếu có.
 - `FRESH` từ SAP là string `"true"`/`"false"` nên backend normalize hoa/thường rồi đổi sang boolean: `true` thành `FRESH_FOOD`, `false` thành `GENERAL_GOODS`.
 - Nếu response PO HTTP 200 nhưng không có dòng đầu tiên trong `ITEMS`, backend trả lỗi cấu trúc dữ liệu để tránh đăng ký sai khu vực/ngày.
@@ -184,7 +183,8 @@ Thi Công normalization:
 - `data.scope.unit` fuzzy match trong `unit_configs.unit` của location, hỗ trợ các biến thể `thisky`, `thiskyhall`, `mall`, `thiso mall`, `thisomall`.
 - Luồng Thi Công không mặc định `goodsType`; sau khi verify mã thành công, frontend lấy public `UnitConfig` của đúng unit để hiển thị các loại hàng đang mở và tài xế tự chọn loại hàng giao.
 - Mã Thi Công được giữ nguyên chữ hoa/thường khi gửi sang API bên thứ 3 vì endpoint kiểm tra phân biệt case.
-- Ngày giao do tài xế chọn ở step 2 vì response Thi Công không cố định một ngày giao duy nhất.
+- Ngày giao được backend đặt là ngày hiện tại theo giờ Việt Nam; tài xế không chọn ngày. Cả PO và Thi Công chọn loại xe ở bước 2.
+- Backend yêu cầu ngày gửi lên và `requestedTime` nếu có phải thuộc ngày hiện tại theo giờ Việt Nam, kiểm tra lại trước khi tạo đơn cho cả đăng ký nhanh và thủ công. Đăng ký nhanh còn yêu cầu token hợp lệ và ngày trong token phải là hôm nay; qua ngày cần kiểm tra lại mã. Qua ngày trong luồng thủ công cần đăng ký lại.
 
 ## Output Thành Công
 

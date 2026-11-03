@@ -18,11 +18,11 @@ export const GOODS_LABEL: Record<GoodsType | string, string> = {
   THI_CONG:       'Thi công',
 };
 
-export const STEP_TITLES = ['Điểm giao & Loại hàng', 'Ngày giờ & Đơn hàng', 'Thông tin tài xế', 'Xác nhận'];
+export const STEP_TITLES = ['Điểm giao & Loại hàng', 'Đơn hàng', 'Thông tin tài xế', 'Xác nhận'];
 
 export const STEP_HINTS = [
   'Chọn nơi bạn sẽ giao hàng đến',
-  'Chọn thời gian và nhập thông tin đơn hàng',
+  'Kiểm tra ngày giao và nhập thông tin đơn hàng',
   'Thông tin xe và người liên hệ',
   'Kiểm tra lại trước khi xác nhận',
 ];

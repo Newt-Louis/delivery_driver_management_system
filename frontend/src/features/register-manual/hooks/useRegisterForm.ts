@@ -18,7 +18,7 @@ import {
 } from '../api';
 import { LS_KEY } from '../constants';
 import type { FormState, RegisterFieldErrors, SuccessInfo, Unit } from '../types';
-import { isSundayDate, todayDate } from '../utils/date';
+import { isSundayDate } from '../utils/date';
 
 const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
   1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
@@ -53,7 +53,7 @@ export function useRegisterForm() {
       driverName: prev.driverName ?? '',
       driverPhone: prev.driverPhone ?? '',
       vehiclePlate: prev.vehiclePlate ?? '',
-      deliveryDate: todayDate(),
+      deliveryDate: '',
       timeSlot: '',
       note: '',
     };
@@ -185,15 +185,16 @@ export function useRegisterForm() {
     setManualReferenceLoading(true);
     setManualReferenceError('');
     createManualRegistrationCode()
-      .then(({ code }) => {
+      .then(({ code, deliveryDate }) => {
         if (cancelled) return;
-        setForm((current) => current.poNumber ? current : { ...current, poNumber: code });
+        setForm((current) => current.poNumber ? current : { ...current, poNumber: code, deliveryDate });
+        setManualReferenceLoading(false);
       })
       .catch(() => {
-        if (!cancelled) setManualReferenceError('Không thể tạo mã đối chiếu. Vui lòng thử lại.');
-      })
-      .finally(() => {
-        if (!cancelled) setManualReferenceLoading(false);
+        if (!cancelled) {
+          setManualReferenceError('Không thể tạo mã đối chiếu. Vui lòng thử lại.');
+          setManualReferenceLoading(false);
+        }
       });
 
     return () => { cancelled = true; };
@@ -228,7 +229,8 @@ export function useRegisterForm() {
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.unitGoodsTypeId]);
 
   useEffect(() => {
-    if (step !== 2 || !form.receivingUnit || !selectedUnitScope || !form.goodsType || !form.vehicleType) return;
+    if (step !== 2 || !form.receivingUnit || !selectedUnitScope || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
+    let cancelled = false;
     setDailyStatsLoading(true);
     setDailyStatsMsg('');
     setDailyStats([]);
@@ -240,9 +242,10 @@ export function useRegisterForm() {
     };
     if (form.unitGoodsTypeId) statsParams.unitGoodsTypeId = form.unitGoodsTypeId;
     getDailyRegistrationStats(form.receivingUnit, statsParams, selectedUnitScope)
-      .then(data => { setDailyStats(data.days ?? []); if (data.reason) setDailyStatsMsg(data.reason); })
-      .catch(() => setDailyStatsMsg('Không thể tải thông tin ngày đăng ký. Vui lòng thử lại.'))
-      .finally(() => setDailyStatsLoading(false));
+      .then(data => { if (!cancelled) { setDailyStats(data.days ?? []); if (data.reason) setDailyStatsMsg(data.reason); } })
+      .catch(() => { if (!cancelled) setDailyStatsMsg('Không thể tải thông tin ngày đăng ký. Vui lòng thử lại.'); })
+      .finally(() => { if (!cancelled) setDailyStatsLoading(false); });
+    return () => { cancelled = true; };
   }, [step, form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.vehicleType, form.deliveryDate, form.unitGoodsTypeId]);
 
   useEffect(() => {
@@ -340,7 +343,7 @@ export function useRegisterForm() {
     if (step === 2) {
       const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
       if (sundayFreshFoodBlocked) errs.deliveryDate = 'Chủ nhật chỉ nhận hàng tươi sống';
-      else if (!form.deliveryDate) errs.deliveryDate = 'Vui lòng chọn ngày giao hàng';
+      else if (!form.deliveryDate) errs.deliveryDate = 'Không thể xác định ngày giao hàng. Vui lòng thử lại.';
       else if (selectedDayStats?.available === false) {
         errs.deliveryDate = selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký';
       }
@@ -458,7 +461,7 @@ export function useRegisterForm() {
       goodsType: '',
       unitGoodsTypeId: '',
       vehicleType: '',
-      deliveryDate: todayDate(),
+      deliveryDate: '',
       timeSlot: '',
       note: '',
       poNumber: '',
