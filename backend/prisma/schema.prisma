@@ -229,7 +229,6 @@ model Slot {
   acceptedGoods     GoodsType[]            @default([]) @map("accepted_goods") // empty = accepts all goods
   goodsPriority     GoodsType[]            @default([]) @map("goods_priority")
   autoAssign        Boolean                @default(true) @map("auto_assign")
-  autoWarehouseOnly Boolean                @default(false) @map("auto_warehouse_only")
   maxCapacity       Int                    @default(1) @map("max_capacity")
   status            SlotStatus             @default(AVAILABLE)
   isActive          Boolean                @default(true) @map("is_active")
@@ -631,7 +630,7 @@ model UnitGoodsType {
   unitConfigId String?                @map("unit_config_id")
   unitConfig   UnitConfig?            @relation(fields: [unitConfigId], references: [id], onDelete: SetNull)
   name         String
-  emoji        String                 @default("📦")
+  emoji        String                 @default("")
   baseType     GoodsType              @map("base_type")
   enabled      Boolean                @default(true)
   sortOrder    Int                    @default(0) @map("sort_order")

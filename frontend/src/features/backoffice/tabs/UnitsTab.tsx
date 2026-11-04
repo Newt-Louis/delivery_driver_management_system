@@ -26,15 +26,14 @@ type UnitConfigFormData = {
 type GoodsConfig = {
   type: GoodsType;
   label: string;
-  icon: string;
   field: 'freshFoodEnabled' | 'generalGoodsEnabled' | 'thiCongEnabled';
   tagColor?: 'success' | 'gold';
 };
 
 const GOODS_CONFIGS: GoodsConfig[] = [
-  { type: 'FRESH_FOOD', label: 'Hàng tươi sống', icon: '🥬', field: 'freshFoodEnabled' },
-  { type: 'GENERAL_GOODS', label: 'Hàng thường', icon: '📦', field: 'generalGoodsEnabled' },
-  { type: 'THI_CONG', label: 'Thi công', icon: '🔨', field: 'thiCongEnabled' },
+  { type: 'FRESH_FOOD', label: 'Hàng tươi sống', field: 'freshFoodEnabled' },
+  { type: 'GENERAL_GOODS', label: 'Hàng thường', field: 'generalGoodsEnabled' },
+  { type: 'THI_CONG', label: 'Thi công', field: 'thiCongEnabled' },
 ];
 
 function errorMessage(error: unknown, fallback = 'Lỗi lưu cấu hình.') {
@@ -211,7 +210,7 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
 
   const goodsSections = GOODS_CONFIGS.map((goods) => ({
     key: goods.type,
-    label: <Space size="small"><span>{goods.icon}</span><Typography.Text strong>{goods.label}</Typography.Text></Space>,
+    label: <Space size="small"><Typography.Text strong>{goods.label}</Typography.Text></Space>,
     children: (
       <Space orientation="vertical" size="middle" className="w-full">
         <Flex justify="space-between" align="center" gap="small" wrap="wrap">

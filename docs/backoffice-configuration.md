@@ -186,3 +186,7 @@ Hai tab dùng toolbar responsive chung với tìm kiếm theo tên và lọc loc
 ### API tích hợp và Receiving time configs trong Superadmin
 
 Hai tab dùng toolbar responsive với tìm kiếm theo tên; Receiving time configs giữ thêm lọc location/unit ở toolbar và query theo cùng scope. Danh sách dùng bảng từ `lg`, Collapse từng dòng dưới `lg` và phân trang ở cả hai chế độ. Tạo/sửa mở modal và xóa có xác nhận; không có hàng thống kê. API config chỉ hiển thị loại xác thực trên danh sách, không hiển thị thông tin secret; thao tác cấu hình và xử lý sensitive vẫn theo API hiện có. Khi sửa receiving time config, unit, loại xe và loại hàng vẫn bị khóa.
+
+## Loại hàng của slot
+
+Slot có thể nhận và sắp ưu tiên bốn loại: tươi sống, hàng thường, thi công và kho tự động. Danh sách ưu tiên đồng thời xác định loại hàng slot được nhận; danh sách đầy đủ được lưu bằng `acceptedGoods` rỗng. Slot cũ được migration giữ phạm vi loại hàng trước đó, cần thêm kho tự động vào danh sách nếu muốn nhận thêm.

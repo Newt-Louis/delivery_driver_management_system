@@ -9,20 +9,20 @@ export const STATUS_LABEL: Record<string, { label: string; color: string; bg: st
 };
 
 export const GOODS_LABEL: Record<string, string> = {
-  FRESH_FOOD: '🥬 Tươi sống',
+  FRESH_FOOD: 'Tươi sống',
   AUTO_WAREHOUSE: '🏭 Kho tự động',
-  GENERAL_GOODS: '📦 Hàng thường',
+  GENERAL_GOODS: 'Hàng thường',
 };
 
 export const GOODS_SHORT: Record<string, string> = {
-  FRESH_FOOD: '🥬 Tươi sống',
+  FRESH_FOOD: 'Tươi sống',
   AUTO_WAREHOUSE: '🏭 Kho TĐ',
-  GENERAL_GOODS: '📦 Thường',
+  GENERAL_GOODS: 'Thường',
 };
 
 export const VEHICLE_LABEL: Record<string, string> = {
-  TRUCK: '🚛 Xe tải',
-  MOTORBIKE: '🛵 Xe máy',
+  TRUCK: 'Xe tải',
+  MOTORBIKE: 'Xe máy',
 };
 
 export const STORAGE_KEY = 'thiso_driver_plate';

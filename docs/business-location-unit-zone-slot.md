@@ -35,7 +35,7 @@ Models:
   - `unitConfigId`, `code`, `name`.
   - Unique theo `[unitConfigId, code]`.
 - `Slot`
-  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `autoWarehouseOnly`, `maxCapacity`, `status`, `isActive`.
+  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `maxCapacity`, `status`, `isActive`.
 
 Các bảng nghiệp vụ vẫn giữ cột text snapshot như `receivingUnit`, `assignedUnit`, `unit` để đọc lịch sử/report dễ hơn, nhưng source of truth quan hệ mới là `unitConfigId` khi model có field này.
 

@@ -218,16 +218,16 @@ async function seedLocation(
       assignedUnit: slot.unit,
       vehicleType: slot.vehicleType,
       maxCapacity: slot.maxCapacity,
-      acceptedGoods: NORMAL_GOODS,
-      goodsPriority: NORMAL_GOODS,
+      acceptedGoods: [...NORMAL_GOODS, GoodsType.AUTO_WAREHOUSE],
+      goodsPriority: [...NORMAL_GOODS, GoodsType.AUTO_WAREHOUSE],
       zoneId: zoneByUnit.get(slot.unit)!.id,
     })),
   });
 
   await db.unitGoodsType.createMany({
     data: unitConfigs.flatMap((unit) => [
-      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tươi sống', emoji: '🥬', baseType: GoodsType.FRESH_FOOD, sortOrder: 1 },
-      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tổng hợp', emoji: '📦', baseType: GoodsType.GENERAL_GOODS, sortOrder: 2 },
+      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tươi sống', emoji: '', baseType: GoodsType.FRESH_FOOD, sortOrder: 1 },
+      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tổng hợp', emoji: '', baseType: GoodsType.GENERAL_GOODS, sortOrder: 2 },
       { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng thi công', emoji: '🏗️', baseType: GoodsType.THI_CONG, sortOrder: 3 },
     ]),
   });

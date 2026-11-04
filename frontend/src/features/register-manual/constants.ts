@@ -2,13 +2,12 @@ import type { GoodsType, VehicleType } from './types';
 
 export const VEHICLE_INFO: Record<VehicleType, {
   label: string;
-  icon: string;
   activeBorder: string;
   activeBg: string;
   hint: string;
 }> = {
-  TRUCK:     { label: 'Xe Tải',  icon: '🚛', activeBorder: 'border-thisodominant-400', activeBg: 'bg-thisodominant-50', hint: 'Xe tải, xe container' },
-  MOTORBIKE: { label: 'Xe Máy', icon: '🛵', activeBorder: 'border-thisodominant-400', activeBg: 'bg-thisodominant-50', hint: 'Xe máy, xe gắn máy' },
+  TRUCK:     { label: 'Xe Tải',  activeBorder: 'border-thisodominant-400', activeBg: 'bg-thisodominant-50', hint: 'Xe tải, xe container' },
+  MOTORBIKE: { label: 'Xe Máy', activeBorder: 'border-thisodominant-400', activeBg: 'bg-thisodominant-50', hint: 'Xe máy, xe gắn máy' },
 };
 
 export const GOODS_LABEL: Record<GoodsType | string, string> = {

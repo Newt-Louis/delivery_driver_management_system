@@ -36,7 +36,7 @@ Seed tạo:
 - Hai `BusinessLocation`: `SAL` (THISO SALA) và `PVT` (THISO Phan Văn Trị).
 - Mỗi location có ba unit runtime: `THISKYHALL` (hiển thị Thiskyhall), `TENANT` (hiển thị THISO Mall) và `EMART` (hiển thị Emart).
 - Mỗi unit có một zone: `KT-1`, `KM-1`, `KE-1`; mỗi zone chứa các slot tương ứng `T1`–`T3`, `M1`–`M3`, `E1`–`E6`.
-- `T3` và `M3` là xe máy, capacity 5; `E1`–`E6` là xe tải, capacity 5; các slot còn lại là xe tải, capacity 1. Mọi slot nhận ba loại hàng thường theo thứ tự Fresh food, General goods, Thi công.
+- `T3` và `M3` là xe máy, capacity 5; `E1`–`E6` là xe tải, capacity 5; các slot còn lại là xe tải, capacity 1. Mọi slot nhận bốn loại hàng theo thứ tự Fresh food, General goods, Thi công, Kho tự động.
 - Ba `UnitGoodsType` cho mỗi unit; không tạo `DeliveryTimeWindow` hoặc `ReceivingTimeConfig` để người dùng cấu hình sau.
 - Không tạo, xóa hoặc cập nhật Device. Nếu database đã có Device, bootstrap dừng ngay.
 

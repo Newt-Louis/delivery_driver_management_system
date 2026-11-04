@@ -165,7 +165,6 @@ async function createSlot(
     maxCapacity?: number;
     acceptedGoods?: GoodsType[];
     goodsPriority?: GoodsType[];
-    autoWarehouseOnly?: boolean;
   },
 ) {
   return prisma.slot.create({
@@ -178,7 +177,6 @@ async function createSlot(
       maxCapacity: options.maxCapacity ?? 1,
       acceptedGoods: options.acceptedGoods ?? [],
       goodsPriority: options.goodsPriority ?? [],
-      autoWarehouseOnly: options.autoWarehouseOnly ?? false,
       status: SlotStatus.AVAILABLE,
       isActive: true,
       autoAssign: true,
@@ -833,10 +831,10 @@ test('3 concurrent complete requests trigger auto-assign for the next delivery o
   });
 });
 
-test('auto-assign does not put AUTO_WAREHOUSE delivery into a normal slot', async (t) => {
+test('auto-assign accepts AUTO_WAREHOUSE when the slot accepts all goods', async (t) => {
   await withScope('AWBLOCK', ReceivingUnit.EMART, async (scope) => {
     if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
-    const slot = await createSlot(scope, { suffix: 'S1', acceptedGoods: [], autoWarehouseOnly: false });
+    const slot = await createSlot(scope, { suffix: 'S1', acceptedGoods: [] });
     const delivery = await createDelivery(scope, 1, {
       status: DeliveryStatus.WAITING,
       goodsType: GoodsType.AUTO_WAREHOUSE,
@@ -852,10 +850,22 @@ test('auto-assign does not put AUTO_WAREHOUSE delivery into a normal slot', asyn
       prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: delivery.id } }),
       prisma.slot.findUniqueOrThrow({ where: { id: slot.id } }),
     ]);
+    assert.equal(called, 1);
+    assert.equal(finalDelivery.status, DeliveryStatus.CALLED);
+    assert.equal(finalSlot.status, SlotStatus.OCCUPIED);
+    assert.equal(finalSlot.currentDeliveryId, delivery.id);
+  });
+});
+
+test('auto-assign excludes AUTO_WAREHOUSE when it is not in acceptedGoods', async (t) => {
+  await withScope('AWEXCLUDED', ReceivingUnit.EMART, async (scope) => {
+    if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
+    const slot = await createSlot(scope, { suffix: 'S1', acceptedGoods: [GoodsType.FRESH_FOOD], goodsPriority: [GoodsType.AUTO_WAREHOUSE] });
+    const delivery = await createDelivery(scope, 1, { status: DeliveryStatus.WAITING, goodsType: GoodsType.AUTO_WAREHOUSE, checkinTime: new Date() });
+    const called = await triggerAutoAssign(ReceivingUnit.EMART, { businessLocationId: scope.businessLocationId, unitConfigId: scope.unitConfigId });
     assert.equal(called, 0);
-    assert.equal(finalDelivery.status, DeliveryStatus.WAITING);
-    assert.equal(finalSlot.status, SlotStatus.AVAILABLE);
-    assert.equal(finalSlot.currentDeliveryId, null);
+    assert.equal((await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: delivery.id } })).status, DeliveryStatus.WAITING);
+    assert.equal((await prisma.slot.findUniqueOrThrow({ where: { id: slot.id } })).status, SlotStatus.AVAILABLE);
   });
 });
 
@@ -895,8 +905,8 @@ test('auto-assign follows slot goodsPriority before FIFO within the same goods t
     if (await skipAutoAssignIfForeignWaiting(t, scope.prefix, ReceivingUnit.EMART, VehicleType.TRUCK)) return;
     const slot = await createSlot(scope, {
       suffix: 'S1',
-      acceptedGoods: [GoodsType.FRESH_FOOD, GoodsType.GENERAL_GOODS],
-      goodsPriority: [GoodsType.GENERAL_GOODS, GoodsType.FRESH_FOOD],
+      acceptedGoods: [GoodsType.FRESH_FOOD, GoodsType.AUTO_WAREHOUSE],
+      goodsPriority: [GoodsType.AUTO_WAREHOUSE, GoodsType.FRESH_FOOD],
     });
     const olderFresh = await createDelivery(scope, 1, {
       status: DeliveryStatus.WAITING,
@@ -905,7 +915,7 @@ test('auto-assign follows slot goodsPriority before FIFO within the same goods t
     });
     const newerGeneral = await createDelivery(scope, 2, {
       status: DeliveryStatus.WAITING,
-      goodsType: GoodsType.GENERAL_GOODS,
+      goodsType: GoodsType.AUTO_WAREHOUSE,
       checkinTime: new Date(Date.now() - 10_000),
     });
 

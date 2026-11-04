@@ -51,8 +51,8 @@ Rule:
 - Vendor master data mới được gắn `unitConfigId`; cột `unit` là code snapshot/compat cho public contract theo `unit`.
 - Backoffice và Superadmin tạo vendor theo `unitConfigId`, backend tự copy `UnitConfig.unit` vào snapshot `unit`.
 - Unique nghiệp vụ mới là `unitConfigId + vendorCode`; cùng một mã NCC có thể tồn tại ở hai `BusinessLocation` khác nhau nếu thuộc hai `UnitConfig` khác nhau.
-- Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
-- Slot thường loại `AUTO_WAREHOUSE`.
+- `AUTO_WAREHOUSE` là một trong bốn loại hàng cấu hình trong `acceptedGoods` và `goodsPriority` của slot; có thể kết hợp và sắp thứ tự cùng các loại hàng khác.
+- Một slot chỉ nhận kho tự động khi danh sách hàng nhận chỉ có `AUTO_WAREHOUSE`; không còn switch hay cột slot dành riêng.
 - Khi start receiving delivery có `autoWarehouse = true`, status chuyển `AUTO_WAREHOUSE_RECEIVING`.
 
 ## Frontend

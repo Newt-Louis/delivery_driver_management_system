@@ -32,7 +32,6 @@ type QuickForm = {
 
 type GoodsOption = {
   value: GoodsType;
-  icon: string;
   title: string;
   hint: string;
 };
@@ -175,13 +174,13 @@ export default function Register() {
     if (!unitConfig) return [];
     const options: GoodsOption[] = [];
     if (unitConfig.freshFoodEnabled) {
-      options.push({ value: 'FRESH_FOOD', icon: '🥬', title: 'Hàng tươi sống / mát / đông lạnh', hint: unitConfig.sundayFreshFoodOnly ? 'Cả Chủ nhật' : '' });
+      options.push({ value: 'FRESH_FOOD', title: 'Hàng tươi sống / mát / đông lạnh', hint: unitConfig.sundayFreshFoodOnly ? 'Cả Chủ nhật' : '' });
     }
     if (unitConfig.generalGoodsEnabled) {
-      options.push({ value: 'GENERAL_GOODS', icon: '📦', title: 'Hàng thường', hint: unitConfig.sundayFreshFoodOnly ? 'Không nhận CN' : '' });
+      options.push({ value: 'GENERAL_GOODS', title: 'Hàng thường', hint: unitConfig.sundayFreshFoodOnly ? 'Không nhận CN' : '' });
     }
     if (unitConfig.thiCongEnabled) {
-      options.push({ value: 'THI_CONG', icon: '🔨', title: 'Thi công', hint: '' });
+      options.push({ value: 'THI_CONG', title: 'Thi công', hint: '' });
     }
     return options;
   }, [unitConfig]);
@@ -566,7 +565,7 @@ export default function Register() {
                             <Col key={option.value} xs={24} sm={8} className="flex">
                               <Button type="default" aria-pressed={form.goodsType === option.value} onClick={() => setField('goodsType', option.value)} className={`selection-card-button !h-full !w-full !whitespace-normal !py-3 !text-left ${form.goodsType === option.value ? 'selection-card-button-selected' : ''}`}>
                                 {form.goodsType === option.value && <CheckCircleFilled className="selection-card-check" aria-hidden />}
-                                <Space orientation="vertical" size={2}><Typography.Text className="text-2xl">{option.icon}</Typography.Text><Typography.Text strong>{option.title}</Typography.Text>{option.hint && <Typography.Text type="secondary">{option.hint}</Typography.Text>}</Space>
+                                <Space orientation="vertical" size={2}><Typography.Text strong>{option.title}</Typography.Text>{option.hint && <Typography.Text type="secondary">{option.hint}</Typography.Text>}</Space>
                               </Button>
                             </Col>
                           ))}</Row>

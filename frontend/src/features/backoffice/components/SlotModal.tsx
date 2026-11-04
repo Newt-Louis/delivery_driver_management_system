@@ -7,6 +7,7 @@ import { Alert, Button, Card, Col, Flex, Form, Input, InputNumber, List, Modal, 
 import api from '../../../lib/api';
 import type { Slot, Zone, GoodsType } from '../../../lib/types';
 import { GOODS_LABELS } from '../constants';
+import { SLOT_GOODS, slotGoodsPriority } from '../slotGoods';
 
 const slotSchema = z.object({
   code: z.string().min(1, 'Bắt buộc').max(20),
@@ -19,23 +20,8 @@ const slotSchema = z.object({
   maxCapacity: z.number().int().min(1).max(10).default(1),
   acceptedGoods: z.array(z.enum(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'])).default([]),
   goodsPriority: z.array(z.enum(['FRESH_FOOD', 'AUTO_WAREHOUSE', 'GENERAL_GOODS', 'THI_CONG'])).default([]),
-  autoWarehouseOnly: z.boolean().default(false),
 });
 type SlotForm = z.infer<typeof slotSchema>;
-
-const NORMAL_GOODS: GoodsType[] = ['FRESH_FOOD', 'GENERAL_GOODS', 'THI_CONG'];
-
-function defaultGoodsPriority(slot?: Slot | null): GoodsType[] {
-  const acceptedGoods = (slot?.acceptedGoods ?? []).filter((goodsType) => NORMAL_GOODS.includes(goodsType));
-  const priority = (slot?.goodsPriority ?? []).filter((goodsType) => NORMAL_GOODS.includes(goodsType));
-  if (priority.length > 0) {
-    return [
-      ...priority,
-      ...acceptedGoods.filter((goodsType) => !priority.includes(goodsType)),
-    ];
-  }
-  return acceptedGoods.length > 0 ? acceptedGoods : NORMAL_GOODS;
-}
 
 export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Slot | null; zones: Zone[]; onClose: () => void; onSaved: () => void }) {
   const [serverError, setServerError] = useState('');
@@ -51,12 +37,11 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
   const { register, handleSubmit, watch, setValue, control, formState: { errors, isSubmitting } } = useForm<SlotForm>({
     resolver: zodResolver(slotSchema),
     defaultValues: slot
-      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, autoWarehouseOnly: slot.autoWarehouseOnly ?? false, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: defaultGoodsPriority(slot) }
-      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, autoWarehouseOnly: false, maxCapacity: 1, acceptedGoods: [], goodsPriority: NORMAL_GOODS },
+      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: slotGoodsPriority(slot) }
+      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, maxCapacity: 1, acceptedGoods: [], goodsPriority: SLOT_GOODS },
   });
 
   const goodsPriority = watch('goodsPriority') ?? [];
-  const autoWarehouseOnly = watch('autoWarehouseOnly');
   const autoAssign = watch('autoAssign');
   const assignedUnit = watch('assignedUnit');
   const matchingZones = zones.filter((zone) => zone.unitConfig?.unit === assignedUnit);
@@ -85,17 +70,15 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
   async function onSubmit(data: SlotForm) {
     setServerError('');
     try {
-      const orderedGoods = data.autoWarehouseOnly
-        ? []
-        : data.goodsPriority.filter((goodsType) => NORMAL_GOODS.includes(goodsType));
-      if (!data.autoWarehouseOnly && orderedGoods.length === 0) {
+      const orderedGoods = data.goodsPriority.filter((goodsType) => SLOT_GOODS.includes(goodsType));
+      if (orderedGoods.length === 0) {
         setServerError('Vui lòng giữ ít nhất một loại hàng nhận cho slot.');
         return;
       }
-      const acceptedGoods = orderedGoods.length === NORMAL_GOODS.length ? [] : orderedGoods;
+      const acceptedGoods = orderedGoods.length === SLOT_GOODS.length ? [] : orderedGoods;
       const payload = { ...data, zoneId: data.zoneId, acceptedGoods, goodsPriority: orderedGoods };
       if (isEdit) {
-        await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, autoWarehouseOnly: payload.autoWarehouseOnly, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods, goodsPriority: payload.goodsPriority });
+        await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods, goodsPriority: payload.goodsPriority });
       } else {
         await api.post('/api/slots', payload);
       }
@@ -157,8 +140,8 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                       value={field.value}
                       onChange={field.onChange}
                       options={[
-                        { value: 'TRUCK', label: '🚛 Xe tải' },
-                        { value: 'MOTORBIKE', label: '🛵 Xe máy' },
+                        { value: 'TRUCK', label: 'Xe tải' },
+                        { value: 'MOTORBIKE', label: 'Xe máy' },
                       ]}
                     />
                   )}
@@ -215,16 +198,6 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
             </Flex>
           </Card>
 
-          <Card size="small" className="mb-4">
-            <Flex justify="space-between" align="center" gap="middle">
-              <Space orientation="vertical" size={0}>
-                <Typography.Text strong>Chỉ dành cho kho tự động</Typography.Text>
-                <Typography.Text type="secondary">Slot này chỉ nhận xe được xác nhận là NCC kho tự động.</Typography.Text>
-              </Space>
-              <Switch checked={autoWarehouseOnly} onChange={(checked) => setValue('autoWarehouseOnly', checked, { shouldDirty: true })} />
-            </Flex>
-          </Card>
-
           <Form.Item label="Sức chứa tối đa (xe/slot)">
             <Controller
               control={control}
@@ -244,7 +217,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                 locale={{ emptyText: 'Chưa có loại hàng nhận.' }}
                 renderItem={(goodsType, index) => (
                   <List.Item
-                    draggable={!autoWarehouseOnly}
+                    draggable
                     onDragStart={() => setDragIndex(index)}
                     onDragOver={(event) => event.preventDefault()}
                     onDrop={() => {
@@ -253,7 +226,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                     }}
                     onDragEnd={() => setDragIndex(null)}
                     actions={[
-                      <Button key="remove" type="text" color="danger" icon={<DeleteOutlined />} disabled={autoWarehouseOnly} onClick={() => removeGoods(goodsType)}>
+                      <Button key="remove" type="text" color="danger" icon={<DeleteOutlined />} onClick={() => removeGoods(goodsType)}>
                         Bỏ
                       </Button>,
                     ]}
@@ -267,15 +240,14 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                 )}
               />
               <Space wrap className="mt-3">
-                {NORMAL_GOODS.filter((goodsType) => !goodsPriority.includes(goodsType)).map((goodsType) => (
-                  <Button key={goodsType} type="dashed" icon={<PlusOutlined />} disabled={autoWarehouseOnly} onClick={() => addGoods(goodsType)}>
+                {SLOT_GOODS.filter((goodsType) => !goodsPriority.includes(goodsType)).map((goodsType) => (
+                  <Button key={goodsType} type="dashed" icon={<PlusOutlined />} onClick={() => addGoods(goodsType)}>
                     {GOODS_LABELS[goodsType]}
                   </Button>
                 ))}
               </Space>
-              {autoWarehouseOnly && <Typography.Text type="secondary" className="mt-3 block">Slot kho tự động chỉ nhận xe AUTO_WAREHOUSE.</Typography.Text>}
-              {!autoWarehouseOnly && goodsPriority.length === NORMAL_GOODS.length && <Typography.Text type="secondary" className="mt-3 block">Slot nhận tất cả loại hàng thường theo thứ tự ưu tiên ở trên.</Typography.Text>}
-              {!autoWarehouseOnly && goodsPriority.length < NORMAL_GOODS.length && <Typography.Text type="secondary" className="mt-3 block">Slot chỉ nhận các loại hàng đang nằm trong danh sách ưu tiên.</Typography.Text>}
+              {goodsPriority.length === SLOT_GOODS.length && <Typography.Text type="secondary" className="mt-3 block">Slot nhận tất cả loại hàng theo thứ tự ưu tiên ở trên.</Typography.Text>}
+              {goodsPriority.length < SLOT_GOODS.length && <Typography.Text type="secondary" className="mt-3 block">Slot chỉ nhận các loại hàng đang nằm trong danh sách ưu tiên.</Typography.Text>}
             </Card>
           </Form.Item>
 
