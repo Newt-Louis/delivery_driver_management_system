@@ -20,7 +20,7 @@ Route:
   - `?businessLocationId=<id>` để TV hiển thị một khu vực kinh doanh cụ thể.
   - `?unitConfigId=<id>` nếu muốn giới hạn vào một unit cụ thể.
 - `SocketContext` lấy `businessLocationId` từ `PublicBusinessLocationContext` rồi join realtime room tương ứng. Khi public scope chưa được chọn, waiting screen không join room hoặc tải queue.
-- Chọn khu vực dùng public FloatButton toàn cục; waiting screen không còn selector riêng. Khi public scope đổi, SocketContext join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
+- Chọn khu vực qua tên khu vực trên GlobalHeader. Khi public scope đổi, SocketContext join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
 
 Backend/API:
 
@@ -39,8 +39,9 @@ Realtime:
 Mục đích:
 
 - TV/khu chờ hiển thị xe đang chờ, xe được gọi, thông tin ticket/slot.
-- Waiting screen chỉ hiển thị `CALLED` trước rồi `WAITING` sau; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không còn hiển thị trên màn hình chờ vì tài xế đã vào khu nhận hàng. Mỗi đơn vị có hai nhóm phương tiện `TRUCK` và `MOTORBIKE`; trong mỗi nhóm, phần được gọi đứng trước phần đã check-in đang chờ.
-- Màn hình hiển thị một đơn vị mỗi lần qua Ant Carousel. Ant Tabs luôn cho phép chọn trực tiếp đơn vị; khi danh sách dài, tab bar cuộn ngang bằng chạm/trackpad nhưng không lộ scrollbar. Từ 1025px, Carousel có nút chuyển, tự sang đơn vị kế tiếp sau 60 giây và ba nhóm phương tiện nằm cạnh nhau; Card đơn vị cuộn dọc nội bộ khi danh sách dài. Đến 1024px, người dùng cũng có thể tự vuốt ngang giữa các đơn vị, còn ba nhóm phương tiện xếp dọc và màn hình cuộn dọc theo chiều cao nội dung tự nhiên, kể cả các trạng thái rỗng. Nếu phần gọi xe của một loại xe trống, UI phân biệt không có xe đã check-in sẵn sàng với xe đang chờ nhưng chưa có vị trí nhận hàng trống.
+- Waiting screen hiển thị hai nhóm trạng thái `CALLED` và `WAITING`, mỗi nhóm chứa xe tải và xe máy; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không hiển thị vì tài xế đã vào khu nhận hàng.
+- Màn hình hiển thị một đơn vị mỗi lần qua Ant Carousel. Ant Tabs luôn cho phép chọn trực tiếp đơn vị; tab dài có thể cuộn ngang. Từ 1025px, Carousel có nút chuyển và tự sang đơn vị kế tiếp sau 60 giây; trong mỗi trạng thái hai loại xe nằm cạnh nhau và Card đơn vị cuộn dọc nội bộ. Đến 1024px, người dùng có thể vuốt giữa các đơn vị và chọn xe tải hoặc xe máy riêng trong từng trạng thái; nội dung cuộn dọc tự nhiên. Nếu phần gọi xe trống, UI phân biệt không có xe sẵn sàng với xe đang chờ nhưng chưa có vị trí trống.
+- Queue API và sự kiện realtime vẫn cung cấp dữ liệu cả hai loại xe. Giao diện hiển thị từng đợt 20 dòng cho mỗi loại xe trong từng trạng thái, tự hiện thêm khi cuộn đến cuối hoặc khi bấm “Xem thêm”; mỗi đợt tăng giới hạn chung của cả hai loại xe trong trạng thái đó.
 - Bộ đếm hiển thị và chuyển tự động dùng cùng một mốc thời gian; khi người dùng chọn tab hoặc carousel bắt đầu chuyển bằng nút/vuốt, mốc được đặt lại 60 giây. Tab được đồng bộ lúc bắt đầu chuyển, không dùng callback kết thúc của animation cũ để ghi đè lựa chọn mới.
 - Waiting screen không phát chime hoặc chặn màn hình khi xe được gọi; event realtime chỉ làm mới queue và highlight tạm thời dòng `CALLED` vừa xuất hiện.
 - Cảnh báo cá nhân là feature toàn cục độc lập: nếu thiết bị đã chọn theo dõi một chuyến, overlay/âm báo của đúng chuyến vẫn xuất hiện khi xem waiting screen. TV không chọn theo dõi chuyến chỉ xem bảng hàng chờ. Xem `track-pwa-push.md`.

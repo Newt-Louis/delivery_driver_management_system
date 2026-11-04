@@ -58,7 +58,7 @@ const NAVIGATION_GROUPS: NavigationGroup[] = [
 const PUBLIC_NAVIGATION = [
   { key: 'register', to: '/register', label: 'Đăng ký giao hàng' },
   { key: 'track', to: '/track', label: 'Theo dõi chuyến' },
-  { key: 'waiting-screen', to: '/waiting-screen', label: 'Màn hình chờ' },
+  { key: 'waiting-screen', to: '/waiting-screen', label: 'Bảng thứ tự giao hàng' },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

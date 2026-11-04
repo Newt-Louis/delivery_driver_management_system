@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import { NotificationOutlined } from '@ant-design/icons';
-import { Avatar, Card, Space, Typography } from 'antd';
+import { Avatar, Badge, Button, Card, Radio, Space, Typography, theme } from 'antd';
 import type { DeliveryRegistration, VehicleType } from '../../../../lib/types';
 import { compareWaitingScreenQueueOrder, getUnitBrand } from '../../utils';
 import type { BrandConfig, UnitKey } from '../../types';
@@ -14,38 +15,79 @@ type BrightUnitPanelProps = {
   desktop: boolean;
 };
 
-type VehicleGroupProps = {
-  label: string;
-  vehicleType: VehicleType;
+type StatusGroupProps = {
+  status: 'called' | 'waiting';
   deliveries: DeliveryRegistration[];
   highlightId: string | null;
+  desktop: boolean;
 };
 
-const VEHICLE_GROUPS: Array<Pick<VehicleGroupProps, 'label' | 'vehicleType'>> = [
+const VEHICLE_GROUPS: Array<{ label: string; vehicleType: VehicleType }> = [
   { vehicleType: 'TRUCK', label: 'Xe tải' },
   { vehicleType: 'MOTORBIKE', label: 'Xe máy' },
 ];
 
-function VehicleGroup({ label, vehicleType, deliveries, highlightId }: VehicleGroupProps) {
-  const matching = deliveries.filter((delivery) => delivery.vehicleType === vehicleType);
-  const called = matching.filter((delivery) => delivery.status === 'CALLED').sort(compareWaitingScreenQueueOrder);
-  const waiting = matching.filter((delivery) => delivery.status === 'WAITING').sort(compareWaitingScreenQueueOrder);
+const PAGE_SIZE = 20;
+
+function StatusGroup({ status, deliveries, highlightId, desktop }: StatusGroupProps) {
+  const { token } = theme.useToken();
+  const [vehicleType, setVehicleType] = useState<VehicleType>('TRUCK');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const isWaiting = status === 'waiting';
+  const groups = VEHICLE_GROUPS.map((group) => ({
+    ...group,
+    items: deliveries.filter((delivery) => delivery.vehicleType === group.vehicleType && delivery.status === (isWaiting ? 'WAITING' : 'CALLED')).sort(compareWaitingScreenQueueOrder),
+    waitingCount: deliveries.filter((delivery) => delivery.vehicleType === group.vehicleType && delivery.status === 'WAITING').length,
+  }));
+  const total = groups.reduce((sum, group) => sum + group.items.length, 0);
+  const hasMore = groups.some((group) => (desktop || group.vehicleType === vehicleType) && group.items.length > visibleCount);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!hasMore || !sentinel || typeof IntersectionObserver === 'undefined') return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) setVisibleCount((count) => count + PAGE_SIZE);
+    }, { rootMargin: '100px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, visibleCount, desktop, vehicleType]);
 
   return (
-    <Card
-      size="small"
-      className="min-w-0"
-      styles={{ body: { padding: 0 } }}
-      title={(
-        <Space size={8}>
-          <Typography.Text strong style={{ fontSize: 'clamp(1.25rem, 3.75vw, 2rem)', lineHeight: 1.2 }}>{label}</Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 'clamp(1.25rem, 3.75vw, 2rem)' }}>({matching.length})</Typography.Text>
-        </Space>
+    <section className="min-w-0">
+        <div className="flex flex-col items-start gap-3 pb-3">
+          <span className="inline-flex items-center gap-2">
+            <Badge status={isWaiting ? 'warning' : 'processing'} />
+            <Typography.Text strong style={{ color: isWaiting ? token.colorWarning : token.colorPrimary, fontSize: 'clamp(1.25rem, 2.5vw, 1.75rem)' }}>
+              {!isWaiting && <NotificationOutlined className="mr-1" />}
+              {isWaiting ? 'Đã check-in và đang chờ' : 'Đang gọi vào'} ({total})
+            </Typography.Text>
+          </span>
+          {!desktop && (
+            <Radio.Group
+              aria-label={`Chọn loại xe: ${isWaiting ? 'đã check-in và đang chờ' : 'đang gọi vào'}`}
+              value={vehicleType}
+              onChange={(event) => setVehicleType(event.target.value as VehicleType)}
+              optionType="button"
+              buttonStyle="solid"
+              size="small"
+              options={VEHICLE_GROUPS.map((group) => ({ label: group.label, value: group.vehicleType }))}
+            />
+          )}
+        </div>
+      <div className={desktop ? 'grid grid-cols-2 gap-3' : ''}>
+        {groups.filter((group) => desktop || group.vehicleType === vehicleType).map((group) => (
+          <Card key={group.vehicleType} size="small" className="min-w-0" styles={{ body: { padding: 0 } }} title={`${group.label} (${group.items.length})`}>
+            <BrightVehicleSection items={group.items.slice(0, visibleCount)} highlightId={highlightId} status={status} waitingCount={group.waitingCount} />
+          </Card>
+        ))}
+      </div>
+      {hasMore && (
+        <div ref={sentinelRef} className="flex justify-center pt-3">
+          <Button onClick={() => setVisibleCount((count) => count + PAGE_SIZE)}>Xem thêm</Button>
+        </div>
       )}
-    >
-      <BrightVehicleSection items={called} highlightId={highlightId} status="called" waitingCount={waiting.length} />
-      <BrightVehicleSection items={waiting} highlightId={highlightId} status="waiting" />
-    </Card>
+    </section>
   );
 }
 
@@ -77,10 +119,9 @@ export default function BrightUnitPanel({ unitKey, deliveries, highlightId, bran
           {cooldownSeconds !== null && <Typography.Text type="secondary" className="!leading-none" style={{ fontSize: 'clamp(1.5rem, 5vw, 3rem)' }}>({cooldownSeconds})</Typography.Text>}
         </Space>
       </div>
-      <div className={desktop ? 'grid grid-cols-2 gap-3 px-3 pb-3' : 'space-y-3 px-3 pb-3'}>
-        {VEHICLE_GROUPS.map((group) => (
-          <VehicleGroup key={group.vehicleType} {...group} deliveries={deliveries} highlightId={highlightId} />
-        ))}
+      <div className="space-y-3 px-3 pb-3">
+        <StatusGroup status="called" deliveries={deliveries} highlightId={highlightId} desktop={desktop} />
+        <StatusGroup status="waiting" deliveries={deliveries} highlightId={highlightId} desktop={desktop} />
       </div>
     </Card>
   );
