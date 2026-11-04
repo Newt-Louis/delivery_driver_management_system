@@ -28,10 +28,11 @@ test('PO and construction verification resolve location aliases and reject ambig
     site_location_map: { '1002': 'SALA' },
   }) };
   const { getVNDateKey } = require('../lib/dateVN.ts');
+  let constructionDates = { approvedStartDate: getVNDateKey(), approvedEndDate: getVNDateKey(), approvedStartTime: '23:59:59', approvedEndTime: '00:00:00' };
   global.fetch = async (url) => ({ ok: true, status: 200, text: async () => JSON.stringify(
     url.endsWith('/po')
       ? { ITEMS: [{ WERKS: 1002, EINDT: getVNDateKey().replace(/-/g, ''), FRESH: true }] }
-      : { success: true, data: { scope: { location: ' sala ', unit: 'THISKYHALL' } } },
+      : { success: true, data: { scope: { location: ' sala ', unit: 'THISKYHALL' }, goodsMovement: constructionDates } },
   ) });
   t.after(() => {
     require.cache[prismaPath].exports = oldPrisma;
@@ -50,6 +51,9 @@ test('PO and construction verification resolve location aliases and reject ambig
   const construction = await verifyQuickRegistrationCode('ABCDE');
   assert.equal(construction.businessLocationId, 'location-sal');
   assert.equal(construction.unitConfigId, 'hall');
+  constructionDates = { approvedStartDate: '2000-01-01', approvedEndDate: '2000-01-02' };
+  await assert.rejects(() => verifyQuickRegistrationCode('ABCDE'), { code: 'ConstructionDateNotToday' });
+  constructionDates = { approvedStartDate: getVNDateKey(), approvedEndDate: getVNDateKey() };
 
   locations = [...locations, { id: 'location-sala', code: 'SALA', locationName: 'Duplicate' }];
   await assert.rejects(() => verifyQuickRegistrationCode('4500000001'), { code: 'LocationCodeAmbiguous' });

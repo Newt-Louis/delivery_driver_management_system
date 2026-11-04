@@ -1,15 +1,13 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import { Link } from 'react-router-dom';
-import { ArrowRightOutlined, CameraOutlined, UploadOutlined } from '@ant-design/icons';
+import { ArrowRightOutlined, CameraOutlined, CheckCircleFilled, UploadOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Col, ConfigProvider, Descriptions, Empty, Form, Input, Modal, Radio, Row, Space, Spin, Steps, Typography, theme } from 'antd';
 import { useToast } from '../context/ToastContext';
 import {
-  getDailyRegistrationStats,
   getUnitConfig,
   quickVerifyOrderCode,
   registerDelivery,
-  type DailyRegistrationStat,
   type QuickVerifyResponse,
 } from '../features/register-manual/api';
 import SuccessScreen from '../features/register-manual/components/SuccessScreen';
@@ -155,9 +153,6 @@ export default function Register() {
   const [form, setForm] = useState<QuickForm>(emptyForm);
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [dailyStats, setDailyStats] = useState<DailyRegistrationStat[]>([]);
-  const [dailyStatsMsg, setDailyStatsMsg] = useState('');
-  const [dailyStatsLoading, setDailyStatsLoading] = useState(false);
   const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
   const [unitConfigLoading, setUnitConfigLoading] = useState(false);
   const [unitConfigMsg, setUnitConfigMsg] = useState('');
@@ -176,7 +171,6 @@ export default function Register() {
   const codeLooksSupported = isPoCode(normalizedCode) || constructionCodeLooksSupported;
   const isConstruction = verified?.kind === 'CONSTRUCTION';
   const effectiveGoodsType = isConstruction ? form.goodsType : (verified?.goodsType ?? '');
-  const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
   const goodsOptions = useMemo(() => {
     if (!unitConfig) return [];
     const options: GoodsOption[] = [];
@@ -187,7 +181,7 @@ export default function Register() {
       options.push({ value: 'GENERAL_GOODS', icon: '📦', title: 'Hàng thường', hint: unitConfig.sundayFreshFoodOnly ? 'Không nhận CN' : '' });
     }
     if (unitConfig.thiCongEnabled) {
-      options.push({ value: 'THI_CONG', icon: '🔨', title: 'Thi công', hint: 'Công trình' });
+      options.push({ value: 'THI_CONG', icon: '🔨', title: 'Thi công', hint: '' });
     }
     return options;
   }, [unitConfig]);
@@ -225,50 +219,6 @@ export default function Register() {
     };
   }, [isConstruction, verified]);
 
-  useEffect(() => {
-    if (!verified || !isConstruction || !effectiveGoodsType || !form.vehicleType) {
-      setDailyStats([]);
-      setDailyStatsMsg('');
-      setDailyStatsLoading(false);
-      return;
-    }
-
-    const month = form.deliveryDate.slice(0, 7);
-    let cancelled = false;
-    setDailyStats([]);
-    setDailyStatsLoading(true);
-    setDailyStatsMsg('');
-    getDailyRegistrationStats(
-      verified.receivingUnit,
-      {
-        month,
-        goodsType: effectiveGoodsType,
-        vehicleType: form.vehicleType,
-      },
-      {
-        businessLocationId: verified.businessLocationId,
-        unitConfigId: verified.unitConfigId,
-      },
-    )
-      .then((res) => {
-        if (cancelled) return;
-        setDailyStats(res.days);
-        setDailyStatsMsg(res.reason ?? '');
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setDailyStats([]);
-        setDailyStatsMsg('Không tải được công suất đăng ký theo ngày.');
-      })
-      .finally(() => {
-        if (!cancelled) setDailyStatsLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveGoodsType, form.deliveryDate, form.vehicleType, isConstruction, verified]);
-
   function stopScanner() {
     scannerControlsRef.current?.stop();
     scannerControlsRef.current = null;
@@ -291,8 +241,6 @@ export default function Register() {
     setOrderCodeNotFound(false);
     setManualFallback(false);
     setVerified(null);
-    setDailyStats([]);
-    setDailyStatsMsg('');
     setUnitConfig(null);
     setUnitConfigMsg('');
     setStep(1);
@@ -428,8 +376,6 @@ export default function Register() {
         deliveryDate: data.deliveryDate,
         goodsType: data.kind === 'CONSTRUCTION' ? '' : data.goodsType,
       });
-      setDailyStats([]);
-      setDailyStatsMsg('');
       setUnitConfig(null);
       setUnitConfigMsg('');
       setStep(2);
@@ -461,10 +407,6 @@ export default function Register() {
     }
     if (!form.vehicleType) {
       toast.error('Vui lòng chọn loại xe giao hàng.');
-      return false;
-    }
-    if (isConstruction && selectedDayStats?.available === false) {
-      toast.error(selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký.');
       return false;
     }
     if (form.driverPhone.replace(/\D/g, '').length < 9) {
@@ -538,8 +480,6 @@ export default function Register() {
     setManualFallback(false);
     setVerified(null);
     setForm(emptyForm());
-    setDailyStats([]);
-    setDailyStatsMsg('');
     setUnitConfig(null);
     setUnitConfigMsg('');
     setSuccess(null);
@@ -609,16 +549,13 @@ export default function Register() {
                 <Alert
                   type="success"
                   showIcon
-                  title={verified.kind === 'PO' ? 'PO đã xác thực' : 'Mã Thi Công đã xác thực'}
-                  description={<><Typography.Text code>{verified.orderCode}</Typography.Text><br />{verified.unitDisplayName} · {verified.businessLocationName}{effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}</>}
+                  title={verified.kind === 'PO' ? 'Mã PO xác thực thành công' : 'Mã Thi Công xác thực thành công'}
+                  description={<><Typography.Text>{verified.orderCode}</Typography.Text> - {verified.unitDisplayName} · {verified.businessLocationName}{effectiveGoodsType ? ` · ${GOODS_LABEL[effectiveGoodsType]}` : ''}</>}
                 />
 
                 <Descriptions bordered size="small" column={1} items={[{ key: 'delivery-date', label: 'Ngày giao hàng', children: formatDate(form.deliveryDate) }]} />
                 {isConstruction && (
                   <Space orientation="vertical" size="middle" className="w-full">
-                    {dailyStatsMsg && <Alert type="warning" showIcon title={dailyStatsMsg} />}
-                    {dailyStatsLoading && <Spin size="small" description="Đang kiểm tra công suất đăng ký..." />}
-                    {selectedDayStats?.available === false && <Alert type="warning" showIcon title={selectedDayStats.reason ?? 'Hôm nay đã đạt công suất đăng ký.'} />}
                     <div>
                       <Typography.Text strong>Loại hàng bạn giao</Typography.Text>
                       <div className="mt-2">
@@ -626,10 +563,11 @@ export default function Register() {
                         {unitConfigMsg && <Alert type="warning" showIcon title={unitConfigMsg} />}
                         {!unitConfigLoading && !unitConfigMsg && goodsOptions.length > 0 && (
                           <Row gutter={[12, 12]}>{goodsOptions.map((option) => (
-                            <Col key={option.value} xs={24} sm={8}>
-                              <Card size="small" hoverable onClick={() => setField('goodsType', option.value)} className={form.goodsType === option.value ? 'border-[var(--dqm-color-primary)]' : undefined}>
+                            <Col key={option.value} xs={24} sm={8} className="flex">
+                              <Button type="default" aria-pressed={form.goodsType === option.value} onClick={() => setField('goodsType', option.value)} className={`selection-card-button !h-full !w-full !whitespace-normal !py-3 !text-left ${form.goodsType === option.value ? 'selection-card-button-selected' : ''}`}>
+                                {form.goodsType === option.value && <CheckCircleFilled className="selection-card-check" aria-hidden />}
                                 <Space orientation="vertical" size={2}><Typography.Text className="text-2xl">{option.icon}</Typography.Text><Typography.Text strong>{option.title}</Typography.Text>{option.hint && <Typography.Text type="secondary">{option.hint}</Typography.Text>}</Space>
-                              </Card>
+                              </Button>
                             </Col>
                           ))}</Row>
                         )}
@@ -640,7 +578,7 @@ export default function Register() {
                 )}
 
                 <Form layout="vertical" requiredMark="optional">
-                  <Form.Item required className="!mb-0">
+                  <Form.Item required className="!mb-4">
                     <ConfigProvider theme={{ components: { Radio: form.vehicleType === 'MOTORBIKE' ? {
                       buttonSolidCheckedBg: token.volcano6,
                       buttonSolidCheckedHoverBg: token.volcano5,

@@ -285,7 +285,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     throw domainError.unprocessable('Chủ nhật chỉ nhận hàng tươi sống', 'SundayFreshFoodOnly');
   }
 
-  const dailyCapacity = requestedTime
+  const dailyCapacity = requestedTime && !quickVerification
     ? await deliveryRepository.getRegistrationDailyCapacity({
         unitConfigId: unitConfig.id,
         unit: body.receivingUnit,
@@ -320,7 +320,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
       }
 
-      if (requestedTime) {
+      if (requestedTime && !quickVerification) {
         await ensureRegistrationDailyCapacity(tx, {
           requestedTime,
           receivingUnit: body.receivingUnit,

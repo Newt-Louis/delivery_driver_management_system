@@ -53,6 +53,7 @@ Trang đăng ký `/register` hiện có:
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
 - Step 2 PO nhập thông tin tài xế/xe/NCC và chọn xe tải hoặc xe máy, mặc định xe tải; ngày từ API PO phải là ngày hiện tại theo giờ Việt Nam. Số điện thoại, biển số và loại xe là bắt buộc.
 - Step 2 Thi Công nhập thông tin tài xế/xe/NCC, chọn loại xe (mặc định xe tải) và loại hàng; ngày giao là ngày hiện tại do backend xác định theo giờ Việt Nam, không chọn ngày trên lịch.
+- Trang `/register` không tải thống kê công suất ngày hoặc hiển thị cảnh báo khung giờ ở bước nhập thông tin; backend không giới hạn công suất theo khung giờ với lượt đăng ký bằng token PO/Thi Công hợp lệ.
 - Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký.
 
 Wizard thủ công `/register-manual`:
@@ -138,7 +139,7 @@ Service:
 - Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`. Với luồng thủ công, `poNumber` là Mã đối chiếu tự sinh.
 - Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/Mã đối chiếu.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
-- Backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale.
+- Với đăng ký thủ công, backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale. Đăng ký bằng mã PO/Thi Công không áp dụng giới hạn capacity này.
 - Capacity ngày tính theo:
   - `unitConfigId`
   - unit code snapshot
@@ -183,6 +184,7 @@ Thi Công normalization:
 - `data.scope.unit` fuzzy match trong `unit_configs.unit` của location, hỗ trợ các biến thể `thisky`, `thiskyhall`, `mall`, `thiso mall`, `thisomall`.
 - Luồng Thi Công không mặc định `goodsType`; sau khi verify mã thành công, frontend lấy public `UnitConfig` của đúng unit để hiển thị các loại hàng đang mở và tài xế tự chọn loại hàng giao.
 - Mã Thi Công được giữ nguyên chữ hoa/thường khi gửi sang API bên thứ 3 vì endpoint kiểm tra phân biệt case.
+- `data.goodsMovement.approvedStartDate` và `approvedEndDate` phải là ngày hợp lệ, và ngày hiện tại theo giờ Việt Nam phải nằm trong khoảng này (bao gồm cả hai đầu). Thiếu ngày hoặc ngoài khoảng thì không xác thực; `approvedStartTime` và `approvedEndTime` không được dùng để hạn chế đăng ký.
 - Ngày giao được backend đặt là ngày hiện tại theo giờ Việt Nam; tài xế không chọn ngày. Cả PO và Thi Công chọn loại xe ở bước 2.
 - Backend yêu cầu ngày gửi lên và `requestedTime` nếu có phải thuộc ngày hiện tại theo giờ Việt Nam, kiểm tra lại trước khi tạo đơn cho cả đăng ký nhanh và thủ công. Đăng ký nhanh còn yêu cầu token hợp lệ và ngày trong token phải là hôm nay; qua ngày cần kiểm tra lại mã. Qua ngày trong luồng thủ công cần đăng ký lại.
 

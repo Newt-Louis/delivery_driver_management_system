@@ -2,7 +2,7 @@ const SERVICE_ERRORS = new Set([
   'ExternalApiConfigMissing', 'ExternalApiConnectionFailed', 'ExternalApiServerError',
   'ExternalApiUnauthorized', 'ExternalApiRequestFailed', 'ExternalApiEmptyResponse',
   'PoItemsMissing', 'PoLocationMappingMissing', 'PoDeliveryDateMissing',
-  'ConstructionDataMissing', 'ConstructionScopeMissing',
+  'ConstructionDataMissing', 'ConstructionScopeMissing', 'ConstructionDateRangeInvalid',
 ]);
 
 export function canOfferManualRegistration(error: unknown): boolean {

@@ -5,7 +5,7 @@ import { getRawAppConfig } from '../../services/appConfig';
 import { domainError } from '../shared/domainError';
 import { externalVerificationHttpError } from './externalVerificationError';
 import { getVNDateKey } from '../../lib/dateVN';
-import { assertPoDateIsToday } from './quickRegistrationPolicy';
+import { assertConstructionDateRange, assertPoDateIsToday } from './quickRegistrationPolicy';
 import { loadLocationCodeGroups, mapPoLocationCode, resolveLocationByCode } from './locationCodeGroups';
 
 export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
@@ -443,6 +443,8 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
   if (isEmptyObject(data)) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'ConstructionDataMissing');
   }
+  const goodsMovement = asRecord(data.goodsMovement);
+  assertConstructionDateRange(goodsMovement.approvedStartDate, goodsMovement.approvedEndDate);
   const scope = asRecord(data.scope);
   const locationCode = asLocationCode(scope.location);
   const unitLabel = asString(scope.unit);

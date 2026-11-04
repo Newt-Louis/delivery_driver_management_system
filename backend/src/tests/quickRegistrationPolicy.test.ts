@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { assertPoDateIsToday, assertQuickRegistrationDate, assertRegistrationDateIsToday, requiresQuickVerification } from '../modules/deliveries/quickRegistrationPolicy';
+import { assertConstructionDateRange, assertPoDateIsToday, assertQuickRegistrationDate, assertRegistrationDateIsToday, requiresQuickVerification } from '../modules/deliveries/quickRegistrationPolicy';
+
+test('construction dates include both boundaries and follow the Vietnam calendar day', () => {
+  const start = '2026-11-04';
+  const end = '2026-11-06';
+  assert.throws(() => assertConstructionDateRange(start, end, new Date('2026-11-03T16:59:59Z')));
+  assert.doesNotThrow(() => assertConstructionDateRange(start, end, new Date('2026-11-03T17:00:00Z')));
+  assert.doesNotThrow(() => assertConstructionDateRange(start, end, new Date('2026-11-06T16:59:59Z')));
+  assert.throws(() => assertConstructionDateRange(start, end, new Date('2026-11-06T17:00:00Z')));
+  for (const [invalidStart, invalidEnd] of [[null, end], [start, null], ['2026-02-30', end], [end, start], ['2026-11-04T00:00:00Z', end]]) {
+    assert.throws(() => assertConstructionDateRange(invalidStart, invalidEnd));
+  }
+});
 
 test('PO date follows Vietnam business day across UTC midnight', () => {
   const now = new Date('2026-11-02T17:01:00Z');
