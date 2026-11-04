@@ -170,7 +170,7 @@ Endpoint verify:
 
 PO normalization:
 
-- `WERKS` map sang `BusinessLocation.code`: `1001 -> PVT`, `1002 -> SALA`, `1003 -> PHI`, `2001 -> THT`.
+- `WERKS` được đối chiếu với nhóm mã trong `codeofconduct_location.json`, rồi đối chiếu nhóm với `BusinessLocation.code` đang active. `site_location_map`/`siteLocationMap` cũ vẫn được hỗ trợ nhưng nếu mã nguồn đã có nhóm thì mã đích phải thuộc cùng nhóm; nếu không thì báo xung đột cấu hình.
 - Unit PO hiện match biến cấu hình nội bộ `EMART` với `unit_configs.unit` sau khi normalize để dễ mở rộng unit khác về sau.
 - `EINDT` dạng `yyyyMMdd` được đổi thành `deliveryDate` và phải trùng ngày hiện tại theo giờ Việt Nam; nếu không, mã không được xác thực thành công.
 - Backend lấy dòng đầu tiên trong `ITEMS`; `LIFNR` điền `vendorCode`, `VENDORNA` điền `vendorName` nếu có.
@@ -179,7 +179,7 @@ PO normalization:
 
 Thi Công normalization:
 
-- `data.scope.location` match `business_locations.code`.
+- `data.scope.location` và `business_locations.code` được đối chiếu theo cùng nhóm mã trong `codeofconduct_location.json`.
 - `data.scope.unit` fuzzy match trong `unit_configs.unit` của location, hỗ trợ các biến thể `thisky`, `thiskyhall`, `mall`, `thiso mall`, `thisomall`.
 - Luồng Thi Công không mặc định `goodsType`; sau khi verify mã thành công, frontend lấy public `UnitConfig` của đúng unit để hiển thị các loại hàng đang mở và tài xế tự chọn loại hàng giao.
 - Mã Thi Công được giữ nguyên chữ hoa/thường khi gửi sang API bên thứ 3 vì endpoint kiểm tra phân biệt case.
@@ -194,4 +194,4 @@ Thi Công normalization:
 - Hiển thị Mã đối chiếu để tài xế có thể đối chiếu khi cần.
 - Cho nút theo dõi.
 - Khi màn thành công mở, tự cuộn về đầu trang để tài xế thấy thông báo. Nút theo dõi tự động đếm ngược 15 giây rồi điều hướng sang `/track/:code`.
-- Lưu mã chuyến ngay vào danh sách gần đây và kiểm tra notification/âm báo. Nếu chưa sẵn sàng, mở Ant Modal để người dùng bấm xin quyền; bộ đếm 15 giây tạm dừng khi modal mở. Đăng ký không tự gán thông báo cá nhân: tài xế chọn **Theo dõi chuyến giao hàng này** trong Track. Sau đó provider giữ cảnh báo xuyên route; xem `track-pwa-push.md`.
+- Lưu mã chuyến vào danh sách gần đây. Tài xế bấm **Nhận thông báo cho chuyến này** ngay trên màn thành công hoặc tại Track để chọn chuyến và bắt đầu thiết lập quyền; đăng ký không tự chọn chuyến. Bộ đếm 15 giây tạm dừng khi xử lý hoặc mở modal xác nhận/thiết lập. Provider giữ cảnh báo xuyên route; xem `track-pwa-push.md`.

@@ -598,7 +598,7 @@ export default function Register() {
                 <div className="mt-6 text-center">
                   <Typography.Title level={4}>Hoặc</Typography.Title>
                   <Link to="/register-manual" className="block">
-                    <Button color="cyan" variant="solid" size="large" block style={{ minHeight: 64 }}>Đăng ký thủ công</Button>
+                    <Button color="cyan" variant="solid" size="large" block style={{ minHeight: 64, fontSize: '20px' }}>Đăng ký thủ công</Button>
                   </Link>
                 </div>
               </Form>

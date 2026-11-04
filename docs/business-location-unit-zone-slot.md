@@ -162,6 +162,30 @@ Shared presentation:
 - `frontend/src/context/PublicBusinessLocationContext.tsx`: public-only `selectedBusinessLocationId`, loaded from active public `BusinessLocation` data and persisted independently in the browser.
 - `frontend/src/components/PublicBusinessLocationSelector.tsx`: public header location name and dropdown for changing the public display scope, available to unauthenticated users and `SUPERADMIN`. Other signed-in roles cannot open the selector. The public selection remains independent of the superadmin operational location.
 
+### Nhóm mã location cho xác thực PO / Thi Công
+
+File `codeofconduct_location.json` ở root repo chứa object `tên nhóm: [các mã tương đương]`. Tên nhóm cũng là một mã được nhận diện, không bắt buộc trùng `business_locations.code`. Backend nạp file một lần lúc khởi động; mã được trim và chuyển chữ hoa, mã số nguyên từ response được đổi thành chuỗi. Mã không nằm trong nhóm được so khớp chính xác sau chuẩn hóa. Nếu không có location active khớp hoặc có nhiều location active trong cùng nhóm, xác thực dừng và báo lỗi; không tự chọn location. Unit vẫn được xử lý theo quy tắc hiện hữu.
+
+Backend dùng biến `LOCATION_CODE_GROUPS_FILE` nếu được cấu hình; đường dẫn tương đối tính theo working directory. Khi chạy backend từ repo, mặc định là file ở root repo. File không tồn tại, JSON sai cấu trúc hoặc một mã thuộc nhiều nhóm sẽ làm backend không khởi động. Sửa file rồi restart backend để nạp lại; không dùng Redis cho danh mục này.
+
+Image backend mặc định đọc `/app/config/codeofconduct_location.json`. Khi triển khai, đặt file cạnh Compose runtime trên server và thêm mount **vào service backend của Compose runtime**, ví dụ:
+
+```yaml
+services:
+  backend:
+    volumes:
+      - type: bind
+        source: ./codeofconduct_location.json
+        target: /app/config/codeofconduct_location.json
+        read_only: true
+        bind:
+          create_host_path: false
+```
+
+File phải tồn tại và container đọc được trước khi tạo container. Nếu chương trình sửa file trên host theo cách thay thế inode, cần tạo lại container để mount nhìn thấy file mới; restart container hiện tại có thể vẫn đọc bản cũ. Không mount toàn bộ thư mục chứa `.env` chỉ để chia sẻ file này. `docker-compose.prod.yml` trong repo chỉ build/push image; cập nhật Compose thực sự chạy trên server riêng.
+
+Kiểm tra logic không cần database hoặc đối tác thật: `cd backend && npm run test:location-codes`. Các test luồng PO/Thi Công dùng dữ liệu mô phỏng trong bộ nhớ.
+
 `unitPresentation.ts` là helper dùng chung để render label, short name, icon, color và ticket prefix từ `UnitConfig` metadata. Khi một payload chỉ còn dữ liệu legacy hoặc thiếu metadata, helper sinh fallback generic từ mã unit thay vì map cứng theo `EMART`/`THISKYHALL`/`TENANT`. Các màn hình runtime như register, check-in, dashboard, docks, waiting screen, track, receiving times và histories nên dùng helper này khi cần hiển thị đơn vị.
 
 Các route page lớn của frontend giữ layout gốc trong `frontend/src/pages/*`, còn logic/API/component con nằm trong feature folder:

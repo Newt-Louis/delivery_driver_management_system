@@ -6,6 +6,7 @@ import { domainError } from '../shared/domainError';
 import { externalVerificationHttpError } from './externalVerificationError';
 import { getVNDateKey } from '../../lib/dateVN';
 import { assertPoDateIsToday } from './quickRegistrationPolicy';
+import { loadLocationCodeGroups, mapPoLocationCode, resolveLocationByCode } from './locationCodeGroups';
 
 export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
 
@@ -49,13 +50,6 @@ type QuickVerificationPayload = {
   deliveryDate?: string;
 };
 
-const DEFAULT_SITE_LOCATION_MAP: Record<string, string> = {
-  '1001': 'PVT',
-  '1002': 'SALA',
-  '1003': 'PHI',
-  '2001': 'THT',
-};
-
 const PO_CONFIG_KEY = 'api.settings.po_verify';
 const CONSTRUCTION_CONFIG_KEY = 'api.settings.thi_cong_verify';
 const PO_CODE_KEY = 'EBELN';
@@ -73,6 +67,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function asLocationCode(value: unknown): string | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : asString(value);
 }
 
 function asStringArray(value: unknown): string[] {
@@ -122,7 +120,6 @@ async function readApiConfig(key: string): Promise<ApiConfig> {
     ...asRecord(raw.payloadDefaults),
   };
   const siteLocationMap = {
-    ...DEFAULT_SITE_LOCATION_MAP,
     ...asRecord(raw.site_location_map),
     ...asRecord(raw.siteLocationMap),
   };
@@ -137,7 +134,7 @@ async function readApiConfig(key: string): Promise<ApiConfig> {
     siteLocationMap: Object.fromEntries(
       Object.entries(siteLocationMap)
         .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-        .map(([k, v]) => [String(k).trim(), v.trim().toUpperCase()]),
+        .map(([k, v]) => [String(k).trim().toUpperCase(), v.trim().toUpperCase()]),
     ),
   };
 }
@@ -312,14 +309,11 @@ function mapPoGoodsType(item: Record<string, unknown>): GoodsType {
 }
 
 async function findBusinessLocationByCode(code: string) {
-  const location = await prisma.businessLocation.findFirst({
-    where: { code: code.trim().toUpperCase(), isActive: true },
+  const locations = await prisma.businessLocation.findMany({
+    where: { isActive: true },
     select: { id: true, code: true, locationName: true },
   });
-  if (!location) {
-    throw domainError.badRequest(`Không tìm thấy khu vực vận hành tương ứng mã ${code}.`);
-  }
-  return location;
+  return resolveLocationByCode(code, locations, loadLocationCodeGroups());
 }
 
 async function findUnitConfig(args: {
@@ -390,8 +384,8 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoItemsMissing');
   }
   const item: Record<string, unknown> = responseItem;
-  const siteCode = asString(item.WERKS);
-  const locationCode = siteCode ? config.siteLocationMap[siteCode] : undefined;
+  const siteCode = asLocationCode(item.WERKS);
+  const locationCode = siteCode ? mapPoLocationCode(siteCode, config.siteLocationMap, loadLocationCodeGroups()) : undefined;
   if (!locationCode) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoLocationMappingMissing');
   }
@@ -450,7 +444,7 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'ConstructionDataMissing');
   }
   const scope = asRecord(data.scope);
-  const locationCode = asString(scope.location);
+  const locationCode = asLocationCode(scope.location);
   const unitLabel = asString(scope.unit);
   if (!locationCode || !unitLabel) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'ConstructionScopeMissing');

@@ -114,7 +114,7 @@ Quy tắc:
 - `code_key` hoặc `codeKey` cho biết field nào nhận mã tài xế nhập. Nếu không khai báo, backend tự suy luận theo `payload_keys`, ví dụ PO ưu tiên `EBELN`.
 - `auth.header` được chuyển thành HTTP header khi gọi API ngoài.
 - Với PO, backend luôn gửi `BUKRS = VN01` và `EBELN = <mã PO 10 số>` sau khi đọc config, kể cả khi hai key này chưa có trong `payload_defaults`.
-- Với PO, có thể cấu hình thêm `site_location_map` hoặc `siteLocationMap` nếu mã site bên thứ 3 thay đổi. Backend có fallback mặc định cho `1001`, `1002`, `1003`, `2001`.
+- Với PO, `site_location_map` hoặc `siteLocationMap` cũ vẫn được đọc. Các nhóm mặc định được định nghĩa trong `codeofconduct_location.json`, dùng chung PO và Thi Công. Nếu key của mapping cũ đã thuộc một nhóm, giá trị phải thuộc cùng nhóm; sai nhóm sẽ báo `LocationMappingConflict`. Nếu key chưa nằm trong nhóm, mapping cũ được áp dụng trước khi tra nhóm hoặc so khớp code chính xác.
 - Response thật của bên thứ 3 được log ở backend để phục vụ tích hợp. Không trả raw response này về frontend.
 
 ## Trạng Thái Hiện Tại

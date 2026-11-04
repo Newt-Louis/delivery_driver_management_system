@@ -11,18 +11,21 @@ import { removeDeliverySession, saveDeliverySession } from '../../lib/session';
 import { fetchDeliveryByCode, fetchVapidKey, postPushSubscription } from '../track/api';
 import { buzz, ensureAudio, isDeviceAudioReady, unlockIOSAudio } from './audio';
 import type { TrackDelivery } from '../track/types';
-import { acceptsNotice, FOLLOW_CHANGED, FOLLOW_KEY, noticeFromDelivery, pendingPushDetaches, readFollowedTrip, savePendingPushDetaches, TERMINAL_STATUSES, writeFollowedTrip, type DriverNotice, type FollowedTrip } from './model';
+import { acceptsNotice, followAction, FOLLOW_CHANGED, FOLLOW_KEY, noticeFromDelivery, pendingPushDetaches, readFollowedTrip, savePendingPushDetaches, TERMINAL_STATUSES, writeFollowedTrip, type DriverNotice, type FollowCandidate, type FollowedTrip } from './model';
 
 type PushState = 'off' | 'connecting' | 'ready' | 'error';
 interface NotificationsContextValue {
   followed: FollowedTrip | null;
   pushState: PushState;
   audioReady: boolean;
+  notificationPermission: NotificationPermission | 'unsupported';
   setupOpen: boolean;
+  interactionPending: boolean;
+  busy: boolean;
   error: string;
-  follow: (delivery: TrackDelivery) => void;
+  follow: (delivery: FollowCandidate) => void;
   stopFollowing: () => void;
-  checkPermissions: () => void;
+  retrySetup: () => void;
 }
 const Context = createContext<NotificationsContextValue | null>(null);
 
@@ -32,8 +35,9 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
   const current = useRef(followed);
   const [notice, setNotice] = useState<DriverNotice | null>(null);
   const [setupOpen, setSetupOpen] = useState(false);
-  const [switchTo, setSwitchTo] = useState<TrackDelivery | null>(null);
+  const [switchTo, setSwitchTo] = useState<FollowCandidate | null>(null);
   const [audioReady, setAudioReady] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | 'unsupported'>(() => typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   const audioReadyRef = useRef(false);
   const [pushState, setPushState] = useState<PushState>('off');
   const [busy, setBusy] = useState(false);
@@ -43,6 +47,16 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
   const pushQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingDetach = useRef(new Set(pendingPushDetaches()));
   const support = getPushPlatformSupport();
+
+  useEffect(() => {
+    const refreshPermission = () => setNotificationPermission(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+    window.addEventListener('focus', refreshPermission);
+    document.addEventListener('visibilitychange', refreshPermission);
+    return () => {
+      window.removeEventListener('focus', refreshPermission);
+      document.removeEventListener('visibilitychange', refreshPermission);
+    };
+  }, []);
 
   const silence = useCallback(() => {
     stopSound.current?.();
@@ -137,7 +151,6 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
 
   const connectPush = useCallback((code: string) => {
     const run = async () => {
-      console.log(Notification.permission);
       if (current.current?.code !== code || !getPushPlatformSupport().supported || Notification.permission !== 'granted') return;
       setPushState('connecting');
       try {
@@ -191,6 +204,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
       }
       buzz([80]);
       const allowed = await permission;
+      setNotificationPermission(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
       if (allowed === 'granted' && current.current) await connectPush(current.current.code);
       if (capabilities.supported && allowed !== 'granted') {
         setSetupOpen(true);
@@ -215,7 +229,7 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     setSetupOpen(!ready);
   }, []);
 
-  const selectTrip = (delivery: TrackDelivery) => {
+  const selectTrip = (delivery: FollowCandidate) => {
     if (TERMINAL_STATUSES.has(delivery.status)) return;
     const old = current.current;
     silence();
@@ -344,15 +358,16 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     return () => window.clearTimeout(timer);
   }, [notice, silence]);
 
-  return <Context.Provider value={{ followed, pushState, audioReady, setupOpen, error, follow: (delivery) => {
-    if (current.current && current.current.code !== delivery.registrationCode) setSwitchTo(delivery);
-    else selectTrip(delivery);
-  }, stopFollowing, checkPermissions }}>
+  return <Context.Provider value={{ followed, pushState, audioReady, notificationPermission, setupOpen, interactionPending: setupOpen || !!switchTo || busy, busy, error, follow: (delivery) => {
+    const action = followAction(current.current, delivery);
+    if (action === 'confirm') setSwitchTo(delivery);
+    else if (action === 'follow') selectTrip(delivery);
+  }, stopFollowing, retrySetup: () => { void enableDevice(); } }}>
     {children}
-    <Modal open={!!switchTo} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} onOk={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }} okText="Theo dõi chuyến mới" cancelText="Giữ chuyến hiện tại">
+    <Modal open={!!switchTo} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} footer={<Space orientation="vertical" size="small" className="w-full"><Button block size="large" type="primary" onClick={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }}>Theo dõi chuyến mới</Button><Button block size="large" onClick={() => setSwitchTo(null)}>Giữ chuyến hiện tại</Button></Space>}>
       <Typography.Paragraph>Điện thoại đang nhận thông báo cho xe {followed?.plate}. Chuyển sang xe {switchTo?.vehiclePlate} ({switchTo?.registrationCode})?</Typography.Paragraph>
     </Modal>
-    <Modal open={setupOpen && !notice} focusable={{ focusTriggerAfterClose: !notice }} centered title="Bật thông báo cho chuyến giao hàng" onCancel={() => setSetupOpen(false)} footer={<Space wrap><Button size="large" onClick={() => setSetupOpen(false)}>Để sau</Button><Button size="large" type="primary" icon={<BellOutlined />} loading={busy} onClick={() => void enableDevice()}>Bật thông báo và âm báo</Button></Space>}>
+    <Modal open={setupOpen && !notice} focusable={{ focusTriggerAfterClose: !notice }} centered title="Bật thông báo cho chuyến giao hàng" onCancel={() => setSetupOpen(false)} footer={<Space orientation="vertical" size="small" className="w-full"><Button block size="large" type="primary" icon={<BellOutlined />} loading={busy} onClick={() => void enableDevice()}>Bật thông báo và âm báo</Button><Button block size="large" onClick={() => setSetupOpen(false)}>Để sau</Button></Space>}>
       <Space orientation="vertical" size="middle" className="w-full">
         <Typography.Paragraph>Nhận báo check-in thành công, gọi vào khu vực nhận hàng và hoàn tất chuyến. Chạm nút bên dưới rồi chọn Cho phép nếu thiết bị hỏi.</Typography.Paragraph>
         {support.reason === 'ios_needs_pwa' && <Alert type="info" showIcon title="Nhận thông báo trên iPhone/iPad" description="Thông báo đẩy chỉ hoạt động khi mở ứng dụng từ Màn hình chính. Trong trình duyệt, hãy giữ trang mở để xem cảnh báo." />}

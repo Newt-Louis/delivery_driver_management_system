@@ -2,8 +2,8 @@
 
 ## Hành vi cho tài xế
 
-1. Đăng ký thành công: lưu mã vào danh sách chuyến trên thiết bị, kiểm tra quyền và mở hướng dẫn bật thông báo/âm báo nếu chưa sẵn sàng. Bộ đếm chuyển sang Track vẫn là 15 giây, tạm dừng trong lúc modal thiết lập mở.
-2. Mở `/track/:code`, kiểm tra biển số. Nút cuối trang dựa trên mã chuyến đang lưu: nếu trùng thì hiện **Dừng nhận thông báo chuyến này**, nếu khác hoặc chưa chọn thì hiện **Bật thông báo và âm báo**. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó.
+1. Đăng ký thành công: lưu mã vào danh sách chuyến trên thiết bị, nhưng chưa tự chọn chuyến nhận thông báo. Tài xế có thể bấm **Nhận thông báo cho chuyến này** ngay trên màn thành công; thao tác chọn chuyến và bắt đầu xin quyền/chuẩn bị âm thanh trong cùng lượt bấm. Bộ đếm 15 giây chuyển sang Track tạm dừng khi đang xử lý hoặc mở modal xác nhận/thiết lập.
+2. Mở `/track/:code`, kiểm tra biển số. Nút cuối trang là **Nhận thông báo cho chuyến này** hoặc **Dừng nhận thông báo chuyến này** nếu đã chọn. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó. Màn thành công và Track thể hiện riêng trạng thái đã chọn, quyền thông báo, kết nối push, tình trạng âm thanh và nút thử lại khi cần.
 3. Mỗi trình duyệt/PWA theo dõi chủ động một chuyến. Bấm bật trên chuyến khác sẽ hỏi xác nhận trước khi chuyển; chuyến cũ có thể nằm trong danh sách gần đây nhưng không còn là chuyến được chọn.
 4. Sau khi chọn, cảnh báo cá nhân hoạt động trên mọi route khi ứng dụng đang mở, kể cả `/waiting-screen`.
 5. Hoàn tất: hiển thị thông báo hoàn thành rồi xóa lựa chọn theo dõi, mã khỏi danh sách gần đây và binding push tương ứng. Hủy/hết hạn/kết thúc chưa hoàn tất cũng ngừng theo dõi, không bị hiểu nhầm là giao thành công.
@@ -15,7 +15,7 @@
 - `frontend/src/main.tsx`: một `DriverNotificationsProvider` bên trong SocketProvider, bên ngoài route/shell.
 - `frontend/src/features/driver-notifications/DriverNotificationsProvider.tsx`: chủ sở hữu chuyến được chọn, room cá nhân, quyền thiết bị, push binding, overlay, âm thanh/rung.
 - `model.ts`: persistence, kiểm tra mã chuyến, chống event trùng/cũ; lưu yêu cầu gỡ push đang chờ khi mất mạng.
-- `FollowTripCard.tsx`: một nút chọn/dừng theo dõi theo mã chuyến đã lưu; trạng thái quyền và push không quyết định chuyến đã chọn.
+- `FollowTripCard.tsx`: nút chọn/dừng và trạng thái thiết lập thông báo trên màn thành công và Track; trạng thái quyền và push không quyết định chuyến đã chọn.
 - `SavedTrips.tsx`: danh sách gần đây trên `/` và `/track`; không xóa mã vì lỗi mạng tạm thời.
 - `frontend/src/features/track/hooks/useTrackContent.ts`: chỉ đọc và trình bày chuyến, QR, hàng chờ, wake lock; không sở hữu cảnh báo cá nhân.
 - `frontend/src/lib/trackRoom.ts`: đếm chủ sở hữu room; rời trang chi tiết không làm provider toàn cục rời room; tự join lại sau reconnect.
