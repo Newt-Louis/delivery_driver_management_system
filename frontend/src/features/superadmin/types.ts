@@ -55,7 +55,6 @@ export type SuperadminTab =
   | 'users'
   | 'goods'
   | 'windows'
-  | 'awvendors'
   | 'devices'
   | 'appconfigs'
   | 'apiconfigs'

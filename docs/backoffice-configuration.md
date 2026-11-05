@@ -136,7 +136,6 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 - Zones và Slots: dữ liệu vận hành cụ thể thuộc Backoffice/ADMIN_LOC. `/superadmin` có thể đọc/audit system-wide khi cần, nhưng không phải bề mặt chính để ADMIN_LOC cấu hình zone/slot hằng ngày.
 - Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC` và `ADMIN_OPE` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.
 - Goods types và Time windows: dữ liệu vận hành theo `UnitConfig`; bề mặt cấu hình chính thuộc ADMIN_LOC trong Backoffice.
-- AW vendors: CRUD vendor kho tự động theo `unitConfigId`; form sửa không đổi `unitConfigId` để tránh di chuyển vendor qua unit khác ngoài luồng tạo mới.
 - Devices: CRUD device registry theo `BusinessLocation`, có thể rotate `deviceSecret` bằng field write-only khi sửa, không trả `deviceSecretHash`.
 - App configs: chỉnh JSON runtime config khi `isRuntimeEditable = true`; sensitive value bị mask.
 - Receiving time configs: CRUD cấu hình theo `unitConfigId + vehicleType + goodsType`; khi sửa chỉ đổi thời lượng cấu hình/đề xuất, không đổi unit/vehicle/goods để giữ unique key ổn định.
@@ -165,7 +164,7 @@ Các thao tác delete với dữ liệu đã có liên kết lịch sử đượ
 - Tab `Locations`: chỉ load `/api/superadmin/business-locations`.
 - Tab `Unit configs`: load locations để chọn `BusinessLocation` và load `/api/superadmin/unit-configs`.
 - Tab `Users`: load users, locations và toàn bộ unit configs để modal create/edit gán operation scope.
-- Các tab có filter location/unit như zones, slots, goods types, time windows, AW vendors và receiving time configs chỉ load query dữ liệu của chính tab đó cộng với dữ liệu phụ trợ cho filter đang hiển thị.
+- Các tab có filter location/unit như zones, slots, goods types, time windows và receiving time configs chỉ load query dữ liệu của chính tab đó cộng với dữ liệu phụ trợ cho filter đang hiển thị.
 - Tab `Devices` chỉ cần location filter nên không load unit configs.
 - Tab `App configs` chỉ load `/api/superadmin/app-configs`.
 
@@ -179,9 +178,9 @@ Hai tab dùng toolbar responsive chung: tìm tên chỉ áp dụng khi nhấn t�
 
 Hai tab chỉ đọc, dùng toolbar responsive chung với tìm kiếm theo tên và bộ lọc location/unit hiện có; sort vẫn là placeholder. Từ `lg` hiển thị bảng, dưới `lg` hiển thị Collapse từng dòng, cả hai có phân trang. Đổi bộ lọc tiếp tục dùng query API theo `businessLocationId`/`unitConfigId`; danh sách bị che trong khi dữ liệu phạm vi mới đang tải. Không có thao tác tạo, sửa hoặc xóa tại đây.
 
-### AW vendors và Devices trong Superadmin
+### Devices trong Superadmin
 
-Hai tab dùng toolbar responsive chung với tìm kiếm theo tên và lọc location; AW vendors có thêm lọc unit. Các bộ lọc location/unit tiếp tục điều khiển API theo scope hiện có. Từ `lg` danh sách là bảng, dưới `lg` là Collapse theo từng dòng; cả hai có phân trang và thao tác ở cuối dòng hoặc đầu Collapse. Tạo và sửa mở modal, xóa có xác nhận. Vendor khi sửa không đổi unit; thiết bị chỉ gửi secret mới nếu có nhập.
+Tab Devices dùng toolbar responsive với tìm kiếm theo tên và lọc location. Từ `lg` danh sách là bảng, dưới `lg` là Collapse theo từng dòng; có phân trang và thao tác ở cuối dòng hoặc đầu Collapse. Tạo và sửa mở modal, xóa có xác nhận; thiết bị chỉ gửi secret mới nếu có nhập. NCC kho tự động được quản lý theo khu vực và đơn vị trong Backoffice, không có tab riêng trong Superadmin.
 
 ### API tích hợp và Receiving time configs trong Superadmin
 

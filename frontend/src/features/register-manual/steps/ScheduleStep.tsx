@@ -64,7 +64,6 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
                 <Input size="large" placeholder="VD: Sup001, NccAbc..." autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} suffix={vendorSuffix} />
               </AutoComplete>
               <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự gợi ý dữ liệu và xếp vào khu kho tự động khi được phép." />
-              {awStatus === 'match' && <Alert className="mt-3" type="success" showIcon title="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
             </Form.Item>
           </FieldFrame>
           <FieldFrame field="vendorName" highlightedField={highlightedField}>

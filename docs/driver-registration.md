@@ -53,8 +53,9 @@ Trang đăng ký `/register` hiện có:
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
 - Step 2 PO nhập thông tin tài xế/xe/NCC và chọn xe tải hoặc xe máy, mặc định xe tải; ngày từ API PO phải là ngày hiện tại theo giờ Việt Nam. Số điện thoại, biển số và loại xe là bắt buộc.
 - Step 2 Thi Công nhập thông tin tài xế/xe/NCC, chọn loại xe (mặc định xe tải) và loại hàng; ngày giao là ngày hiện tại do backend xác định theo giờ Việt Nam, không chọn ngày trên lịch.
+- Ở step 2 của cả PO và Thi Công, mã NCC có gợi ý từ cùng API và phạm vi khu vực/đơn vị đã xác thực như luồng thủ công. Chọn gợi ý điền cả mã và tên; NCC không có trong danh sách vẫn có thể nhập tự do. Thông tin NCC do API bên thứ ba trả về tiếp tục được điền sẵn.
 - Trang `/register` không tải thống kê công suất ngày hoặc hiển thị cảnh báo khung giờ ở bước nhập thông tin; backend không giới hạn công suất theo khung giờ với lượt đăng ký bằng token PO/Thi Công hợp lệ.
-- Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký.
+- Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký. Nếu mã NCC khớp danh sách active của đơn vị đã xác thực, loại hàng hiển thị là “Kho tự động”; trong khi kiểm tra hoặc nếu không kiểm tra được, giao diện thông báo trạng thái tương ứng. Payload vẫn gửi loại hàng ban đầu và backend quyết định lại khi tạo lượt.
 
 Wizard thủ công `/register-manual`:
 

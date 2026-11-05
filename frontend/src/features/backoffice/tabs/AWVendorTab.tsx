@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import {
@@ -32,6 +32,7 @@ import {
 import api from '../../../lib/api';
 import type { AutoWarehouseVendor, UnitConfig } from '../../../lib/types';
 import ResponsiveDataToolbar, { SearchButton } from '../components/ResponsiveDataToolbar';
+import { useAuth } from '../../../context/AuthContext';
 
 type VendorForm = {
   unitConfigId: string;
@@ -49,7 +50,7 @@ function unitLabel(unit?: Pick<UnitConfig, 'unit' | 'displayName' | 'shortName' 
 
 function errorMessage(error: unknown, fallback = 'Có lỗi xảy ra.') {
   const response = error as { response?: { data?: { error?: string; message?: string } } };
-  return response.response?.data?.error ?? response.response?.data?.message ?? fallback;
+  return response.response?.data?.message ?? response.response?.data?.error ?? fallback;
 }
 
 function AWVendorModal({
@@ -91,6 +92,8 @@ function AWVendorModal({
     try {
       if (isEdit) {
         await api.patch(`/api/aw-vendors/${vendor!.id}`, {
+          unitConfigId: form.unitConfigId,
+          vendorCode: form.vendorCode.trim().toUpperCase(),
           vendorName: form.vendorName.trim(),
           active: form.active,
           note: form.note.trim() || null,
@@ -100,8 +103,6 @@ function AWVendorModal({
           unitConfigId: form.unitConfigId,
           vendorCode: form.vendorCode.trim().toUpperCase(),
           vendorName: form.vendorName.trim(),
-          active: form.active,
-          note: form.note.trim() || undefined,
         });
       }
       onSaved();
@@ -130,7 +131,6 @@ function AWVendorModal({
         <Form.Item label="Đơn vị" required>
           <Select
             value={form.unitConfigId || undefined}
-            disabled={isEdit}
             placeholder="Chọn đơn vị"
             options={units.map((unit) => ({ value: unit.id, label: `${unit.unit} - ${unitLabel(unit)}` }))}
             onChange={(value) => setField('unitConfigId', value)}
@@ -139,7 +139,6 @@ function AWVendorModal({
         <Form.Item label="Mã NCC" required>
           <Input
             value={form.vendorCode}
-            disabled={isEdit}
             placeholder="Ví dụ: SUP001, NCCABC"
             onChange={(event) => setField('vendorCode', event.target.value.toUpperCase())}
           />
@@ -148,12 +147,12 @@ function AWVendorModal({
         <Form.Item label="Tên nhà cung cấp" required>
           <Input value={form.vendorName} placeholder="Công ty TNHH ABC" onChange={(event) => setField('vendorName', event.target.value)} />
         </Form.Item>
-        <Form.Item label="Ghi chú">
+        {isEdit && <Form.Item label="Ghi chú">
           <Input value={form.note} placeholder="Ghi chú thêm nếu có..." onChange={(event) => setField('note', event.target.value)} />
-        </Form.Item>
-        <Form.Item label="Trạng thái">
+        </Form.Item>}
+        {isEdit && <Form.Item label="Trạng thái">
           <Switch checked={form.active} checkedChildren="Hoạt động" unCheckedChildren="Vô hiệu" onChange={(checked) => setField('active', checked)} />
-        </Form.Item>
+        </Form.Item>}
         {error && <Alert type="error" showIcon title={error} />}
       </Form>
     </Modal>
@@ -162,6 +161,8 @@ function AWVendorModal({
 
 export default function AWVendorTab() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const businessLocationId = user?.businessLocationId;
   const screens = Grid.useBreakpoint();
   const [unitFilter, setUnitFilter] = useState('');
   const [searchDraft, setSearchDraft] = useState('');
@@ -173,13 +174,23 @@ export default function AWVendorTab() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const { data: unitConfigs = [] } = useQuery<UnitConfig[]>({
-    queryKey: ['unit-configs'],
+  useEffect(() => {
+    setUnitFilter('');
+    setModalOpen(false);
+    setEditItem(null);
+    setPage(1);
+  }, [businessLocationId]);
+
+  const { data: allUnitConfigs = [] } = useQuery<UnitConfig[]>({
+    queryKey: ['unit-configs', user?.id, businessLocationId],
     queryFn: async () => (await api.get('/api/units/configs')).data,
+    enabled: Boolean(businessLocationId),
   });
+  const unitConfigs = allUnitConfigs.filter((unit) => unit.isActive && unit.businessLocationId === businessLocationId);
   const { data: vendors = [], isLoading, isError, refetch } = useQuery<AutoWarehouseVendor[]>({
-    queryKey: ['aw-vendors', unitFilter],
+    queryKey: ['aw-vendors', user?.id, businessLocationId, unitFilter],
     queryFn: async () => (await api.get('/api/aw-vendors', { params: unitFilter ? { unitConfigId: unitFilter } : undefined })).data,
+    enabled: Boolean(businessLocationId),
   });
 
   function refresh() {

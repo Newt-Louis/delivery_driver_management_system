@@ -1,13 +1,16 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import { Link } from 'react-router-dom';
-import { ArrowRightOutlined, CameraOutlined, CheckCircleFilled, UploadOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Col, ConfigProvider, Descriptions, Empty, Form, Input, Modal, Radio, Row, Space, Spin, Steps, Typography, theme } from 'antd';
+import { ArrowRightOutlined, CameraOutlined, CheckCircleFilled, LoadingOutlined, UploadOutlined } from '@ant-design/icons';
+import { Alert, AutoComplete, Button, Card, Col, ConfigProvider, Descriptions, Empty, Form, Input, Modal, Radio, Row, Space, Spin, Steps, Typography, theme } from 'antd';
 import { useToast } from '../context/ToastContext';
 import {
   getUnitConfig,
+  checkAutoWarehouseVendor,
+  getAutoWarehouseVendorSuggestions,
   quickVerifyOrderCode,
   registerDelivery,
+  type AutoWarehouseVendorSuggestion,
   type QuickVerifyResponse,
 } from '../features/register-manual/api';
 import SuccessScreen from '../features/register-manual/components/SuccessScreen';
@@ -160,6 +163,9 @@ export default function Register() {
   const [scannerStatus, setScannerStatus] = useState('');
   const [orderCodeNotFound, setOrderCodeNotFound] = useState(false);
   const [manualFallback, setManualFallback] = useState(false);
+  const [vendorSuggestions, setVendorSuggestions] = useState<AutoWarehouseVendorSuggestion[]>([]);
+  const [vendorSuggestionsLoading, setVendorSuggestionsLoading] = useState(false);
+  const [vendorCheck, setVendorCheck] = useState<{ key: string; status: 'checking' | 'match' | 'nomatch' | 'error' } | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const scannerControlsRef = useRef<IScannerControls | null>(null);
@@ -170,6 +176,66 @@ export default function Register() {
   const codeLooksSupported = isPoCode(normalizedCode) || constructionCodeLooksSupported;
   const isConstruction = verified?.kind === 'CONSTRUCTION';
   const effectiveGoodsType = isConstruction ? form.goodsType : (verified?.goodsType ?? '');
+  const vendorCheckKey = JSON.stringify([form.vendorCode.trim().toUpperCase(), verified?.receivingUnit, verified?.businessLocationId, verified?.unitConfigId]);
+  useEffect(() => {
+    const code = form.vendorCode.trim();
+    const unit = verified?.receivingUnit;
+    const businessLocationId = verified?.businessLocationId;
+    const unitConfigId = verified?.unitConfigId;
+    if (step !== 3 || !code || !unit || !businessLocationId || !unitConfigId) return;
+
+    let cancelled = false;
+    setVendorCheck({ key: vendorCheckKey, status: 'checking' });
+    checkAutoWarehouseVendor(code, unit, { businessLocationId, unitConfigId })
+      .then((result) => {
+        if (!cancelled) setVendorCheck({ key: vendorCheckKey, status: result.isAutoWarehouse ? 'match' : 'nomatch' });
+      })
+      .catch(() => {
+        if (!cancelled) setVendorCheck({ key: vendorCheckKey, status: 'error' });
+      });
+    return () => { cancelled = true; };
+  }, [form.vendorCode, step, vendorCheckKey, verified?.receivingUnit, verified?.businessLocationId, verified?.unitConfigId]);
+
+  const currentVendorStatus = form.vendorCode.trim()
+    ? (vendorCheck?.key === vendorCheckKey ? vendorCheck.status : 'checking')
+    : 'nomatch';
+  const reviewGoodsLabel = currentVendorStatus === 'checking' ? 'Đang kiểm tra nhà cung cấp...'
+    : currentVendorStatus === 'error' ? 'Chưa xác định, sẽ kiểm tra khi đăng ký'
+      : currentVendorStatus === 'match' ? GOODS_LABEL.AUTO_WAREHOUSE
+        : effectiveGoodsType ? GOODS_LABEL[effectiveGoodsType] : 'Chưa chọn';
+  useEffect(() => {
+    const query = form.vendorCode.trim();
+    const businessLocationId = verified?.businessLocationId;
+    const unitConfigId = verified?.unitConfigId;
+    setVendorSuggestions([]);
+    if (step !== 2 || query.length < 2 || !businessLocationId || !unitConfigId) {
+      setVendorSuggestionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setVendorSuggestionsLoading(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const vendors = await getAutoWarehouseVendorSuggestions(query, { businessLocationId, unitConfigId });
+        if (!cancelled) setVendorSuggestions(vendors);
+      } catch {
+        if (!cancelled) setVendorSuggestions([]);
+      } finally {
+        if (!cancelled) setVendorSuggestionsLoading(false);
+      }
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [form.vendorCode, step, verified?.businessLocationId, verified?.unitConfigId]);
+
+  const vendorOptions = vendorSuggestions.map((vendor) => ({
+    value: vendor.vendorCode,
+    label: <div className="py-1"><Typography.Text strong>{vendor.vendorCode}</Typography.Text><Typography.Text type="secondary" className="block text-xs">{vendor.vendorName}</Typography.Text></div>,
+    vendor,
+  }));
   const goodsOptions = useMemo(() => {
     if (!unitConfig) return [];
     const options: GoodsOption[] = [];
@@ -421,6 +487,7 @@ export default function Register() {
 
   function goReview() {
     if (!validateDetails()) return;
+    setVendorCheck(null);
     setStep(3);
   }
 
@@ -593,7 +660,17 @@ export default function Register() {
                     <Col xs={24} sm={12}><Form.Item label="Tên tài xế"><Input value={form.driverName} onChange={(event) => setField('driverName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Số điện thoại" required><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', event.target.value)} placeholder="090..." inputMode="tel" autoComplete="tel" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Biển số xe" required><Input value={form.vehiclePlate} onChange={(event) => setField('vehiclePlate', event.target.value.toUpperCase())} placeholder="51C12345" autoComplete="off" className="font-mono uppercase" /></Form.Item></Col>
-                    <Col xs={24} sm={12}><Form.Item label="Mã NCC"><Input value={form.vendorCode} onChange={(event) => setField('vendorCode', event.target.value.toUpperCase().replace(/\s/g, ''))} placeholder="08723875" autoComplete="off" className="font-mono" /></Form.Item></Col>
+                    <Col xs={24} sm={12}><Form.Item label="Mã NCC"><AutoComplete
+                      value={form.vendorCode}
+                      options={vendorOptions}
+                      filterOption={false}
+                      notFoundContent={vendorSuggestionsLoading ? <Space><LoadingOutlined />Đang tìm NCC...</Space> : null}
+                      onChange={(value) => setField('vendorCode', value.toUpperCase().replace(/\s/g, ''))}
+                      onSelect={(_value, option) => {
+                        const vendor = (option as { vendor?: AutoWarehouseVendorSuggestion }).vendor;
+                        if (vendor) setForm((current) => ({ ...current, vendorCode: vendor.vendorCode, vendorName: vendor.vendorName }));
+                      }}
+                    ><Input placeholder="08723875" autoComplete="off" className="font-mono" /></AutoComplete></Form.Item></Col>
                     <Col span={24}><Form.Item label="Tên NCC / Công ty"><Input value={form.vendorName} onChange={(event) => setField('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" /></Form.Item></Col>
                   </Row>
                 </Form>
@@ -609,7 +686,7 @@ export default function Register() {
                   { key: 'location', label: 'Khu vực', children: `${verified.businessLocationName} (${verified.businessLocationCode})` },
                   { key: 'unit', label: 'Đơn vị', children: verified.unitDisplayName },
                   { key: 'date', label: 'Ngày giao', children: formatDate(form.deliveryDate) },
-                  { key: 'goods', label: 'Loại hàng', children: effectiveGoodsType ? GOODS_LABEL[effectiveGoodsType] : 'Chưa chọn' },
+                  { key: 'goods', label: 'Loại hàng', children: reviewGoodsLabel },
                   { key: 'vehicle', label: 'Loại xe', children: form.vehicleType ? VEHICLE_LABEL[form.vehicleType] : 'Chưa chọn' },
                   { key: 'driver', label: 'Tài xế', children: form.driverName || '—' },
                   { key: 'phone', label: 'Số điện thoại', children: form.driverPhone },
