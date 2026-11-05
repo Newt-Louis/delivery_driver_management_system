@@ -38,7 +38,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
     resolver: zodResolver(slotSchema),
     defaultValues: slot
       ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: slotGoodsPriority(slot) }
-      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, maxCapacity: 1, acceptedGoods: [], goodsPriority: SLOT_GOODS },
+      : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, maxCapacity: 1, acceptedGoods: [], goodsPriority: SLOT_GOODS.filter((goodsType) => goodsType !== 'AUTO_WAREHOUSE') },
   });
 
   const goodsPriority = watch('goodsPriority') ?? [];

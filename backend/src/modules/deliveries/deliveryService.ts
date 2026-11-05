@@ -215,6 +215,9 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   const poNumber = body.poNumber?.trim() ?? '';
   const normalizedOrderCode = deliveryRepository.normalizeOrderCode(poNumber);
   const quickVerification = verifyQuickRegistrationToken(body.quickVerificationToken);
+  if (body.goodsType === GoodsType.AUTO_WAREHOUSE) {
+    throw domainError.badRequest('Vui lòng chọn loại hàng giao thực tế. Kho tự động được xác định theo mã nhà cung cấp.', 'InvalidRegistrationGoodsType');
+  }
   if (!quickVerification && (body.quickVerificationToken || requiresQuickVerification(poNumber))) {
     throw domainError.badRequest('Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại mã.', 'QuickVerificationRequired');
   }
@@ -264,7 +267,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     : null;
   if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
 
-  let resolvedGoodsType = body.goodsType;
+  let resolvedGoodsType: GoodsType = body.goodsType;
   let resolvedVendorCode: string | undefined;
   if (body.vendorCode?.trim()) {
     const normalized = body.vendorCode.toUpperCase().trim();
@@ -280,7 +283,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   if (
     unitConfig.sundayFreshFoodOnly
     && isSundayDeliveryDate(requestedTime, deliveryDate)
-    && resolvedGoodsType !== GoodsType.FRESH_FOOD
+    && body.goodsType !== GoodsType.FRESH_FOOD
   ) {
     throw domainError.unprocessable('Chủ nhật chỉ nhận hàng tươi sống', 'SundayFreshFoodOnly');
   }
@@ -289,9 +292,9 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     ? await deliveryRepository.getRegistrationDailyCapacity({
         unitConfigId: unitConfig.id,
         unit: body.receivingUnit,
-        goodsType: resolvedGoodsType,
+        goodsType: body.goodsType,
         vehicleType: body.vehicleType,
-        unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : body.unitGoodsTypeId,
+        unitGoodsTypeId: body.unitGoodsTypeId,
       })
     : null;
 
@@ -349,7 +352,8 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           receivingUnit: body.receivingUnit,
           unitConfigId: unitConfig.id,
           goodsType: resolvedGoodsType,
-          unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
+          originalGoodsType: body.goodsType,
+          unitGoodsTypeId: body.unitGoodsTypeId || undefined,
           poNumber: poNumber || null,
           vendorCode: resolvedVendorCode,
           requestedTime,

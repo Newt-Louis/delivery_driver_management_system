@@ -36,6 +36,7 @@ export type RegisterDeliveryPayload = {
 
 export type RegisterDeliveryResponse = {
   registrationCode: string;
+  goodsType: GoodsType;
 };
 
 export type VehicleAvailabilityOption = {

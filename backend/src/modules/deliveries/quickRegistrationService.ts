@@ -286,7 +286,6 @@ function mapGoodsType(value: unknown, fallback: GoodsType): GoodsType {
   const normalized = normalizeText(asString(value) ?? '');
   if (!normalized) return fallback;
   if (normalized.includes('FRESH') || normalized.includes('TUOISONG') || normalized.includes('TUOITUOI')) return GoodsType.FRESH_FOOD;
-  if (normalized.includes('AUTO') || normalized.includes('WAREHOUSE') || normalized.includes('KHO')) return GoodsType.AUTO_WAREHOUSE;
   if (normalized.includes('THICONG') || normalized.includes('CONSTRUCTION') || normalized.includes('FITOUT')) return GoodsType.THI_CONG;
   if (normalized.includes('GENERAL') || normalized.includes('NORMAL') || normalized.includes('HANGHOATHONGTHUONG')) return GoodsType.GENERAL_GOODS;
   return fallback;

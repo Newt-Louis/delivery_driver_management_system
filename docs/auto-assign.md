@@ -51,6 +51,7 @@ Hàm chính:
 
 - Slot nhận các loại nằm trong `acceptedGoods`, bao gồm `AUTO_WAREHOUSE` nếu được cấu hình; nếu `acceptedGoods` rỗng thì nhận cả bốn loại.
 - Kho tự động tham gia `goodsPriority` như các loại hàng khác; slot vẫn có thể chỉ nhận riêng loại này nếu cấu hình như vậy.
+- Slot mới tạo trong Backoffice mặc định chỉ nhận ba loại thông thường; muốn nhận kho tự động cần thêm loại đó và đặt thứ tự. Slot đã tồn tại không tự đổi. Các slot được xét theo sức chứa còn lại và mã slot trước khi xét ưu tiên hàng trong từng slot, nên thứ tự không bảo đảm chọn một slot cụ thể khi nhiều slot nhận cùng loại hàng.
 - Migration chuyển slot kho tự động cũ thành chỉ nhận `AUTO_WAREHOUSE` và slot thường cũ sang danh sách hàng cũ, giữ nguyên phạm vi tiếp nhận. Trường hợp dữ liệu cũ là slot thường chỉ khai báo `AUTO_WAREHOUSE` (trước đây không nhận được loại nào) phải được sửa cấu hình trước khi migration chạy.
 - `goodsPriority` chỉ sắp thứ tự ưu tiên trong phạm vi hàng slot được nhận, không cho phép auto-assign đưa loại hàng không được nhận vào slot.
 - `maxCapacity` cho phép nhiều xe trong một slot, đặc biệt xe máy.

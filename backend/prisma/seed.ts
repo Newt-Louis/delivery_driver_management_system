@@ -218,8 +218,8 @@ async function seedLocation(
       assignedUnit: slot.unit,
       vehicleType: slot.vehicleType,
       maxCapacity: slot.maxCapacity,
-      acceptedGoods: [...NORMAL_GOODS, GoodsType.AUTO_WAREHOUSE],
-      goodsPriority: [...NORMAL_GOODS, GoodsType.AUTO_WAREHOUSE],
+      acceptedGoods: NORMAL_GOODS,
+      goodsPriority: NORMAL_GOODS,
       zoneId: zoneByUnit.get(slot.unit)!.id,
     })),
   });
