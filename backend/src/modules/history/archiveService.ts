@@ -82,8 +82,7 @@ async function ensureCloseEvent(
   }, tx);
 }
 
-export async function archiveDelivery(input: ArchiveDeliveryInput) {
-  return prisma.$transaction(async (tx) => {
+export async function archiveDeliveryInTransaction(tx: Prisma.TransactionClient, input: ArchiveDeliveryInput) {
     await lockDelivery(tx, input.deliveryId);
 
     const delivery = await tx.deliveryRegistration.findUnique({
@@ -210,5 +209,8 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
     }
 
     return { history, archived: true, deleted };
-  });
+}
+
+export async function archiveDelivery(input: ArchiveDeliveryInput) {
+  return prisma.$transaction((tx) => archiveDeliveryInTransaction(tx, input));
 }

@@ -38,7 +38,7 @@ Trong scheduler/history module:
 
 Tự động:
 
-- `close-daily-deliveries` chạy 23:59 theo timezone `Asia/Ho_Chi_Minh`.
+- `close-daily-deliveries` chạy 00:00 theo timezone `Asia/Ho_Chi_Minh` và chốt ngày Việt Nam vừa kết thúc.
 - `archive-deliveries` chạy cron mỗi 2 giờ.
 - `auto-cancel-called-no-show` chạy cron mỗi phút.
 - Scheduler chạy trong backend process qua `startOperationalScheduler()` và `node-cron`, không phải queue worker/container cron riêng.
@@ -50,7 +50,8 @@ Thủ công:
 
 ## Rule Hiện Tại
 
-- Job 23:59 quét theo `requestedTime` của ngày vận hành, fallback `createdAt`/`checkinTime` khi `requestedTime` null.
+- Job 00:00 quét ngày vận hành trước đó theo `requestedTime`, fallback `createdAt`/`checkinTime` khi `requestedTime` null. API chạy thủ công tiếp tục mặc định chốt ngày hiện tại.
+- Mỗi lượt được khóa dòng và kiểm tra lại trạng thái, ngày và scope trong transaction trước khi chuyển trạng thái, ghi lịch sử và xóa. Nếu không còn thỏa điều kiện thì bỏ qua; lỗi archive rollback toàn bộ thay đổi của lượt đó.
 - `REGISTERED`: `EXPIRED`, lý do không tới check-in.
 - `RECEIVING`/`AUTO_WAREHOUSE_RECEIVING`: `INCOMPLETED`, lý do chưa hoàn tất cuối ngày.
 - `CANCELLED`: cron 120 phút archive/xóa sau khi đã có `cancelReason`.

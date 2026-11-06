@@ -54,9 +54,10 @@ Module chính:
 
 Job hiện có:
 
-- `close-daily-deliveries`: chạy 23:59 theo `Asia/Ho_Chi_Minh`.
+- `close-daily-deliveries`: chạy 00:00 theo `Asia/Ho_Chi_Minh` để xử lý ngày Việt Nam vừa kết thúc; chạy thủ công vẫn mặc định ngày hiện tại.
   - `REGISTERED` trong ngày vận hành nhưng không check-in: đánh dấu `EXPIRED`, ghi history/events, xóa khỏi bảng vận hành.
   - `RECEIVING` hoặc `AUTO_WAREHOUSE_RECEIVING` cuối ngày: đánh dấu `INCOMPLETED`, ghi history/events, reconcile/release slot, xóa khỏi bảng vận hành.
+  - Khóa từng dòng, kiểm tra lại điều kiện và thực hiện đổi trạng thái, archive và xóa trong một transaction; lượt không còn đủ điều kiện được bỏ qua.
 - `archive-deliveries`: chạy mỗi 120 phút.
   - Với `COMPLETED`, kiểm tra snapshot lịch sử theo từng lô; giữ nguyên snapshot đã có và xóa dòng vận hành nếu lịch sử vẫn tồn tại với trạng thái `COMPLETED`. Nếu thiếu snapshot, ghi lịch sử trước khi xóa; nếu snapshot có trạng thái khác, báo lỗi và giữ dòng vận hành.
   - Với `CANCELLED`, giữ rule cũ: archive/xóa các lượt đã có `cancelReason` và quá cutoff 120 phút.

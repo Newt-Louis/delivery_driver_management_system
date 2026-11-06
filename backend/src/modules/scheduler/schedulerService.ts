@@ -1,5 +1,6 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import { SchedulerJobTrigger } from '@prisma/client';
+import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import {
   archiveDeliveries,
   autoCancelCalledNoShowDeliveries,
@@ -8,7 +9,7 @@ import {
 } from './deliveryJobs';
 
 const TIMEZONE = 'Asia/Ho_Chi_Minh';
-const DAILY_CLOSE_CRON = '59 23 * * *';
+const DAILY_CLOSE_CRON = '0 0 * * *';
 const DELIVERY_ARCHIVE_CRON = '0 */2 * * *';
 const CALLED_NO_SHOW_CRON = '* * * * *';
 
@@ -24,14 +25,9 @@ const dailyCloseJob: JobState = { isRunning: false, task: null, lastRunAt: null,
 const deliveryArchiveJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
 const calledNoShowJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
 
-function nextVietnamDailyRunUtc(hour: number, minute: number): Date {
-  const nowInVietnam = new Date(new Date().toLocaleString('en-US', { timeZone: TIMEZONE }));
-  const nextInVietnam = new Date(nowInVietnam);
-  nextInVietnam.setHours(hour, minute, 0, 0);
-  if (nextInVietnam.getTime() <= nowInVietnam.getTime()) {
-    nextInVietnam.setDate(nextInVietnam.getDate() + 1);
-  }
-  return new Date(nextInVietnam.getTime() - 7 * 60 * 60 * 1000);
+export function previousVietnamBusinessDate(now = new Date()): string {
+  const { start } = getVNDateRangeUtc(getVNDateKey(now));
+  return getVNDateKey(new Date(start.getTime() - 1));
 }
 
 function nextIntervalRun(minutes: number): Date {
@@ -108,8 +104,8 @@ export function startOperationalScheduler() {
     'close-daily-deliveries',
     DAILY_CLOSE_CRON,
     dailyCloseJob,
-    () => closeDailyDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED }),
-    () => nextVietnamDailyRunUtc(23, 59),
+    () => closeDailyDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED, businessDate: previousVietnamBusinessDate() }),
+    () => getVNDateRangeUtc(getVNDateKey()).end,
   );
   scheduleJob(
     'archive-deliveries',

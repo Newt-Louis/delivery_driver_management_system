@@ -16,7 +16,7 @@ import { cancelDelivery } from '../../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../../services/realtimeScope';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
 import { sendPushToDelivery } from '../../services/webPush';
-import { archiveDelivery } from '../history/archiveService';
+import { archiveDelivery, archiveDeliveryInTransaction } from '../history/archiveService';
 import { startSchedulerJobHistory, finishSchedulerJobHistory } from './jobHistory';
 import * as deliveryRepository from '../deliveries/deliveryRepository';
 
@@ -48,8 +48,7 @@ export async function closeDailyDeliveries(args: {
     },
   });
 
-  const candidates = await prisma.deliveryRegistration.findMany({
-    where: {
+  const candidateWhere: Prisma.DeliveryRegistrationWhereInput = {
       AND: [
         {
           OR: [
@@ -81,58 +80,58 @@ export async function closeDailyDeliveries(args: {
           ? [{ unitConfigId: args.unitConfigIds.length > 0 ? { in: args.unitConfigIds } : '__NO_UNIT_SCOPE__' }]
           : []),
       ],
-    },
+  };
+  const candidates = await prisma.deliveryRegistration.findMany({
+    where: candidateWhere,
     select: { id: true, status: true, registrationCode: true, vehiclePlate: true },
   });
 
   let succeeded = 0;
   let failed = 0;
+  let skipped = 0;
   const errors: Array<{ deliveryId: string; error: string }> = [];
 
   for (const candidate of candidates) {
     try {
-      if (candidate.status === DeliveryStatus.REGISTERED) {
-        await prisma.deliveryRegistration.update({
-          where: { id: candidate.id },
+      const closed = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`
+          SELECT "id" FROM "delivery_registrations" WHERE "id" = ${candidate.id} FOR UPDATE
+        `);
+        // Re-read status, date and scope under the lock: another operation may have won first.
+        const current = await tx.deliveryRegistration.findFirst({
+          where: { AND: [candidateWhere, { id: candidate.id }] },
+          select: { id: true, status: true, registrationCode: true, vehiclePlate: true },
+        });
+        if (!current) return null;
+        const expired = current.status === DeliveryStatus.REGISTERED;
+        const finalStatus = expired ? DeliveryHistoryFinalStatus.EXPIRED : DeliveryHistoryFinalStatus.INCOMPLETED;
+        const closeReason = expired ? 'Không tới check-in' : 'Chưa hoàn tất nhận hàng cuối ngày';
+        await tx.deliveryRegistration.update({
+          where: { id: current.id },
           data: {
-            status: DeliveryStatus.EXPIRED,
-            note: 'Hết hạn: không tới check-in',
+            status: expired ? DeliveryStatus.EXPIRED : DeliveryStatus.INCOMPLETED,
+            note: expired ? 'Hết hạn: không tới check-in' : closeReason,
           },
         });
-        await archiveDelivery({
-          deliveryId: candidate.id,
-          finalStatus: DeliveryHistoryFinalStatus.EXPIRED,
-          archiveReason: 'EXPIRED_NO_SHOW',
-          closeReason: 'Không tới check-in',
-          jobRunId: job.id,
-          occurredAt: now,
-          deleteOperationalRow: true,
+        const archived = await archiveDeliveryInTransaction(tx, {
+          deliveryId: current.id, finalStatus,
+          archiveReason: expired ? 'EXPIRED_NO_SHOW' : 'INCOMPLETED', closeReason,
+          jobRunId: job.id, occurredAt: now, deleteOperationalRow: true,
+          expectedStatus: expired ? DeliveryStatus.EXPIRED : DeliveryStatus.INCOMPLETED,
           ...systemActor('scheduler.close-daily-deliveries'),
         });
-      } else {
-        await prisma.deliveryRegistration.update({
-          where: { id: candidate.id },
-          data: {
-            status: DeliveryStatus.INCOMPLETED,
-            note: 'Chưa hoàn tất nhận hàng cuối ngày',
-          },
-        });
-        await archiveDelivery({
-          deliveryId: candidate.id,
-          finalStatus: DeliveryHistoryFinalStatus.INCOMPLETED,
-          archiveReason: 'INCOMPLETED',
-          closeReason: 'Chưa hoàn tất nhận hàng cuối ngày',
-          jobRunId: job.id,
-          occurredAt: now,
-          deleteOperationalRow: true,
-          ...systemActor('scheduler.close-daily-deliveries'),
-        });
+        if (!archived.deleted) throw new Error('Delivery was not archived and deleted');
+        return { ...current, finalStatus };
+      });
+      if (!closed) {
+        skipped++;
+        continue;
       }
-      sendPushToDelivery(candidate.registrationCode, {
-        status: candidate.status === DeliveryStatus.REGISTERED ? 'EXPIRED' : 'INCOMPLETED',
+      sendPushToDelivery(closed.registrationCode, {
+        status: closed.finalStatus,
         occurredAt: now.toISOString(), title: 'Lượt giao hàng đã kết thúc',
-        body: `Xe ${candidate.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
-        url: `/track/${candidate.registrationCode}`,
+        body: `Xe ${closed.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
+        url: `/track/${closed.registrationCode}`,
       }).catch(console.error);
       succeeded++;
     } catch (error) {
@@ -148,7 +147,7 @@ export async function closeDailyDeliveries(args: {
     succeededCount: succeeded,
     failedCount: failed,
     errorMessage: errors[0]?.error ?? null,
-    metadata: { errors: errors.slice(0, 20) as Prisma.InputJsonValue },
+    metadata: { skipped, errors: errors.slice(0, 20) as Prisma.InputJsonValue },
   });
 
   return { jobRunId: job.id, processed: candidates.length, succeeded, failed };
