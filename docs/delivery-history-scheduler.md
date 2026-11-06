@@ -57,17 +57,20 @@ Job hiện có:
 - `close-daily-deliveries`: chạy 23:59 theo `Asia/Ho_Chi_Minh`.
   - `REGISTERED` trong ngày vận hành nhưng không check-in: đánh dấu `EXPIRED`, ghi history/events, xóa khỏi bảng vận hành.
   - `RECEIVING` hoặc `AUTO_WAREHOUSE_RECEIVING` cuối ngày: đánh dấu `INCOMPLETED`, ghi history/events, reconcile/release slot, xóa khỏi bảng vận hành.
-- `archive-cancelled-deliveries`: chạy mỗi 120 phút.
-  - Archive/xóa các lượt `CANCELLED` đã có `cancelReason` và quá cutoff 120 phút.
+- `archive-deliveries`: chạy mỗi 120 phút.
+  - Với `COMPLETED`, kiểm tra snapshot lịch sử theo từng lô; giữ nguyên snapshot đã có và xóa dòng vận hành nếu lịch sử vẫn tồn tại với trạng thái `COMPLETED`. Nếu thiếu snapshot, ghi lịch sử trước khi xóa; nếu snapshot có trạng thái khác, báo lỗi và giữ dòng vận hành.
+  - Với `CANCELLED`, giữ rule cũ: archive/xóa các lượt đã có `cancelReason` và quá cutoff 120 phút.
 - `auto-cancel-called-no-show`: chạy mỗi phút.
   - Quét delivery `CALLED` của unit đang bật `UnitConfig.autoCancelCalledEnabled`.
   - Tính thời gian quá hạn từ event gọi gần nhất trong `delivery_history_events`: `AUTO_ASSIGNED`, `MANUAL_CALLED`, `RECALLED`, `REASSIGNED_SLOT`; fallback về `calledTime` nếu thiếu event.
   - Khi quá `autoCancelCalledAfterMinutes`, chuyển delivery sang `CANCELLED`, ghi reason/message `Tài xế check-in rồi nhưng không vào`, release slot, emit realtime và trigger auto-assign tiếp.
-  - Row operational `CANCELLED` không bị archive ngay; `archive-cancelled-deliveries` sẽ xóa/archive sau 120 phút như cancel thường.
+  - Row operational `CANCELLED` không bị archive ngay; `archive-deliveries` sẽ xóa/archive sau 120 phút như cancel thường.
 
 Mỗi job run đều ghi `scheduler_job_histories`.
 
 Scheduler hiện chạy trong chính backend process qua `startOperationalScheduler()` sau khi server listen. `schedulerService.ts` dùng `node-cron` cho lịch chạy thật, có guard `isRunning` để tránh overlap, graceful stop khi process nhận `SIGTERM`/`SIGINT`, và endpoint `GET /health/scheduler` để xem `nextRunAt`, `lastRunAt`, `isRunning`, `lastProcessed`, `lastSucceeded`, `lastFailed` của từng job.
+
+Health trả `deliveryArchive`; `cancelledArchive` vẫn là alias tương thích cho consumer cũ. Sau khi dòng `COMPLETED` được dọn, API tracking theo mã không còn tìm thấy chuyến đó; lịch sử và timeline vẫn được giữ.
 
 Hiện chưa có queue worker riêng. Scheduler chỉ quyết định khi nào kích hoạt job; nếu sau này cần retry/backoff/dedupe phức tạp hoặc job dài, queue/worker sẽ là một tầng thiết kế khác.
 

@@ -361,97 +361,32 @@ async function skipAutoAssignIfForeignWaiting(
   return false;
 }
 
-test('50 concurrent identical registrations create one active delivery', async () => {
+test('concurrent registrations update one delivery per plate and location', async () => {
   await withRegisterServer(async (baseUrl) => {
-    const prefix = nextPrefix('REGDUP50');
-    await cleanupPrefix(prefix);
-    const vehiclePlate = `${prefix}PLATE`;
-    const payload = {
-      vendorName: 'Concurrent Vendor',
-      driverName: 'Concurrent Driver',
-      driverPhone: '0900000000',
-      vehiclePlate,
-      vehicleType: 'TRUCK',
-      receivingUnit: 'EMART',
-      goodsType: 'GENERAL_GOODS',
-      poNumber: 'PO0473829156',
-      note: prefix,
-    };
-
-    try {
-      const responses = await Promise.all(
-        Array.from({ length: 50 }, () => fetch(`${baseUrl}/api/deliveries/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })),
-      );
-
-      const statuses = responses.map((res) => res.status);
-      assert.equal(statuses.filter((status) => status === 201).length, 1);
-      assert.equal(statuses.filter((status) => status === 409).length, 49);
-
-      const deliveries = await prisma.deliveryRegistration.findMany({
-        where: {
-          vehiclePlate,
-          status: { in: ACTIVE_REGISTRATION_STATUSES },
-        },
+    await withScope('REGPLATE', ReceivingUnit.EMART, async (scope) => {
+      const payload = {
+        businessLocationId: scope.businessLocationId, unitConfigId: scope.unitConfigId,
+        vendorName: 'Vendor', driverName: 'Driver', driverPhone: '0900000000',
+        vehiclePlate: `${scope.prefix}PLATE`, vehicleType: 'TRUCK', receivingUnit: 'EMART',
+        goodsType: 'GENERAL_GOODS', poNumber: 'ABC1234', note: scope.prefix,
+      };
+      const submit = (body: object) => fetch(`${baseUrl}/api/deliveries/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
-      assert.equal(deliveries.length, 1);
-    } finally {
-      await cleanupPrefix(prefix);
-    }
-  });
-});
-
-test('same active vehicle plate can register again with different phone or PO in the same day', async () => {
-  await withRegisterServer(async (baseUrl) => {
-    const prefix = nextPrefix('REGSAMEPLATE');
-    await cleanupPrefix(prefix);
-    const vehiclePlate = `${prefix}PLATE`;
-    const basePayload = {
-      vendorName: 'Same Plate Vendor',
-      driverName: 'Same Plate Driver',
-      vehiclePlate,
-      vehicleType: 'TRUCK',
-      receivingUnit: 'TENANT',
-      goodsType: 'GENERAL_GOODS',
-      note: prefix,
-    };
-
-    try {
-      const first = await fetch(`${baseUrl}/api/deliveries/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...basePayload,
-          driverPhone: '0900000000',
-          poNumber: 'PO0473829156',
-        }),
-      });
-      const second = await fetch(`${baseUrl}/api/deliveries/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...basePayload,
-          driverPhone: '0911111111',
-          poNumber: 'PO5839102746',
-        }),
-      });
-
-      assert.equal(first.status, 201);
-      assert.equal(second.status, 201);
-
-      const deliveries = await prisma.deliveryRegistration.findMany({
-        where: {
-          vehiclePlate,
-          status: { in: ACTIVE_REGISTRATION_STATUSES },
-        },
-      });
-      assert.equal(deliveries.length, 2);
-    } finally {
-      await cleanupPrefix(prefix);
-    }
+      const responses = await Promise.all(Array.from({ length: 10 }, (_, i) => submit({ ...payload, driverPhone: `09000000${String(i).padStart(2, '0')}` })));
+      assert.ok(responses.every((response) => response.status === 201));
+      const bodies = await Promise.all(responses.map((response) => response.json() as Promise<{ registrationCode: string }>));
+      assert.equal(new Set(bodies.map((body) => body.registrationCode)).size, 1);
+      const rows = await prisma.deliveryRegistration.findMany({ where: { vehiclePlate: payload.vehiclePlate } });
+      assert.equal(rows.length, 1);
+      assert.equal(rows[0].registrationCode, bodies[0].registrationCode);
+      await prisma.deliveryRegistration.update({ where: { id: rows[0].id }, data: { status: DeliveryStatus.WAITING, checkinTime: new Date() } });
+      assert.equal((await submit(payload)).status, 409);
+      await prisma.deliveryRegistration.update({ where: { id: rows[0].id }, data: { status: DeliveryStatus.CANCELLED } });
+      const fresh = await submit(payload);
+      assert.equal(fresh.status, 201);
+      assert.notEqual(((await fresh.json()) as { registrationCode: string }).registrationCode, rows[0].registrationCode);
+    });
   });
 });
 

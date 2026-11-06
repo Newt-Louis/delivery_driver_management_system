@@ -4,6 +4,7 @@ import { reserveTicketNumber } from './ticketSequence';
 import { recordDeliveryEvent } from '../modules/history/historyService';
 import type { HistoryActor } from '../modules/history/types';
 import { resolveCheckInGoodsType } from './autoWarehousePolicy';
+import { domainError } from '../modules/shared/domainError';
 
 type DeliveryFindArgs = {
   include?: Prisma.DeliveryRegistrationInclude;
@@ -14,6 +15,7 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
   resultArgs: TArgs;
   now?: Date;
   actor?: HistoryActor;
+  expectedUnitConfigId?: string | null;
 }): Promise<{
   checkedIn: boolean;
   delivery: Prisma.DeliveryRegistrationGetPayload<TArgs> | null;
@@ -30,6 +32,9 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
 
     if (!current) return { checkedIn: false, delivery: null };
     const currentRecord = current as Prisma.DeliveryRegistrationGetPayload<Prisma.DeliveryRegistrationDefaultArgs>;
+    if (args.expectedUnitConfigId !== undefined && currentRecord.unitConfigId !== args.expectedUnitConfigId) {
+      throw domainError.conflict('Đơn vị của lượt đăng ký đã thay đổi. Vui lòng tải lại và kiểm tra quyền.', 'RegistrationUnitChanged');
+    }
     if (currentRecord.status === DeliveryStatus.WAITING || currentRecord.status !== DeliveryStatus.REGISTERED) {
       return { checkedIn: false, delivery: current };
     }

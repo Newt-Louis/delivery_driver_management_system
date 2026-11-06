@@ -341,12 +341,8 @@ export function useRegisterForm() {
       else if (!form.vehicleType) errs.vehicleType = 'Vui lòng chọn loại phương tiện';
     }
     if (step === 2) {
-      const selectedDayStats = dailyStats.find((item) => item.date === form.deliveryDate);
       if (sundayFreshFoodBlocked) errs.deliveryDate = 'Chủ nhật chỉ nhận hàng tươi sống';
       else if (!form.deliveryDate) errs.deliveryDate = 'Không thể xác định ngày giao hàng. Vui lòng thử lại.';
-      else if (selectedDayStats?.available === false) {
-        errs.deliveryDate = selectedDayStats.reason ?? 'Ngày này đã đạt công suất đăng ký';
-      }
       if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
       if (!form.poNumber) errs.poNumber = manualReferenceError || 'Đang tạo mã đối chiếu đăng ký';
     }

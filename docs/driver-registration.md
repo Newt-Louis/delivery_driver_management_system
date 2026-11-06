@@ -105,7 +105,7 @@ Module backend:
 - `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint đăng ký và lifecycle delivery.
 - `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, check-in lookup, call/cancel và query list.
 - `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, resolve `UnitConfig`, capacity ước lượng theo ngày, duplicate theo ngày giao và auto-warehouse vendor.
-- `backend/src/modules/deliveries/deliveryService.ts`: rule đăng ký, duplicate theo `vehiclePlate + driverPhone + poNumber` trong ngày giao khi có mã PO/Thi Công, capacity lock theo ngày, Sunday fresh-food-only, history event và response.
+- `backend/src/modules/deliveries/deliveryService.ts`: tạo hoặc cập nhật đăng ký theo biển số, khu vực và ngày giao; capacity lock, Sunday fresh-food-only, history event và response.
 - `backend/src/modules/deliveries/quickRegistrationService.ts`: đọc API Config, gọi API PO/Thi Công bên thứ 3, log response thật, chuẩn hóa location/unit/goods/date và phát token xác thực ngắn hạn cho submit cuối.
 - `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
@@ -137,8 +137,11 @@ Service:
 - `registrationCode` có format `BUSINESSLOCATIONCODE + 4 ký tự cuối của UnitConfig.id + YYMMDD + số thứ tự ba chữ số`. Số thứ tự reset theo ngày và `UnitConfig`; mã location và suffix UnitConfig giữ mã đăng ký unique toàn cục để `/track/:code` và check-in không cần thêm scope.
 - `BusinessLocation` public là phạm vi chung của các route public, không phải field trong wizard `/register-manual`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn toàn cục.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
-- Duplicate registration chỉ bị chặn khi cùng ngày giao đã chọn có lượt active trùng đủ cả ba thông tin `vehiclePlate + driverPhone + poNumber` trong cùng `unitConfigId`. Với luồng thủ công, `poNumber` là Mã đối chiếu tự sinh.
-- Cùng biển số vẫn được đăng ký ngày khác, hoặc cùng ngày nhưng khác số điện thoại/Mã đối chiếu.
+- Trong cùng BusinessLocation và ngày giao Việt Nam, đăng ký lại cùng biển số cập nhật lượt `REGISTERED` chưa check-in, giữ nguyên biển số và registration code; có thể đổi đơn vị và các thông tin đăng ký khác. Đăng ký thành công vẫn trả cùng mã để tracking.
+- Một biển số có thể có lượt riêng tại các BusinessLocation khác nhau. Nếu lượt cùng khu vực đã check-in hoặc mang trạng thái khác `REGISTERED`, `COMPLETED`, `CANCELLED`, đăng ký bị chặn; chỉ `COMPLETED` hoặc `CANCELLED` cho phép tạo lượt mới trong cùng ngày. Lượt `EXPIRED`/`INCOMPLETED` đã archive cũng được kiểm tra trong history.
+- Trường hợp dữ liệu cũ có nhiều lượt chưa kết thúc cùng biển số/khu vực/ngày, API trả lỗi yêu cầu nhân viên xử lý thay vì tự chọn hoặc xóa dữ liệu. Giao dịch đăng ký khóa theo khu vực, ngày và biển số, rồi khóa dòng trước khi cập nhật để đồng bộ với check-in.
+- Điều chỉnh đăng ký thủ công tại cùng đơn vị và loại xe không tính thêm công suất; nếu đổi đơn vị/loại xe, backend kiểm tra công suất đích. Frontend hiển thị cảnh báo công suất nhưng không chặn trước khi backend xác định đây là cập nhật hay tạo mới.
+- Tra cứu check-in theo biển số lọc theo khu vực của nhân viên; trang track gửi khu vực public đang chọn khi tra cứu biển số. Nếu chưa chọn khu vực và có lượt tại nhiều khu vực, tra cứu yêu cầu chọn khu vực thay vì tự chọn một chuyến. Một đăng ký được cập nhật phát `queue_updated` cho đơn vị cũ và mới và `track_updated` cho mã đăng ký giữ nguyên.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Với đăng ký thủ công, backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale. Đăng ký bằng mã PO/Thi Công không áp dụng giới hạn capacity này.
 - Capacity ngày tính theo:

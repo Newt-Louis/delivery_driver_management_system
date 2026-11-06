@@ -144,30 +144,25 @@ async function ensureRegistrationDailyCapacity(
   }
 }
 
-function duplicateRegistration(vehiclePlate: string, duplicate: unknown) {
+function duplicateRegistration(vehiclePlate: string): never {
   throw domainError.conflict(
-    `Xe ${vehiclePlate} đã có lượt đăng ký trùng thông tin trong ngày giao đã chọn (${(duplicate as { registrationCode?: string } | null)?.registrationCode ?? 'đang xử lý'}).`,
+    `Xe ${vehiclePlate} đã check-in hoặc có lượt giao hàng chưa thể đăng ký lại trong ngày. Vui lòng liên hệ nhân viên hỗ trợ.`,
     'Duplicate',
-    { delivery: duplicate as Record<string, unknown> },
   );
 }
 
 function duplicateRegistrationLockKey(args: {
-  unitConfigId: string;
+  businessLocationId: string;
   vehiclePlate: string;
-  driverPhone: string;
-  poNumber: string;
   requestedTime: Date | null;
   deliveryDate?: string;
 }) {
   const day = args.requestedTime ?? deliveryRepository.parseDeliveryDate(args.deliveryDate) ?? new Date();
   return [
     'registration-duplicate',
-    args.unitConfigId,
+    args.businessLocationId,
     deliveryRepository.localDateKey(day),
     args.vehiclePlate,
-    args.driverPhone,
-    args.poNumber,
   ].join(':');
 }
 
@@ -255,18 +250,6 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
   }
 
-  const duplicate = normalizedOrderCode
-    ? await deliveryRepository.findDuplicateRegistration({
-        vehiclePlate,
-        driverPhone,
-        poNumber,
-        unitConfigId: unitConfig.id,
-        requestedTime,
-        deliveryDate,
-      })
-    : null;
-  if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
-
   let resolvedGoodsType: GoodsType = body.goodsType;
   let resolvedVendorCode: string | undefined;
   if (body.vendorCode?.trim()) {
@@ -299,31 +282,32 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     : null;
 
   try {
-    const delivery = await deliveryRepository.prisma.$transaction(async (tx) => {
-      if (normalizedOrderCode) {
-        const duplicateLockKey = duplicateRegistrationLockKey({
-          unitConfigId: unitConfig.id,
-          vehiclePlate,
-          driverPhone,
-          poNumber,
-          requestedTime,
-          deliveryDate,
-        });
-        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
-
-        const duplicateInTransaction = await deliveryRepository.findDuplicateRegistration({
-          vehiclePlate,
-          driverPhone,
-          poNumber,
-          unitConfigId: unitConfig.id,
-          requestedTime,
-          deliveryDate,
-          client: tx,
-        });
-        if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
+    const result = await deliveryRepository.prisma.$transaction(async (tx) => {
+      const duplicateLockKey = duplicateRegistrationLockKey({ businessLocationId: unitConfig.businessLocationId, vehiclePlate, requestedTime, deliveryDate });
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
+      const matches = await deliveryRepository.findDuplicateRegistration({ vehiclePlate, businessLocationId: unitConfig.businessLocationId, requestedTime, deliveryDate, client: tx });
+      if (matches.length > 1) {
+        throw domainError.conflict('Có nhiều lượt đăng ký cùng biển số trong khu vực hôm nay. Vui lòng liên hệ nhân viên hỗ trợ.', 'DuplicateRegistrationData');
       }
+      let existing: (typeof matches)[number] | undefined = matches[0];
+      if (existing) {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM delivery_registrations WHERE id = ${existing.id} FOR UPDATE`);
+        existing = await tx.deliveryRegistration.findUnique({ where: { id: existing.id } }) ?? undefined;
+        if (existing && (existing.status === DeliveryStatus.COMPLETED || existing.status === DeliveryStatus.CANCELLED)) existing = undefined;
+        else if (existing && (existing.status !== DeliveryStatus.REGISTERED || existing.checkinTime)) return duplicateRegistration(vehiclePlate);
+      }
+      const { start, end } = deliveryRepository.localDayRange(requestedTime ?? new Date());
+      const archivedBlocked = await tx.deliveryHistory.findFirst({
+        where: {
+          businessLocationId: unitConfig.businessLocationId, vehiclePlate,
+          finalStatus: { in: ['EXPIRED', 'INCOMPLETED'] },
+          OR: [{ requestedTime: { gte: start, lt: end } }, { requestedTime: null, registeredAt: { gte: start, lt: end } }],
+        },
+        select: { id: true },
+      });
+      if (archivedBlocked) return duplicateRegistration(vehiclePlate);
 
-      if (requestedTime && !quickVerification) {
+      if (requestedTime && !quickVerification && (!existing || existing.unitConfigId !== unitConfig.id || existing.vehicleType !== body.vehicleType)) {
         await ensureRegistrationDailyCapacity(tx, {
           requestedTime,
           receivingUnit: body.receivingUnit,
@@ -333,7 +317,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         });
       }
 
-      const registrationCode = await reserveRegistrationCode(tx, {
+      const registrationCode = existing?.registrationCode ?? await reserveRegistrationCode(tx, {
         unitConfigId: unitConfig.id,
         businessLocationCode: unitConfig.businessLocation.code,
         receivingUnit: body.receivingUnit,
@@ -341,9 +325,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
 
       assertRegistrationDateIsToday(deliveryDate, requestedTime);
       if (quickVerification) assertQuickRegistrationDate(body.deliveryDate, requestedTime, quickVerification.deliveryDate);
-      const created = await tx.deliveryRegistration.create({
-        data: {
-          registrationCode,
+      const registrationData = {
           vendorName: body.vendorName,
           driverName: body.driverName,
           driverPhone,
@@ -353,14 +335,24 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           unitConfigId: unitConfig.id,
           goodsType: resolvedGoodsType,
           originalGoodsType: body.goodsType,
-          unitGoodsTypeId: body.unitGoodsTypeId || undefined,
+          unitGoodsTypeId: body.unitGoodsTypeId || null,
           poNumber: poNumber || null,
-          vendorCode: resolvedVendorCode,
+          vendorCode: resolvedVendorCode ?? null,
           requestedTime,
           autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
-          note: body.note,
-        },
-      });
+          note: body.note ?? null,
+      };
+      if (existing) {
+        const updated = await tx.deliveryRegistration.update({ where: { id: existing.id }, data: registrationData });
+        await recordAuditLog({
+          ...systemActor('public-register'), action: 'delivery.registration_update', targetType: 'DeliveryRegistration', targetId: updated.id,
+          businessLocationId: unitConfig.businessLocationId, unitConfigId: unitConfig.id,
+          before: { unitConfigId: existing.unitConfigId, receivingUnit: existing.receivingUnit, vehicleType: existing.vehicleType, goodsType: existing.goodsType, poNumber: existing.poNumber },
+          after: { unitConfigId: updated.unitConfigId, receivingUnit: updated.receivingUnit, vehicleType: updated.vehicleType, goodsType: updated.goodsType, poNumber: updated.poNumber },
+        }, tx);
+        return { delivery: updated, previousUnitConfigId: existing.unitConfigId };
+      }
+      const created = await tx.deliveryRegistration.create({ data: { ...registrationData, registrationCode } });
 
       await recordDeliveryEvent(created, {
         ...systemActor('public-register'),
@@ -370,35 +362,26 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         message: 'Đăng ký giao hàng',
       }, tx);
 
-      return created;
+      return { delivery: created, previousUnitConfigId: null };
     });
 
     // A new registration changes dashboard totals and upcoming deliveries even
     // though it has not entered the waiting queue yet.
     const scope = { businessLocationId: unitConfig.businessLocationId, unitConfigId: unitConfig.id };
-    deliveryRepository.getFullQueue(scope)
-      .then((queue) => emitQueueUpdated(queue, scope))
-      .catch((error) => console.error('Failed to emit registration queue update:', error));
-
-    return delivery;
+    const unitIds = new Set([unitConfig.id, result.previousUnitConfigId].filter((id): id is string => Boolean(id)));
+    for (const unitConfigId of unitIds) {
+      const changedScope = { ...scope, unitConfigId };
+      deliveryRepository.getFullQueue(changedScope)
+        .then((queue) => emitQueueUpdated(queue, changedScope))
+        .catch((error) => console.error('Failed to emit registration queue update:', error));
+    }
+    if (result.previousUnitConfigId) emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
+    return result.delivery;
   } catch (error) {
     if (error instanceof SlotFullError) {
       throw domainError.conflict(error.message, 'SlotFull');
     }
 
-    if (deliveryRepository.isUniqueConstraintError(error)) {
-      if (normalizedOrderCode) {
-        const activeDuplicate = await deliveryRepository.findDuplicateRegistration({
-          vehiclePlate,
-          driverPhone,
-          poNumber,
-          unitConfigId: unitConfig.id,
-          requestedTime,
-          deliveryDate,
-        });
-        if (activeDuplicate) return duplicateRegistration(vehiclePlate, activeDuplicate);
-      }
-    }
     throw error;
   }
 }
@@ -417,7 +400,8 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
     throw domainError.badRequest('Vui lòng nhập biển số hoặc mã đăng ký');
   }
 
-  const delivery = await deliveryRepository.findDeliveryByLookup({ registrationCode, vehiclePlate });
+  if (!user?.businessLocationId) throw domainError.forbidden('Không thể xác định khu vực vận hành hiện tại.');
+  const delivery = await deliveryRepository.findDeliveryByLookup({ registrationCode, vehiclePlate, businessLocationId: user.businessLocationId });
   if (!delivery) throw domainError.notFound('Không tìm thấy lượt đăng ký.');
 
   await ensureDeliveryAccess(user, delivery, 'checkin');
@@ -437,6 +421,7 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
 
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
+    expectedUnitConfigId: delivery.unitConfigId,
     resultArgs: { include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } },
     actor: userActor(user),
   });
@@ -513,6 +498,7 @@ export async function checkInById(id: string, user: AuthUser | undefined) {
 
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
+    expectedUnitConfigId: delivery.unitConfigId,
     resultArgs: { include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } },
     actor: userActor(user),
   });

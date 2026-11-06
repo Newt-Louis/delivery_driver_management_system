@@ -1,7 +1,7 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import { SchedulerJobTrigger } from '@prisma/client';
 import {
-  archiveCancelledDeliveries,
+  archiveDeliveries,
   autoCancelCalledNoShowDeliveries,
   closeDailyDeliveries,
   type SchedulerJobResult,
@@ -9,7 +9,7 @@ import {
 
 const TIMEZONE = 'Asia/Ho_Chi_Minh';
 const DAILY_CLOSE_CRON = '59 23 * * *';
-const CANCELLED_ARCHIVE_CRON = '0 */2 * * *';
+const DELIVERY_ARCHIVE_CRON = '0 */2 * * *';
 const CALLED_NO_SHOW_CRON = '* * * * *';
 
 interface JobState {
@@ -21,7 +21,7 @@ interface JobState {
 }
 
 const dailyCloseJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
-const cancelledArchiveJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
+const deliveryArchiveJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
 const calledNoShowJob: JobState = { isRunning: false, task: null, lastRunAt: null, lastResult: null, nextRunAt: null };
 
 function nextVietnamDailyRunUtc(hour: number, minute: number): Date {
@@ -95,7 +95,8 @@ function jobStatus(state: JobState) {
 export function getSchedulerStatus() {
   return {
     dailyClose: jobStatus(dailyCloseJob),
-    cancelledArchive: jobStatus(cancelledArchiveJob),
+    deliveryArchive: jobStatus(deliveryArchiveJob),
+    cancelledArchive: jobStatus(deliveryArchiveJob),
     calledNoShowAutoCancel: jobStatus(calledNoShowJob),
   };
 }
@@ -111,10 +112,10 @@ export function startOperationalScheduler() {
     () => nextVietnamDailyRunUtc(23, 59),
   );
   scheduleJob(
-    'archive-cancelled-deliveries',
-    CANCELLED_ARCHIVE_CRON,
-    cancelledArchiveJob,
-    () => archiveCancelledDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED }),
+    'archive-deliveries',
+    DELIVERY_ARCHIVE_CRON,
+    deliveryArchiveJob,
+    () => archiveDeliveries({ trigger: SchedulerJobTrigger.SCHEDULED }),
     () => nextIntervalRun(120),
   );
   scheduleJob(
@@ -128,10 +129,10 @@ export function startOperationalScheduler() {
   return {
     stop() {
       dailyCloseJob.task?.stop();
-      cancelledArchiveJob.task?.stop();
+      deliveryArchiveJob.task?.stop();
       calledNoShowJob.task?.stop();
       dailyCloseJob.task = null;
-      cancelledArchiveJob.task = null;
+      deliveryArchiveJob.task = null;
       calledNoShowJob.task = null;
       console.log('[scheduler] Scheduler stopped');
     },

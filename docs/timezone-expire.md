@@ -28,8 +28,8 @@ Trong scheduler/history module:
   - Đánh dấu `REGISTERED` không tới check-in thành `EXPIRED`.
   - Đánh dấu `RECEIVING`/`AUTO_WAREHOUSE_RECEIVING` chưa hoàn tất cuối ngày thành `INCOMPLETED`.
   - Ghi `delivery_history`, `delivery_history_events`, `scheduler_job_histories`, rồi xóa khỏi bảng vận hành khi job archive.
-- `archiveCancelledDeliveries()`
-  - Chạy mỗi 120 phút để archive/xóa các lượt `CANCELLED` đã có reason và quá cutoff.
+- `archiveDeliveries()`
+  - Chạy mỗi 120 phút để dọn lượt `COMPLETED` sau khi xác nhận hoặc tạo lịch sử; archive/xóa các lượt `CANCELLED` đã có reason và quá cutoff.
 - `autoCancelCalledNoShowDeliveries()`
   - Chạy mỗi phút để hủy delivery `CALLED` đã được gọi vào slot nhưng không bắt đầu nhận hàng sau số phút cấu hình theo `UnitConfig`.
   - Lý do/message nghiệp vụ: `Tài xế check-in rồi nhưng không vào`.
@@ -39,7 +39,7 @@ Trong scheduler/history module:
 Tự động:
 
 - `close-daily-deliveries` chạy 23:59 theo timezone `Asia/Ho_Chi_Minh`.
-- `archive-cancelled-deliveries` chạy cron mỗi 2 giờ.
+- `archive-deliveries` chạy cron mỗi 2 giờ.
 - `auto-cancel-called-no-show` chạy cron mỗi phút.
 - Scheduler chạy trong backend process qua `startOperationalScheduler()` và `node-cron`, không phải queue worker/container cron riêng.
 
@@ -54,6 +54,7 @@ Thủ công:
 - `REGISTERED`: `EXPIRED`, lý do không tới check-in.
 - `RECEIVING`/`AUTO_WAREHOUSE_RECEIVING`: `INCOMPLETED`, lý do chưa hoàn tất cuối ngày.
 - `CANCELLED`: cron 120 phút archive/xóa sau khi đã có `cancelReason`.
+- `COMPLETED`: cron 120 phút xóa dòng vận hành ở lần chạy tiếp theo sau khi kiểm tra lịch sử. Snapshot hoàn tất sẵn có không bị ghi đè.
 - `CALLED`: nếu unit bật `autoCancelCalledEnabled` và quá `autoCancelCalledAfterMinutes` từ lần gọi gần nhất, hệ thống chuyển sang `CANCELLED`; row này ở lại bảng vận hành 120 phút trước khi archive như cancel thường.
 
 ## Lưu Ý

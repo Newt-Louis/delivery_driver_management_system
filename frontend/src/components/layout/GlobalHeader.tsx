@@ -196,9 +196,9 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
               </Link>
               <PublicBusinessLocationSelector />
             </div>
-            {publicMenuWide && <div className="absolute left-1/2 -translate-x-1/2">
+            {publicMenuWide && <div className="absolute left-1/2 w-max -translate-x-1/2">
               {publicMenuFits ? (
-                <Menu mode="horizontal" selectedKeys={publicSelectedKeys} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
+                <Menu mode="horizontal" disabledOverflow selectedKeys={publicSelectedKeys} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
               ) : (
                 <Dropdown menu={{ items: publicHeaderItems, selectable: true, selectedKeys: publicSelectedKeys }} trigger={publicMenuTriggers} placement="bottom">
                   <Button type="text" icon={<MenuOutlined />}>Menu</Button>
@@ -207,7 +207,7 @@ export default function GlobalHeader({ area }: { area: HeaderArea }) {
             </div>}
             <div ref={publicEndRef} className="ml-auto shrink-0"><HeaderAccount showAccount={false} mode={mode} onToggleMode={toggleMode} accountMenu={accountMenu} /></div>
             <div ref={publicMenuMeasureRef} aria-hidden="true" className="pointer-events-none absolute -z-10 h-0 overflow-hidden opacity-0" style={{ width: 'max-content' }}>
-              <Menu mode="horizontal" selectedKeys={[]} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
+              <Menu mode="horizontal" disabledOverflow selectedKeys={[]} items={publicHeaderItems} className="public-header-menu border-b-0" style={{ background: 'transparent', borderBottom: 0 }} />
             </div>
           </div>
         ) : (

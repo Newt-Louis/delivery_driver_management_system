@@ -96,6 +96,12 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
       });
       return { history: existing, archived: false, deleted: false };
     }
+    if (input.expectedStatus && delivery.status !== input.expectedStatus) {
+      throw new Error(`Delivery ${input.deliveryId} changed status before archive`);
+    }
+    if (input.updatedBefore && delivery.updatedAt > input.updatedBefore) {
+      throw new Error(`Delivery ${input.deliveryId} was updated before archive`);
+    }
 
     const occurredAt = input.occurredAt ?? new Date();
     const scope = await resolveDeliveryScope(tx, delivery);
