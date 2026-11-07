@@ -216,6 +216,8 @@ router.post('/', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LO
 }));
 
 const updateSchema = z.object({
+  unitConfigId: z.string().trim().min(1).optional(),
+  vendorCode: z.string().trim().min(1).max(50).optional(),
   vendorName: z.string().min(1).max(200).optional(),
   active: z.boolean().optional(),
   note: z.string().optional().nullable(),
@@ -224,13 +226,30 @@ const updateSchema = z.object({
 // PATCH /api/aw-vendors/:id — admin only
 router.patch('/:id', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC'), asyncHandler(async (req: Request, res: Response) => {
   await respond(res, (async () => {
-    await getScopedVendor(req, req.params.id);
+    const vendor = await getScopedVendor(req, req.params.id);
     const body = updateSchema.parse(req.body);
-    return prisma.autoWarehouseVendor.update({
-      where: { id: req.params.id },
-      data: body,
-      include: { unitConfig: { select: unitConfigSelect } },
+    const targetUnit = body.unitConfigId && body.unitConfigId !== vendor.unitConfigId
+      ? await resolveScopedUnitConfig(req, body.unitConfigId)
+      : vendor.unitConfig!;
+    const vendorCode = body.vendorCode?.toUpperCase() ?? vendor.vendorCode;
+    const duplicate = await prisma.autoWarehouseVendor.findFirst({
+      where: { unitConfigId: targetUnit.id, vendorCode, id: { not: vendor.id } },
+      select: { id: true },
     });
+    if (duplicate) throw domainError.conflict(`Mã NCC "${vendorCode}" đã tồn tại cho đơn vị này.`);
+
+    try {
+      return await prisma.autoWarehouseVendor.update({
+        where: { id: req.params.id },
+        data: { ...body, unitConfigId: targetUnit.id, unit: targetUnit.unit, vendorCode },
+        include: { unitConfig: { select: unitConfigSelect } },
+      });
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002') {
+        throw domainError.conflict(`Mã NCC "${vendorCode}" đã tồn tại cho đơn vị này.`);
+      }
+      throw error;
+    }
   })());
 }));
 

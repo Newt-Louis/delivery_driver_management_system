@@ -39,7 +39,7 @@ Hàm chính:
 - `findNextWaitingDeliveryForSlot(tx, slot)`
   - Chọn xe theo unit + vehicle type.
   - Áp dụng filter hàng hóa theo slot.
-  - Ưu tiên theo `Slot.goodsPriority`; slot cũ chưa cấu hình priority fallback theo thứ tự `FRESH_FOOD`, `GENERAL_GOODS`, `THI_CONG`.
+  - Ưu tiên theo `Slot.goodsPriority`; slot chưa cấu hình priority fallback theo thứ tự `FRESH_FOOD`, `GENERAL_GOODS`, `THI_CONG`, `AUTO_WAREHOUSE`.
   - Trong cùng một loại hàng, xe được gọi FIFO theo `checkinTime`, sau đó `createdAt`.
 - `emitAutoAssignResult(result, unit)`
   - Ghi audit.
@@ -49,9 +49,10 @@ Hàm chính:
 
 ## Rule Nghiệp Vụ
 
-- Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
-- Slot thường không nhận `AUTO_WAREHOUSE`.
-- Slot thường chỉ nhận các loại nằm trong `acceptedGoods`; nếu `acceptedGoods` rỗng thì hiểu là nhận tất cả hàng thường.
+- Slot nhận các loại nằm trong `acceptedGoods`, bao gồm `AUTO_WAREHOUSE` nếu được cấu hình; nếu `acceptedGoods` rỗng thì nhận cả bốn loại.
+- Kho tự động tham gia `goodsPriority` như các loại hàng khác; slot vẫn có thể chỉ nhận riêng loại này nếu cấu hình như vậy.
+- Slot mới tạo trong Backoffice mặc định chỉ nhận ba loại thông thường; muốn nhận kho tự động cần thêm loại đó và đặt thứ tự. Slot đã tồn tại không tự đổi. Các slot được xét theo sức chứa còn lại và mã slot trước khi xét ưu tiên hàng trong từng slot, nên thứ tự không bảo đảm chọn một slot cụ thể khi nhiều slot nhận cùng loại hàng.
+- Migration chuyển slot kho tự động cũ thành chỉ nhận `AUTO_WAREHOUSE` và slot thường cũ sang danh sách hàng cũ, giữ nguyên phạm vi tiếp nhận. Trường hợp dữ liệu cũ là slot thường chỉ khai báo `AUTO_WAREHOUSE` (trước đây không nhận được loại nào) phải được sửa cấu hình trước khi migration chạy.
 - `goodsPriority` chỉ sắp thứ tự ưu tiên trong phạm vi hàng slot được nhận, không cho phép auto-assign đưa loại hàng không được nhận vào slot.
 - `maxCapacity` cho phép nhiều xe trong một slot, đặc biệt xe máy.
 - Tổng sức chứa của một unit/vehicle là tổng `Slot.maxCapacity` của các slot active phù hợp; ví dụ 5 slot xe tải, mỗi slot 2 chỗ, thì auto assign chỉ dừng khi đủ 10 active deliveries.

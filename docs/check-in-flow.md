@@ -69,6 +69,7 @@ Service:
   - Lock row delivery.
   - Nếu đã `WAITING`, trả lại kết quả idempotent, không cấp lại ticket.
   - Nếu `REGISTERED`, chuyển sang `WAITING`, set `checkinTime`, cấp `ticketNumber`.
+  - Trước khi cấp số, kiểm tra lại NCC kho tự động theo unit của lượt và cập nhật loại hàng dựa trên loại gốc. Lượt kho tự động cũ không có loại gốc và NCC không còn hợp lệ bị từ chối check-in để tránh tự đoán loại hàng; xem `auto-warehouse.md`.
   - Ghi event `CHECKED_IN` trong `delivery_history_events`.
 - `reserveTicketNumber()`
   - Cấp ticket atomic theo ngày VN + receiving unit + vehicle type.

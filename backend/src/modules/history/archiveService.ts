@@ -82,8 +82,7 @@ async function ensureCloseEvent(
   }, tx);
 }
 
-export async function archiveDelivery(input: ArchiveDeliveryInput) {
-  return prisma.$transaction(async (tx) => {
+export async function archiveDeliveryInTransaction(tx: Prisma.TransactionClient, input: ArchiveDeliveryInput) {
     await lockDelivery(tx, input.deliveryId);
 
     const delivery = await tx.deliveryRegistration.findUnique({
@@ -95,6 +94,12 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
         where: { originalDeliveryId: input.deliveryId },
       });
       return { history: existing, archived: false, deleted: false };
+    }
+    if (input.expectedStatus && delivery.status !== input.expectedStatus) {
+      throw new Error(`Delivery ${input.deliveryId} changed status before archive`);
+    }
+    if (input.updatedBefore && delivery.updatedAt > input.updatedBefore) {
+      throw new Error(`Delivery ${input.deliveryId} was updated before archive`);
     }
 
     const occurredAt = input.occurredAt ?? new Date();
@@ -204,5 +209,8 @@ export async function archiveDelivery(input: ArchiveDeliveryInput) {
     }
 
     return { history, archived: true, deleted };
-  });
+}
+
+export async function archiveDelivery(input: ArchiveDeliveryInput) {
+  return prisma.$transaction((tx) => archiveDeliveryInTransaction(tx, input));
 }

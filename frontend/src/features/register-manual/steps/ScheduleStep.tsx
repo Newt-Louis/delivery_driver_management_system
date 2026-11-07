@@ -1,10 +1,8 @@
 import { CalendarOutlined, CheckCircleOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, AutoComplete, Button, Card, Form, Input, Space, Typography } from 'antd';
 import type { AutoWarehouseVendorSuggestion, DailyRegistrationStat } from '../api';
-import DeliveryDateCalendar from '../components/DeliveryDateCalendar';
 import FieldFrame from '../components/FieldFrame';
 import { FieldError, FieldHint } from '../components/FieldFeedback';
-import { isSundayDate } from '../utils/date';
 import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
 
 type ScheduleStepProps = {
@@ -17,7 +15,6 @@ type ScheduleStepProps = {
   manualReferenceLoading: boolean;
   manualReferenceError: string;
   sundayFreshFoodBlocked: boolean;
-  sundayFreshFoodOnly: boolean;
   awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
   awVendorName: string;
   awVendorSuggestions: AutoWarehouseVendorSuggestion[];
@@ -27,7 +24,8 @@ type ScheduleStepProps = {
   onSelectAutoWarehouseVendor: (vendor: AutoWarehouseVendorSuggestion) => void;
 };
 
-export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, sundayFreshFoodOnly, awStatus, awVendorName, awVendorSuggestions, awVendorSuggestionsLoading, set, onRetryManualReferenceCode, onSelectAutoWarehouseVendor }: ScheduleStepProps) {
+export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, awStatus, awVendorName, awVendorSuggestions, awVendorSuggestionsLoading, set, onRetryManualReferenceCode, onSelectAutoWarehouseVendor }: ScheduleStepProps) {
+  const todayStats = dailyStats.find((item) => item.date === form.deliveryDate);
   const vendorOptions = awVendorSuggestions.map((vendor) => ({
     value: vendor.vendorCode,
     label: <div className="py-1"><Typography.Text strong>{vendor.vendorCode}</Typography.Text><Typography.Text type="secondary" className="block text-xs">{vendor.vendorName}</Typography.Text></div>,
@@ -41,7 +39,9 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
         <Card size="small" title={<><CalendarOutlined /> Ngày giao hàng</>}>
           {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon title={dailyStatsMsg} />}
           {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon title="Chủ nhật chỉ nhận hàng tươi sống" />}
-          <DeliveryDateCalendar value={form.deliveryDate} stats={dailyStats} loading={dailyStatsLoading} disabledReasonForDate={(date) => sundayFreshFoodOnly && isSundayDate(date) && form.goodsType !== 'FRESH_FOOD' ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined} onChange={(date) => set('deliveryDate', date)} />
+          <Typography.Text strong>{form.deliveryDate ? form.deliveryDate.split('-').reverse().join('/') : 'Đang xác định ngày giao hàng...'}</Typography.Text>
+          {dailyStatsLoading && <div><Typography.Text type="secondary">Đang kiểm tra công suất đăng ký...</Typography.Text></div>}
+          {todayStats?.available === false && <Alert className="mt-3" type="warning" showIcon title={todayStats.reason ?? 'Hôm nay đã đạt công suất đăng ký.'} />}
           {fieldErrors.deliveryDate && <FieldError text={fieldErrors.deliveryDate} />}
         </Card>
       </FieldFrame>
@@ -64,7 +64,6 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
                 <Input size="large" placeholder="VD: Sup001, NccAbc..." autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} suffix={vendorSuffix} />
               </AutoComplete>
               <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự gợi ý dữ liệu và xếp vào khu kho tự động khi được phép." />
-              {awStatus === 'match' && <Alert className="mt-3" type="success" showIcon title="Kho tự động — NCC được phép vào kho" description={awVendorName || undefined} />}
             </Form.Item>
           </FieldFrame>
           <FieldFrame field="vendorName" highlightedField={highlightedField}>
@@ -75,7 +74,7 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
             </Form.Item>
           </FieldFrame>
           <FieldFrame field="poNumber" highlightedField={highlightedField}>
-            <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu hoặc hủy chuyến khi cần." className="!mb-0">
+            <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu khi cần." className="!mb-0">
               <Input size="large" value={form.poNumber} readOnly placeholder="Đang tạo mã..." autoComplete="off" className="font-mono font-bold tracking-[0.2em]" suffix={manualReferenceLoading ? <LoadingOutlined /> : undefined} />
               {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
               {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}

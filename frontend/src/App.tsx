@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import RegisterManual from './pages/RegisterManual';
 import CheckIn from './pages/CheckIn';
 import Dashboard from './pages/Dashboard';
 import WaitingScreen from './pages/WaitingScreen';
@@ -13,10 +14,8 @@ import Track from './pages/Track';
 import ReceivingTimes from './pages/ReceivingTimes';
 import Reports from './pages/Reports';
 import Histories from './pages/Histories';
-import Cancelled from './pages/Cancelled';
 import StaffShell from './components/layout/StaffShell';
 import PublicShell from './components/layout/PublicShell';
-import SuperadminOperationalContextGate from './components/SuperadminOperationalContextGate';
 import ToastContainer from './components/ToastContainer';
 
 function homePathForRole(role?: string) {
@@ -41,9 +40,9 @@ function isStaffRoute(pathname: string) {
 function isPublicDriverRoute(pathname: string) {
   return pathname === '/'
     || pathname === '/register'
+    || pathname === '/register-manual'
     || pathname === '/track'
     || pathname.startsWith('/track/')
-    || pathname === '/cancel'
     || pathname === '/waiting-screen';
 }
 
@@ -57,11 +56,11 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/register-manual" element={<RegisterManual />} />
       <Route path="/waiting-screen" element={<WaitingScreen />} />
       <Route path="/taixe" element={<Navigate to="/register" replace />} />
       <Route path="/track" element={<Track />} />
       <Route path="/track/:code" element={<Track />} />
-      <Route path="/cancel" element={<Cancelled />} />
       <Route path="/check-in" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN']}><CheckIn /></ProtectedRoute>} />
       <Route path="/dashboard" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><Dashboard /></ProtectedRoute>} />
       <Route path="/docks" element={<ProtectedRoute roles={['SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING']}><DockManagement /></ProtectedRoute>} />
@@ -78,7 +77,6 @@ export default function App() {
   return (
     <div className="min-h-screen">
       {isAuthenticated && staffRoute ? <StaffShell>{routes}</StaffShell> : publicDriverRoute ? <PublicShell>{routes}</PublicShell> : routes}
-      {isAuthenticated && staffRoute && <SuperadminOperationalContextGate />}
       <ToastContainer />
     </div>
   );

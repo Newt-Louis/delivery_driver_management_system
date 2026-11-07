@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { getTrackDelivery } from '../services/trackRealtime';
 import { publicLookupLimiter } from '../middleware/rateLimit';
+import { normalizeVehiclePlate } from '../modules/deliveries/deliveryRepository';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const VT_TICKET_PREFIX: Record<string, string> = {
@@ -27,21 +28,28 @@ const router = Router();
 
 // GET /api/track/search?plate= — look up registration code by vehicle plate (read-only)
 router.get('/search', publicLookupLimiter, asyncHandler(async (req: Request, res: Response) => {
-  const plate = typeof req.query.plate === 'string' ? req.query.plate.trim().toUpperCase() : '';
+  const plate = typeof req.query.plate === 'string' ? normalizeVehiclePlate(req.query.plate) : '';
+  const businessLocationId = typeof req.query.businessLocationId === 'string' ? req.query.businessLocationId : undefined;
   if (!plate) {
     res.status(400).json({ error: 'Vui lòng nhập biển số xe' });
     return;
   }
 
   // Find most recent non-expired/cancelled delivery for this plate
-  const delivery = await prisma.deliveryRegistration.findFirst({
+  const deliveries = await prisma.deliveryRegistration.findMany({
     where: {
       vehiclePlate: plate,
+      ...(businessLocationId ? { unitConfig: { businessLocationId } } : {}),
       status: { notIn: ['CANCELLED', 'EXPIRED'] },
     },
     orderBy: { createdAt: 'desc' },
-    select: { registrationCode: true, status: true, receivingUnit: true, driverName: true },
+    select: { registrationCode: true, unitConfig: { select: { businessLocationId: true } } },
   });
+  if (!businessLocationId && new Set(deliveries.map((delivery) => delivery.unitConfig?.businessLocationId)).size > 1) {
+    res.status(409).json({ error: 'Biển số có lượt đăng ký tại nhiều khu vực. Vui lòng chọn khu vực trước khi tra cứu.' });
+    return;
+  }
+  const delivery = deliveries[0];
 
   if (!delivery) {
     res.status(404).json({ error: `Không tìm thấy lượt đăng ký nào cho biển số ${plate}` });

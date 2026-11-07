@@ -240,7 +240,6 @@ export function listMatchingOperationalSlots(args: {
       maxCapacity: true,
       acceptedGoods: true,
       goodsPriority: true,
-      autoWarehouseOnly: true,
     },
   });
 }

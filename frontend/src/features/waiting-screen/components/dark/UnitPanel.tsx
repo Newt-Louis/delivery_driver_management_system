@@ -52,7 +52,6 @@ export default function DarkUnitPanel({ unitKey, deliveries, highlightId, brand,
         {compact ? (
           <div>
             <div className="flex items-center justify-center gap-3 py-3 bg-thiso-900 border-b-2 border-thiso-700">
-              <span className="text-2xl leading-none">🚛</span>
               <span className="text-base font-black text-thiso-200 uppercase tracking-widest">Xe Tải</span>
               <span className="text-sm font-bold text-thiso-500 tabular-nums">({truckCount})</span>
             </div>
@@ -63,7 +62,6 @@ export default function DarkUnitPanel({ unitKey, deliveries, highlightId, brand,
               <div className="flex items-center justify-center py-6 text-thiso-600 text-sm border-b border-thiso-800">—</div>
             )}
             <div className="flex items-center justify-center gap-3 py-3 bg-thiso-900 border-y-2 border-thiso-700">
-              <span className="text-2xl leading-none">🛵</span>
               <span className="text-base font-black text-thiso-200 uppercase tracking-widest">Xe Máy</span>
               <span className="text-sm font-bold text-thiso-500 tabular-nums">({motorbikeCount})</span>
             </div>
@@ -78,12 +76,10 @@ export default function DarkUnitPanel({ unitKey, deliveries, highlightId, brand,
           <>
             <div className="grid grid-cols-2 border-b-2 border-thiso-700 bg-thiso-900 flex-shrink-0">
               <div className="flex items-center justify-center gap-2.5 px-3 py-2.5 border-r border-thiso-700">
-                <span className="text-xl leading-none">🚛</span>
                 <span className="text-sm font-black text-thiso-200 uppercase tracking-widest">Xe Tải</span>
                 <span className="text-sm font-bold text-thiso-500">({truckCount})</span>
               </div>
               <div className="flex items-center justify-center gap-2.5 px-3 py-2.5">
-                <span className="text-xl leading-none">🛵</span>
                 <span className="text-sm font-black text-thiso-200 uppercase tracking-widest">Xe Máy</span>
                 <span className="text-sm font-bold text-thiso-500">({motorbikeCount})</span>
               </div>

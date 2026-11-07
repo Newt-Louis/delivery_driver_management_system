@@ -226,8 +226,8 @@ async function seedLocation(
 
   await db.unitGoodsType.createMany({
     data: unitConfigs.flatMap((unit) => [
-      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tươi sống', emoji: '🥬', baseType: GoodsType.FRESH_FOOD, sortOrder: 1 },
-      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tổng hợp', emoji: '📦', baseType: GoodsType.GENERAL_GOODS, sortOrder: 2 },
+      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tươi sống', emoji: '', baseType: GoodsType.FRESH_FOOD, sortOrder: 1 },
+      { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng tổng hợp', emoji: '', baseType: GoodsType.GENERAL_GOODS, sortOrder: 2 },
       { unit: unit.unit, unitConfigId: unit.id, name: 'Hàng thi công', emoji: '🏗️', baseType: GoodsType.THI_CONG, sortOrder: 3 },
     ]),
   });

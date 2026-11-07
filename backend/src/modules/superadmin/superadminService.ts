@@ -8,6 +8,7 @@ import { refreshAuthUserCache, revokeUserSessions } from '../../services/authSes
 import { invalidateUserUnitPermissionCache } from '../../services/unitPermission';
 import { ensureLocationUploadDirectory, ensureUnitUploadDirectory } from '../files/fileStorageService';
 import { domainError } from '../shared/domainError';
+import { prepareApiConfigUpdate } from './apiConfigUpdate';
 import type { SuperadminFormRequest } from './superadminFormRequest';
 
 type LocationQuery = ReturnType<typeof SuperadminFormRequest.parseLocationQuery>;
@@ -19,6 +20,7 @@ type AutoWarehouseVendorCreate = ReturnType<typeof SuperadminFormRequest.parseAu
 type AutoWarehouseVendorUpdate = ReturnType<typeof SuperadminFormRequest.parseAutoWarehouseVendorUpdate>;
 type AppConfigUpdate = ReturnType<typeof SuperadminFormRequest.parseAppConfigUpdate>;
 type ApiConfigCreate = ReturnType<typeof SuperadminFormRequest.parseApiConfigCreate>;
+type ApiConfigUpdate = ReturnType<typeof SuperadminFormRequest.parseApiConfigUpdate>;
 type ReceivingTimeConfigCreate = ReturnType<typeof SuperadminFormRequest.parseReceivingTimeConfigCreate>;
 type ReceivingTimeConfigUpdate = ReturnType<typeof SuperadminFormRequest.parseReceivingTimeConfigUpdate>;
 type DeviceCreate = ReturnType<typeof SuperadminFormRequest.parseDeviceCreate>;
@@ -633,6 +635,34 @@ export async function createApiConfig(body: ApiConfigCreate, actor: AuthUser | u
     after: json({ key: config.key, category: config.category }),
   });
   return maskAppConfig(config);
+}
+
+export async function updateApiConfig(name: string, body: ApiConfigUpdate, actor: AuthUser | undefined) {
+  const oldKey = `api.settings.${name}`;
+  const newKey = `api.settings.${body.name}`;
+  try {
+    const config = await prisma.$transaction(async (tx) => {
+      const existing = await tx.appConfig.findUnique({ where: { key: oldKey } });
+      if (!existing) throw domainError.notFound('API Config không tồn tại.');
+      const { value } = prepareApiConfigUpdate(existing, body);
+      const { category, description, isSensitive, isRuntimeEditable } = body;
+      const updated = await tx.appConfig.update({ where: { id: existing.id }, data: {
+        key: newKey, value: json(value), category, description, isSensitive, isRuntimeEditable,
+      } });
+      await recordAuditLog({ ...userActor(actor), action: 'app_config.update', targetType: 'AppConfig', targetId: updated.id,
+        before: json({ key: existing.key, category: existing.category, isSensitive: existing.isSensitive, isRuntimeEditable: existing.isRuntimeEditable }),
+        after: json({ key: updated.key, category: updated.category, isSensitive: updated.isSensitive, isRuntimeEditable: updated.isRuntimeEditable }),
+      }, tx);
+      return updated;
+    });
+    await Promise.all([invalidateAppConfigCache(oldKey), ...(oldKey === newKey ? [] : [invalidateAppConfigCache(newKey)])]);
+    return maskAppConfig(config);
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      throw domainError.conflict(`Key "${newKey}" đã tồn tại.`);
+    }
+    throw error;
+  }
 }
 
 export async function deleteApiConfig(name: string, actor: AuthUser | undefined) {

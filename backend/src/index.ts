@@ -30,6 +30,7 @@ import superadminRoutes from './routes/superadmin';
 import configRoutes from './routes/config';
 import fileRoutes from './routes/files';
 import { ensureDatafileRoot, getUploadsDirectory } from './modules/files/fileStorageService';
+import { loadLocationCodeGroups, locationGroupsFilePath } from './modules/deliveries/locationCodeGroups';
 
 const app = express();
 const PORT = process.env.PORT ?? 4000;
@@ -73,6 +74,8 @@ const server = createServer(app);
 initSocket(server);
 
 async function start() {
+  loadLocationCodeGroups();
+  console.log(`Location code groups loaded from ${locationGroupsFilePath()}`);
   await ensureDatafileRoot();
   console.log(`Datafile storage ready at ${getUploadsDirectory()}`);
   await prisma.$connect();

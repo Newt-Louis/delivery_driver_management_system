@@ -7,8 +7,8 @@ export const CHECK_IN_MODES: { value: CheckInMode; label: string; placeholder: s
 ];
 
 export const VEHICLE_LABEL: Record<VehicleType, string> = {
-  TRUCK: '🚛 Xe Tải',
-  MOTORBIKE: '🛵 Xe Máy',
+  TRUCK: 'Xe Tải',
+  MOTORBIKE: 'Xe Máy',
 };
 
 export const GOODS_LABEL: Record<GoodsType, string> = {

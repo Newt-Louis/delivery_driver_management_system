@@ -1,5 +1,5 @@
-import { ArrowRightOutlined, NotificationOutlined } from '@ant-design/icons';
-import { Badge, Empty, Table, Typography, theme, type TableColumnsType } from 'antd';
+import { ArrowRightOutlined } from '@ant-design/icons';
+import { Empty, Table, Typography, type TableColumnsType } from 'antd';
 import type { DeliveryRegistration } from '../../../../lib/types';
 import { formatTicketForDelivery } from '../../utils';
 
@@ -13,13 +13,10 @@ type BrightVehicleSectionProps = {
 };
 
 export default function BrightVehicleSection({ items, highlightId, status, waitingCount = 0 }: BrightVehicleSectionProps) {
-  const { token } = theme.useToken();
   const isWaiting = status === 'waiting';
   const emptyText = isWaiting
     ? 'Chưa có xe CHECK-IN'
     : waitingCount > 0 ? 'Chưa có khu vực giao hàng TRỐNG' : 'Không tìm thấy xe sẵn sàng';
-  const sectionLabel = isWaiting ? `Đã check-in và đang chờ (${items.length})` : `Đang gọi vào (${items.length})`;
-  const statusColor = isWaiting ? token.colorWarning : token.colorPrimary;
   const columns: TableColumnsType<DeliveryRegistration> = [
     {
       title: 'Số thứ tự',
@@ -55,14 +52,7 @@ export default function BrightVehicleSection({ items, highlightId, status, waiti
   ];
 
   return (
-    <section className="border-t border-[var(--ant-color-border-secondary)] first:border-t-0">
-      <div className="flex items-center gap-2 px-3 py-3">
-        <Badge status={isWaiting ? 'warning' : 'processing'} />
-        <Typography.Text strong style={{ color: statusColor, fontSize: 'clamp(1rem, 2.5vw, 1.3125rem)' }} className="!inline-flex !items-center !leading-none">
-          {!isWaiting && <NotificationOutlined className="mr-1" style={{ fontSize: '1em' }} />}
-          {sectionLabel}
-        </Typography.Text>
-      </div>
+    <section>
       {items.length ? (
         <Table
           className="waiting-vehicle-table"

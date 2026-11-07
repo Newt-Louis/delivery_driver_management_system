@@ -52,4 +52,6 @@ export type ArchiveDeliveryInput = HistoryActor & {
   jobRunId?: string | null;
   occurredAt?: Date;
   deleteOperationalRow?: boolean;
+  expectedStatus?: DeliveryStatus;
+  updatedBefore?: Date;
 };

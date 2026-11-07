@@ -34,10 +34,11 @@ const UNIT_CONFIG_SELECT = {
   primaryColor: true,
 } as const;
 
-const DEFAULT_NORMAL_GOODS_PRIORITY: GoodsType[] = [
+const DEFAULT_GOODS_PRIORITY: GoodsType[] = [
   GoodsType.FRESH_FOOD,
   GoodsType.GENERAL_GOODS,
   GoodsType.THI_CONG,
+  GoodsType.AUTO_WAREHOUSE,
 ];
 
 async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
@@ -113,45 +114,13 @@ async function getAllSlotsWithDeliveries(scope?: SocketScope) {
   });
 }
 
-function goodsFilterForSlot(slot: Slot, goodsType?: GoodsType): Prisma.Sql | null {
-  const acceptedGoods = slot.acceptedGoods as GoodsType[];
-
-  if (slot.autoWarehouseOnly) {
-    return goodsType
-      ? Prisma.sql`AND "goods_type" = ${goodsType}::"GoodsType"`
-      : Prisma.sql`AND "goods_type" = ${GoodsType.AUTO_WAREHOUSE}::"GoodsType"`;
-  }
-
-  const allowedGoods = acceptedGoods.length > 0
-    ? acceptedGoods.filter((goodsType) => goodsType !== GoodsType.AUTO_WAREHOUSE)
-    : [];
-
-  if (acceptedGoods.length > 0 && allowedGoods.length === 0) {
-    return null;
-  }
-
-  if (goodsType) {
-    return Prisma.sql`AND "goods_type" = ${goodsType}::"GoodsType"`;
-  }
-
-  if (acceptedGoods.length === 0) {
-    return Prisma.sql`AND "goods_type" <> ${GoodsType.AUTO_WAREHOUSE}::"GoodsType"`;
-  }
-
-  return Prisma.sql`
-    AND "goods_type" IN (${Prisma.join(allowedGoods.map((goodsType) => Prisma.sql`${goodsType}::"GoodsType"`))})
-  `;
-}
-
 function candidateGoodsForSlot(slot: Slot): GoodsType[] {
   const acceptedGoods = slot.acceptedGoods as GoodsType[];
   const priority = slot.goodsPriority as GoodsType[];
 
-  if (slot.autoWarehouseOnly) return [GoodsType.AUTO_WAREHOUSE];
-
   const allowedGoods = acceptedGoods.length > 0
-    ? acceptedGoods.filter((goodsType) => goodsType !== GoodsType.AUTO_WAREHOUSE)
-    : DEFAULT_NORMAL_GOODS_PRIORITY;
+    ? acceptedGoods
+    : DEFAULT_GOODS_PRIORITY;
 
   if (allowedGoods.length === 0) return [];
 
@@ -172,9 +141,6 @@ async function findNextWaitingDeliveryForSlot(
   if (goodsCandidates.length === 0) return null;
 
   for (const goodsType of goodsCandidates) {
-    const goodsFilter = goodsFilterForSlot(slot, goodsType);
-    if (!goodsFilter) continue;
-
     const rows = await tx.$queryRaw<{ id: string }[]>(Prisma.sql`
       SELECT "id"
       FROM "delivery_registrations"
@@ -182,7 +148,7 @@ async function findNextWaitingDeliveryForSlot(
         AND "unit_config_id" = ${unitConfigId}
         AND "vehicle_type" = ${slot.vehicleType}::"VehicleType"
         AND "status" = ${DeliveryStatus.WAITING}::"DeliveryStatus"
-        ${goodsFilter}
+        AND "goods_type" = ${goodsType}::"GoodsType"
       ORDER BY
         "checkin_time" ASC NULLS LAST,
         "created_at" ASC

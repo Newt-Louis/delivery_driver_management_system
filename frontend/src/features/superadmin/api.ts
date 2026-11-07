@@ -70,6 +70,7 @@ export const superadminApi = {
   updateAppConfig: (key: string, payload: Record<string, unknown>) => api.patch(`/api/superadmin/app-configs/${key}`, payload),
 
   createApiConfig: (payload: Record<string, unknown>) => api.post('/api/superadmin/api-configs', payload),
+  updateApiConfig: (name: string, payload: Record<string, unknown>) => api.patch(`/api/superadmin/api-configs/${encodeURIComponent(name)}`, payload),
   deleteApiConfig: (name: string) => api.delete(`/api/superadmin/api-configs/${name}`),
 
   createReceivingTime: (payload: Record<string, unknown>) => api.post('/api/superadmin/receiving-time-configs', payload),

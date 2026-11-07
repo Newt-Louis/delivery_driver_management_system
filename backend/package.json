@@ -11,6 +11,7 @@
     "db:seed_app_config": "tsx prisma/appConfigSeed.ts",
     "test:concurrency": "node --import tsx --test src/tests/concurrency.test.ts",
     "test:scope": "node --import tsx --test src/tests/operationalScope.test.ts",
+    "test:location-codes": "node --import tsx --test src/tests/locationCodeGroups.test.ts src/tests/quickLocationIntegration.test.cjs",
     "db:deploy": "prisma migrate deploy && prisma generate",
     "test:load": "artillery run load-test.yml",
     "test:register-race": "node scripts/register-race.js",

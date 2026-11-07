@@ -25,5 +25,7 @@ RUN npm install --omit=dev
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
+ENV LOCATION_CODE_GROUPS_FILE=/app/config/codeofconduct_location.json
+
 EXPOSE 4000
 CMD ["sh", "-c", "npm run db:deploy && node --enable-source-maps dist/index.js"]

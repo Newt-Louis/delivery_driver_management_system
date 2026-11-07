@@ -30,7 +30,6 @@ export const DOCK_STAT_ITEMS = [
   {
     key: 'trucks',
     label: 'Slot Xe Tải',
-    prefix: '🚛',
     frameClass: 'bg-white border-thiso-200',
     valueClass: 'text-thiso-800',
     labelClass: 'text-thiso-500',
@@ -38,7 +37,6 @@ export const DOCK_STAT_ITEMS = [
   {
     key: 'motorbikes',
     label: 'Slot Xe Máy',
-    prefix: '🛵',
     frameClass: 'bg-white border-thiso-200',
     valueClass: 'text-thiso-800',
     labelClass: 'text-thiso-500',

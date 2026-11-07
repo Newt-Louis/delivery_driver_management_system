@@ -118,7 +118,7 @@ export function formatDateOnly(iso: string | null | undefined): string {
 }
 
 export function getDeliveryTimeline(delivery: DeliveryRegistration) {
-  const timeline: { time: string; label: string; icon: string; accent?: string }[] = [
+  const timeline: { time: string; label: string; icon?: string; accent?: string }[] = [
     { time: delivery.createdAt, label: 'Đăng ký giao hàng', icon: '📝' },
   ];
 
@@ -138,7 +138,7 @@ export function getDeliveryTimeline(delivery: DeliveryRegistration) {
     });
   } else {
     if (delivery.receivingStartTime) {
-      timeline.push({ time: delivery.receivingStartTime, label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' });
+      timeline.push({ time: delivery.receivingStartTime, label: 'Bắt đầu nhận hàng', accent: 'text-green-700' });
     }
     if (delivery.completedTime) {
       timeline.push({ time: delivery.completedTime, label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' });

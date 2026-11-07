@@ -1,6 +1,5 @@
 import { CheckCircleOutlined, ClockCircleOutlined, CloseCircleOutlined, EnvironmentOutlined, IdcardOutlined, NotificationOutlined, ShoppingOutlined } from '@ant-design/icons';
 import { Avatar, Card, Result, Space, Tag, Typography } from 'antd';
-import { Link } from 'react-router-dom';
 import { formatTicketCode, getTrackUnit } from '../utils';
 import type { TrackDelivery, StatusInfo } from '../types';
 
@@ -25,6 +24,5 @@ export default function StatusCard({ delivery, si, unitMeta, isTerminal }: { del
       {delivery.status === 'CALLED' && delivery.assignedSlot && <Card size="small" className="mt-3 text-center"><Typography.Text type="secondary"><EnvironmentOutlined /> Vị trí nhận hàng</Typography.Text><Typography.Title level={1} className="!my-1">{delivery.assignedSlot.code}</Typography.Title><Typography.Text className="text-base">{delivery.assignedSlot.name}</Typography.Text>{delivery.assignedSlot.zone && <Typography.Text type="secondary" className="block text-sm">{delivery.assignedSlot.zone.name}</Typography.Text>}</Card>}
       {delivery.status === 'WAITING' && !delivery.queueInfo && <Typography.Text type="warning" className="mt-3 block text-center">Vui lòng chờ — hệ thống sẽ tự động gọi khi có vị trí trống.</Typography.Text>}
     </Card>
-    {delivery.status === 'REGISTERED' && <Card size="small"><Typography.Text type="secondary">Nhập sai thông tin? Bạn có thể <Link to={`/cancelled?code=${encodeURIComponent(delivery.registrationCode)}`} className="underline" style={{ color: 'var(--ant-color-error)' }}>hủy chuyến</Link> và đăng ký lại.</Typography.Text></Card>}
   </>;
 }

@@ -8,6 +8,7 @@ import { AUTO_TRACK_SECONDS, GOODS_LABEL } from '../constants';
 import type { SuccessInfo } from '../types';
 import { useDriverNotifications } from '../../driver-notifications/DriverNotificationsProvider';
 import { saveDeliverySession } from '../../../lib/session';
+import FollowTripCard from '../../driver-notifications/FollowTripCard';
 
 type SuccessScreenProps = {
   info: SuccessInfo;
@@ -26,7 +27,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
   const [secondsToTrack, setSecondsToTrack] = useState(AUTO_TRACK_SECONDS);
   const { units } = useBranding();
   const navigate = useNavigate();
-  const { checkPermissions, setupOpen } = useDriverNotifications();
+  const { interactionPending } = useDriverNotifications();
 
   const trackPath = `/track/${info.code}`;
   const trackUrl = `${window.location.origin}${trackPath}`;
@@ -37,8 +38,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 
   useEffect(() => {
     saveDeliverySession(info.code);
-    checkPermissions();
-  }, [info.code, checkPermissions]);
+  }, [info.code]);
 
   useEffect(() => {
     let disposed = false;
@@ -59,7 +59,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 
   useEffect(() => {
     setSecondsToTrack(AUTO_TRACK_SECONDS);
-    if (setupOpen) return;
+    if (interactionPending) return;
 
     const interval = window.setInterval(() => {
       setSecondsToTrack((s) => Math.max(0, s - 1));
@@ -72,7 +72,7 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
       window.clearInterval(interval);
       window.clearTimeout(timeout);
     };
-  }, [navigate, trackPath, setupOpen]);
+  }, [navigate, trackPath, interactionPending]);
 
   function downloadQRWithInfo() {
     if (!qrDataUrl) return;
@@ -245,6 +245,7 @@ ${locationRow}
         />
 
         <div className="space-y-5">
+          <FollowTripCard delivery={{ registrationCode: info.code, vehiclePlate: info.vehiclePlate, status: 'REGISTERED' }} />
           <Card size="small" title={<Space><ScanOutlined />Mã QR check-in</Space>}>
             <div className="text-center">
               <Typography.Paragraph type="secondary">Đưa mã QR này cho bảo vệ tại cổng để check-in.</Typography.Paragraph>
@@ -276,7 +277,6 @@ ${locationRow}
             <Button size="large" icon={<PrinterOutlined />} disabled={!qrDataUrl} onClick={printTicket}>In phiếu</Button>
           </div>
           <Button size="large" block icon={<ReloadOutlined />} onClick={onReset}>Đăng ký chuyến khác</Button>
-          <div className="text-center"><Button type="link" danger onClick={() => navigate(`/cancelled?code=${encodeURIComponent(info.code)}`)}>Hủy chuyến nếu thông tin không chính xác</Button></div>
         </div>
       </Card>
     </main>

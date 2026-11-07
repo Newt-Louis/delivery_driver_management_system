@@ -13,6 +13,6 @@ export const STATUS_INFO: Record<string, StatusInfo> = {
 export const GOODS_LABEL: Record<string, string> = {
   FRESH_FOOD:    '🌿 Tươi sống',
   AUTO_WAREHOUSE:'🏭 Kho tự động',
-  GENERAL_GOODS: '📦 Hàng thường',
-  THI_CONG:      '🔨 Thi công',
+  GENERAL_GOODS: 'Hàng thường',
+  THI_CONG:      'Thi công',
 };

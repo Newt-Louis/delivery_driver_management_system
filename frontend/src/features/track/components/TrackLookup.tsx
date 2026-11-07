@@ -1,14 +1,17 @@
 import { SearchOutlined } from '@ant-design/icons';
 import { Alert, Button, Card, Form, Input, Typography, theme, type InputRef } from 'antd';
 import { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../../../lib/api';
 import { looksLikeCode } from '../utils';
 import SavedTrips from '../../driver-notifications/SavedTrips';
+import { usePublicBusinessLocation } from '../../../context/PublicBusinessLocationContext';
 
 export default function TrackLookup() {
   const { token } = theme.useToken();
   const navigate = useNavigate();
+  const { selectedBusinessLocationId } = usePublicBusinessLocation();
   const [input, setInput]       = useState('');
   const [error, setError]       = useState('');
   const [checking, setChecking] = useState(false);
@@ -26,11 +29,13 @@ export default function TrackLookup() {
         await api.get(`/api/track/${val}`);
         navigate(`/track/${val}`);
       } else {
-        const res = await api.get<{ registrationCode: string }>('/api/track/search', { params: { plate: val } });
+        const res = await api.get<{ registrationCode: string }>('/api/track/search', { params: { plate: val, businessLocationId: selectedBusinessLocationId || undefined } });
         navigate(`/track/${res.data.registrationCode}`);
       }
-    } catch {
-      setError('Không tìm thấy. Kiểm tra lại mã đăng ký hoặc biển số xe.');
+    } catch (err) {
+      setError(axios.isAxiosError(err) && err.response?.status === 409
+        ? 'Biển số có lượt đăng ký tại nhiều khu vực. Vui lòng chọn khu vực trước khi tra cứu.'
+        : 'Không tìm thấy. Kiểm tra lại mã đăng ký hoặc biển số xe.');
       setChecking(false);
     }
   }
@@ -62,7 +67,6 @@ export default function TrackLookup() {
         </Form>
         <div className="mt-6 flex flex-wrap justify-center gap-x-8 gap-y-3 text-center text-base">
           <Typography.Text type="secondary">Chưa đăng ký? <Link to="/register" className="font-semibold underline underline-offset-4" style={{ color: token.colorPrimary }}>Đăng ký ngay</Link></Typography.Text>
-          <Typography.Text type="secondary">Nhập sai thông tin? <Link to="/cancelled" className="font-semibold underline underline-offset-4" style={{ color: token.colorError }}>Hủy chuyến</Link></Typography.Text>
         </div>
       </Card></div>
     </main>

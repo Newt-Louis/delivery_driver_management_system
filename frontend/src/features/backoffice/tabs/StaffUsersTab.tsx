@@ -229,7 +229,7 @@ function StaffUserModal({
             <Form.Item label="Vai trò" required>
               <Select
                 value={form.role}
-                options={manageableRoles.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon} ${STAFF_ROLE_META[role].label}` }))}
+                options={manageableRoles.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon ? `${STAFF_ROLE_META[role].icon} ` : ''}${STAFF_ROLE_META[role].label}` }))}
                 onChange={selectRole}
               />
             </Form.Item>
@@ -531,7 +531,7 @@ export default function StaffUsersTab() {
             </Space>
             <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Vai trò</Typography.Text>
-              <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => { setFilterRole(value ?? ''); setPage(1); }} options={STAFF_ROLES.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon} ${STAFF_ROLE_META[role].label}` }))} />
+              <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => { setFilterRole(value ?? ''); setPage(1); }} options={STAFF_ROLES.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon ? `${STAFF_ROLE_META[role].icon} ` : ''}${STAFF_ROLE_META[role].label}` }))} />
             </Space>
             <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Đơn vị</Typography.Text>

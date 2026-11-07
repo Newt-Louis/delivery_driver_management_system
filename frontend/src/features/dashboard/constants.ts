@@ -2,20 +2,20 @@ import type { DeliveryHistoryEvent, GoodsType, VehicleType } from '../../lib/typ
 import type { StatusFilter, VehicleTypeFilter } from './types';
 
 export const VEHICLE_LABEL: Record<VehicleType, string> = {
-  TRUCK: '🚛 Tải',
-  MOTORBIKE: '🛵 Xe máy',
+  TRUCK: 'Tải',
+  MOTORBIKE: 'Xe máy',
 };
 
 export const VEHICLE_FULL: Record<VehicleType, string> = {
-  TRUCK: '🚛 Xe Tải',
-  MOTORBIKE: '🛵 Xe Máy',
+  TRUCK: 'Xe Tải',
+  MOTORBIKE: 'Xe Máy',
 };
 
 export const GOODS_LABEL: Record<GoodsType, string> = {
   FRESH_FOOD: '🥦 Hàng tươi sống',
   AUTO_WAREHOUSE: '🤖 Kho tự động',
-  GENERAL_GOODS: '📦 Hàng thông thường',
-  THI_CONG: '🔨 Thi công',
+  GENERAL_GOODS: 'Hàng thông thường',
+  THI_CONG: 'Thi công',
 };
 
 export const GOODS_CSV_LABEL: Record<GoodsType, string> = {
@@ -50,8 +50,8 @@ export const STATUS_FILTER_OPTIONS: { k: StatusFilter; label: string; color: str
 
 export const VEHICLE_FILTER_OPTIONS: { k: VehicleTypeFilter; label: string }[] = [
   { k: 'ALL', label: 'Tất cả xe' },
-  { k: 'TRUCK', label: '🚛 Xe Tải' },
-  { k: 'MOTORBIKE', label: '🛵 Xe Máy' },
+  { k: 'TRUCK', label: 'Xe Tải' },
+  { k: 'MOTORBIKE', label: 'Xe Máy' },
 ];
 
 export const DISPATCH_CSV_HEADERS = [
@@ -69,14 +69,14 @@ export const DISPATCH_CSV_HEADERS = [
   'Chờ (phút)',
 ];
 
-export const EVENT_LABEL: Record<string, { label: string; icon: string; accent?: string }> = {
+export const EVENT_LABEL: Record<string, { label: string; icon?: string; accent?: string }> = {
   REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
   CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
   AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-thiso-700' },
   MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-thiso-700' },
   RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-thiso-700' },
   REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-thiso-700' },
-  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', icon: '📦', accent: 'text-green-700' },
+  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', accent: 'text-green-700' },
   AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
   COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
   CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },

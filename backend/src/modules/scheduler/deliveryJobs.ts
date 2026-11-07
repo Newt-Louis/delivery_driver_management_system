@@ -16,7 +16,7 @@ import { cancelDelivery } from '../../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../../services/realtimeScope';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
 import { sendPushToDelivery } from '../../services/webPush';
-import { archiveDelivery } from '../history/archiveService';
+import { archiveDelivery, archiveDeliveryInTransaction } from '../history/archiveService';
 import { startSchedulerJobHistory, finishSchedulerJobHistory } from './jobHistory';
 import * as deliveryRepository from '../deliveries/deliveryRepository';
 
@@ -48,8 +48,7 @@ export async function closeDailyDeliveries(args: {
     },
   });
 
-  const candidates = await prisma.deliveryRegistration.findMany({
-    where: {
+  const candidateWhere: Prisma.DeliveryRegistrationWhereInput = {
       AND: [
         {
           OR: [
@@ -81,58 +80,58 @@ export async function closeDailyDeliveries(args: {
           ? [{ unitConfigId: args.unitConfigIds.length > 0 ? { in: args.unitConfigIds } : '__NO_UNIT_SCOPE__' }]
           : []),
       ],
-    },
+  };
+  const candidates = await prisma.deliveryRegistration.findMany({
+    where: candidateWhere,
     select: { id: true, status: true, registrationCode: true, vehiclePlate: true },
   });
 
   let succeeded = 0;
   let failed = 0;
+  let skipped = 0;
   const errors: Array<{ deliveryId: string; error: string }> = [];
 
   for (const candidate of candidates) {
     try {
-      if (candidate.status === DeliveryStatus.REGISTERED) {
-        await prisma.deliveryRegistration.update({
-          where: { id: candidate.id },
+      const closed = await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw(Prisma.sql`
+          SELECT "id" FROM "delivery_registrations" WHERE "id" = ${candidate.id} FOR UPDATE
+        `);
+        // Re-read status, date and scope under the lock: another operation may have won first.
+        const current = await tx.deliveryRegistration.findFirst({
+          where: { AND: [candidateWhere, { id: candidate.id }] },
+          select: { id: true, status: true, registrationCode: true, vehiclePlate: true },
+        });
+        if (!current) return null;
+        const expired = current.status === DeliveryStatus.REGISTERED;
+        const finalStatus = expired ? DeliveryHistoryFinalStatus.EXPIRED : DeliveryHistoryFinalStatus.INCOMPLETED;
+        const closeReason = expired ? 'Không tới check-in' : 'Chưa hoàn tất nhận hàng cuối ngày';
+        await tx.deliveryRegistration.update({
+          where: { id: current.id },
           data: {
-            status: DeliveryStatus.EXPIRED,
-            note: 'Hết hạn: không tới check-in',
+            status: expired ? DeliveryStatus.EXPIRED : DeliveryStatus.INCOMPLETED,
+            note: expired ? 'Hết hạn: không tới check-in' : closeReason,
           },
         });
-        await archiveDelivery({
-          deliveryId: candidate.id,
-          finalStatus: DeliveryHistoryFinalStatus.EXPIRED,
-          archiveReason: 'EXPIRED_NO_SHOW',
-          closeReason: 'Không tới check-in',
-          jobRunId: job.id,
-          occurredAt: now,
-          deleteOperationalRow: true,
+        const archived = await archiveDeliveryInTransaction(tx, {
+          deliveryId: current.id, finalStatus,
+          archiveReason: expired ? 'EXPIRED_NO_SHOW' : 'INCOMPLETED', closeReason,
+          jobRunId: job.id, occurredAt: now, deleteOperationalRow: true,
+          expectedStatus: expired ? DeliveryStatus.EXPIRED : DeliveryStatus.INCOMPLETED,
           ...systemActor('scheduler.close-daily-deliveries'),
         });
-      } else {
-        await prisma.deliveryRegistration.update({
-          where: { id: candidate.id },
-          data: {
-            status: DeliveryStatus.INCOMPLETED,
-            note: 'Chưa hoàn tất nhận hàng cuối ngày',
-          },
-        });
-        await archiveDelivery({
-          deliveryId: candidate.id,
-          finalStatus: DeliveryHistoryFinalStatus.INCOMPLETED,
-          archiveReason: 'INCOMPLETED',
-          closeReason: 'Chưa hoàn tất nhận hàng cuối ngày',
-          jobRunId: job.id,
-          occurredAt: now,
-          deleteOperationalRow: true,
-          ...systemActor('scheduler.close-daily-deliveries'),
-        });
+        if (!archived.deleted) throw new Error('Delivery was not archived and deleted');
+        return { ...current, finalStatus };
+      });
+      if (!closed) {
+        skipped++;
+        continue;
       }
-      sendPushToDelivery(candidate.registrationCode, {
-        status: candidate.status === DeliveryStatus.REGISTERED ? 'EXPIRED' : 'INCOMPLETED',
+      sendPushToDelivery(closed.registrationCode, {
+        status: closed.finalStatus,
         occurredAt: now.toISOString(), title: 'Lượt giao hàng đã kết thúc',
-        body: `Xe ${candidate.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
-        url: `/track/${candidate.registrationCode}`,
+        body: `Xe ${closed.vehiclePlate} — vui lòng liên hệ nhân viên nếu cần hỗ trợ.`,
+        url: `/track/${closed.registrationCode}`,
       }).catch(console.error);
       succeeded++;
     } catch (error) {
@@ -148,67 +147,119 @@ export async function closeDailyDeliveries(args: {
     succeededCount: succeeded,
     failedCount: failed,
     errorMessage: errors[0]?.error ?? null,
-    metadata: { errors: errors.slice(0, 20) as Prisma.InputJsonValue },
+    metadata: { skipped, errors: errors.slice(0, 20) as Prisma.InputJsonValue },
   });
 
   return { jobRunId: job.id, processed: candidates.length, succeeded, failed };
 }
 
-export async function archiveCancelledDeliveries(args: {
+export async function archiveDeliveries(args: {
   trigger?: SchedulerJobTrigger;
   olderThanMinutes?: number;
 } = {}): Promise<SchedulerJobResult> {
   const olderThanMinutes = args.olderThanMinutes ?? 120;
   const cutoff = new Date(Date.now() - olderThanMinutes * 60_000);
   const job = await startSchedulerJobHistory({
-    jobName: 'archive-cancelled-deliveries',
+    jobName: 'archive-deliveries',
     businessDate: getVNDateKey(),
     trigger: args.trigger ?? SchedulerJobTrigger.SCHEDULED,
-    metadata: { olderThanMinutes, cutoff: cutoff.toISOString() },
+    metadata: { cancelledOlderThanMinutes: olderThanMinutes, cutoff: cutoff.toISOString() },
   });
 
   const candidates = await prisma.deliveryRegistration.findMany({
     where: {
-      status: DeliveryStatus.CANCELLED,
-      cancelReason: { not: null },
-      updatedAt: { lte: cutoff },
+      OR: [
+        { status: DeliveryStatus.COMPLETED },
+        { status: DeliveryStatus.CANCELLED, cancelReason: { not: null }, updatedAt: { lte: cutoff } },
+      ],
     },
-    select: { id: true, cancelReason: true },
+    select: { id: true, status: true, cancelReason: true },
   });
-
   let succeeded = 0;
-  let failed = 0;
   const errors: Array<{ deliveryId: string; error: string }> = [];
+  const completed = candidates.filter((candidate) => candidate.status === DeliveryStatus.COMPLETED);
+  const cancelled = candidates.filter((candidate) => candidate.status === DeliveryStatus.CANCELLED);
 
-  for (const candidate of candidates) {
+  // Bound each batch so SQL parameter limits and transaction size stay predictable.
+  for (let offset = 0; offset < completed.length; offset += 500) {
+    const batch = completed.slice(offset, offset + 500);
     try {
-      await archiveDelivery({
-        deliveryId: candidate.id,
-        finalStatus: DeliveryHistoryFinalStatus.CANCELLED,
-        archiveReason: 'CANCELLED',
-        closeReason: candidate.cancelReason,
-        jobRunId: job.id,
-        occurredAt: new Date(),
-        deleteOperationalRow: true,
-        ...systemActor('scheduler.archive-cancelled-deliveries'),
+      const histories = await prisma.deliveryHistory.findMany({
+        where: { originalDeliveryId: { in: batch.map((candidate) => candidate.id) } },
+        select: { originalDeliveryId: true, finalStatus: true },
       });
+      const historyByDelivery = new Map(histories.map((history) => [history.originalDeliveryId, history.finalStatus]));
+      const ready = batch.filter((candidate) => historyByDelivery.get(candidate.id) === DeliveryHistoryFinalStatus.COMPLETED);
+      for (const candidate of batch) {
+        const status = historyByDelivery.get(candidate.id);
+        if (status && status !== DeliveryHistoryFinalStatus.COMPLETED) {
+          errors.push({ deliveryId: candidate.id, error: `History has unexpected status ${status}` });
+        }
+      }
+      if (ready.length) {
+        // Recheck both the operational status and matching history in the DELETE itself.
+        const deleted = await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(Prisma.sql`
+            SELECT h."id" FROM "delivery_history" AS h
+            WHERE h."original_delivery_id" IN (${Prisma.join(ready.map((candidate) => candidate.id))})
+              AND h."final_status" = 'COMPLETED'
+            FOR SHARE
+          `);
+          return tx.$queryRaw<{ id: string }[]>(Prisma.sql`
+            DELETE FROM "delivery_registrations" AS d
+            WHERE d."id" IN (${Prisma.join(ready.map((candidate) => candidate.id))})
+              AND d."status" = 'COMPLETED'
+              AND EXISTS (
+                SELECT 1 FROM "delivery_history" AS h
+                WHERE h."original_delivery_id" = d."id" AND h."final_status" = 'COMPLETED'
+              )
+            RETURNING d."id"
+          `);
+        });
+        const deletedIds = new Set(deleted.map((row) => row.id));
+        succeeded += deleted.length;
+        for (const candidate of ready) {
+          if (!deletedIds.has(candidate.id)) errors.push({ deliveryId: candidate.id, error: 'Delivery or completed history changed before deletion' });
+        }
+      }
+      for (const candidate of batch.filter((item) => !historyByDelivery.has(item.id))) {
+        try {
+          const result = await archiveDelivery({
+            deliveryId: candidate.id, finalStatus: DeliveryHistoryFinalStatus.COMPLETED,
+            archiveReason: 'COMPLETED', closeReason: 'Hoàn tất nhận hàng',
+            jobRunId: job.id, deleteOperationalRow: true, expectedStatus: DeliveryStatus.COMPLETED,
+            ...systemActor('scheduler.archive-deliveries'),
+          });
+          if (!result.deleted) throw new Error('Delivery was not deleted');
+          succeeded++;
+        } catch (error) {
+          errors.push({ deliveryId: candidate.id, error: helperFunctions.errorMessage(error) });
+        }
+      }
+    } catch (error) {
+      for (const candidate of batch) errors.push({ deliveryId: candidate.id, error: helperFunctions.errorMessage(error) });
+    }
+  }
+  for (const candidate of cancelled) {
+    try {
+      const result = await archiveDelivery({
+        deliveryId: candidate.id, finalStatus: DeliveryHistoryFinalStatus.CANCELLED,
+        archiveReason: 'CANCELLED', closeReason: candidate.cancelReason,
+        jobRunId: job.id, occurredAt: new Date(), deleteOperationalRow: true,
+        expectedStatus: DeliveryStatus.CANCELLED, updatedBefore: cutoff, ...systemActor('scheduler.archive-deliveries'),
+      });
+      if (!result.deleted) throw new Error('Delivery was not deleted');
       succeeded++;
     } catch (error) {
-      failed++;
       errors.push({ deliveryId: candidate.id, error: helperFunctions.errorMessage(error) });
     }
   }
-
+  const failed = errors.length;
   await finishSchedulerJobHistory({
-    id: job.id,
-    status: failed > 0 ? SchedulerJobStatus.FAILED : SchedulerJobStatus.SUCCESS,
-    processedCount: candidates.length,
-    succeededCount: succeeded,
-    failedCount: failed,
-    errorMessage: errors[0]?.error ?? null,
-    metadata: { errors: errors.slice(0, 20) as Prisma.InputJsonValue },
+    id: job.id, status: failed > 0 ? SchedulerJobStatus.FAILED : SchedulerJobStatus.SUCCESS,
+    processedCount: candidates.length, succeededCount: succeeded, failedCount: failed,
+    errorMessage: errors[0]?.error ?? null, metadata: { errors: errors.slice(0, 20) as Prisma.InputJsonValue },
   });
-
   return { jobRunId: job.id, processed: candidates.length, succeeded, failed };
 }
 

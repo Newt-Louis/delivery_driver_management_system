@@ -35,7 +35,7 @@ Models:
   - `unitConfigId`, `code`, `name`.
   - Unique theo `[unitConfigId, code]`.
 - `Slot`
-  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `autoWarehouseOnly`, `maxCapacity`, `status`, `isActive`.
+  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `maxCapacity`, `status`, `isActive`.
 
 Các bảng nghiệp vụ vẫn giữ cột text snapshot như `receivingUnit`, `assignedUnit`, `unit` để đọc lịch sử/report dễ hơn, nhưng source of truth quan hệ mới là `unitConfigId` khi model có field này.
 
@@ -73,7 +73,7 @@ Mock order code public:
 
 - `GET /api/units/order-codes`
   - Tạm trả 20 mã `PO##########` và 20 mã `TC##########` trong lúc chưa có API thật từ hệ thống ngoài.
-  - Endpoint cũ vẫn tồn tại để tương thích, nhưng luồng thủ công `/register` hiện không còn dùng danh sách này để gợi ý hoặc đối chiếu Số PO/Mã số thi công.
+  - Endpoint cũ vẫn tồn tại để tương thích, nhưng luồng thủ công `/register-manual` hiện không còn dùng danh sách này để gợi ý hoặc đối chiếu Số PO/Mã số thi công.
 
 Zones:
 
@@ -148,18 +148,43 @@ Backoffice:
 
 Register:
 
-- `frontend/src/pages/Home.tsx`
-- `frontend/src/features/register/steps/UnitGoodsVehicleStep.tsx`
-- `frontend/src/features/register/steps/ScheduleStep.tsx`
-- `frontend/src/features/register/hooks/useRegisterForm.ts`
+- `frontend/src/pages/Register.tsx`
+- `frontend/src/pages/RegisterManual.tsx`
+- `frontend/src/features/register-manual/steps/UnitGoodsVehicleStep.tsx`
+- `frontend/src/features/register-manual/steps/ScheduleStep.tsx`
+- `frontend/src/features/register-manual/hooks/useRegisterForm.ts`
 
-`Home.tsx` là trang chủ public tại `/` và là điểm đặt luồng đăng ký online mới bằng mã PO/Thi Công. Các file trong `frontend/src/features/register/*` hiện thuộc luồng đăng ký thủ công tại `/register`.
+`Home.tsx` là trang chủ public tại `/`; `Register.tsx` xử lý đăng ký bằng mã PO/Thi Công tại `/register` và `RegisterManual.tsx` xử lý wizard thủ công tại `/register-manual`. Các API, component và helper trong `features/register-manual` có phần được dùng chung.
 
 Shared presentation:
 
 - `frontend/src/lib/unitPresentation.ts`
 - `frontend/src/context/PublicBusinessLocationContext.tsx`: public-only `selectedBusinessLocationId`, loaded from active public `BusinessLocation` data and persisted independently in the browser.
-- `frontend/src/components/PublicBusinessLocationSelector.tsx`: public FloatButton and Ant modal for changing the public display scope.
+- `frontend/src/components/PublicBusinessLocationSelector.tsx`: public header location name and dropdown for changing the public display scope, available to unauthenticated users and `SUPERADMIN`. Other signed-in roles cannot open the selector. The public selection remains independent of the superadmin operational location.
+
+### Nhóm mã location cho xác thực PO / Thi Công
+
+File `codeofconduct_location.json` ở root repo chứa object `tên nhóm: [các mã tương đương]`. Tên nhóm cũng là một mã được nhận diện, không bắt buộc trùng `business_locations.code`. Backend nạp file một lần lúc khởi động; mã được trim và chuyển chữ hoa, mã số nguyên từ response được đổi thành chuỗi. Mã không nằm trong nhóm được so khớp chính xác sau chuẩn hóa. Nếu không có location active khớp hoặc có nhiều location active trong cùng nhóm, xác thực dừng và báo lỗi; không tự chọn location. Unit vẫn được xử lý theo quy tắc hiện hữu.
+
+Backend dùng biến `LOCATION_CODE_GROUPS_FILE` nếu được cấu hình; đường dẫn tương đối tính theo working directory. Khi chạy backend từ repo, mặc định là file ở root repo. File không tồn tại, JSON sai cấu trúc hoặc một mã thuộc nhiều nhóm sẽ làm backend không khởi động. Sửa file rồi restart backend để nạp lại; không dùng Redis cho danh mục này.
+
+Image backend mặc định đọc `/app/config/codeofconduct_location.json`. Khi triển khai, đặt file cạnh Compose runtime trên server và thêm mount **vào service backend của Compose runtime**, ví dụ:
+
+```yaml
+services:
+  backend:
+    volumes:
+      - type: bind
+        source: ./codeofconduct_location.json
+        target: /app/config/codeofconduct_location.json
+        read_only: true
+        bind:
+          create_host_path: false
+```
+
+File phải tồn tại và container đọc được trước khi tạo container. Nếu chương trình sửa file trên host theo cách thay thế inode, cần tạo lại container để mount nhìn thấy file mới; restart container hiện tại có thể vẫn đọc bản cũ. Không mount toàn bộ thư mục chứa `.env` chỉ để chia sẻ file này. `docker-compose.prod.yml` trong repo chỉ build/push image; cập nhật Compose thực sự chạy trên server riêng.
+
+Kiểm tra logic không cần database hoặc đối tác thật: `cd backend && npm run test:location-codes`. Các test luồng PO/Thi Công dùng dữ liệu mô phỏng trong bộ nhớ.
 
 `unitPresentation.ts` là helper dùng chung để render label, short name, icon, color và ticket prefix từ `UnitConfig` metadata. Khi một payload chỉ còn dữ liệu legacy hoặc thiếu metadata, helper sinh fallback generic từ mã unit thay vì map cứng theo `EMART`/`THISKYHALL`/`TENANT`. Các màn hình runtime như register, check-in, dashboard, docks, waiting screen, track, receiving times và histories nên dùng helper này khi cần hiển thị đơn vị.
 
@@ -176,14 +201,14 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 
 ## Quy Tắc Hiện Tại
 
-- `/register` thủ công không còn chọn khung giờ. Calendar tháng hiện tại dùng `daily-registration-stats` để hiển thị số xe đã đăng ký và mật độ theo ngày.
-- Capacity ngày của `/register` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
-- API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register`.
+- `/register-manual` không chọn ngày hoặc khung giờ; ngày hiện tại được backend cung cấp, còn `daily-registration-stats` kiểm tra công suất của ngày đó.
+- Capacity ngày của `/register-manual` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
+- API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register-manual`.
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
 - Ticket prefix ưu tiên `UnitConfig.shortName`, sau đó `displayName`, sau đó mã `unit`; frontend không tự giữ bảng prefix cố định theo ba unit demo.
 - `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.
 - Non-`SUPERADMIN` phải đi qua `BusinessLocation` scope và `operationUnits` khi action resolve được `unitConfigId`.
-- Public routes dùng `PublicBusinessLocationContext`, không dùng `user.businessLocationId` hoặc Superadmin operational context. FloatButton public chọn `BusinessLocation` active cho dữ liệu public trên thiết bị; mỗi public feature cần dùng `selectedBusinessLocationId` trong query/scope khi dữ liệu phụ thuộc khu vực. Staff route vẫn chỉ đọc scope từ auth session, và chỉ `SUPERADMIN` có FloatButton riêng để đổi operational context.
+- Public routes dùng `PublicBusinessLocationContext`, không dùng `user.businessLocationId` hoặc Superadmin operational context. Tên khu vực trên public header mở bộ chọn `BusinessLocation` active cho người chưa đăng nhập và `SUPERADMIN`; mỗi public feature dùng `selectedBusinessLocationId` khi dữ liệu phụ thuộc khu vực. Staff route chỉ đọc scope từ auth session; `SUPERADMIN` đổi operational context qua tên khu vực trên header nội bộ. Nếu chưa có khu vực, modal bắt buộc chọn vẫn được hiển thị.
 - Capacity ngày không tách theo `goodsType` khi đếm số lượt đã đăng ký; goods type dùng cho eligibility, nhóm time window ước lượng và ưu tiên dispatch.
 - `Slot.goodsPriority` điều khiển thứ tự ưu tiên auto-assign trong phạm vi các loại hàng slot được phép nhận. Nếu cùng một loại hàng, xe có `checkinTime`/số thứ tự sớm hơn được gọi trước.
 - `MAINTENANCE` và `RESERVED` là trạng thái manual.
