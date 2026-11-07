@@ -80,8 +80,8 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
     const rows: [string, string][] = [
       ['Biển số', info.vehiclePlate],
       ['Tài xế', info.driverName || '—'],
-      ['Nhà cung cấp', info.vendorName],
-      ['Mã đối chiếu', info.referenceCode],
+      ...(info.vendorName ? [['Nhà cung cấp', info.vendorName] as [string, string]] : []),
+      ['Mã PO / Thi Công', info.referenceCode],
       ['Loại hàng', info.goodsTypeName || GOODS_LABEL[info.goodsType] || String(info.goodsType)],
       ['Ngày giao', info.requestedTime],
       ...(info.locationName ? [['Khu vực', info.locationName] as [string, string]] : []),
@@ -216,8 +216,8 @@ export default function SuccessScreen({ info, onReset }: SuccessScreenProps) {
 <div class="qr"><img src="${qrDataUrl}"/></div>
 <div class="row"><span class="lbl">Biển số</span><span class="val">${info.vehiclePlate}</span></div>
 <div class="row"><span class="lbl">Tài xế</span><span class="val">${info.driverName || '—'}</span></div>
-<div class="row"><span class="lbl">Nhà cung cấp</span><span class="val">${info.vendorName}</span></div>
-<div class="row"><span class="lbl">Mã đối chiếu</span><span class="val">${info.referenceCode}</span></div>
+${info.vendorName ? `<div class="row"><span class="lbl">Nhà cung cấp</span><span class="val">${info.vendorName}</span></div>` : ''}
+<div class="row"><span class="lbl">Mã PO / Thi Công</span><span class="val">${info.referenceCode}</span></div>
 <div class="row"><span class="lbl">Loại hàng</span><span class="val">${info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</span></div>
 <div class="row"><span class="lbl">Ngày giao</span><span class="val">${info.requestedTime}</span></div>
 ${locationRow}
@@ -263,8 +263,8 @@ ${locationRow}
 
           <Descriptions size="small" column={1} bordered items={[
             { key: 'plate', label: 'Biển số', children: <Typography.Text code>{info.vehiclePlate}</Typography.Text> },
-            { key: 'vendor', label: 'Nhà cung cấp', children: info.vendorName },
-            { key: 'reference', label: 'Mã đối chiếu', children: <Typography.Text code>{info.referenceCode}</Typography.Text> },
+            ...(info.vendorName ? [{ key: 'vendor', label: 'Nhà cung cấp', children: info.vendorName }] : []),
+            { key: 'reference', label: 'Mã PO / Thi Công', children: <Typography.Text code>{info.referenceCode}</Typography.Text> },
             { key: 'date', label: 'Ngày giao', children: info.requestedTime },
             ...(info.locationName ? [{ key: 'location', label: 'Khu vực', children: info.locationName }] : []),
           ]} />

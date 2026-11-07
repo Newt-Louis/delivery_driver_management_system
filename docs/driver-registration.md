@@ -53,14 +53,14 @@ Trang đăng ký `/register` hiện có:
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
 - Step 2 PO nhập thông tin tài xế/xe/NCC và chọn xe tải hoặc xe máy, mặc định xe tải; ngày từ API PO phải là ngày hiện tại theo giờ Việt Nam. Số điện thoại, biển số và loại xe là bắt buộc.
 - Step 2 Thi Công nhập thông tin tài xế/xe/NCC, chọn loại xe (mặc định xe tải) và loại hàng; ngày giao là ngày hiện tại do backend xác định theo giờ Việt Nam, không chọn ngày trên lịch.
-- Ở step 2 của cả PO và Thi Công, mã NCC có gợi ý từ cùng API và phạm vi khu vực/đơn vị đã xác thực như luồng thủ công. Chọn gợi ý điền cả mã và tên; NCC không có trong danh sách vẫn có thể nhập tự do. Thông tin NCC do API bên thứ ba trả về tiếp tục được điền sẵn.
+- Ở step 2 của cả PO và Thi Công, mã NCC có gợi ý theo khu vực/đơn vị đã xác thực. Chọn gợi ý điền cả mã và tên; NCC không có trong danh sách vẫn có thể nhập tự do. Thông tin NCC do API bên thứ ba trả về tiếp tục được điền sẵn.
 - Trang `/register` không tải thống kê công suất ngày hoặc hiển thị cảnh báo khung giờ ở bước nhập thông tin; backend không giới hạn công suất theo khung giờ với lượt đăng ký bằng token PO/Thi Công hợp lệ.
 - Step 3 review đầy đủ dữ liệu đã chuẩn hóa rồi submit đăng ký. Nếu mã NCC khớp danh sách active của đơn vị đã xác thực, loại hàng hiển thị là “Kho tự động”; trong khi kiểm tra hoặc nếu không kiểm tra được, giao diện thông báo trạng thái tương ứng. Payload vẫn gửi loại hàng ban đầu và backend quyết định lại khi tạo lượt.
 
 Wizard thủ công `/register-manual`:
 
 1. Dùng `BusinessLocation` đã chọn qua tên khu vực trên public header; chọn đơn vị giao, loại hàng và loại xe trong wizard. Người chưa đăng nhập và `SUPERADMIN` có thể mở bộ chọn; các role đăng nhập khác chỉ xem tên. Khi đổi khu vực toàn cục, wizard quay về bước 1 và xóa các lựa chọn phụ thuộc.
-2. Ngày giao hàng là ngày hiện tại theo giờ Việt Nam do backend trả cùng Mã đối chiếu 7 ký tự; tài xế không chọn ngày. Công suất của ngày hiện tại vẫn được kiểm tra. Người dùng có thể nhập hoặc chọn Mã NCC trước Tên công ty / Nhà cung cấp; mã giữ nguyên chữ hoa/thường đã nhập.
+2. Ngày giao hàng là ngày hiện tại theo giờ Việt Nam do backend trả; tài xế nhập tự do Mã PO / Thi Công hoặc dùng camera quét QR/Barcode hay chọn ảnh để điền mã. Không yêu cầu mã hoặc tên nhà cung cấp. Công suất của ngày hiện tại vẫn được kiểm tra.
 3. Nhập thông tin tài xế và phương tiện.
 4. Review và hoàn tất đăng ký.
 
@@ -73,9 +73,7 @@ Logic trong `useRegisterForm.ts`:
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
 - Có slot vận hành thì tài xế chọn được cả `TRUCK` và `MOTORBIKE`; số vị trí và sức chứa trả về là tổng dùng chung của đơn vị, không khẳng định slot chỉ nhận loại xe đó. Khi đăng ký, loại xe là bắt buộc và không còn giá trị `OTHER`.
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
-- Check vendor kho tự động: `GET /api/aw-vendors/check?code=...&unit=...&businessLocationId=...&unitConfigId=...`.
-- Gợi ý mã NCC ở step thông tin đơn hàng: `GET /api/aw-vendors/suggestions?q=...&businessLocationId=...&unitConfigId=...`. Endpoint chỉ trả tối đa 10 NCC active thuộc đúng `UnitConfig` public đang chọn; chọn một gợi ý sẽ điền lại cả mã lẫn tên NCC; mã người dùng nhập không bị ép đổi hoa/thường.
-- Tạo mã đối chiếu thủ công: `POST /api/deliveries/manual-registration-code` trả mã và `deliveryDate` theo ngày Việt Nam của server. Frontend gọi khi vào step 2, giữ trong form và gọi lại cho lượt mới sau khi hoàn tất/reset.
+- Lấy ngày giao hàng: `POST /api/deliveries/manual-registration-code` trả `deliveryDate` theo ngày Việt Nam của server; mã tạo kèm không được dùng trong wizard.
 - Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend kiểm tra ngày hiện tại và tự lưu `requestedTime` tại `00:00` giờ Việt Nam nếu payload không gửi giờ. Nếu client không gửi ngày, backend tự dùng ngày hiện tại.
 - Scroll tới field lỗi đầu tiên khi validate fail.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
@@ -131,8 +129,8 @@ Service:
 
 - Biển số xe được normalize uppercase và bỏ khoảng trắng.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
-- Luồng thủ công `/register-manual` không nhập mã PO/Mã thi công. Ở step 2, API sinh Mã đối chiếu gồm 7 ký tự chữ/số in hoa và frontend lưu mã đó vào `poNumber` của delivery; không có bảng sequence hoặc kiểm tra trùng riêng cho mã này.
-- Mã đối chiếu được hiển thị ở step review, màn hình thành công và trang track.
+- Luồng thủ công `/register-manual` lưu mã người dùng nhập hoặc quét vào `poNumber`, không ràng buộc định dạng hay xác thực API đối tác. Payload gửi `manualRegistration: true`; backend vẫn áp dụng các quy tắc ngày, phạm vi và công suất thủ công.
+- Mã PO / Thi Công được hiển thị ở step review, màn hình thành công và trang track.
 - Luồng đăng ký nhanh cho phép mã thật ngoài danh sách mock nếu payload submit có `quickVerificationToken` hợp lệ do `POST /api/deliveries/quick-verify` phát hành.
 - `registrationCode` có format `BUSINESSLOCATIONCODE + 4 ký tự cuối của UnitConfig.id + YYMMDD + số thứ tự ba chữ số`. Số thứ tự reset theo ngày và `UnitConfig`; mã location và suffix UnitConfig giữ mã đăng ký unique toàn cục để `/track/:code` và check-in không cần thêm scope.
 - `BusinessLocation` public là phạm vi chung của các route public, không phải field trong wizard `/register-manual`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn toàn cục.

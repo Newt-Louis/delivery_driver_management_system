@@ -1,8 +1,11 @@
-import { CalendarOutlined, CheckCircleOutlined, LoadingOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Alert, AutoComplete, Button, Card, Form, Input, Space, Typography } from 'antd';
-import type { AutoWarehouseVendorSuggestion, DailyRegistrationStat } from '../api';
+import { CalendarOutlined, CameraOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import type { IScannerControls } from '@zxing/browser';
+import { createScanHints } from '../utils/scanner';
+import { Alert, Button, Card, Form, Input, Modal, Space, Typography } from 'antd';
+import type { DailyRegistrationStat } from '../api';
 import FieldFrame from '../components/FieldFrame';
-import { FieldError, FieldHint } from '../components/FieldFeedback';
+import { FieldError } from '../components/FieldFeedback';
 import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
 
 type ScheduleStepProps = {
@@ -15,23 +18,72 @@ type ScheduleStepProps = {
   manualReferenceLoading: boolean;
   manualReferenceError: string;
   sundayFreshFoodBlocked: boolean;
-  awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
-  awVendorName: string;
-  awVendorSuggestions: AutoWarehouseVendorSuggestion[];
-  awVendorSuggestionsLoading: boolean;
   set: SetFormField;
   onRetryManualReferenceCode: () => void;
-  onSelectAutoWarehouseVendor: (vendor: AutoWarehouseVendorSuggestion) => void;
 };
 
-export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, awStatus, awVendorName, awVendorSuggestions, awVendorSuggestionsLoading, set, onRetryManualReferenceCode, onSelectAutoWarehouseVendor }: ScheduleStepProps) {
+export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, set, onRetryManualReferenceCode }: ScheduleStepProps) {
   const todayStats = dailyStats.find((item) => item.date === form.deliveryDate);
-  const vendorOptions = awVendorSuggestions.map((vendor) => ({
-    value: vendor.vendorCode,
-    label: <div className="py-1"><Typography.Text strong>{vendor.vendorCode}</Typography.Text><Typography.Text type="secondary" className="block text-xs">{vendor.vendorName}</Typography.Text></div>,
-    vendor,
-  }));
-  const vendorSuffix = <span className="inline-flex w-4 justify-center" aria-live="polite">{awStatus === 'loading' ? <LoadingOutlined /> : awStatus === 'match' ? <CheckCircleOutlined /> : null}</span>;
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState('');
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const controlsRef = useRef<IScannerControls | null>(null);
+  const onCodeRef = useRef(set);
+  onCodeRef.current = set;
+
+  useEffect(() => {
+    if (!open || !videoRef.current) return;
+    let active = true;
+    let handled = false;
+    const video = videoRef.current;
+    setStatus('Đang mở camera...');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus('Không thể mở camera. Hãy kiểm tra quyền camera và sử dụng HTTPS hoặc localhost.');
+      return;
+    }
+    Promise.all([import('@zxing/browser'), import('@zxing/library')]).then(([browser, library]) => {
+      if (!active) return null;
+      const reader = new browser.BrowserMultiFormatReader(createScanHints(library), { delayBetweenScanAttempts: 250, delayBetweenScanSuccess: 500, tryPlayVideoTimeout: 5000 });
+      return reader.decodeFromConstraints({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } }, video, (result, _error, controls) => {
+        if (!active || handled || !result) return;
+        handled = true;
+        controls.stop();
+        onCodeRef.current('poNumber', result.getText().trim());
+        setOpen(false);
+      });
+    }).then((controls) => {
+      if (!controls) return;
+      if (!active) { controls.stop(); return; }
+      controlsRef.current = controls;
+      setStatus('Đang quét...');
+    }).catch(() => { if (active) setStatus('Không mở được camera. Vui lòng kiểm tra quyền camera hoặc chọn ảnh mã.'); });
+    return () => {
+      active = false;
+      controlsRef.current?.stop();
+      controlsRef.current = null;
+      const stream = video.srcObject;
+      if (stream instanceof MediaStream) stream.getTracks().forEach((track) => track.stop());
+      video.srcObject = null;
+    };
+  }, [open]);
+
+  async function readImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setStatus('Đang đọc mã trong ảnh...');
+    try {
+      const [browser, library] = await Promise.all([import('@zxing/browser'), import('@zxing/library')]);
+      const reader = new browser.BrowserMultiFormatReader(createScanHints(library));
+      const result = await reader.decodeFromImageUrl(url);
+      set('poNumber', result.getText().trim());
+      setOpen(false);
+    } catch {
+      setStatus('Không tìm thấy QR hoặc Barcode rõ ràng trong ảnh. Vui lòng thử lại.');
+    } finally { URL.revokeObjectURL(url); }
+  }
 
   return (
     <div className="space-y-5">
@@ -48,40 +100,22 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
 
       <Card size="small" title="Thông tin đơn hàng">
         <Form layout="vertical" requiredMark={false}>
-          <FieldFrame field="vendorCode" highlightedField={highlightedField}>
-            <Form.Item label="Mã nhà cung cấp (NCC)" className="!mb-4">
-              <AutoComplete
-                value={form.vendorCode}
-                options={vendorOptions}
-                filterOption={false}
-                notFoundContent={awVendorSuggestionsLoading ? <Space><LoadingOutlined />Đang tìm NCC...</Space> : null}
-                onChange={(value) => set('vendorCode', value)}
-                onSelect={(_value, option) => {
-                  const vendor = (option as { vendor?: AutoWarehouseVendorSuggestion }).vendor;
-                  if (vendor) onSelectAutoWarehouseVendor(vendor);
-                }}
-              >
-                <Input size="large" placeholder="VD: Sup001, NccAbc..." autoCapitalize="none" autoCorrect="off" autoComplete="off" spellCheck={false} suffix={vendorSuffix} />
-              </AutoComplete>
-              <FieldHint text="Nếu có mã NCC, hệ thống sẽ tự gợi ý dữ liệu và xếp vào khu kho tự động khi được phép." />
-            </Form.Item>
-          </FieldFrame>
-          <FieldFrame field="vendorName" highlightedField={highlightedField}>
-            <Form.Item label="Tên công ty / Nhà cung cấp" required validateStatus={fieldErrors.vendorName ? 'error' : undefined} className="!mb-4">
-              <Input size="large" value={form.vendorName} onChange={(event) => set('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" status={fieldErrors.vendorName ? 'error' : undefined} />
-              <FieldHint text="Tên công ty hoặc đơn vị bạn đại diện giao hàng." />
-              {fieldErrors.vendorName && <FieldError text={fieldErrors.vendorName} />}
-            </Form.Item>
-          </FieldFrame>
           <FieldFrame field="poNumber" highlightedField={highlightedField}>
-            <Form.Item label="Mã đối chiếu đăng ký" extra="Mã này được lưu cùng lượt đăng ký để đối chiếu khi cần." className="!mb-0">
-              <Input size="large" value={form.poNumber} readOnly placeholder="Đang tạo mã..." autoComplete="off" className="font-mono font-bold tracking-[0.2em]" suffix={manualReferenceLoading ? <LoadingOutlined /> : undefined} />
-              {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
+            <Form.Item label="Mã PO / Thi Công" required validateStatus={fieldErrors.poNumber ? 'error' : undefined} className="!mb-0">
+              <Input size="large" value={form.poNumber} onChange={(event) => set('poNumber', event.target.value)} placeholder="Nhập mã PO / Thi Công" autoComplete="off" suffix={<Button type="text" icon={<CameraOutlined style={{ fontSize: 24 }} />} aria-label="Quét mã QR hoặc barcode" onClick={() => setOpen(true)} />} />
               {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
             </Form.Item>
           </FieldFrame>
         </Form>
-        <Typography.Text type="secondary" className="text-xs">Mã được tạo tự động, không cần nhập thủ công.</Typography.Text>
+        {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
+        {manualReferenceLoading && <Typography.Text type="secondary">Đang xác định ngày giao hàng...</Typography.Text>}
+        <Modal open={open} title="Quét mã QR hoặc Barcode" onCancel={() => setOpen(false)} footer={<Button icon={<UploadOutlined />} onClick={() => fileRef.current?.click()}>Chọn ảnh mã</Button>} destroyOnHidden>
+          <Space orientation="vertical" size="middle" className="w-full">
+            <Typography.Text type="secondary">{status}</Typography.Text>
+            <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-black sm:aspect-video"><video ref={videoRef} className="h-full w-full object-cover" muted playsInline autoPlay /><div className="pointer-events-none absolute inset-10 rounded-lg border-2 border-white/90" /></div>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={readImage} />
+          </Space>
+        </Modal>
       </Card>
     </div>
   );

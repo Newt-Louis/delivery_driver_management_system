@@ -68,8 +68,8 @@ Files:
 
 Register:
 
-- Ở đăng ký thủ công, khi user nhập vendor code sau khi đã chọn `BusinessLocation` và unit, frontend debounce check `/api/aw-vendors/check` với params `{ code, unit, businessLocationId, unitConfigId }`.
-- Từ hai ký tự, cả đăng ký thủ công và đăng ký nhanh đều lấy tối đa 10 gợi ý active qua `/api/aw-vendors/suggestions`; đăng ký nhanh dùng khu vực và đơn vị từ kết quả xác thực PO/Thi Công. Endpoint bắt buộc cả `businessLocationId` và `unitConfigId`, xác nhận unit active thuộc khu vực đó trước khi query; không trả NCC của khu vực/đơn vị khác. Chọn gợi ý điền mã và tên, nhưng vẫn cho phép nhập NCC không thuộc danh sách.
+- Đăng ký thủ công không nhập mã NCC nên không tự chuyển sang kho tự động theo NCC.
+- Từ hai ký tự, đăng ký nhanh lấy tối đa 10 gợi ý active qua `/api/aw-vendors/suggestions`; đăng ký nhanh dùng khu vực và đơn vị từ kết quả xác thực PO/Thi Công. Endpoint bắt buộc cả `businessLocationId` và `unitConfigId`, xác nhận unit active thuộc khu vực đó trước khi query; không trả NCC của khu vực/đơn vị khác. Chọn gợi ý điền mã và tên, nhưng vẫn cho phép nhập NCC không thuộc danh sách.
 - Nếu match, hiển thị thông tin vendor kho tự động; backend quyết định loại hàng khi nhận đăng ký và trả loại thực tế cho màn hình thành công.
 
 Backoffice:

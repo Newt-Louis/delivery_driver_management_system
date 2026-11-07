@@ -32,6 +32,7 @@ export type RegisterDeliveryPayload = {
   deliveryDate?: string;
   note?: string;
   quickVerificationToken?: string;
+  manualRegistration?: boolean;
 };
 
 export type RegisterDeliveryResponse = {

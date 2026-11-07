@@ -34,9 +34,7 @@ export default function ReviewSubmitStep({ form, unitConfig, brandUnits, locatio
           { key: 'plate', label: <Space><CarOutlined />Biển số xe</Space>, children: <Typography.Text code>{form.vehiclePlate}</Typography.Text> },
           { key: 'driver', label: <Space><UserOutlined />Tài xế</Space>, children: form.driverName || '—' },
           { key: 'phone', label: <Space><PhoneOutlined />Điện thoại</Space>, children: <Typography.Text code>{form.driverPhone}</Typography.Text> },
-          { key: 'vendor', label: <Space><ShopOutlined />Nhà cung cấp</Space>, children: form.vendorName },
-          ...(form.vendorCode ? [{ key: 'vendor-code', label: 'Mã NCC', children: <Typography.Text code>{form.vendorCode}</Typography.Text> }] : []),
-          { key: 'reference', label: 'Mã đối chiếu', children: <Typography.Text code>{form.poNumber}</Typography.Text> },
+          { key: 'reference', label: 'Mã PO / Thi Công', children: <Typography.Text code>{form.poNumber}</Typography.Text> },
           { key: 'date', label: 'Ngày giao', children: form.deliveryDate.split('-').reverse().join('/') },
         ]} />
         {awStatus === 'match' && <Tag color="success" className="mt-4">Kho tự động{awVendorName ? ` · ${awVendorName}` : ''}</Tag>}
