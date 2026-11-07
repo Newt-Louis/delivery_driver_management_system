@@ -87,8 +87,8 @@ export default function Dashboard() {
 
       <DashboardHeader />
       <Space orientation="vertical" style={{ width: '100%' }}>
-        {summaryError && <Alert type="error" showIcon message="Không thể tải số liệu tổng quan" action={<Button onClick={() => retrySummary()}>Thử lại</Button>} />}
-        {dispatchError && <Alert type="error" showIcon message="Không thể tải dữ liệu điều phối" action={<Button onClick={() => retryDispatch()}>Thử lại</Button>} />}
+        {summaryError && <Alert type="error" showIcon title="Không thể tải số liệu tổng quan" action={<Button onClick={() => retrySummary()}>Thử lại</Button>} />}
+        {dispatchError && <Alert type="error" showIcon title="Không thể tải dữ liệu điều phối" action={<Button onClick={() => retryDispatch()}>Thử lại</Button>} />}
       </Space>
       <DashboardTabs
         tabs={tabs}
