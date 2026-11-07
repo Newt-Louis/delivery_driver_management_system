@@ -16,6 +16,23 @@ const model = loadTs('../src/features/driver-notifications/model.ts');
 const trip = { code: 'A', plate: '51F-552.95', status: 'WAITING', seen: [], lastEventAt: '2026-10-27T01:00:00.000Z' };
 const called = { deliveryCode: 'A', status: 'CALLED', eventId: 'A:CALLED:2', occurredAt: '2026-10-27T02:00:00.000Z' };
 
+test('following a new trip requires confirmation only when another trip is selected', () => {
+  const registered = { registrationCode: 'B', vehiclePlate: '51A12345', status: 'REGISTERED' };
+  assert.equal(model.followAction(null, registered), 'follow');
+  assert.equal(model.followAction(trip, { ...registered, registrationCode: 'A' }), 'follow');
+  assert.equal(model.followAction(trip, registered), 'confirm');
+  assert.equal(model.followAction(trip, { ...registered, status: 'COMPLETED' }), 'ignore');
+});
+
+test('notification readiness never equates selecting a trip with successful push setup', () => {
+  assert.equal(model.notificationReadiness(false, 'granted', 'ready'), 'unsupported');
+  assert.equal(model.notificationReadiness(true, 'denied', 'ready'), 'denied');
+  assert.equal(model.notificationReadiness(true, 'default', 'off'), 'permission');
+  assert.equal(model.notificationReadiness(true, 'granted', 'connecting'), 'connecting');
+  assert.equal(model.notificationReadiness(true, 'granted', 'error'), 'error');
+  assert.equal(model.notificationReadiness(true, 'granted', 'ready'), 'ready');
+});
+
 test('only the selected trip alerts; duplicate socket/push and late statuses are rejected', () => {
   assert.equal(model.acceptsNotice(trip, called), true);
   assert.equal(model.acceptsNotice(trip, { ...called, deliveryCode: 'B' }), false);

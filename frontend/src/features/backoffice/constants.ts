@@ -2,8 +2,8 @@ import type { GoodsType } from '../../lib/types';
 import type { BackofficeTab } from './types';
 
 export const VEHICLE_LABEL: Record<string, string> = {
-  TRUCK: '🚛 Xe Tải',
-  MOTORBIKE: '🛵 Xe Máy',
+  TRUCK: 'Xe Tải',
+  MOTORBIKE: 'Xe Máy',
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -21,10 +21,10 @@ export const STATUS_COLOR: Record<string, string> = {
 };
 
 export const GOODS_LABELS: Record<GoodsType, string> = {
-  FRESH_FOOD: '🥬 Tươi sống',
-  AUTO_WAREHOUSE: '🤖 Auto WH',
-  GENERAL_GOODS: '📦 Hàng thường',
-  THI_CONG: '🔨 Thi công',
+  FRESH_FOOD: 'Tươi sống',
+  AUTO_WAREHOUSE: 'Kho tự động',
+  GENERAL_GOODS: 'Hàng thường',
+  THI_CONG: 'Thi công',
 };
 
 export const BACKOFFICE_TABS: readonly [BackofficeTab, string, string][] = [
@@ -42,16 +42,16 @@ export function allowedBackofficeTabs(role?: string): BackofficeTab[] {
   return [];
 }
 
-export const ROLE_META: Record<string, { label: string; color: string; icon: string }> = {
+export const ROLE_META: Record<string, { label: string; color: string; icon?: string }> = {
   SUPERADMIN: { label: 'Superadmin', color: 'bg-purple-100 text-purple-700', icon: '🛡' },
   ADMIN_LOC: { label: 'Admin khu vực', color: 'bg-red-100 text-red-700', icon: '👑' },
   ADMIN_OPE: { label: 'Admin vận hành', color: 'bg-orange-100 text-orange-700', icon: '🛠' },
-  RECEIVING: { label: 'Nhận hàng', color: 'bg-sky-100 text-sky-700', icon: '📦' },
+  RECEIVING: { label: 'Nhận hàng', color: 'bg-sky-100 text-sky-700' },
   CHECKIN: { label: 'Check-in', color: 'bg-amber-100 text-amber-700', icon: '🔐' },
 };
 
-export const STAFF_ROLE_META: Record<string, { label: string; color: string; icon: string }> = {
+export const STAFF_ROLE_META: Record<string, { label: string; color: string; icon?: string }> = {
   ADMIN_OPE: { label: 'Nhân viên điều phối', color: 'bg-orange-100 text-orange-700', icon: '🛠' },
-  RECEIVING: { label: 'Nhân viên nhận hàng', color: 'bg-sky-100 text-sky-700', icon: '📦' },
+  RECEIVING: { label: 'Nhân viên nhận hàng', color: 'bg-sky-100 text-sky-700' },
   CHECKIN: { label: 'Nhân viên check-in', color: 'bg-amber-100 text-amber-700', icon: '🔐' },
 };

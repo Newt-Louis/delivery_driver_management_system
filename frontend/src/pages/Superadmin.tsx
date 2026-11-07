@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ApiOutlined, AppstoreOutlined, ClockCircleOutlined, ClusterOutlined, CodeOutlined, DatabaseOutlined, EnvironmentOutlined, SettingOutlined, TeamOutlined, TruckOutlined } from '@ant-design/icons';
+import { ApiOutlined, AppstoreOutlined, ClockCircleOutlined, ClusterOutlined, CodeOutlined, DatabaseOutlined, EnvironmentOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
 import { Alert, Button, Spin, Typography } from 'antd';
 import AdminSectionFrame, { type AdminSectionItem } from '../components/layout/AdminSectionFrame';
 import { superadminApi } from '../features/superadmin/api';
 import type { SuperadminTab } from '../features/superadmin/types';
 import AppConfigsTab from '../features/superadmin/tabs/AppConfigsTab';
 import ApiConfigsTab from '../features/superadmin/tabs/ApiConfigsTab';
-import AwVendorsTab from '../features/superadmin/tabs/AwVendorsTab';
 import DevicesTab from '../features/superadmin/tabs/DevicesTab';
 import GoodsTypesTab from '../features/superadmin/tabs/GoodsTypesTab';
 import LocationsTab from '../features/superadmin/tabs/LocationsTab';
@@ -22,7 +21,6 @@ const TABS: Array<[SuperadminTab, string]> = [
   ['users', 'Users'],
   ['goods', 'Goods types'],
   ['windows', 'Time windows'],
-  ['awvendors', 'AW vendors'],
   ['devices', 'Devices'],
   ['appconfigs', 'App configs'],
   ['apiconfigs', 'API tích hợp'],
@@ -37,7 +35,6 @@ const SECTION_ICONS: Record<SuperadminTab, React.ReactNode> = {
   users: <TeamOutlined />,
   goods: <AppstoreOutlined />,
   windows: <ClockCircleOutlined />,
-  awvendors: <TruckOutlined />,
   devices: <ApiOutlined />,
   appconfigs: <SettingOutlined />,
   apiconfigs: <CodeOutlined />,
@@ -50,8 +47,8 @@ export default function Superadmin() {
   const [businessLocationId, setBusinessLocationId] = useState('');
   const [unitConfigId, setUnitConfigId] = useState('');
 
-  const needsLocations = ['locations', 'units', 'users', 'goods', 'windows', 'awvendors', 'devices', 'receivingTimes'].includes(activeTab);
-  const needsUnitOptions = ['units', 'goods', 'windows', 'awvendors', 'receivingTimes'].includes(activeTab);
+  const needsLocations = ['locations', 'units', 'users', 'goods', 'windows', 'devices', 'receivingTimes'].includes(activeTab);
+  const needsUnitOptions = ['units', 'goods', 'windows', 'receivingTimes'].includes(activeTab);
 
   const locations = useQuery({
     queryKey: ['superadmin', 'locations'],
@@ -82,12 +79,6 @@ export default function Superadmin() {
     placeholderData: (previous) => previous,
     enabled: activeTab === 'windows',
   });
-  const vendors = useQuery({
-    queryKey: ['superadmin', 'vendors', businessLocationId, unitConfigId],
-    queryFn: () => superadminApi.autoWarehouseVendors({ businessLocationId: businessLocationId || undefined, unitConfigId: unitConfigId || undefined }),
-    placeholderData: (previous) => previous,
-    enabled: activeTab === 'awvendors',
-  });
   const devices = useQuery({
     queryKey: ['superadmin', 'devices', businessLocationId],
     queryFn: () => superadminApi.devices({ businessLocationId: businessLocationId || undefined }),
@@ -105,7 +96,7 @@ export default function Superadmin() {
   const tabQueries = {
     locations: [locations], units: [locations, units], users: [locations, userUnits, users],
     goods: [locations, units, goodsTypes], windows: [locations, units, timeWindows],
-    awvendors: [locations, units, vendors], devices: [locations, devices],
+    devices: [locations, devices],
     appconfigs: [appConfigs], apiconfigs: [appConfigs], receivingTimes: [locations, units, receivingTimes],
     zones: [], slots: [],
   };
@@ -137,9 +128,6 @@ export default function Superadmin() {
         break;
       case 'windows':
         queryClient.invalidateQueries({ queryKey: ['superadmin', 'windows'] });
-        break;
-      case 'awvendors':
-        queryClient.invalidateQueries({ queryKey: ['superadmin', 'vendors'] });
         break;
       case 'devices':
         queryClient.invalidateQueries({ queryKey: ['superadmin', 'devices'] });
@@ -179,8 +167,6 @@ export default function Superadmin() {
         return <GoodsTypesTab goodsTypes={goodsTypes.data ?? []} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'windows':
         return <TimeWindowsTab timeWindows={timeWindows.data ?? []} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
-      case 'awvendors':
-        return <AwVendorsTab vendors={vendors.data ?? []} units={allUnits} onRefresh={refreshActiveTab} scope={{ locations: allLocations, units: selectedLocationUnits, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'devices':
         return <DevicesTab devices={devices.data ?? []} locations={allLocations} onRefresh={refreshActiveTab} scope={{ locations: allLocations, businessLocationId, unitConfigId, onBusinessLocationChange: changeBusinessLocation, onUnitConfigChange: setUnitConfigId }} />;
       case 'appconfigs':
@@ -207,7 +193,7 @@ export default function Superadmin() {
 
       {loadingTab && <Spin tip="Đang tải dữ liệu"><div style={{ minHeight: 100 }} /></Spin>}
       {failedQueries.length > 0 && <Alert type="error" showIcon message="Không thể tải dữ liệu" action={<Button onClick={() => failedQueries.forEach(query => query.refetch())}>Thử lại</Button>} />}
-      {!loadingTab && failedQueries.length === 0 && <Spin spinning={(activeTab === 'units' && units.isPlaceholderData && units.isFetching) || (activeTab === 'goods' && ((goodsTypes.isPlaceholderData && goodsTypes.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'windows' && ((timeWindows.isPlaceholderData && timeWindows.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'awvendors' && ((vendors.isPlaceholderData && vendors.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'devices' && devices.isPlaceholderData && devices.isFetching) || (activeTab === 'receivingTimes' && ((receivingTimes.isPlaceholderData && receivingTimes.isFetching) || (units.isPlaceholderData && units.isFetching)))} tip="Đang tải đơn vị">{renderTab()}</Spin>}
+      {!loadingTab && failedQueries.length === 0 && <Spin spinning={(activeTab === 'units' && units.isPlaceholderData && units.isFetching) || (activeTab === 'goods' && ((goodsTypes.isPlaceholderData && goodsTypes.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'windows' && ((timeWindows.isPlaceholderData && timeWindows.isFetching) || (units.isPlaceholderData && units.isFetching))) || (activeTab === 'devices' && devices.isPlaceholderData && devices.isFetching) || (activeTab === 'receivingTimes' && ((receivingTimes.isPlaceholderData && receivingTimes.isFetching) || (units.isPlaceholderData && units.isFetching)))} tip="Đang tải đơn vị">{renderTab()}</Spin>}
     </div>
     </AdminSectionFrame>
   );

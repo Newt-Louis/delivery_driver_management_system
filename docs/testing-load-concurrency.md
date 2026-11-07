@@ -24,7 +24,7 @@ Mục tiêu test:
 - Manual call đồng thời ghi event timeline gọi xe đúng kỳ vọng.
 - Multi-capacity slot không vượt `maxCapacity`.
 - Complete đồng thời không release/auto-assign lặp.
-- Auto-assign không đưa `AUTO_WAREHOUSE` vào slot thường.
+- Auto-assign nhận hoặc loại `AUTO_WAREHOUSE` theo danh sách hàng của slot và tuân theo thứ tự ưu tiên.
 - Ưu tiên `FRESH_FOOD`.
 
 Lệnh:

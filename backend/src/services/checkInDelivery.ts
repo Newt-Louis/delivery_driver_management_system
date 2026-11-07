@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import { reserveTicketNumber } from './ticketSequence';
 import { recordDeliveryEvent } from '../modules/history/historyService';
 import type { HistoryActor } from '../modules/history/types';
+import { resolveCheckInGoodsType } from './autoWarehousePolicy';
+import { domainError } from '../modules/shared/domainError';
 
 type DeliveryFindArgs = {
   include?: Prisma.DeliveryRegistrationInclude;
@@ -13,6 +15,7 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
   resultArgs: TArgs;
   now?: Date;
   actor?: HistoryActor;
+  expectedUnitConfigId?: string | null;
 }): Promise<{
   checkedIn: boolean;
   delivery: Prisma.DeliveryRegistrationGetPayload<TArgs> | null;
@@ -29,15 +32,29 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
 
     if (!current) return { checkedIn: false, delivery: null };
     const currentRecord = current as Prisma.DeliveryRegistrationGetPayload<Prisma.DeliveryRegistrationDefaultArgs>;
+    if (args.expectedUnitConfigId !== undefined && currentRecord.unitConfigId !== args.expectedUnitConfigId) {
+      throw domainError.conflict('Đơn vị của lượt đăng ký đã thay đổi. Vui lòng tải lại và kiểm tra quyền.', 'RegistrationUnitChanged');
+    }
     if (currentRecord.status === DeliveryStatus.WAITING || currentRecord.status !== DeliveryStatus.REGISTERED) {
       return { checkedIn: false, delivery: current };
     }
 
+    const vendorCode = currentRecord.vendorCode?.trim().toUpperCase();
+    const vendor = vendorCode && currentRecord.unitConfigId
+      ? await tx.autoWarehouseVendor.findFirst({ where: {
+        vendorCode, unit: currentRecord.receivingUnit, unitConfigId: currentRecord.unitConfigId, active: true,
+      }, select: { id: true } })
+      : null;
+    const classification = resolveCheckInGoodsType({
+      goodsType: currentRecord.goodsType,
+      originalGoodsType: currentRecord.originalGoodsType,
+      vendorMatches: Boolean(vendor),
+    });
     const checkinTime = args.now ?? new Date();
     const ticketNumber = await reserveTicketNumber(tx, currentRecord.receivingUnit, currentRecord.vehicleType, checkinTime);
     const updated = await tx.deliveryRegistration.update({
       where: { id: currentRecord.id },
-      data: { status: DeliveryStatus.WAITING, checkinTime, ticketNumber },
+      data: { status: DeliveryStatus.WAITING, checkinTime, ticketNumber, ...classification },
       ...args.resultArgs,
     } as Prisma.DeliveryRegistrationUpdateArgs) as Prisma.DeliveryRegistrationGetPayload<TArgs>;
 
@@ -48,7 +65,7 @@ export async function checkInDelivery<TArgs extends DeliveryFindArgs>(args: {
       toStatus: DeliveryStatus.WAITING,
       occurredAt: checkinTime,
       message: 'Check-in tại cổng',
-      metadata: { ticketNumber },
+      metadata: { ticketNumber, goodsType: classification.goodsType, autoWarehouse: classification.autoWarehouse },
     }, tx);
 
     return { checkedIn: true, delivery: updated };

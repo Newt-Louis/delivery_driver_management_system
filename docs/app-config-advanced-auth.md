@@ -87,6 +87,8 @@ Key được backend dùng cố định:
 - PO: `api.settings.po_verify`
 - Thi Công: `api.settings.thi_cong_verify`
 
+Khi tạo hoặc chỉnh sửa API Config trong Superadmin, chọn **Xác thực mã PO** hoặc **Xác thực mã thi công**; backend thêm tiền tố `api.settings.`. Khi đổi loại, key đích không được trùng, bản ghi giữ nguyên ID và các trường JSON bổ sung, Redis cache của cả key cũ và mới được xóa. Với cấu hình nhạy cảm đã ẩn, các trường endpoint, method, payload và auth chỉ được thay khi nhập hoặc chọn lại. Danh mục này hiện khai báo trong frontend; khi phát triển tích hợp mới cần cập nhật danh mục, xác thực backend và phần xử lý tích hợp.
+
 Value JSON hỗ trợ:
 
 ```json
@@ -112,7 +114,7 @@ Quy tắc:
 - `code_key` hoặc `codeKey` cho biết field nào nhận mã tài xế nhập. Nếu không khai báo, backend tự suy luận theo `payload_keys`, ví dụ PO ưu tiên `EBELN`.
 - `auth.header` được chuyển thành HTTP header khi gọi API ngoài.
 - Với PO, backend luôn gửi `BUKRS = VN01` và `EBELN = <mã PO 10 số>` sau khi đọc config, kể cả khi hai key này chưa có trong `payload_defaults`.
-- Với PO, có thể cấu hình thêm `site_location_map` hoặc `siteLocationMap` nếu mã site bên thứ 3 thay đổi. Backend có fallback mặc định cho `1001`, `1002`, `1003`, `2001`.
+- Với PO, `site_location_map` hoặc `siteLocationMap` cũ vẫn được đọc. Các nhóm mặc định được định nghĩa trong `codeofconduct_location.json`, dùng chung PO và Thi Công. Nếu key của mapping cũ đã thuộc một nhóm, giá trị phải thuộc cùng nhóm; sai nhóm sẽ báo `LocationMappingConflict`. Nếu key chưa nằm trong nhóm, mapping cũ được áp dụng trước khi tra nhóm hoặc so khớp code chính xác.
 - Response thật của bên thứ 3 được log ở backend để phục vụ tích hợp. Không trả raw response này về frontend.
 
 ## Trạng Thái Hiện Tại

@@ -1,8 +1,12 @@
 import crypto from 'crypto';
-import { GoodsType, VehicleType } from '@prisma/client';
+import { GoodsType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getRawAppConfig } from '../../services/appConfig';
 import { domainError } from '../shared/domainError';
+import { externalVerificationHttpError } from './externalVerificationError';
+import { getVNDateKey } from '../../lib/dateVN';
+import { assertConstructionDateRange, assertPoDateIsToday } from './quickRegistrationPolicy';
+import { loadLocationCodeGroups, mapPoLocationCode, resolveLocationByCode } from './locationCodeGroups';
 
 export type QuickRegistrationKind = 'PO' | 'CONSTRUCTION';
 
@@ -28,8 +32,7 @@ type NormalizedQuickRegistration = {
   unitIcon: string | null;
   unitLogoUrl: string | null;
   goodsType: GoodsType;
-  vehicleType: VehicleType;
-  deliveryDate?: string;
+  deliveryDate: string;
   vendorCode?: string;
   vendorName?: string;
   title?: string;
@@ -45,13 +48,6 @@ type QuickVerificationPayload = {
   receivingUnit: string;
   goodsType: GoodsType;
   deliveryDate?: string;
-};
-
-const DEFAULT_SITE_LOCATION_MAP: Record<string, string> = {
-  '1001': 'PVT',
-  '1002': 'SALA',
-  '1003': 'PHI',
-  '2001': 'THT',
 };
 
 const PO_CONFIG_KEY = 'api.settings.po_verify';
@@ -71,6 +67,10 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function asLocationCode(value: unknown): string | undefined {
+  return typeof value === 'number' && Number.isSafeInteger(value) ? String(value) : asString(value);
 }
 
 function asStringArray(value: unknown): string[] {
@@ -110,7 +110,7 @@ async function readApiConfig(key: string): Promise<ApiConfig> {
   const raw = await getRawAppConfig(key);
   const endpoint = asString(raw.endpoint);
   if (!endpoint) {
-    throw domainError.badRequest(`Chưa cấu hình API kiểm tra mã trong app_configs với key ${key}.`);
+    throw domainError.badRequest(`Chưa cấu hình API kiểm tra mã trong app_configs với key ${key}.`, 'ExternalApiConfigMissing');
   }
 
   const auth = asRecord(raw.auth);
@@ -120,7 +120,6 @@ async function readApiConfig(key: string): Promise<ApiConfig> {
     ...asRecord(raw.payloadDefaults),
   };
   const siteLocationMap = {
-    ...DEFAULT_SITE_LOCATION_MAP,
     ...asRecord(raw.site_location_map),
     ...asRecord(raw.siteLocationMap),
   };
@@ -135,7 +134,7 @@ async function readApiConfig(key: string): Promise<ApiConfig> {
     siteLocationMap: Object.fromEntries(
       Object.entries(siteLocationMap)
         .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-        .map(([k, v]) => [String(k).trim(), v.trim().toUpperCase()]),
+        .map(([k, v]) => [String(k).trim().toUpperCase(), v.trim().toUpperCase()]),
     ),
   };
 }
@@ -259,15 +258,8 @@ async function callExternalApi(kind: QuickRegistrationKind, code: string): Promi
     body,
   });
 
-  if (response.status >= 500) {
-    throw domainError.badRequest(CONNECTIVITY_MESSAGE, 'ExternalApiServerError');
-  }
-  if (response.status === 401 || response.status === 403) {
-    throw domainError.badRequest('API kiểm tra từ chối xác thực. Vui lòng kiểm tra Authorization trong cấu hình API.', 'ExternalApiUnauthorized');
-  }
-  if (response.status >= 400) {
-    throw domainError.notFound(kind === 'PO' ? 'Mã PO không tồn tại' : 'Mã Thi Công không tồn tại');
-  }
+  const httpError = externalVerificationHttpError(response.status, kind);
+  if (httpError) throw httpError;
   if (!response.ok) {
     throw domainError.badRequest('Không thể kiểm tra mã lúc này. Vui lòng thử lại sau.');
   }
@@ -294,7 +286,6 @@ function mapGoodsType(value: unknown, fallback: GoodsType): GoodsType {
   const normalized = normalizeText(asString(value) ?? '');
   if (!normalized) return fallback;
   if (normalized.includes('FRESH') || normalized.includes('TUOISONG') || normalized.includes('TUOITUOI')) return GoodsType.FRESH_FOOD;
-  if (normalized.includes('AUTO') || normalized.includes('WAREHOUSE') || normalized.includes('KHO')) return GoodsType.AUTO_WAREHOUSE;
   if (normalized.includes('THICONG') || normalized.includes('CONSTRUCTION') || normalized.includes('FITOUT')) return GoodsType.THI_CONG;
   if (normalized.includes('GENERAL') || normalized.includes('NORMAL') || normalized.includes('HANGHOATHONGTHUONG')) return GoodsType.GENERAL_GOODS;
   return fallback;
@@ -317,14 +308,11 @@ function mapPoGoodsType(item: Record<string, unknown>): GoodsType {
 }
 
 async function findBusinessLocationByCode(code: string) {
-  const location = await prisma.businessLocation.findFirst({
-    where: { code: code.trim().toUpperCase(), isActive: true },
+  const locations = await prisma.businessLocation.findMany({
+    where: { isActive: true },
     select: { id: true, code: true, locationName: true },
   });
-  if (!location) {
-    throw domainError.badRequest(`Không tìm thấy khu vực vận hành tương ứng mã ${code}.`);
-  }
-  return location;
+  return resolveLocationByCode(code, locations, loadLocationCodeGroups());
 }
 
 async function findUnitConfig(args: {
@@ -395,8 +383,8 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoItemsMissing');
   }
   const item: Record<string, unknown> = responseItem;
-  const siteCode = asString(item.WERKS);
-  const locationCode = siteCode ? config.siteLocationMap[siteCode] : undefined;
+  const siteCode = asLocationCode(item.WERKS);
+  const locationCode = siteCode ? mapPoLocationCode(siteCode, config.siteLocationMap, loadLocationCodeGroups()) : undefined;
   if (!locationCode) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoLocationMappingMissing');
   }
@@ -411,6 +399,7 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
   if (!deliveryDate) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'PoDeliveryDateMissing');
   }
+  assertPoDateIsToday(deliveryDate);
 
   return withToken({
     kind: 'PO',
@@ -424,7 +413,6 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
     unitIcon: unitConfig.icon,
     unitLogoUrl: unitConfig.logoUrl,
     goodsType: mapPoGoodsType(item),
-    vehicleType: VehicleType.TRUCK,
     deliveryDate,
     vendorCode: asString(item.LIFNR),
     vendorName: asString(item.VENDORNA) ?? asString(item.PLACEHOLDER_VENDOR_NAME),
@@ -454,8 +442,10 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
   if (isEmptyObject(data)) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'ConstructionDataMissing');
   }
+  const goodsMovement = asRecord(data.goodsMovement);
+  assertConstructionDateRange(goodsMovement.approvedStartDate, goodsMovement.approvedEndDate);
   const scope = asRecord(data.scope);
-  const locationCode = asString(scope.location);
+  const locationCode = asLocationCode(scope.location);
   const unitLabel = asString(scope.unit);
   if (!locationCode || !unitLabel) {
     throw domainError.badRequest(EMPTY_200_MESSAGE, 'ConstructionScopeMissing');
@@ -481,7 +471,7 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
     unitIcon: unitConfig.icon,
     unitLogoUrl: unitConfig.logoUrl,
     goodsType: GoodsType.THI_CONG,
-    vehicleType: VehicleType.TRUCK,
+    deliveryDate: getVNDateKey(),
     vendorName: asString(customer.name),
     title: asString(data.name),
     externalMessage: asString(record.message),

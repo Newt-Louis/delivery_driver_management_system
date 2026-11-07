@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { EnvironmentOutlined } from '@ant-design/icons';
-import { FloatButton } from 'antd';
+import { DownOutlined } from '@ant-design/icons';
+import { Dropdown, Typography, type MenuProps } from 'antd';
 import { useAuth } from '../context/AuthContext';
+import { useBranding } from '../context/BrandingContext';
 import type { BusinessLocation } from '../lib/types';
 import BusinessLocationSelectorModal from './BusinessLocationSelectorModal';
 
@@ -22,6 +23,7 @@ export default function SuperadminOperationalContextGate() {
     listOperationalLocations,
     selectOperationalLocation,
   } = useAuth();
+  const { mall } = useBranding();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [locations, setLocations] = useState<BusinessLocation[]>([]);
@@ -50,18 +52,15 @@ export default function SuperadminOperationalContextGate() {
   }, [isSuperadmin, listOperationalLocations]);
 
   useEffect(() => {
-    if (isLoading || !isSuperadmin) return;
-    if (mustChooseLocation) setOpen(true);
-  }, [isLoading, isSuperadmin, mustChooseLocation]);
-
-  useEffect(() => {
-    if (!open && !mustChooseLocation) return;
+    if (isLoading || (!open && !mustChooseLocation)) return;
     loadLocations();
-  }, [loadLocations, mustChooseLocation, open]);
+  }, [isLoading, loadLocations, mustChooseLocation, open]);
 
   if (!isSuperadmin) return null;
 
   async function handleSelect(businessLocationId: string) {
+    if (saving) return;
+    if (businessLocationId === user?.businessLocationId) { setOpen(false); return; }
     setSaving(true);
     setError(null);
     try {
@@ -75,28 +74,32 @@ export default function SuperadminOperationalContextGate() {
     }
   }
 
+  const locationName = currentLocation?.locationName || (user?.businessLocationId ? mall.locationName || mall.mallName : 'Chọn khu vực');
+  const items: MenuProps['items'] = loadingLocations
+    ? [{ key: 'loading', label: 'Đang tải khu vực...', disabled: true }]
+    : error ? [{ key: 'error', label: error, disabled: true }]
+      : locations.length ? locations.map((location) => ({ key: location.id, label: location.locationName, disabled: saving }))
+        : [{ key: 'empty', label: 'Không có khu vực đang hoạt động', disabled: true }];
+
   return (
     <>
-      <FloatButton
-        type="primary"
-        shape="square"
-        icon={<EnvironmentOutlined />}
-        content={currentLocation?.code ?? 'Chọn'}
-        tooltip="Chuyển khu vực vận hành"
-        onClick={() => setOpen(true)}
-        aria-label="Chuyển khu vực vận hành"
-      />
+      <Dropdown trigger={['click']} open={open && !mustChooseLocation} onOpenChange={(next) => { if (!saving) setOpen(next); }}
+        menu={{ items, selectable: true, selectedKeys: user?.businessLocationId ? [user.businessLocationId] : [], onClick: ({ key }) => { void handleSelect(key); } }}>
+        <button type="button" className="flex min-w-0 items-center gap-1.5 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2" aria-label={`Chuyển khu vực vận hành, hiện tại: ${locationName}`} aria-haspopup="menu" aria-expanded={open && !mustChooseLocation}>
+          <Typography.Text strong ellipsis className="max-w-32 text-sm sm:max-w-48">{locationName}</Typography.Text>
+          <DownOutlined className="shrink-0 text-xs" />
+        </button>
+      </Dropdown>
 
       <BusinessLocationSelectorModal
-        open={open || mustChooseLocation}
-        required={mustChooseLocation}
+        open={mustChooseLocation}
+        required
         locations={locations}
         currentId={user?.businessLocationId}
         loading={loadingLocations}
         saving={saving}
         error={error}
         onSelect={handleSelect}
-        onClose={() => setOpen(false)}
       />
     </>
   );

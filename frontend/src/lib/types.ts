@@ -82,7 +82,6 @@ export interface Slot {
   acceptedGoods: GoodsType[];
   goodsPriority: GoodsType[];
   autoAssign: boolean;
-  autoWarehouseOnly: boolean;
   maxCapacity: number;
   status: SlotStatus;
   isActive: boolean;

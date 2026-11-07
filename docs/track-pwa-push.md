@@ -2,8 +2,8 @@
 
 ## Hành vi cho tài xế
 
-1. Đăng ký thành công: lưu mã vào danh sách chuyến trên thiết bị, kiểm tra quyền và mở hướng dẫn bật thông báo/âm báo nếu chưa sẵn sàng. Bộ đếm chuyển sang Track vẫn là 15 giây, tạm dừng trong lúc modal thiết lập mở.
-2. Mở `/track/:code`, kiểm tra biển số. Nút cuối trang dựa trên mã chuyến đang lưu: nếu trùng thì hiện **Dừng nhận thông báo chuyến này**, nếu khác hoặc chưa chọn thì hiện **Bật thông báo và âm báo**. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó.
+1. Đăng ký thành công: lưu mã vào danh sách chuyến trên thiết bị, nhưng chưa tự chọn chuyến nhận thông báo. Tài xế có thể bấm **Nhận thông báo cho chuyến này** ngay trên màn thành công; thao tác chọn chuyến và bắt đầu xin quyền/chuẩn bị âm thanh trong cùng lượt bấm. Bộ đếm 15 giây chuyển sang Track tạm dừng khi đang xử lý hoặc mở modal xác nhận/thiết lập.
+2. Mở `/track/:code`, kiểm tra biển số. Nút cuối trang là **Nhận thông báo cho chuyến này** hoặc **Dừng nhận thông báo chuyến này** nếu đã chọn. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó. Màn thành công và Track thể hiện riêng trạng thái đã chọn, quyền thông báo, kết nối push, tình trạng âm thanh và nút thử lại khi cần.
 3. Mỗi trình duyệt/PWA theo dõi chủ động một chuyến. Bấm bật trên chuyến khác sẽ hỏi xác nhận trước khi chuyển; chuyến cũ có thể nằm trong danh sách gần đây nhưng không còn là chuyến được chọn.
 4. Sau khi chọn, cảnh báo cá nhân hoạt động trên mọi route khi ứng dụng đang mở, kể cả `/waiting-screen`.
 5. Hoàn tất: hiển thị thông báo hoàn thành rồi xóa lựa chọn theo dõi, mã khỏi danh sách gần đây và binding push tương ứng. Hủy/hết hạn/kết thúc chưa hoàn tất cũng ngừng theo dõi, không bị hiểu nhầm là giao thành công.
@@ -15,9 +15,8 @@
 - `frontend/src/main.tsx`: một `DriverNotificationsProvider` bên trong SocketProvider, bên ngoài route/shell.
 - `frontend/src/features/driver-notifications/DriverNotificationsProvider.tsx`: chủ sở hữu chuyến được chọn, room cá nhân, quyền thiết bị, push binding, overlay, âm thanh/rung.
 - `model.ts`: persistence, kiểm tra mã chuyến, chống event trùng/cũ; lưu yêu cầu gỡ push đang chờ khi mất mạng.
-- `FollowTripCard.tsx`: một nút chọn/dừng theo dõi theo mã chuyến đã lưu; trạng thái quyền và push không quyết định chuyến đã chọn.
+- `FollowTripCard.tsx`: nút chọn/dừng và trạng thái thiết lập thông báo trên màn thành công và Track; trạng thái quyền và push không quyết định chuyến đã chọn.
 - `SavedTrips.tsx`: danh sách gần đây trên `/` và `/track`; không xóa mã vì lỗi mạng tạm thời.
-- `PwaInstallGuide.tsx`: hướng dẫn Android/iOS bằng Ant Modal.
 - `frontend/src/features/track/hooks/useTrackContent.ts`: chỉ đọc và trình bày chuyến, QR, hàng chờ, wake lock; không sở hữu cảnh báo cá nhân.
 - `frontend/src/lib/trackRoom.ts`: đếm chủ sở hữu room; rời trang chi tiết không làm provider toàn cục rời room; tự join lại sau reconnect.
 - `frontend/src/lib/chime.ts`: âm báo có điểm kết thúc và hàm dừng mọi oscillator đã lên lịch.
@@ -39,8 +38,6 @@
 - `dqm_followed_trip_v1`: mã/biển số/trạng thái, tối đa 30 event ID và thời điểm gần nhất.
 - `qms_active_deliveries`: tối đa 5 mã gần đây; không phải danh sách đăng ký push.
 - `dqm_pending_push_detach_v1`: mã cần gỡ khi dừng/đổi lúc mất mạng; thử lại khởi động/focus/online. Gỡ luôn kèm mã để không xóa binding chuyến mới.
-- `dqm_pwa_guide_hidden`: checkbox không hiện lại, chỉ lưu khi đóng modal.
-- `dqm_pwa_installed`: bằng chứng cài đặt đã quan sát, không phải khả năng kiểm kê app trên mọi OS.
 
 Dữ liệu gắn với browser/profile/origin; browser và PWA có thể có kho riêng. Hệ thống liên kết thiết bị tự nguyện với mã chuyến, không suy danh tính tài xế từ đăng nhập. Xóa dữ liệu/đổi thiết bị có thể cần nhập mã hoặc biển số và chọn theo dõi lại.
 
@@ -64,12 +61,10 @@ VAPID dùng `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT`. Không đ�
 `frontend/public/sw.js` nhận push toàn app. Worker hỏi cửa sổ đang focus theo dõi mã nào, không suy từ URL. Nếu đúng chuyến, system notification im lặng để overlay/âm báo foreground xử lý; nếu không, OS xử lý notification và âm/rung. Worker luôn gọi `showNotification` cho push, phù hợp yêu cầu user-visible Safari. Cache receipt tối đa 30 chuyến chống push trùng/đảo thứ tự; push cũ chỉ trình bày lại thông báo mới nhất im lặng. Bấm notification mở đúng `/track/:code`.
 
 - Quyền notification phải xin từ thao tác bấm; app tự mở modal giải thích nhưng không tự cấp/ép quyền. Sau reload, khi đã có chuyến theo dõi, lần chạm/click/bấm phím thật tiếp theo trên bất kỳ route nào sẽ thử chuẩn bị lại AudioContext; nếu chưa thành công thì có thể thử lại bằng tương tác tiếp theo. Không tự xin quyền notification trong thao tác chuẩn bị âm thanh. Rung tùy API/thiết bị, không có hộp xin quyền rung thống nhất.
-- Android có nút cài khi nhận `beforeinstallprompt`; nếu không hướng dẫn menu.
-- iOS/iPadOS Web Push cần Home Screen web app từ 16.4 trở lên. Safari hướng dẫn thêm Màn hình chính rồi mở app, tìm/chọn chuyến và bật thông báo.
-- Hướng dẫn không hiện trong standalone, sau `appinstalled`, khi related-apps xác nhận hoặc đã chọn không hiện lại. Không thể kiểm tra tuyệt đối từ Safari một PWA đã cài trong kho khác; localStorage chỉ nhớ điều đã quan sát. Fresh `beforeinstallprompt` có thể xóa dấu cài cũ.
+- Ứng dụng không tự mở popup hướng dẫn cài PWA hoặc Tour. Trên iOS/iPadOS, Web Push cần Home Screen web app từ 16.4 trở lên; sau đó mở app, tìm/chọn chuyến và bật thông báo.
 - Khóa màn hình/đóng app: không có React overlay/Web Audio. System notification/âm lượng/rung tùy OS, quyền, chế độ im lặng và tiết kiệm pin; không cam kết như cuộc gọi native.
 
-Nguồn: [WebKit iOS/iPadOS](https://webkit.org/blog/13878/), [WebKit user-visible push](https://webkit.org/blog/12945/meet-web-push/), [Chrome installed related apps](https://developer.chrome.com/docs/capabilities/get-installed-related-apps), [MDN Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API).
+Nguồn: [WebKit iOS/iPadOS](https://webkit.org/blog/13878/), [WebKit user-visible push](https://webkit.org/blog/12945/meet-web-push/), [MDN Notifications API](https://developer.mozilla.org/en-US/docs/Web/API/Notifications_API).
 
 ## Kiểm tra
 

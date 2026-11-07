@@ -36,19 +36,9 @@ const cancelSchema = z.object({
   reason: z.string().trim().min(3, 'Vui lòng nhập lý do hủy'),
 });
 
-const publicCancelSchema = z.object({
-  vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),
-  driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
-  poNumber: z.string().min(1, 'Vui lòng nhập Số PO hoặc Mã số thi công'),
-  registrationCode: z.string().min(1, 'Mã đăng ký bắt buộc'),
-  requestedTime: z.string().optional(),
-  deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-});
-
 export type RegisterDeliveryPayload = z.infer<typeof registerSchema>;
 export type QuickVerifyPayload = z.infer<typeof quickVerifySchema>;
 export type CheckInLookupPayload = z.infer<typeof checkInLookupSchema>;
-export type PublicCancelPayload = z.infer<typeof publicCancelSchema>;
 
 export const DeliveryFormRequest = {
   parseAutoDispatchUnit: (unit: string): ReceivingUnitCode | null => (
@@ -64,5 +54,4 @@ export const DeliveryFormRequest = {
   parseCheckInLookup: (body: unknown): CheckInLookupPayload => checkInLookupSchema.parse(body),
   parseCallSlotId: (body: unknown): string => callSchema.parse(body).slotId,
   parseCancelReason: (body: unknown): string => cancelSchema.parse(body).reason,
-  parsePublicCancel: (body: unknown): PublicCancelPayload => publicCancelSchema.parse(body),
 };

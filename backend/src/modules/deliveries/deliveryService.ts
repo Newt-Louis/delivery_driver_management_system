@@ -2,7 +2,7 @@ import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../do
 import { DeliveryHistoryEventType, DeliveryHistoryFinalStatus, DeliveryStatus, GoodsType, Prisma } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { prisma } from '../../lib/prisma';
-import { formatVNDate, isScheduledForToday } from '../../lib/dateVN';
+import { formatVNDate, getVNDateKey, isScheduledForToday } from '../../lib/dateVN';
 import { emitDeliveryCalled, emitDeliveryCompleted, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, systemActor, userActor } from '../../services/auditLog';
 import { triggerAutoAssign } from '../../services/autoAssign';
@@ -22,8 +22,9 @@ import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/hi
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
 import { verifyQuickRegistrationToken } from './quickRegistrationService';
+import { assertQuickRegistrationDate, assertRegistrationDateIsToday, requiresQuickVerification } from './quickRegistrationPolicy';
 import { generateManualRegistrationCode } from './manualRegistrationCode';
-import type { CheckInLookupPayload, PublicCancelPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
+import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
 
 class SlotFullError extends Error {
@@ -45,7 +46,7 @@ const DELIVERY_UNIT_CONFIG_SELECT = {
 } as const;
 
 export function createManualRegistrationCode() {
-  return { code: generateManualRegistrationCode() };
+  return { code: generateManualRegistrationCode(), deliveryDate: getVNDateKey() };
 }
 
 async function assertUnitPermission(
@@ -89,12 +90,11 @@ async function ensureDeliveryAccess(
 }
 
 function isSundayDeliveryDate(requestedTime?: Date | null, deliveryDate?: string): boolean {
-  if (requestedTime) return requestedTime.getDay() === 0;
-  if (!deliveryDate) return false;
-
-  const [year, month, day] = deliveryDate.split('-').map(Number);
+  const dateKey = requestedTime ? getVNDateKey(requestedTime) : deliveryDate;
+  if (!dateKey) return false;
+  const [year, month, day] = dateKey.split('-').map(Number);
   if (!year || !month || !day) return false;
-  return new Date(year, month - 1, day).getDay() === 0;
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 0;
 }
 
 async function ensureRegistrationDailyCapacity(
@@ -144,35 +144,27 @@ async function ensureRegistrationDailyCapacity(
   }
 }
 
-function duplicateRegistration(vehiclePlate: string, duplicate: unknown) {
+function duplicateRegistration(vehiclePlate: string): never {
   throw domainError.conflict(
-    `Xe ${vehiclePlate} đã có lượt đăng ký trùng thông tin trong ngày giao đã chọn (${(duplicate as { registrationCode?: string } | null)?.registrationCode ?? 'đang xử lý'}).`,
+    `Xe ${vehiclePlate} đã check-in hoặc có lượt giao hàng chưa thể đăng ký lại trong ngày. Vui lòng liên hệ nhân viên hỗ trợ.`,
     'Duplicate',
-    { delivery: duplicate as Record<string, unknown> },
   );
 }
 
 function duplicateRegistrationLockKey(args: {
-  unitConfigId: string;
+  businessLocationId: string;
   vehiclePlate: string;
-  driverPhone: string;
-  poNumber: string;
   requestedTime: Date | null;
   deliveryDate?: string;
 }) {
   const day = args.requestedTime ?? deliveryRepository.parseDeliveryDate(args.deliveryDate) ?? new Date();
   return [
     'registration-duplicate',
-    args.unitConfigId,
+    args.businessLocationId,
     deliveryRepository.localDateKey(day),
     args.vehiclePlate,
-    args.driverPhone,
-    args.poNumber,
   ].join(':');
 }
-
-const PUBLIC_CANCEL_REASON = 'Tài xế thao tác hủy';
-const PUBLIC_CANCEL_MISMATCH_MESSAGE = 'Có thông tin bạn nhập không đúng, vui lòng nhập lại';
 
 function parseRequestedTime(value: string | undefined, deliveryDate?: string): Date | null {
   const requestedTime = value ? new Date(value) : deliveryRepository.parseDeliveryDateStartVN(deliveryDate);
@@ -218,6 +210,12 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   const poNumber = body.poNumber?.trim() ?? '';
   const normalizedOrderCode = deliveryRepository.normalizeOrderCode(poNumber);
   const quickVerification = verifyQuickRegistrationToken(body.quickVerificationToken);
+  if (body.goodsType === GoodsType.AUTO_WAREHOUSE) {
+    throw domainError.badRequest('Vui lòng chọn loại hàng giao thực tế. Kho tự động được xác định theo mã nhà cung cấp.', 'InvalidRegistrationGoodsType');
+  }
+  if (!quickVerification && (body.quickVerificationToken || requiresQuickVerification(poNumber))) {
+    throw domainError.badRequest('Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại mã.', 'QuickVerificationRequired');
+  }
   if (!driverPhone || driverPhone.length < 9) {
     throw domainError.badRequest('Số điện thoại không hợp lệ');
   }
@@ -228,7 +226,10 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     throw domainError.badRequest('Thông tin đăng ký không khớp với lượt kiểm tra mã. Vui lòng kiểm tra lại mã.');
   }
 
-  const requestedTime = parseRequestedTime(body.requestedTime, body.deliveryDate);
+  const deliveryDate = body.deliveryDate ?? getVNDateKey();
+  const requestedTime = parseRequestedTime(body.requestedTime, deliveryDate);
+  assertRegistrationDateIsToday(deliveryDate, requestedTime);
+  if (quickVerification) assertQuickRegistrationDate(body.deliveryDate, requestedTime, quickVerification.deliveryDate);
   const unitConfig = await deliveryRepository.resolveRegistrationUnitConfig({
     receivingUnit: body.receivingUnit,
     unitConfigId: body.unitConfigId,
@@ -249,19 +250,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
     }
   }
 
-  const duplicate = normalizedOrderCode
-    ? await deliveryRepository.findDuplicateRegistration({
-        vehiclePlate,
-        driverPhone,
-        poNumber,
-        unitConfigId: unitConfig.id,
-        requestedTime,
-        deliveryDate: body.deliveryDate,
-      })
-    : null;
-  if (duplicate) return duplicateRegistration(vehiclePlate, duplicate);
-
-  let resolvedGoodsType = body.goodsType;
+  let resolvedGoodsType: GoodsType = body.goodsType;
   let resolvedVendorCode: string | undefined;
   if (body.vendorCode?.trim()) {
     const normalized = body.vendorCode.toUpperCase().trim();
@@ -276,48 +265,49 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
 
   if (
     unitConfig.sundayFreshFoodOnly
-    && isSundayDeliveryDate(requestedTime, body.deliveryDate)
-    && resolvedGoodsType !== GoodsType.FRESH_FOOD
+    && isSundayDeliveryDate(requestedTime, deliveryDate)
+    && body.goodsType !== GoodsType.FRESH_FOOD
   ) {
     throw domainError.unprocessable('Chủ nhật chỉ nhận hàng tươi sống', 'SundayFreshFoodOnly');
   }
 
-  const dailyCapacity = requestedTime
+  const dailyCapacity = requestedTime && !quickVerification
     ? await deliveryRepository.getRegistrationDailyCapacity({
         unitConfigId: unitConfig.id,
         unit: body.receivingUnit,
-        goodsType: resolvedGoodsType,
+        goodsType: body.goodsType,
         vehicleType: body.vehicleType,
-        unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : body.unitGoodsTypeId,
+        unitGoodsTypeId: body.unitGoodsTypeId,
       })
     : null;
 
   try {
-    const delivery = await deliveryRepository.prisma.$transaction(async (tx) => {
-      if (normalizedOrderCode) {
-        const duplicateLockKey = duplicateRegistrationLockKey({
-          unitConfigId: unitConfig.id,
-          vehiclePlate,
-          driverPhone,
-          poNumber,
-          requestedTime,
-          deliveryDate: body.deliveryDate,
-        });
-        await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
-
-        const duplicateInTransaction = await deliveryRepository.findDuplicateRegistration({
-          vehiclePlate,
-          driverPhone,
-          poNumber,
-          unitConfigId: unitConfig.id,
-          requestedTime,
-          deliveryDate: body.deliveryDate,
-          client: tx,
-        });
-        if (duplicateInTransaction) return duplicateRegistration(vehiclePlate, duplicateInTransaction);
+    const result = await deliveryRepository.prisma.$transaction(async (tx) => {
+      const duplicateLockKey = duplicateRegistrationLockKey({ businessLocationId: unitConfig.businessLocationId, vehiclePlate, requestedTime, deliveryDate });
+      await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${deliveryRepository.advisoryLockId(duplicateLockKey)})`);
+      const matches = await deliveryRepository.findDuplicateRegistration({ vehiclePlate, businessLocationId: unitConfig.businessLocationId, requestedTime, deliveryDate, client: tx });
+      if (matches.length > 1) {
+        throw domainError.conflict('Có nhiều lượt đăng ký cùng biển số trong khu vực hôm nay. Vui lòng liên hệ nhân viên hỗ trợ.', 'DuplicateRegistrationData');
       }
+      let existing: (typeof matches)[number] | undefined = matches[0];
+      if (existing) {
+        await tx.$queryRaw(Prisma.sql`SELECT id FROM delivery_registrations WHERE id = ${existing.id} FOR UPDATE`);
+        existing = await tx.deliveryRegistration.findUnique({ where: { id: existing.id } }) ?? undefined;
+        if (existing && (existing.status === DeliveryStatus.COMPLETED || existing.status === DeliveryStatus.CANCELLED)) existing = undefined;
+        else if (existing && (existing.status !== DeliveryStatus.REGISTERED || existing.checkinTime)) return duplicateRegistration(vehiclePlate);
+      }
+      const { start, end } = deliveryRepository.localDayRange(requestedTime ?? new Date());
+      const archivedBlocked = await tx.deliveryHistory.findFirst({
+        where: {
+          businessLocationId: unitConfig.businessLocationId, vehiclePlate,
+          finalStatus: { in: ['EXPIRED', 'INCOMPLETED'] },
+          OR: [{ requestedTime: { gte: start, lt: end } }, { requestedTime: null, registeredAt: { gte: start, lt: end } }],
+        },
+        select: { id: true },
+      });
+      if (archivedBlocked) return duplicateRegistration(vehiclePlate);
 
-      if (requestedTime) {
+      if (requestedTime && !quickVerification && (!existing || existing.unitConfigId !== unitConfig.id || existing.vehicleType !== body.vehicleType)) {
         await ensureRegistrationDailyCapacity(tx, {
           requestedTime,
           receivingUnit: body.receivingUnit,
@@ -327,15 +317,15 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         });
       }
 
-      const registrationCode = await reserveRegistrationCode(tx, {
+      const registrationCode = existing?.registrationCode ?? await reserveRegistrationCode(tx, {
         unitConfigId: unitConfig.id,
         businessLocationCode: unitConfig.businessLocation.code,
         receivingUnit: body.receivingUnit,
       });
 
-      const created = await tx.deliveryRegistration.create({
-        data: {
-          registrationCode,
+      assertRegistrationDateIsToday(deliveryDate, requestedTime);
+      if (quickVerification) assertQuickRegistrationDate(body.deliveryDate, requestedTime, quickVerification.deliveryDate);
+      const registrationData = {
           vendorName: body.vendorName,
           driverName: body.driverName,
           driverPhone,
@@ -344,14 +334,25 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
           receivingUnit: body.receivingUnit,
           unitConfigId: unitConfig.id,
           goodsType: resolvedGoodsType,
-          unitGoodsTypeId: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE ? undefined : (body.unitGoodsTypeId || undefined),
+          originalGoodsType: body.goodsType,
+          unitGoodsTypeId: body.unitGoodsTypeId || null,
           poNumber: poNumber || null,
-          vendorCode: resolvedVendorCode,
+          vendorCode: resolvedVendorCode ?? null,
           requestedTime,
           autoWarehouse: resolvedGoodsType === GoodsType.AUTO_WAREHOUSE,
-          note: body.note,
-        },
-      });
+          note: body.note ?? null,
+      };
+      if (existing) {
+        const updated = await tx.deliveryRegistration.update({ where: { id: existing.id }, data: registrationData });
+        await recordAuditLog({
+          ...systemActor('public-register'), action: 'delivery.registration_update', targetType: 'DeliveryRegistration', targetId: updated.id,
+          businessLocationId: unitConfig.businessLocationId, unitConfigId: unitConfig.id,
+          before: { unitConfigId: existing.unitConfigId, receivingUnit: existing.receivingUnit, vehicleType: existing.vehicleType, goodsType: existing.goodsType, poNumber: existing.poNumber },
+          after: { unitConfigId: updated.unitConfigId, receivingUnit: updated.receivingUnit, vehicleType: updated.vehicleType, goodsType: updated.goodsType, poNumber: updated.poNumber },
+        }, tx);
+        return { delivery: updated, previousUnitConfigId: existing.unitConfigId };
+      }
+      const created = await tx.deliveryRegistration.create({ data: { ...registrationData, registrationCode } });
 
       await recordDeliveryEvent(created, {
         ...systemActor('public-register'),
@@ -361,113 +362,28 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
         message: 'Đăng ký giao hàng',
       }, tx);
 
-      return created;
+      return { delivery: created, previousUnitConfigId: null };
     });
 
     // A new registration changes dashboard totals and upcoming deliveries even
     // though it has not entered the waiting queue yet.
     const scope = { businessLocationId: unitConfig.businessLocationId, unitConfigId: unitConfig.id };
-    deliveryRepository.getFullQueue(scope)
-      .then((queue) => emitQueueUpdated(queue, scope))
-      .catch((error) => console.error('Failed to emit registration queue update:', error));
-
-    return delivery;
+    const unitIds = new Set([unitConfig.id, result.previousUnitConfigId].filter((id): id is string => Boolean(id)));
+    for (const unitConfigId of unitIds) {
+      const changedScope = { ...scope, unitConfigId };
+      deliveryRepository.getFullQueue(changedScope)
+        .then((queue) => emitQueueUpdated(queue, changedScope))
+        .catch((error) => console.error('Failed to emit registration queue update:', error));
+    }
+    if (result.previousUnitConfigId) emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
+    return result.delivery;
   } catch (error) {
     if (error instanceof SlotFullError) {
       throw domainError.conflict(error.message, 'SlotFull');
     }
 
-    if (deliveryRepository.isUniqueConstraintError(error)) {
-      if (normalizedOrderCode) {
-        const activeDuplicate = await deliveryRepository.findDuplicateRegistration({
-          vehiclePlate,
-          driverPhone,
-          poNumber,
-          unitConfigId: unitConfig.id,
-          requestedTime,
-          deliveryDate: body.deliveryDate,
-        });
-        if (activeDuplicate) return duplicateRegistration(vehiclePlate, activeDuplicate);
-      }
-    }
     throw error;
   }
-}
-
-export async function publicCancel(body: PublicCancelPayload) {
-  const vehiclePlate = deliveryRepository.normalizeVehiclePlate(body.vehiclePlate);
-  const driverPhone = deliveryRepository.normalizeDriverPhone(body.driverPhone);
-  const poNumber = deliveryRepository.normalizeOrderCode(body.poNumber);
-  const requestedTime = parseRequestedTime(body.requestedTime);
-  const deliveryDate = body.deliveryDate ?? (requestedTime ? deliveryRepository.localDateKey(requestedTime) : undefined);
-
-  if ((!requestedTime && !deliveryDate) || !vehiclePlate || !driverPhone || !poNumber) {
-    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
-  }
-
-  const delivery = await deliveryRepository.findDeliveryForPublicCancel({
-    registrationCode: body.registrationCode,
-    vehiclePlate,
-    driverPhone,
-    poNumber,
-    requestedTime,
-    deliveryDate,
-  });
-  if (!delivery) {
-    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
-  }
-
-  const actor = systemActor('public-driver-cancel');
-  const result = await cancelDelivery(delivery.id, PUBLIC_CANCEL_REASON, actor);
-  if (!result.delivery || result.outcome === 'invalid_status') {
-    throw domainError.badRequest(PUBLIC_CANCEL_MISMATCH_MESSAGE);
-  }
-
-  const scope = await getScopeForDelivery(result.delivery);
-  await recordAuditLog({
-    ...actor,
-    action: 'delivery.public_cancel',
-    targetType: 'DeliveryRegistration',
-    targetId: result.delivery.id,
-    businessLocationId: scope.businessLocationId,
-    unitConfigId: scope.unitConfigId,
-    after: {
-      status: result.delivery.status,
-      registrationCode: result.delivery.registrationCode,
-      vehiclePlate: result.delivery.vehiclePlate,
-      cancelReason: PUBLIC_CANCEL_REASON,
-    },
-    metadata: { source: 'deliveries.public-cancel' },
-  });
-
-  sendPushToDelivery(result.delivery.registrationCode, {
-    status: 'CANCELLED', occurredAt: result.delivery.updatedAt.toISOString(),
-    title: 'Chuyến giao hàng đã hủy', body: `Xe ${result.delivery.vehiclePlate} — đã dừng theo dõi chuyến.`,
-    url: `/track/${result.delivery.registrationCode}`,
-  }).catch(console.error);
-
-  await archiveDelivery({
-    deliveryId: result.delivery.id,
-    finalStatus: DeliveryHistoryFinalStatus.CANCELLED,
-    archiveReason: 'CANCELLED',
-    ...actor,
-    closeReason: PUBLIC_CANCEL_REASON,
-    deleteOperationalRow: true,
-  });
-
-  const [queue, slots] = await Promise.all([
-    deliveryRepository.getFullQueue(scope),
-    deliveryRepository.getAllSlots(scope),
-  ]);
-  emitQueueUpdated(queue, scope);
-  emitSlotUpdated(slots, scope);
-  emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
-  if (result.releasedSlotId) {
-    triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
-  }
-
-  return { success: true, message: 'Hủy thành công' };
 }
 
 export function listDeliveries(args: Parameters<typeof deliveryRepository.listDeliveries>[0]) {
@@ -484,7 +400,8 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
     throw domainError.badRequest('Vui lòng nhập biển số hoặc mã đăng ký');
   }
 
-  const delivery = await deliveryRepository.findDeliveryByLookup({ registrationCode, vehiclePlate });
+  if (!user?.businessLocationId) throw domainError.forbidden('Không thể xác định khu vực vận hành hiện tại.');
+  const delivery = await deliveryRepository.findDeliveryByLookup({ registrationCode, vehiclePlate, businessLocationId: user.businessLocationId });
   if (!delivery) throw domainError.notFound('Không tìm thấy lượt đăng ký.');
 
   await ensureDeliveryAccess(user, delivery, 'checkin');
@@ -504,6 +421,7 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
 
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
+    expectedUnitConfigId: delivery.unitConfigId,
     resultArgs: { include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } },
     actor: userActor(user),
   });
@@ -580,6 +498,7 @@ export async function checkInById(id: string, user: AuthUser | undefined) {
 
   const checkInResult = await checkInDelivery({
     deliveryId: delivery.id,
+    expectedUnitConfigId: delivery.unitConfigId,
     resultArgs: { include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } } },
     actor: userActor(user),
   });

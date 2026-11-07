@@ -11,7 +11,7 @@ function fallbackUnitBrand(unit: string) {
     shortName: unit,
     description: '',
     primaryColor: '#1C1C1C',
-    icon: '📦',
+    icon: '',
   };
 }
 

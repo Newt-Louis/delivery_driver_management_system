@@ -3,17 +3,16 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppstoreAddOutlined, DeleteOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
 import { Alert, AutoComplete, Button, Card, Col, Collapse, Descriptions, Empty, Flex, Grid, Input, Pagination, Popconfirm, Result, Row, Select, Space, Statistic, Switch, Table, Tag, Tooltip, Typography, type TableColumnsType } from 'antd';
 import api from '../../../lib/api';
-import type { GoodsType, Slot, UnitConfig, Zone } from '../../../lib/types';
+import type { Slot, UnitConfig, Zone } from '../../../lib/types';
 import { GOODS_LABELS, STATUS_LABEL, VEHICLE_LABEL } from '../constants';
 import SlotModal from '../components/SlotModal';
 import ResponsiveDataToolbar, { SearchButton } from '../components/ResponsiveDataToolbar';
+import { slotGoodsPriority } from '../slotGoods';
 
 function slotUnitLabel(slot: Slot) {
   const unit = slot.zone?.unitConfig;
   return unit?.displayName || unit?.shortName || unit?.unit || slot.assignedUnit;
 }
-
-const NORMAL_GOODS: GoodsType[] = ['FRESH_FOOD', 'GENERAL_GOODS', 'THI_CONG'];
 
 const SLOT_STATUS_COLOR: Record<Slot['status'], 'success' | 'processing' | 'warning'> = {
   AVAILABLE: 'success',
@@ -21,19 +20,6 @@ const SLOT_STATUS_COLOR: Record<Slot['status'], 'success' | 'processing' | 'warn
   RESERVED: 'warning',
   MAINTENANCE: 'warning',
 };
-
-function slotGoodsPriority(slot: Slot): GoodsType[] {
-  if (slot.autoWarehouseOnly) return [];
-  const acceptedGoods = slot.acceptedGoods.filter((goodsType) => NORMAL_GOODS.includes(goodsType));
-  const priority = slot.goodsPriority.filter((goodsType) => NORMAL_GOODS.includes(goodsType));
-  if (priority.length > 0) {
-    return [
-      ...priority,
-      ...acceptedGoods.filter((goodsType) => !priority.includes(goodsType)),
-    ];
-  }
-  return acceptedGoods.length > 0 ? acceptedGoods : NORMAL_GOODS;
-}
 
 export default function SlotsTab() {
   const queryClient = useQueryClient();
@@ -156,8 +142,7 @@ export default function SlotsTab() {
       width: 300,
       render: (_, slot) => (
         <Space size={[4, 4]} wrap>
-          {slot.autoWarehouseOnly && <Tag>🏭 Kho tự động</Tag>}
-          {!slot.autoWarehouseOnly && slotGoodsPriority(slot).map((goodsType, index) => (
+          {slotGoodsPriority(slot).map((goodsType, index) => (
             <Tag key={goodsType}>{index + 1}. {GOODS_LABELS[goodsType]}</Tag>
           ))}
         </Space>
@@ -377,7 +362,7 @@ export default function SlotsTab() {
                 <Descriptions size="small" column={1} items={[
                   { key: 'scope', label: 'Khu / đơn vị', children: <Space size="small" wrap>{slot.zone && <Tag>{slot.zone.code}</Tag>}<Typography.Text>{slotUnitLabel(slot)}</Typography.Text></Space> },
                   { key: 'vehicle', label: 'Loại xe', children: VEHICLE_LABEL[slot.vehicleType] ?? slot.vehicleType },
-                  { key: 'goods', label: 'Hàng nhận', children: slot.autoWarehouseOnly ? <Tag>🏭 Kho tự động</Tag> : <Space size={[4, 4]} wrap>{slotGoodsPriority(slot).map((goodsType, index) => <Tag key={goodsType}>{index + 1}. {GOODS_LABELS[goodsType]}</Tag>)}</Space> },
+                  { key: 'goods', label: 'Hàng nhận', children: <Space size={[4, 4]} wrap>{slotGoodsPriority(slot).map((goodsType, index) => <Tag key={goodsType}>{index + 1}. {GOODS_LABELS[goodsType]}</Tag>)}</Space> },
                   { key: 'capacity', label: 'Sức chứa', children: slot.maxCapacity ?? 1 },
                   { key: 'auto', label: 'Tự động', children: <Tag color={slot.autoAssign ? 'success' : 'default'}>{slot.autoAssign ? 'Bật' : 'Tắt'}</Tag> },
                   { key: 'status', label: 'Trạng thái', children: <Tag color={SLOT_STATUS_COLOR[slot.status]}>{STATUS_LABEL[slot.status]}</Tag> },

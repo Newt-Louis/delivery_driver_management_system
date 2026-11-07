@@ -36,6 +36,7 @@ export type RegisterDeliveryPayload = {
 
 export type RegisterDeliveryResponse = {
   registrationCode: string;
+  goodsType: GoodsType;
 };
 
 export type VehicleAvailabilityOption = {
@@ -58,8 +59,7 @@ export type QuickVerifyResponse = {
   unitIcon: string | null;
   unitLogoUrl: string | null;
   goodsType: GoodsType;
-  vehicleType: VehicleType;
-  deliveryDate?: string;
+  deliveryDate: string;
   vendorCode?: string;
   vendorName?: string;
   title?: string;
@@ -157,7 +157,7 @@ export async function registerDelivery(payload: RegisterDeliveryPayload): Promis
   return res.data;
 }
 
-export async function createManualRegistrationCode(): Promise<{ code: string }> {
+export async function createManualRegistrationCode(): Promise<{ code: string; deliveryDate: string }> {
   const res = await api.post('/api/deliveries/manual-registration-code');
   return res.data;
 }

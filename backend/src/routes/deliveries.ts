@@ -45,12 +45,6 @@ router.post('/manual-registration-code', publicWriteLimiter, asyncHandler(async 
   await respond(res, Promise.resolve(deliveryService.createManualRegistrationCode()), 201);
 }));
 
-// POST /api/deliveries/public-cancel
-router.post('/public-cancel', publicWriteLimiter, asyncHandler(async (req, res) => {
-  const body = DeliveryFormRequest.parsePublicCancel(req.body);
-  await respond(res, deliveryService.publicCancel(body));
-}));
-
 // GET /api/deliveries
 router.get('/', authenticate, enforceScope, asyncHandler(async (req, res) => {
   const query = DeliveryFormRequest.parseListQuery(req.query as Record<string, unknown>);

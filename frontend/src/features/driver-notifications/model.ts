@@ -13,6 +13,22 @@ export interface FollowedTrip {
   lastEventAt: string;
 }
 
+export type FollowCandidate = Pick<TrackDelivery, 'registrationCode' | 'vehiclePlate' | 'status'>;
+
+export function followAction(current: FollowedTrip | null, candidate: FollowCandidate): 'ignore' | 'confirm' | 'follow' {
+  if (TERMINAL_STATUSES.has(candidate.status)) return 'ignore';
+  return current && current.code !== candidate.registrationCode ? 'confirm' : 'follow';
+}
+
+export function notificationReadiness(supported: boolean, permission: string, pushState: 'off' | 'connecting' | 'ready' | 'error'): 'unsupported' | 'denied' | 'permission' | 'ready' | 'error' | 'connecting' {
+  if (!supported) return 'unsupported';
+  if (permission === 'denied') return 'denied';
+  if (permission !== 'granted') return 'permission';
+  if (pushState === 'ready') return 'ready';
+  if (pushState === 'error') return 'error';
+  return 'connecting';
+}
+
 export interface DriverNotice {
   deliveryCode: string;
   status: string;

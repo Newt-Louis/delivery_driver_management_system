@@ -1,5 +1,5 @@
 import type { DeliveryRegistration } from '../../../../lib/types';
-import { GOODS_ICON, VTYPE } from '../../constants';
+import { GOODS_LABEL } from '../../constants';
 import { formatTicketForDelivery } from '../../utils';
 
 export function CalledCard({ d, stt, highlight, primaryColor }: {
@@ -14,7 +14,7 @@ export function CalledCard({ d, stt, highlight, primaryColor }: {
       <div className="px-2 py-2.5 text-center font-black tracking-wider leading-none"
            style={{ fontSize: 'clamp(1rem, 2.2vw, 1.55rem)', color: '#111' }}>{d.vehiclePlate}</div>
       <div className="px-2 pb-2.5 flex items-center justify-between gap-1">
-        <span className="text-base leading-none">{GOODS_ICON[d.goodsType]}</span>
+        <span className="text-base leading-none">{GOODS_LABEL[d.goodsType]}</span>
         <div className="text-right">
           <div className="font-black leading-none tracking-widest"
                style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)', color: primaryColor }}>{d.assignedSlot?.code ?? '?'}</div>
@@ -51,7 +51,7 @@ export function WaitingCard({ d, stt, highlight, isNext }: {
       <div className="px-2 pb-2.5 flex items-center justify-between gap-1">
         <div className="flex items-center gap-1">
           {isUrgent && <span className="text-[11px] animate-pulse">🔴</span>}
-          <span className="text-base leading-none">{GOODS_ICON[d.goodsType]}</span>
+          <span className="text-base leading-none">{GOODS_LABEL[d.goodsType]}</span>
         </div>
         {waitMin !== null && (
           <div className={`text-sm font-black tabular-nums leading-none ${isUrgent ? 'text-red-500' : 'text-amber-500'}`}>
@@ -72,7 +72,7 @@ export function ReceivingCard({ d, stt, highlight }: { d: DeliveryRegistration; 
       <div className="px-2 py-2.5 text-center font-black tracking-wider leading-none"
            style={{ fontSize: 'clamp(1rem, 2.2vw, 1.55rem)', color: '#111' }}>{d.vehiclePlate}</div>
       <div className="px-2 pb-2.5 flex items-center justify-between gap-1">
-        <span className="text-base leading-none">{GOODS_ICON[d.goodsType]}</span>
+        <span className="text-base leading-none">{GOODS_LABEL[d.goodsType]}</span>
         <div className="text-right">
           {d.assignedSlot ? (
             <>
@@ -116,5 +116,3 @@ export function VTypeColumn({ items, highlightId, primaryColor, cardType }: {
     </div>
   );
 }
-
-export { VTYPE };

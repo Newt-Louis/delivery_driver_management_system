@@ -11,18 +11,6 @@ function pad(n, width = 3) {
   return String(n).padStart(width, '0');
 }
 
-function localDateTimeAfterDays(days, hour, minute) {
-  const date = new Date();
-  date.setDate(date.getDate() + days);
-  date.setHours(hour, minute, 0, 0);
-  const yyyy = date.getFullYear();
-  const mm = pad(date.getMonth() + 1, 2);
-  const dd = pad(date.getDate(), 2);
-  const hh = pad(date.getHours(), 2);
-  const mi = pad(date.getMinutes(), 2);
-  return `${yyyy}-${mm}-${dd}T${hh}:${mi}:00`;
-}
-
 function buildPayloads(note) {
   if (MODE === 'same-plate') {
     const vehiclePlate = `${note}PLATE`.slice(0, 24);
@@ -39,7 +27,7 @@ function buildPayloads(note) {
   }
 
   if (MODE === 'same-slot') {
-    const requestedTime = process.env.REQUESTED_TIME || localDateTimeAfterDays(30, 3, 17);
+    const requestedTime = process.env.REQUESTED_TIME || new Date().toISOString();
     return Array.from({ length: COUNT }, (_, i) => ({
       vendorName: 'Race Slot Vendor',
       driverName: `Race Driver ${i}`,

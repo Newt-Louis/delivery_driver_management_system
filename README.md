@@ -77,9 +77,10 @@ Navicat vẫn kết nối PostgreSQL tại `127.0.0.1:5434` với database/user 
 
 | Trang                  | URL               | Mô tả                                           |
 | ---------------------- | ----------------- | ----------------------------------------------- |
-| Trang chủ              | `/`               | Công khai – điểm vào mặc định, đăng ký online mới |
-| Đăng ký thủ công       | `/register`       | Công khai – nhập đăng ký thủ công/bản giấy      |
-| Màn hình chờ           | `/waiting-screen` | Công khai – TV display, realtime                |
+| Trang chủ              | `/`               | Công khai – chọn đăng ký hoặc theo dõi chuyến |
+| Đăng ký bằng mã PO/Thi Công | `/register` | Công khai – đăng ký mặc định                   |
+| Đăng ký thủ công       | `/register-manual` | Công khai – nhập đăng ký thủ công/bản giấy      |
+| Bảng thứ tự giao hàng  | `/waiting-screen` | Công khai – TV display, realtime                |
 | Check-in               | `/check-in`       | Bảo vệ check-in xe vào cổng                     |
 | Dashboard              | `/dashboard`      | Nhân viên Receiving điều phối                   |
 | Quản lý Dock           | `/docks`          | Xem và cập nhật trạng thái dock                 |
@@ -92,8 +93,7 @@ File chính: `backend/src/services/autoAssign.ts`
 
 Luồng hiện tại tự gọi xe từ hàng đợi `WAITING` vào slot phù hợp khi còn sức chứa:
 
-- Slot `autoWarehouseOnly = true` chỉ nhận `AUTO_WAREHOUSE`.
-- Slot thường không nhận `AUTO_WAREHOUSE`.
+- Slot có thể nhận `AUTO_WAREHOUSE` cùng các loại hàng khác theo cấu hình `acceptedGoods` và `goodsPriority`.
 - Thứ tự ưu tiên loại hàng của slot được cấu hình trong Backoffice > Slots > SlotModal (`goodsPriority`); trong cùng một loại hàng, xe tới trước được gọi trước.
 - Slot nhiều sức chứa dựa vào `maxCapacity`, đặc biệt cho xe máy.
 - Khi assign/complete/cancel, hệ thống cập nhật slot và emit realtime events để dashboard, màn hình chờ và dock management refresh.
