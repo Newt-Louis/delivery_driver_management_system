@@ -213,7 +213,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload) {
   if (body.goodsType === GoodsType.AUTO_WAREHOUSE) {
     throw domainError.badRequest('Vui lòng chọn loại hàng giao thực tế. Kho tự động được xác định theo mã nhà cung cấp.', 'InvalidRegistrationGoodsType');
   }
-  if (!quickVerification && (body.quickVerificationToken || requiresQuickVerification(poNumber))) {
+  if (!quickVerification && (body.quickVerificationToken || (!body.manualRegistration && requiresQuickVerification(poNumber)))) {
     throw domainError.badRequest('Mã xác thực không hợp lệ hoặc đã hết hạn. Vui lòng kiểm tra lại mã.', 'QuickVerificationRequired');
   }
   if (!driverPhone || driverPhone.length < 9) {

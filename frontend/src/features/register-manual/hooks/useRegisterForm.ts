@@ -22,7 +22,7 @@ import { isSundayDate } from '../utils/date';
 
 const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
   1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
-  2: ['deliveryDate', 'vendorName'],
+  2: ['deliveryDate', 'poNumber'],
   3: ['vehiclePlate', 'driverPhone'],
   4: [],
 };
@@ -47,8 +47,8 @@ export function useRegisterForm() {
       goodsType: '',
       unitGoodsTypeId: '',
       vehicleType: '',
-      vendorName: prev.vendorName ?? '',
-      vendorCode: prev.vendorCode ?? '',
+      vendorName: '',
+      vendorCode: '',
       poNumber: '',
       driverName: prev.driverName ?? '',
       driverPhone: prev.driverPhone ?? '',
@@ -179,26 +179,26 @@ export function useRegisterForm() {
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId]);
 
   useEffect(() => {
-    if (step !== 2 || form.poNumber) return;
+    if (step !== 2 || form.deliveryDate) return;
 
     let cancelled = false;
     setManualReferenceLoading(true);
     setManualReferenceError('');
     createManualRegistrationCode()
-      .then(({ code, deliveryDate }) => {
+      .then(({ deliveryDate }) => {
         if (cancelled) return;
-        setForm((current) => current.poNumber ? current : { ...current, poNumber: code, deliveryDate });
+        setForm((current) => ({ ...current, deliveryDate }));
         setManualReferenceLoading(false);
       })
       .catch(() => {
         if (!cancelled) {
-          setManualReferenceError('Không thể tạo mã đối chiếu. Vui lòng thử lại.');
+          setManualReferenceError('Không thể xác định ngày giao hàng. Vui lòng thử lại.');
           setManualReferenceLoading(false);
         }
       });
 
     return () => { cancelled = true; };
-  }, [step, form.poNumber, manualReferenceRequest]);
+  }, [step, form.deliveryDate, manualReferenceRequest]);
 
   useEffect(() => {
     if (!form.receivingUnit || !form.goodsType || !selectedUnitScope) {
@@ -343,8 +343,7 @@ export function useRegisterForm() {
     if (step === 2) {
       if (sundayFreshFoodBlocked) errs.deliveryDate = 'Chủ nhật chỉ nhận hàng tươi sống';
       else if (!form.deliveryDate) errs.deliveryDate = 'Không thể xác định ngày giao hàng. Vui lòng thử lại.';
-      if (!form.vendorName.trim()) errs.vendorName = 'Vui lòng nhập tên công ty / nhà cung cấp';
-      if (!form.poNumber) errs.poNumber = manualReferenceError || 'Đang tạo mã đối chiếu đăng ký';
+      if (!form.poNumber.trim()) errs.poNumber = 'Vui lòng nhập mã PO / Thi Công';
     }
     if (step === 3) {
       if (!form.vehiclePlate.trim()) errs.vehiclePlate = 'Vui lòng nhập biển số xe';
@@ -401,7 +400,8 @@ export function useRegisterForm() {
       const res = await registerDelivery({
         businessLocationId: form.businessLocationId,
         unitConfigId: form.unitConfigId,
-        vendorName: form.vendorName,
+        vendorName: '',
+        manualRegistration: true,
         driverName: form.driverName,
         driverPhone: form.driverPhone,
         vehiclePlate: plate,
@@ -410,7 +410,6 @@ export function useRegisterForm() {
         goodsType: form.goodsType,
         unitGoodsTypeId: form.unitGoodsTypeId || undefined,
         poNumber,
-        vendorCode: form.vendorCode || undefined,
         deliveryDate: form.deliveryDate,
         note: form.note || undefined,
       });
@@ -418,7 +417,7 @@ export function useRegisterForm() {
         code: res.registrationCode,
         referenceCode: poNumber,
         vehiclePlate: plate,
-        vendorName: form.vendorName,
+        vendorName: '',
         driverName: form.driverName,
         receivingUnit: form.receivingUnit as Unit,
         unitDisplayName: unitConfig?.displayName || unitConfig?.shortName || form.receivingUnit,

@@ -19,6 +19,7 @@ const registerSchema = z.object({
   deliveryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   note: z.string().optional(),
   quickVerificationToken: z.string().optional(),
+  manualRegistration: z.boolean().optional(),
 });
 
 const quickVerifySchema = z.object({

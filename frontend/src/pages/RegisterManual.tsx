@@ -14,7 +14,7 @@ import UnitGoodsVehicleStep from '../features/register-manual/steps/UnitGoodsVeh
 
 function canAdvance(step: number, form: ReturnType<typeof useRegisterForm>['form'], sundayFreshFoodBlocked: boolean, manualReferenceLoading: boolean) {
   if (step === 1) return Boolean(form.businessLocationId && form.unitConfigId && form.receivingUnit && form.goodsType && form.vehicleType);
-  if (step === 2) return Boolean(form.deliveryDate && form.vendorName.trim() && form.poNumber && !sundayFreshFoodBlocked && !manualReferenceLoading);
+  if (step === 2) return Boolean(form.deliveryDate && form.poNumber.trim() && !sundayFreshFoodBlocked && !manualReferenceLoading);
   if (step === 3) return Boolean(form.vehiclePlate.trim() && form.driverPhone.replace(/\D/g, '').length >= 9);
   return true;
 }
@@ -29,8 +29,8 @@ export default function RegisterManual() {
     step, fieldErrors, highlightedField, submitting, submitError, success, form, rememberInfo, setRememberInfo,
     publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig, customGoodsTypes, dailyStats, dailyStatsMsg,
     dailyStatsLoading, manualReferenceLoading, manualReferenceError, vehicleAvailability, vehicleAvailabilityMsg,
-    vehicleAvailabilityLoading, sundayFreshFoodBlocked, awStatus, awVendorName, awVendorSuggestions,
-    awVendorSuggestionsLoading, contentRef, set, retryManualReferenceCode, selectAutoWarehouseVendor,
+    vehicleAvailabilityLoading, sundayFreshFoodBlocked, awStatus, awVendorName,
+    contentRef, set, retryManualReferenceCode,
     next, back, editStepFromReview, submit, resetForm,
   } = register;
 
@@ -74,7 +74,7 @@ export default function RegisterManual() {
           )}
 
           {step === 1 && <UnitGoodsVehicleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} publicUnits={publicUnits} publicUnitsLoading={publicUnitsLoading} publicUnitsMsg={publicUnitsMsg} unitConfig={unitConfig} customGoodsTypes={customGoodsTypes} vehicleAvailability={vehicleAvailability} vehicleAvailabilityMsg={vehicleAvailabilityMsg} vehicleAvailabilityLoading={vehicleAvailabilityLoading} brandUnits={brandUnits} hasPublicLocation={Boolean(selectedLocationName)} set={set} />}
-          {step === 2 && <ScheduleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} dailyStats={dailyStats} dailyStatsMsg={dailyStatsMsg} dailyStatsLoading={dailyStatsLoading} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} awStatus={awStatus} awVendorName={awVendorName} awVendorSuggestions={awVendorSuggestions} awVendorSuggestionsLoading={awVendorSuggestionsLoading} set={set} onRetryManualReferenceCode={retryManualReferenceCode} onSelectAutoWarehouseVendor={selectAutoWarehouseVendor} />}
+          {step === 2 && <ScheduleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} dailyStats={dailyStats} dailyStatsMsg={dailyStatsMsg} dailyStatsLoading={dailyStatsLoading} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} set={set} onRetryManualReferenceCode={retryManualReferenceCode} />}
           {step === 3 && <DriverInfoStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} rememberInfo={rememberInfo} setRememberInfo={setRememberInfo} set={set} />}
           {step === 4 && <ReviewSubmitStep form={form} unitConfig={unitConfig} brandUnits={brandUnits} locationName={selectedLocationName} awStatus={awStatus} awVendorName={awVendorName} submitError={submitError} set={set} onEditStep={editStepFromReview} />}
 

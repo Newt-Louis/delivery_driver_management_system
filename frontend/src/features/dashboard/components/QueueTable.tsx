@@ -44,9 +44,9 @@ export default function QueueTable({ deliveries, unit, unitConfig, unitConfigsBy
   function actions(d: DeliveryRegistration) {
     return <Space wrap size="small" style={{ maxWidth: 170 }} onClick={event => event.stopPropagation()}>
       <Button onClick={() => onView(d.id)} size="small">Xem</Button>
-      {d.status === 'WAITING' && <Button type="primary" onClick={() => onCall(d)} size="small">Gọi vào vị trí</Button>}
-      {d.status === 'CALLED' && <><Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'start-receiving'} onClick={() => onAction(d.id, 'start-receiving')} size="small">Bắt đầu nhận</Button><Button disabled={!!actionLoading} onClick={() => onCall(d)} size="small">Gọi lại</Button></>}
-      {['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status) && <Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'complete'} onClick={() => onAction(d.id, 'complete')} size="small">Hoàn tất</Button>}
+      {d.status === 'WAITING' && <Button color="cyan" variant="solid" onClick={() => onCall(d)} size="small">Gọi vào vị trí</Button>}
+      {d.status === 'CALLED' && <><Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'start-receiving'} onClick={() => onAction(d.id, 'start-receiving')} size="small">Bắt đầu nhận</Button><Button color="orange" variant="solid" disabled={!!actionLoading} onClick={() => onCall(d)} size="small">Gọi lại</Button></>}
+      {['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status) && <Button color="green" variant="solid" disabled={!!actionLoading} loading={actionLoading === d.id + 'complete'} onClick={() => onAction(d.id, 'complete')} size="small">Hoàn tất</Button>}
       {!['COMPLETED', 'CANCELLED'].includes(d.status) && <Button danger disabled={!!actionLoading} onClick={() => onAction(d.id, 'cancel')} size="small">Hủy</Button>}
     </Space>;
   }
