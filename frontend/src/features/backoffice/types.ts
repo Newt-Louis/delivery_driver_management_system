@@ -6,7 +6,8 @@ export type BackofficeTab =
   | 'units'
   | 'brand'
   | 'staff'
-  | 'awvendors';
+  | 'awvendors'
+  | 'devices';
 
 export interface SystemUser {
   id: string;
@@ -29,4 +30,19 @@ export interface SystemUser {
 
 export interface StaffUser extends SystemUser {
   role: 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
+}
+
+export type DeviceType = 'FIXED_DEVICE' | 'PDA' | 'TABLET' | 'TV';
+
+export interface DeviceItem {
+  id: string;
+  code: string;
+  name: string;
+  businessLocationId: string;
+  businessLocation?: { id: string; code: string; locationName: string } | null;
+  deviceType: DeviceType;
+  isActive: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

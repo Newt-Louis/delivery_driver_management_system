@@ -34,6 +34,7 @@ export const BACKOFFICE_TABS: readonly [BackofficeTab, string, string][] = [
   ['brand', 'Thương hiệu', 'Cấu hình logo và tên hiển thị cho từng đơn vị vận hành. Logo xuất hiện trên màn hình chờ và phiếu in.'],
   ['staff', 'Nhân viên', 'Quản lý thông tin nhân viên.'],
   ['awvendors', 'Kho tự động', 'Danh sách NCC được phép vào khu kho tự động. Tài xế nhập mã NCC khi đăng ký để được xếp vào slot kho tự động.'],
+  ['devices', 'Thiết bị', 'Đăng ký và quản lý thiết bị (TV, PDA, tablet, máy quét) thuộc khu vực kinh doanh hiện tại.'],
 ];
 
 export function allowedBackofficeTabs(role?: string): BackofficeTab[] {

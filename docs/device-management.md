@@ -44,6 +44,12 @@ Nguyên tắc bảo mật:
 - Khi tạo/cập nhật secret, backend hash bằng bcrypt.
 - Nếu xây dựng lại luồng thiết bị sau này, phải có API riêng theo từng nhiệm vụ và không dùng một endpoint đi xuyên toàn bộ lifecycle.
 
+## Frontend
+
+- Tab `Thiết bị` trong `/backoffice`: `frontend/src/features/backoffice/tabs/DevicesTab.tsx`, API helper trong `frontend/src/features/backoffice/api.ts`.
+- Hiển thị cho `ADMIN_LOC` và `SUPERADMIN` (sau khi chọn khu vực vận hành), dùng `/api/devices`; không có ô chọn location, thiết bị mới luôn thuộc `businessLocationId` của tài khoản.
+- `/superadmin` không còn tab Devices; route backend `/api/superadmin/devices` vẫn còn nhưng không có UI gọi.
+
 ## Ghi Chú
 
 - Route `/api/checkin` và frontend `/kiosk` đã bị loại bỏ.

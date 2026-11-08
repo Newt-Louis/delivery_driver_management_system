@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ApartmentOutlined, AppstoreOutlined, InboxOutlined, PictureOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
+import { ApartmentOutlined, AppstoreOutlined, InboxOutlined, MobileOutlined, PictureOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons';
 import { Button, Empty, Typography } from 'antd';
 import { useAuth } from '../context/AuthContext';
 import AdminSectionFrame, { type AdminSectionItem } from '../components/layout/AdminSectionFrame';
@@ -12,6 +12,7 @@ import UnitsTab from '../features/backoffice/tabs/UnitsTab';
 import BrandTab from '../features/backoffice/tabs/BrandTab';
 import StaffUsersTab from '../features/backoffice/tabs/StaffUsersTab';
 import AWVendorTab from '../features/backoffice/tabs/AWVendorTab';
+import DevicesTab from '../features/backoffice/tabs/DevicesTab';
 
 const SECTION_ICONS: Record<BackofficeTab, React.ReactNode> = {
   slots: <AppstoreOutlined />,
@@ -20,6 +21,7 @@ const SECTION_ICONS: Record<BackofficeTab, React.ReactNode> = {
   brand: <PictureOutlined />,
   staff: <TeamOutlined />,
   awvendors: <InboxOutlined />,
+  devices: <MobileOutlined />,
 };
 
 export default function Backoffice() {
@@ -46,6 +48,7 @@ export default function Backoffice() {
       case 'brand': return <BrandTab />;
       case 'staff': return <StaffUsersTab />;
       case 'awvendors': return <AWVendorTab />;
+      case 'devices': return <DevicesTab />;
       default: return null;
     }
   }

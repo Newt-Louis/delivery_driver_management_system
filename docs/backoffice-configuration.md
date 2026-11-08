@@ -23,6 +23,7 @@ Files:
 - `frontend/src/features/backoffice/tabs/BrandTab.tsx`
 - `frontend/src/features/backoffice/tabs/StaffUsersTab.tsx`
 - `frontend/src/features/backoffice/tabs/AWVendorTab.tsx`
+- `frontend/src/features/backoffice/tabs/DevicesTab.tsx`
 - `frontend/src/features/backoffice/components/SlotModal.tsx`
 - `frontend/src/pages/Superadmin.tsx`
 - `frontend/src/features/superadmin/api.ts`
@@ -34,6 +35,7 @@ Tab và quyền:
 - `Người dùng`: chỉ `SUPERADMIN` trong `/superadmin`; quản trị staff cấp dưới của `ADMIN_LOC` nằm ở tab nhân viên.
 - `Cấu hình Đơn vị`: `SUPERADMIN`, `ADMIN_LOC`; thao tác config theo unit scope.
 - `Kho tự động`: `SUPERADMIN`, `ADMIN_LOC`; vendor phải gắn với `unitConfigId`/location-aware.
+- `Thiết bị`: `SUPERADMIN` (sau khi chọn BusinessLocation vận hành), `ADMIN_LOC`; đăng ký/sửa/vô hiệu hóa thiết bị qua `/api/devices`, luôn gắn với `businessLocationId` của tài khoản, không có ô chọn location.
 - `Nhân viên`: `ADMIN_LOC` quản trị `RECEIVING` và `CHECKIN`, đồng thời được thấy/sửa unit scope của `ADMIN_OPE` trong location. `SUPERADMIN` cũng dùng được tab này sau khi chọn BusinessLocation vận hành, với đầy đủ quyền tạo/sửa/reset mật khẩu/vô hiệu hóa các tài khoản `ADMIN_OPE`, `RECEIVING` và `CHECKIN` của location đó.
 - Zone/slot/goods types/time windows/receiving time config/unit brand: `SUPERADMIN`, `ADMIN_LOC` theo backend guard và unit operation scope.
 - `ADMIN_OPE` không truy cập Backoffice để chỉnh cấu hình. Role này thuộc nhóm vận hành dashboard/docks/reports trong phạm vi unit được cấp.
@@ -136,7 +138,7 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 - Zones và Slots: dữ liệu vận hành cụ thể thuộc Backoffice/ADMIN_LOC. `/superadmin` có thể đọc/audit system-wide khi cần, nhưng không phải bề mặt chính để ADMIN_LOC cấu hình zone/slot hằng ngày.
 - Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC` và `ADMIN_OPE` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.
 - Goods types và Time windows: dữ liệu vận hành theo `UnitConfig`; bề mặt cấu hình chính thuộc ADMIN_LOC trong Backoffice.
-- Devices: CRUD device registry theo `BusinessLocation`, có thể rotate `deviceSecret` bằng field write-only khi sửa, không trả `deviceSecretHash`.
+- Devices: không còn tab trong `/superadmin`; đăng ký thiết bị chuyển sang tab `Thiết bị` của Backoffice. Backend `/api/superadmin/devices` vẫn tồn tại nhưng frontend không còn gọi.
 - App configs: chỉnh JSON runtime config khi `isRuntimeEditable = true`; sensitive value bị mask.
 - Receiving time configs: CRUD cấu hình theo `unitConfigId + vehicleType + goodsType`; khi sửa chỉ đổi thời lượng cấu hình/đề xuất, không đổi unit/vehicle/goods để giữ unique key ổn định.
 
@@ -165,7 +167,6 @@ Các thao tác delete với dữ liệu đã có liên kết lịch sử đượ
 - Tab `Unit configs`: load locations để chọn `BusinessLocation` và load `/api/superadmin/unit-configs`.
 - Tab `Users`: load users, locations và toàn bộ unit configs để modal create/edit gán operation scope.
 - Các tab có filter location/unit như zones, slots, goods types, time windows và receiving time configs chỉ load query dữ liệu của chính tab đó cộng với dữ liệu phụ trợ cho filter đang hiển thị.
-- Tab `Devices` chỉ cần location filter nên không load unit configs.
 - Tab `App configs` chỉ load `/api/superadmin/app-configs`.
 
 Các callback refresh trong tab không invalidate cả namespace `['superadmin']`; chúng chỉ invalidate query key của tab hiện tại để tránh mỗi thao tác CRUD kéo lại toàn bộ API của các tab khác.
@@ -178,9 +179,11 @@ Hai tab dùng toolbar responsive chung: tìm tên chỉ áp dụng khi nhấn t�
 
 Hai tab chỉ đọc, dùng toolbar responsive chung với tìm kiếm theo tên và bộ lọc location/unit hiện có; sort vẫn là placeholder. Từ `lg` hiển thị bảng, dưới `lg` hiển thị Collapse từng dòng, cả hai có phân trang. Đổi bộ lọc tiếp tục dùng query API theo `businessLocationId`/`unitConfigId`; danh sách bị che trong khi dữ liệu phạm vi mới đang tải. Không có thao tác tạo, sửa hoặc xóa tại đây.
 
-### Devices trong Superadmin
+### Thiết bị trong Backoffice
 
-Tab Devices dùng toolbar responsive với tìm kiếm theo tên và lọc location. Từ `lg` danh sách là bảng, dưới `lg` là Collapse theo từng dòng; có phân trang và thao tác ở cuối dòng hoặc đầu Collapse. Tạo và sửa mở modal, xóa có xác nhận; thiết bị chỉ gửi secret mới nếu có nhập. NCC kho tự động được quản lý theo khu vực và đơn vị trong Backoffice, không có tab riêng trong Superadmin.
+Tab `Thiết bị` được chuyển từ Superadmin sang Backoffice. Query `['devices', userId, businessLocationId]` gọi `GET /api/devices` (backend lọc theo `businessLocationId` của tài khoản) và chỉ bật khi tài khoản có khu vực vận hành hiện tại. Toolbar responsive có tìm kiếm theo tên, không có lọc location. Từ `lg` danh sách là bảng, dưới `lg` là Collapse theo từng dòng; có phân trang. Tạo và sửa mở modal; ô khu vực kinh doanh chỉ hiển thị, `businessLocationId` khi tạo luôn lấy từ tài khoản. Nút vô hiệu hóa gọi `DELETE /api/devices/:id` (soft deactivate) và bị khóa với thiết bị đã inactive. Thiết bị chỉ gửi secret mới nếu có nhập.
+
+NCC kho tự động và thiết bị đều được quản lý theo khu vực trong Backoffice, không có tab riêng trong Superadmin.
 
 ### API tích hợp và Receiving time configs trong Superadmin
 

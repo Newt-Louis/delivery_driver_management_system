@@ -35,18 +35,6 @@ export interface AppConfigItem {
   updatedAt: string;
 }
 
-export interface DeviceItem {
-  id: string;
-  code: string;
-  name: string;
-  businessLocationId: string;
-  deviceType: string;
-  isActive: boolean;
-  lastSeenAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export type SuperadminTab =
   | 'locations'
   | 'units'
@@ -55,7 +43,6 @@ export type SuperadminTab =
   | 'users'
   | 'goods'
   | 'windows'
-  | 'devices'
   | 'appconfigs'
   | 'apiconfigs'
   | 'receivingTimes';
@@ -70,7 +57,6 @@ export interface SuperadminData {
   goodsTypes: UnitGoodsType[];
   timeWindows: DeliveryTimeWindow[];
   autoWarehouseVendors: AutoWarehouseVendor[];
-  devices: DeviceItem[];
   appConfigs: AppConfigItem[];
   receivingTimeConfigs: ReceivingTimeConfig[];
 }

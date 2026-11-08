@@ -2,7 +2,6 @@ import api from '../../lib/api';
 import type {
   AppConfigItem,
   BusinessLocation,
-  DeviceItem,
   SuperadminOverview,
 } from './types';
 import type { AutoWarehouseVendor, ReceivingTimeConfig, UnitConfig, User } from '../../lib/types';
@@ -43,9 +42,6 @@ export const superadminApi = {
   autoWarehouseVendors: async (scope?: { businessLocationId?: string; unitConfigId?: string }) => (
     await api.get<AutoWarehouseVendor[]>(`/api/superadmin/auto-warehouse-vendors${scopeParams(scope)}`)
   ).data,
-  devices: async (scope?: { businessLocationId?: string }) => (
-    await api.get<DeviceItem[]>(`/api/superadmin/devices${scopeParams(scope)}`)
-  ).data,
   appConfigs: async () => (await api.get<AppConfigItem[]>('/api/superadmin/app-configs')).data,
   receivingTimeConfigs: async (scope?: { businessLocationId?: string; unitConfigId?: string }) => (
     await api.get<ReceivingTimeConfig[]>(`/api/superadmin/receiving-time-configs${scopeParams(scope)}`)
@@ -62,10 +58,6 @@ export const superadminApi = {
   createVendor: (payload: Record<string, unknown>) => api.post('/api/superadmin/auto-warehouse-vendors', payload),
   updateVendor: (id: string, payload: Record<string, unknown>) => api.patch(`/api/superadmin/auto-warehouse-vendors/${id}`, payload),
   deleteVendor: (id: string) => api.delete(`/api/superadmin/auto-warehouse-vendors/${id}`),
-
-  createDevice: (payload: Record<string, unknown>) => api.post('/api/superadmin/devices', payload),
-  updateDevice: (id: string, payload: Record<string, unknown>) => api.patch(`/api/superadmin/devices/${id}`, payload),
-  deleteDevice: (id: string) => api.delete(`/api/superadmin/devices/${id}`),
 
   updateAppConfig: (key: string, payload: Record<string, unknown>) => api.patch(`/api/superadmin/app-configs/${key}`, payload),
 
