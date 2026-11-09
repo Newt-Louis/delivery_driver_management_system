@@ -3,7 +3,7 @@ import { Alert, Button, Card, Descriptions, Form, Input, Space, Tag, Typography 
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
 import type { UnitConfig } from '../../../lib/types';
 import { GOODS_LABEL, VEHICLE_INFO } from '../constants';
-import type { FormState, SetFormField, Unit, VehicleType } from '../types';
+import type { FormState, Unit, VehicleType } from '../types';
 
 type ReviewSubmitStepProps = {
   form: FormState;
@@ -13,11 +13,10 @@ type ReviewSubmitStepProps = {
   awStatus: 'idle' | 'loading' | 'match' | 'nomatch';
   awVendorName: string;
   submitError: string;
-  set: SetFormField;
   onEditStep: (step: 1 | 2 | 3) => void;
 };
 
-export default function ReviewSubmitStep({ form, unitConfig, brandUnits, locationName, awStatus, awVendorName, submitError, set, onEditStep }: ReviewSubmitStepProps) {
+export default function ReviewSubmitStep({ form, unitConfig, brandUnits, locationName, awStatus, awVendorName, submitError, onEditStep }: ReviewSubmitStepProps) {
   const receivingUnit = form.receivingUnit as Unit;
   const unitBrand = brandUnits[receivingUnit] ?? UNIT_FALLBACKS[receivingUnit];
   const unitDisplayName = unitConfig?.displayName || unitBrand?.displayName || form.receivingUnit;
@@ -47,7 +46,9 @@ export default function ReviewSubmitStep({ form, unitConfig, brandUnits, locatio
       </Space>
 
       <Card size="small" title="Ghi chú">
-        <Form layout="vertical"><Form.Item className="!mb-0"><Input.TextArea rows={3} value={form.note} onChange={(event) => set('note', event.target.value)} placeholder="Yêu cầu đặc biệt, hàng dễ vỡ, cần xe nâng..." /></Form.Item></Form>
+        <Form.Item<FormState> name="note" className="!mb-0">
+          <Input.TextArea rows={3} placeholder="Yêu cầu đặc biệt, hàng dễ vỡ, cần xe nâng..." />
+        </Form.Item>
       </Card>
       {submitError && <Alert type="error" showIcon title={submitError} />}
       <Typography.Paragraph type="secondary" className="!mb-0 text-center text-xs">Thông tin đăng ký chỉ dùng cho mục đích quản lý giao hàng. Khi hoàn tất, bạn đồng ý để hệ thống sử dụng thông tin này cho chuyến giao.</Typography.Paragraph>

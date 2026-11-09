@@ -1,44 +1,50 @@
 import { InfoCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Card, Form, Input, Space, Switch, Typography } from 'antd';
-import FieldFrame from '../components/FieldFrame';
-import { FieldError, FieldHint } from '../components/FieldFeedback';
-import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
+import type { FormState } from '../types';
 
 type DriverInfoStepProps = {
   form: FormState;
-  fieldErrors: RegisterFieldErrors;
-  highlightedField: keyof FormState | null;
   rememberInfo: boolean;
   setRememberInfo: (updater: (value: boolean) => boolean) => void;
-  set: SetFormField;
 };
 
-export default function DriverInfoStep({ form, fieldErrors, highlightedField, rememberInfo, setRememberInfo, set }: DriverInfoStepProps) {
+const normalizePlate = (value: string = '') => value.toUpperCase().replace(/[^A-Z0-9\-.]/g, '');
+const normalizePhone = (value: string = '') => value.replace(/[^\d+\-\s]/g, '');
+
+export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: DriverInfoStepProps) {
   return (
     <div className="space-y-5">
       {(form.driverName || form.vehiclePlate) && <Alert type="info" showIcon icon={<InfoCircleOutlined />} title="Đã điền sẵn thông tin từ lần trước. Hãy kiểm tra lại trước khi tiếp tục." />}
       <Card size="small" title="Thông tin tài xế">
-        <Form layout="vertical" requiredMark={false}>
-          <FieldFrame field="vehiclePlate" highlightedField={highlightedField}>
-            <Form.Item label="Biển số xe" required className="!mb-4">
-              <Input size="large" value={form.vehiclePlate} onChange={(event) => set('vehiclePlate', event.target.value.toUpperCase().replace(/[^A-Z0-9\-\.]/g, ''))} placeholder="51C-123.45" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} status={fieldErrors.vehiclePlate ? 'error' : undefined} className="font-mono tracking-widest" />
-              <FieldHint text="Ví dụ: 51C-123.45 — nhập chữ in hoa, không cần dấu cách." />
-              {fieldErrors.vehiclePlate && <FieldError text={fieldErrors.vehiclePlate} />}
-            </Form.Item>
-          </FieldFrame>
-          <FieldFrame field="driverName" highlightedField={highlightedField}>
-            <Form.Item label="Tên tài xế" className="!mb-4">
-              <Input size="large" value={form.driverName} onChange={(event) => set('driverName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" />
-            </Form.Item>
-          </FieldFrame>
-          <FieldFrame field="driverPhone" highlightedField={highlightedField}>
-            <Form.Item label="Số điện thoại" required className="!mb-4">
-              <Input size="large" type="tel" inputMode="numeric" value={form.driverPhone} onChange={(event) => set('driverPhone', event.target.value.replace(/[^\d+\-\s]/g, ''))} placeholder="0901 234 567" autoComplete="tel" status={fieldErrors.driverPhone ? 'error' : undefined} />
-              <FieldHint text="Số này dùng để liên lạc khi cần." />
-              {fieldErrors.driverPhone && <FieldError text={fieldErrors.driverPhone} />}
-            </Form.Item>
-          </FieldFrame>
-        </Form>
+        <Form.Item<FormState>
+          label="Biển số xe"
+          name="vehiclePlate"
+          normalize={normalizePlate}
+          rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập biển số xe' }]}
+          extra="Ví dụ: 51C-123.45 — nhập chữ in hoa, không cần dấu cách."
+        >
+          <Input size="large" placeholder="51C-123.45" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} className="font-mono tracking-widest" />
+        </Form.Item>
+        <Form.Item<FormState> label="Tên tài xế" name="driverName">
+          <Input size="large" placeholder="Nguyễn Văn A" autoComplete="name" />
+        </Form.Item>
+        <Form.Item<FormState>
+          label="Số điện thoại"
+          name="driverPhone"
+          normalize={normalizePhone}
+          rules={[
+            { required: true, whitespace: true, message: 'Vui lòng nhập số điện thoại' },
+            {
+              validator: async (_, value: string = '') => {
+                if (value.trim() && value.replace(/\D/g, '').length < 9) throw new Error('Số điện thoại không hợp lệ (cần ít nhất 9 số)');
+              },
+            },
+          ]}
+          extra="Số này dùng để liên lạc khi cần."
+          className="!mb-0"
+        >
+          <Input size="large" type="tel" inputMode="numeric" placeholder="0901 234 567" autoComplete="tel" />
+        </Form.Item>
       </Card>
 
       <Card size="small">

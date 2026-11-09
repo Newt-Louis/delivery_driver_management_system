@@ -4,14 +4,11 @@ import type { IScannerControls } from '@zxing/browser';
 import { createScanHints } from '../utils/scanner';
 import { Alert, Button, Card, Form, Input, Modal, Space, Typography } from 'antd';
 import type { DailyRegistrationStat } from '../api';
-import FieldFrame from '../components/FieldFrame';
-import { FieldError } from '../components/FieldFeedback';
-import type { FormState, RegisterFieldErrors, SetFormField } from '../types';
+import FormFieldSlot from '../components/FormFieldSlot';
+import type { FormState, SetFormField } from '../types';
 
 type ScheduleStepProps = {
   form: FormState;
-  fieldErrors: RegisterFieldErrors;
-  highlightedField: keyof FormState | null;
   dailyStats: DailyRegistrationStat[];
   dailyStatsMsg: string;
   dailyStatsLoading: boolean;
@@ -22,7 +19,7 @@ type ScheduleStepProps = {
   onRetryManualReferenceCode: () => void;
 };
 
-export default function ScheduleStep({ form, fieldErrors, highlightedField, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, set, onRetryManualReferenceCode }: ScheduleStepProps) {
+export default function ScheduleStep({ form, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, set, onRetryManualReferenceCode }: ScheduleStepProps) {
   const todayStats = dailyStats.find((item) => item.date === form.deliveryDate);
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState('');
@@ -87,26 +84,37 @@ export default function ScheduleStep({ form, fieldErrors, highlightedField, dail
 
   return (
     <div className="space-y-5">
-      <FieldFrame field="deliveryDate" highlightedField={highlightedField} variant="choice">
-        <Card size="small" title={<><CalendarOutlined /> Ngày giao hàng</>}>
-          {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon title={dailyStatsMsg} />}
-          {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon title="Chủ nhật chỉ nhận hàng tươi sống" />}
-          <Typography.Text strong>{form.deliveryDate ? form.deliveryDate.split('-').reverse().join('/') : 'Đang xác định ngày giao hàng...'}</Typography.Text>
-          {dailyStatsLoading && <div><Typography.Text type="secondary">Đang kiểm tra công suất đăng ký...</Typography.Text></div>}
-          {todayStats?.available === false && <Alert className="mt-3" type="warning" showIcon title={todayStats.reason ?? 'Hôm nay đã đạt công suất đăng ký.'} />}
-          {fieldErrors.deliveryDate && <FieldError text={fieldErrors.deliveryDate} />}
-        </Card>
-      </FieldFrame>
+      <Card size="small" title={<><CalendarOutlined /> Ngày giao hàng</>}>
+        {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon title={dailyStatsMsg} />}
+        {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon title="Chủ nhật chỉ nhận hàng tươi sống" />}
+        <Form.Item<FormState>
+          name="deliveryDate"
+          className="!mb-0"
+          rules={[{
+            validator: async (_, value: string = '') => {
+              if (manualReferenceLoading) throw new Error('Đang xác định ngày giao hàng, vui lòng đợi trong giây lát.');
+              if (!value) throw new Error(manualReferenceError || 'Không thể xác định ngày giao hàng. Vui lòng thử lại.');
+              if (sundayFreshFoodBlocked) throw new Error('Chủ nhật chỉ nhận hàng tươi sống. Vui lòng quay lại bước 1 để đổi loại hàng.');
+            },
+          }]}
+        >
+          <FormFieldSlot>
+            <Typography.Text strong>{form.deliveryDate ? form.deliveryDate.split('-').reverse().join('/') : 'Đang xác định ngày giao hàng...'}</Typography.Text>
+            {dailyStatsLoading && <div><Typography.Text type="secondary">Đang kiểm tra công suất đăng ký...</Typography.Text></div>}
+            {todayStats?.available === false && <Alert className="mt-3" type="warning" showIcon title={todayStats.reason ?? 'Hôm nay đã đạt công suất đăng ký.'} />}
+          </FormFieldSlot>
+        </Form.Item>
+      </Card>
 
       <Card size="small" title="Thông tin đơn hàng">
-        <Form layout="vertical" requiredMark={false}>
-          <FieldFrame field="poNumber" highlightedField={highlightedField}>
-            <Form.Item label="Mã PO / Thi Công" required validateStatus={fieldErrors.poNumber ? 'error' : undefined} className="!mb-0">
-              <Input size="large" value={form.poNumber} onChange={(event) => set('poNumber', event.target.value)} placeholder="Nhập mã PO / Thi Công" autoComplete="off" suffix={<Button type="text" icon={<CameraOutlined style={{ fontSize: 24 }} />} aria-label="Quét mã QR hoặc barcode" onClick={() => setOpen(true)} />} />
-              {fieldErrors.poNumber && <FieldError text={fieldErrors.poNumber} />}
-            </Form.Item>
-          </FieldFrame>
-        </Form>
+        <Form.Item<FormState>
+          label="Mã PO / Thi Công"
+          name="poNumber"
+          rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập mã PO / Thi Công' }]}
+          className="!mb-0"
+        >
+          <Input size="large" placeholder="Nhập mã PO / Thi Công" autoComplete="off" suffix={<Button type="text" icon={<CameraOutlined style={{ fontSize: 24 }} />} aria-label="Quét mã QR hoặc barcode" onClick={() => setOpen(true)} />} />
+        </Form.Item>
         {manualReferenceError && <Alert className="mt-3" type="error" showIcon title={manualReferenceError} action={<Button size="small" icon={<ReloadOutlined />} onClick={onRetryManualReferenceCode}>Thử lại</Button>} />}
         {manualReferenceLoading && <Typography.Text type="secondary">Đang xác định ngày giao hàng...</Typography.Text>}
         <Modal open={open} title="Quét mã QR hoặc Barcode" onCancel={() => setOpen(false)} footer={<Button icon={<UploadOutlined />} onClick={() => fileRef.current?.click()}>Chọn ảnh mã</Button>} destroyOnHidden>

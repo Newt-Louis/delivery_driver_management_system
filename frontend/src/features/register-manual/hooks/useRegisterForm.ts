@@ -1,3 +1,4 @@
+import { Form } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePublicBusinessLocation } from '../../../context/PublicBusinessLocationContext';
 import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
@@ -16,26 +17,39 @@ import {
   type AutoWarehouseVendorSuggestion,
   type VehicleAvailabilityOption,
 } from '../api';
-import { LS_KEY } from '../constants';
-import type { FormState, RegisterFieldErrors, SuccessInfo, Unit } from '../types';
+import { LS_KEY, REGISTER_FORM_NAME } from '../constants';
+import type { FormState, SuccessInfo, Unit } from '../types';
 import { isSundayDate } from '../utils/date';
 
-const REQUIRED_FIELDS_BY_STEP: Record<number, Array<keyof FormState>> = {
-  1: ['businessLocationId', 'receivingUnit', 'goodsType', 'vehicleType'],
-  2: ['deliveryDate', 'poNumber'],
-  3: ['vehiclePlate', 'driverPhone'],
-  4: [],
-};
+type ErrorField = { name: Array<string | number> };
+
+function hasErrorFields(error: unknown): error is { errorFields: ErrorField[] } {
+  return Array.isArray((error as { errorFields?: unknown })?.errorFields);
+}
+
+/** Cuộn tới field lỗi nằm cao nhất trên màn hình (không phụ thuộc thứ tự đăng ký field). */
+function scrollToTopMostError(errorFields: ErrorField[]) {
+  const targets = errorFields
+    .map(({ name }) => document.getElementById(`${REGISTER_FORM_NAME}_${name.join('_')}`))
+    .filter((node): node is HTMLElement => Boolean(node))
+    .map((node) => ({ node, item: node.closest<HTMLElement>('.ant-form-item') ?? node }))
+    .sort((a, b) => a.item.getBoundingClientRect().top - b.item.getBoundingClientRect().top);
+  const first = targets[0];
+  if (!first) return;
+  first.item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (first.node instanceof HTMLInputElement || first.node instanceof HTMLTextAreaElement) {
+    first.node.focus({ preventScroll: true });
+  }
+}
 
 export function useRegisterForm() {
   const { selectedBusinessLocationId, selectedBusinessLocation } = usePublicBusinessLocation();
+  const [antForm] = Form.useForm<FormState>();
   const [step, setStep] = useState(1);
-  const [fieldErrors, setFieldErrors] = useState<RegisterFieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [success, setSuccess] = useState<SuccessInfo | null>(null);
   const [returnToReviewAfterEdit, setReturnToReviewAfterEdit] = useState(false);
-  const [highlightedField, setHighlightedField] = useState<keyof FormState | null>(null);
 
   const [form, setForm] = useState<FormState>(() => {
     const saved = localStorage.getItem(LS_KEY);
@@ -95,14 +109,34 @@ export function useRegisterForm() {
 
   const set = useCallback((key: keyof FormState, val: string) => {
     setForm(f => ({ ...f, [key]: val }));
-    setFieldErrors(e => { const n = { ...e }; delete n[key]; return n; });
-    setHighlightedField(current => current === key ? null : current);
   }, []);
+
+  /** Antd form -> state: giá trị người dùng nhập trực tiếp vào Form.Item (đã qua normalize). */
+  const handleValuesChange = useCallback((changed: Partial<FormState>) => {
+    setForm(f => ({ ...f, ...changed }));
+  }, []);
+
+  /** Xóa lỗi validate đang hiển thị (khi lùi bước, sửa từ review hoặc đổi khu vực). */
+  const resetValidation = useCallback(() => {
+    antForm.setFields(antForm.getFieldsError().map(({ name }) => ({ name: name[0] as keyof FormState, errors: [] as string[] })));
+  }, [antForm]);
+
+  /**
+   * State -> antd form: đồng bộ các thay đổi lập trình (chọn thẻ, quét mã, reset, dữ liệu API)
+   * và xóa lỗi của field vừa đổi. Field do người dùng gõ đã trùng giá trị nên được bỏ qua để
+   * giữ nguyên kết quả validate onChange của antd.
+   */
+  useEffect(() => {
+    if (success) return;
+    const updates = (Object.keys(form) as Array<keyof FormState>)
+      .filter((key) => antForm.getFieldValue(key) !== form[key])
+      .map((key) => ({ name: key, value: form[key], errors: [] as string[] }));
+    if (updates.length) antForm.setFields(updates);
+  }, [antForm, form, success]);
 
   useEffect(() => {
     setStep((current) => current > 1 ? 1 : current);
-    setFieldErrors({});
-    setHighlightedField(null);
+    resetValidation();
     setSubmitError('');
     setReturnToReviewAfterEdit(false);
     setForm((current) => {
@@ -119,7 +153,7 @@ export function useRegisterForm() {
         timeSlot: '',
       };
     });
-  }, [selectedBusinessLocationId]);
+  }, [resetValidation, selectedBusinessLocationId]);
 
   useEffect(() => {
     if (!form.businessLocationId) {
@@ -321,41 +355,19 @@ export function useRegisterForm() {
     contentRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }, [step]);
 
-  function scrollToFirstError(errs: RegisterFieldErrors) {
-    const firstField = REQUIRED_FIELDS_BY_STEP[step]?.find(field => errs[field]) ?? null;
-    setHighlightedField(firstField);
-    if (!firstField) return;
-
-    window.setTimeout(() => {
-      const fieldEl = contentRef.current?.querySelector<HTMLElement>(`[data-register-field="${firstField}"]`);
-      fieldEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 0);
+  /** Validate các Form.Item đang hiển thị của step hiện tại theo `rules`; lỗi thì cuộn tới field cao nhất. */
+  async function validateStep(): Promise<boolean> {
+    try {
+      await antForm.validateFields();
+      return true;
+    } catch (error) {
+      if (hasErrorFields(error)) window.setTimeout(() => scrollToTopMostError(error.errorFields), 0);
+      return false;
+    }
   }
 
-  function validateStep(): boolean {
-    const errs: RegisterFieldErrors = {};
-    if (step === 1) {
-      if (!form.businessLocationId) errs.businessLocationId = 'Vui lòng chọn khu vực giao hàng';
-      else if (!form.receivingUnit || !form.unitConfigId) errs.receivingUnit = 'Vui lòng chọn đơn vị nhận hàng';
-      else if (!form.goodsType) errs.goodsType = 'Vui lòng chọn loại hàng';
-      else if (!form.vehicleType) errs.vehicleType = 'Vui lòng chọn loại phương tiện';
-    }
-    if (step === 2) {
-      if (sundayFreshFoodBlocked) errs.deliveryDate = 'Chủ nhật chỉ nhận hàng tươi sống';
-      else if (!form.deliveryDate) errs.deliveryDate = 'Không thể xác định ngày giao hàng. Vui lòng thử lại.';
-      if (!form.poNumber.trim()) errs.poNumber = 'Vui lòng nhập mã PO / Thi Công';
-    }
-    if (step === 3) {
-      if (!form.vehiclePlate.trim()) errs.vehiclePlate = 'Vui lòng nhập biển số xe';
-      if (form.driverPhone.replace(/\D/g, '').length < 9) errs.driverPhone = 'Số điện thoại không hợp lệ (cần ít nhất 9 số)';
-    }
-    setFieldErrors(errs);
-    scrollToFirstError(errs);
-    return Object.keys(errs).length === 0;
-  }
-
-  function next() {
-    if (!validateStep()) return;
+  async function next() {
+    if (!(await validateStep())) return;
     if (rememberInfo && step === 3) {
       localStorage.setItem(LS_KEY, JSON.stringify({
         driverName: form.driverName,
@@ -374,23 +386,21 @@ export function useRegisterForm() {
   }
 
   function back() {
-    setFieldErrors({});
-    setHighlightedField(null);
+    resetValidation();
     setSubmitError('');
     setReturnToReviewAfterEdit(false);
     setStep(s => Math.max(s - 1, 1));
   }
 
   function editStepFromReview(targetStep: 1 | 2 | 3) {
-    setFieldErrors({});
-    setHighlightedField(null);
+    resetValidation();
     setSubmitError('');
     setReturnToReviewAfterEdit(true);
     setStep(targetStep);
   }
 
   async function submit() {
-    if (!validateStep()) return;
+    if (!(await validateStep())) return;
     setSubmitting(true);
     setSubmitError('');
     try {
@@ -440,8 +450,6 @@ export function useRegisterForm() {
   function resetForm() {
     setSuccess(null);
     setStep(1);
-    setFieldErrors({});
-    setHighlightedField(null);
     setSubmitError('');
     setReturnToReviewAfterEdit(false);
     setAwStatus('idle');
@@ -474,9 +482,8 @@ export function useRegisterForm() {
   }, [set]);
 
   return {
+    antForm,
     step,
-    fieldErrors,
-    highlightedField,
     submitting,
     submitError,
     success,
@@ -503,6 +510,7 @@ export function useRegisterForm() {
     awVendorSuggestionsLoading,
     contentRef,
     set,
+    handleValuesChange,
     retryManualReferenceCode,
     selectAutoWarehouseVendor,
     next,

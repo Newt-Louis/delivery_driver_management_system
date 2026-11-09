@@ -1,23 +1,17 @@
 import { ArrowLeftOutlined, ArrowRightOutlined, EnvironmentOutlined, SendOutlined } from '@ant-design/icons';
-import { Alert, Button, Card, Steps, theme, Typography } from 'antd';
+import { Alert, Button, Card, Form, Steps, theme, Typography } from 'antd';
 import type { CSSProperties } from 'react';
 import { useBranding } from '../context/BrandingContext';
 import { usePublicBusinessLocation } from '../context/PublicBusinessLocationContext';
 import { useThemeMode } from '../context/ThemeModeContext';
 import SuccessScreen from '../features/register-manual/components/SuccessScreen';
-import { STEP_HINTS, STEP_TITLES } from '../features/register-manual/constants';
+import { REGISTER_FORM_NAME, STEP_HINTS, STEP_TITLES } from '../features/register-manual/constants';
 import { useRegisterForm } from '../features/register-manual/hooks/useRegisterForm';
 import DriverInfoStep from '../features/register-manual/steps/DriverInfoStep';
 import ReviewSubmitStep from '../features/register-manual/steps/ReviewSubmitStep';
 import ScheduleStep from '../features/register-manual/steps/ScheduleStep';
 import UnitGoodsVehicleStep from '../features/register-manual/steps/UnitGoodsVehicleStep';
-
-function canAdvance(step: number, form: ReturnType<typeof useRegisterForm>['form'], sundayFreshFoodBlocked: boolean, manualReferenceLoading: boolean) {
-  if (step === 1) return Boolean(form.businessLocationId && form.unitConfigId && form.receivingUnit && form.goodsType && form.vehicleType);
-  if (step === 2) return Boolean(form.deliveryDate && form.poNumber.trim() && !sundayFreshFoodBlocked && !manualReferenceLoading);
-  if (step === 3) return Boolean(form.vehiclePlate.trim() && form.driverPhone.replace(/\D/g, '').length >= 9);
-  return true;
-}
+import type { FormState } from '../features/register-manual/types';
 
 export default function RegisterManual() {
   const register = useRegisterForm();
@@ -26,17 +20,16 @@ export default function RegisterManual() {
   const { units: brandUnits } = useBranding();
   const { selectedBusinessLocation, isLoading: publicLocationLoading, error: publicLocationError } = usePublicBusinessLocation();
   const {
-    step, fieldErrors, highlightedField, submitting, submitError, success, form, rememberInfo, setRememberInfo,
+    antForm, step, submitting, submitError, success, form, rememberInfo, setRememberInfo,
     publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig, customGoodsTypes, dailyStats, dailyStatsMsg,
     dailyStatsLoading, manualReferenceLoading, manualReferenceError, vehicleAvailability, vehicleAvailabilityMsg,
     vehicleAvailabilityLoading, sundayFreshFoodBlocked, awStatus, awVendorName,
-    contentRef, set, retryManualReferenceCode,
+    contentRef, set, handleValuesChange, retryManualReferenceCode,
     next, back, editStepFromReview, submit, resetForm,
   } = register;
 
   if (success) return <SuccessScreen info={success} onReset={resetForm} />;
 
-  const readyForNext = canAdvance(step, form, sundayFreshFoodBlocked, manualReferenceLoading);
   const selectedLocationName = selectedBusinessLocation?.locationName ?? '';
   const progressStyle = {
     '--register-step-finish-color': mode === 'dark' ? token.colorSuccessHover : token.colorSuccess,
@@ -73,14 +66,16 @@ export default function RegisterManual() {
             />
           )}
 
-          {step === 1 && <UnitGoodsVehicleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} publicUnits={publicUnits} publicUnitsLoading={publicUnitsLoading} publicUnitsMsg={publicUnitsMsg} unitConfig={unitConfig} customGoodsTypes={customGoodsTypes} vehicleAvailability={vehicleAvailability} vehicleAvailabilityMsg={vehicleAvailabilityMsg} vehicleAvailabilityLoading={vehicleAvailabilityLoading} brandUnits={brandUnits} hasPublicLocation={Boolean(selectedLocationName)} set={set} />}
-          {step === 2 && <ScheduleStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} dailyStats={dailyStats} dailyStatsMsg={dailyStatsMsg} dailyStatsLoading={dailyStatsLoading} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} set={set} onRetryManualReferenceCode={retryManualReferenceCode} />}
-          {step === 3 && <DriverInfoStep form={form} fieldErrors={fieldErrors} highlightedField={highlightedField} rememberInfo={rememberInfo} setRememberInfo={setRememberInfo} set={set} />}
-          {step === 4 && <ReviewSubmitStep form={form} unitConfig={unitConfig} brandUnits={brandUnits} locationName={selectedLocationName} awStatus={awStatus} awVendorName={awVendorName} submitError={submitError} set={set} onEditStep={editStepFromReview} />}
+          <Form<FormState> form={antForm} name={REGISTER_FORM_NAME} layout="vertical" requiredMark={false} component="div" onValuesChange={handleValuesChange}>
+            {step === 1 && <UnitGoodsVehicleStep form={form} publicUnits={publicUnits} publicUnitsLoading={publicUnitsLoading} publicUnitsMsg={publicUnitsMsg} unitConfig={unitConfig} customGoodsTypes={customGoodsTypes} vehicleAvailability={vehicleAvailability} vehicleAvailabilityMsg={vehicleAvailabilityMsg} vehicleAvailabilityLoading={vehicleAvailabilityLoading} brandUnits={brandUnits} hasPublicLocation={Boolean(selectedLocationName)} set={set} />}
+            {step === 2 && <ScheduleStep form={form} dailyStats={dailyStats} dailyStatsMsg={dailyStatsMsg} dailyStatsLoading={dailyStatsLoading} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} set={set} onRetryManualReferenceCode={retryManualReferenceCode} />}
+            {step === 3 && <DriverInfoStep form={form} rememberInfo={rememberInfo} setRememberInfo={setRememberInfo} />}
+            {step === 4 && <ReviewSubmitStep form={form} unitConfig={unitConfig} brandUnits={brandUnits} locationName={selectedLocationName} awStatus={awStatus} awVendorName={awVendorName} submitError={submitError} onEditStep={editStepFromReview} />}
+          </Form>
 
           <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:justify-between">
             {step > 1 ? <Button size="large" icon={<ArrowLeftOutlined />} onClick={back}>Quay lại</Button> : <span />}
-            {step < 4 && readyForNext && <Button type="primary" size="large" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={next}>Tiếp theo</Button>}
+            {step < 4 && <Button type="primary" size="large" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={next}>Tiếp theo</Button>}
             {step === 4 && <Button type="primary" size="large" icon={<SendOutlined />} loading={submitting} onClick={submit}>Hoàn tất đăng ký</Button>}
           </div>
         </div>

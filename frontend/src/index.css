@@ -68,6 +68,22 @@ body .ant-tooltip .ant-tooltip-container {
   --ant-cmp-steps-item-solid-line-color: var(--track-step-finish-color) !important;
 }
 
+/* Non-input content bound to an antd Form.Item (choice groups, read-only values) in /register-manual. */
+.register-field-slot {
+  border-radius: 12px;
+  outline: none;
+  transition: box-shadow 0.2s, background-color 0.2s;
+}
+
+.register-field-slot-error {
+  background-color: var(--ant-color-error-bg);
+  box-shadow: 0 0 0 6px var(--ant-color-error-bg), 0 0 0 7px var(--ant-color-error-border);
+}
+
+.register-field-slot-error .selection-card-button.ant-btn:not(.selection-card-button-selected) {
+  border-color: var(--ant-color-error-border);
+}
+
 /* Rich, single-choice cards are visually distinct from affirmative Buttons and boolean Switches. */
 .selection-card-button.ant-btn {
   position: relative;

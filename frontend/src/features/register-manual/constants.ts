@@ -27,4 +27,6 @@ export const STEP_HINTS = [
 ];
 
 export const LS_KEY = 'qms_driver_info';
+/** Tên antd Form của wizard thủ công; dùng làm tiền tố id field để cuộn tới lỗi. */
+export const REGISTER_FORM_NAME = 'register-manual';
 export const AUTO_TRACK_SECONDS = 15;

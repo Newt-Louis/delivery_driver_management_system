@@ -1,19 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { AppstoreOutlined, CarOutlined, CheckCircleFilled, InboxOutlined, ShopOutlined, ToolOutlined } from '@ant-design/icons';
-import { Alert, Avatar, Button, Card, Empty, Skeleton, Space, Tag, Typography } from 'antd';
+import { Alert, Avatar, Button, Card, Empty, Form, Skeleton, Space, Tag, Typography } from 'antd';
 import AdaptiveGrid from '../../../components/AdaptiveGrid';
 import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingContext';
 import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
 import type { VehicleAvailabilityOption } from '../api';
-import FieldFrame from '../components/FieldFrame';
-import { FieldError, FieldHint } from '../components/FieldFeedback';
+import FormFieldSlot from '../components/FormFieldSlot';
 import { VEHICLE_INFO } from '../constants';
-import type { FormState, RegisterFieldErrors, SetFormField, Unit } from '../types';
+import type { FormState, SetFormField, Unit } from '../types';
 
 type UnitGoodsVehicleStepProps = {
   form: FormState;
-  fieldErrors: RegisterFieldErrors;
-  highlightedField: keyof FormState | null;
   publicUnits: UnitConfig[];
   publicUnitsLoading: boolean;
   publicUnitsMsg: string;
@@ -36,7 +33,7 @@ const GOODS_OPTIONS = [
 const VEHICLE_ICONS = { TRUCK: <CarOutlined />, MOTORBIKE: <CarOutlined /> } as const;
 
 export default function UnitGoodsVehicleStep({
-  form, fieldErrors, highlightedField, publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig,
+  form, publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig,
   customGoodsTypes, vehicleAvailability, vehicleAvailabilityMsg, vehicleAvailabilityLoading, brandUnits,
   hasPublicLocation, set,
 }: UnitGoodsVehicleStepProps) {
@@ -98,92 +95,108 @@ export default function UnitGoodsVehicleStep({
 
   return (
     <div className="space-y-5">
-      <FieldFrame field="receivingUnit" highlightedField={highlightedField} variant="choice">
-        <Card size="small" title={<Space><AppstoreOutlined />Đơn vị giao hàng</Space>}>
-          {!hasPublicLocation && <Alert type="info" showIcon title="Chọn khu vực từ nút nổi toàn cục để xem đơn vị nhận hàng." />}
-          {hasPublicLocation && publicUnitsLoading && <Skeleton active paragraph={{ rows: 3 }} />}
-          {hasPublicLocation && !publicUnitsLoading && publicUnits.length > 0 && (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {publicUnits.map((config) => {
-                const brand = unitBrand(config);
-                const active = form.unitConfigId === config.id;
-                return (
-                  <Button key={config.id} type="default" block aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal !p-0 !text-left ${active ? 'selection-card-button-selected' : ''}`} onClick={() => selectUnit(config)}>
-                    {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
-                    <div className="flex min-h-20 w-full items-center gap-3 px-4 py-3 text-left">
-                      <Avatar shape="square" size={40} className="shrink-0" src={config.logoUrl?.trim() || brand.logoUrl || undefined} icon={<AppstoreOutlined />} />
-                      <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
-                        <Typography.Text strong className="block w-full whitespace-normal">{brand.displayName}</Typography.Text>
-                        <Typography.Text type="secondary" className="block w-full whitespace-normal text-xs">Khu nhận hàng {brand.displayName}</Typography.Text>
+      <Card size="small" title={<Space><AppstoreOutlined />Đơn vị giao hàng</Space>}>
+        <Form.Item<FormState>
+          name="receivingUnit"
+          className="!mb-0"
+          rules={[{
+            validator: async () => {
+              if (!form.businessLocationId) throw new Error('Vui lòng chọn khu vực giao hàng bằng nút chọn khu vực ở góc dưới phải');
+              if (!form.receivingUnit || !form.unitConfigId) throw new Error('Vui lòng chọn đơn vị nhận hàng');
+            },
+          }]}
+        >
+          <FormFieldSlot>
+            {!hasPublicLocation && <Alert type="info" showIcon title="Chọn khu vực từ nút nổi toàn cục để xem đơn vị nhận hàng." />}
+            {hasPublicLocation && publicUnitsLoading && <Skeleton active paragraph={{ rows: 3 }} />}
+            {hasPublicLocation && !publicUnitsLoading && publicUnits.length > 0 && (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {publicUnits.map((config) => {
+                  const brand = unitBrand(config);
+                  const active = form.unitConfigId === config.id;
+                  return (
+                    <Button key={config.id} type="default" block aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal !p-0 !text-left ${active ? 'selection-card-button-selected' : ''}`} onClick={() => selectUnit(config)}>
+                      {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+                      <div className="flex min-h-20 w-full items-center gap-3 px-4 py-3 text-left">
+                        <Avatar shape="square" size={40} className="shrink-0" src={config.logoUrl?.trim() || brand.logoUrl || undefined} icon={<AppstoreOutlined />} />
+                        <div className="flex min-w-0 flex-1 flex-col items-start justify-center gap-0.5">
+                          <Typography.Text strong className="block w-full whitespace-normal">{brand.displayName}</Typography.Text>
+                          <Typography.Text type="secondary" className="block w-full whitespace-normal text-xs">Khu nhận hàng {brand.displayName}</Typography.Text>
+                        </div>
                       </div>
-                    </div>
-                  </Button>
-                );
-              })}
-            </div>
-          )}
-          {hasPublicLocation && !publicUnitsLoading && publicUnits.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={publicUnitsMsg || 'Khu vực này chưa có đơn vị nhận hàng đang hoạt động.'} />}
-          {fieldErrors.receivingUnit && <FieldError text={fieldErrors.receivingUnit} />}
-        </Card>
-      </FieldFrame>
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+            {hasPublicLocation && !publicUnitsLoading && publicUnits.length === 0 && <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={publicUnitsMsg || 'Khu vực này chưa có đơn vị nhận hàng đang hoạt động.'} />}
+          </FormFieldSlot>
+        </Form.Item>
+      </Card>
 
       {form.receivingUnit && <div ref={goodsRef}>
-        <FieldFrame field="goodsType" highlightedField={highlightedField} variant="choice">
-          <Card size="small" title={<Space><InboxOutlined />Loại hàng giao</Space>}>
-            {!unitConfig && <Skeleton active paragraph={{ rows: 2 }} />}
-            {unitConfig && customGoodsTypes.length > 0 && <div className="grid gap-3 sm:grid-cols-2">
-              {customGoodsTypes.map((type) => {
-                const active = form.unitGoodsTypeId === type.id;
-                return <Button key={type.id} type="default" aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`} onClick={() => {
-                  if (active) return;
-                  set('goodsType', type.baseType);
-                  set('unitGoodsTypeId', type.id);
-                  set('vehicleType', '');
-                }}>
-                  {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
-                  <div className="py-2 text-left"><Typography.Text strong>{type.name}</Typography.Text></div>
-                </Button>;
-              })}
-            </div>}
-            {unitConfig && customGoodsTypes.length === 0 && <div className="grid gap-3 sm:grid-cols-2">
-              {GOODS_OPTIONS.filter((option) => (
-                option.value === 'FRESH_FOOD' ? unitConfig.freshFoodEnabled : option.value === 'GENERAL_GOODS' ? unitConfig.generalGoodsEnabled : unitConfig.thiCongEnabled
-              )).map((option) => {
-                const active = form.goodsType === option.value && !form.unitGoodsTypeId;
-                return <Button key={option.value} type="default" aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`} onClick={() => {
-                  if (active) return;
-                  set('goodsType', option.value);
-                  set('unitGoodsTypeId', '');
-                  set('vehicleType', '');
-                }}>
-                  {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
-                  <div className="flex min-h-16 items-center gap-3 px-1 py-2 text-left"><span className="text-lg">{option.icon}</span><Typography.Text strong>{option.label}</Typography.Text></div>
-                </Button>;
-              })}
-            </div>}
-            {unitConfig?.sundayFreshFoodOnly && <Tag color="gold" className="mt-3">Chủ nhật chỉ nhận hàng tươi sống</Tag>}
-            {fieldErrors.goodsType && <FieldError text={fieldErrors.goodsType} />}
-          </Card>
-        </FieldFrame>
+        <Card size="small" title={<Space><InboxOutlined />Loại hàng giao</Space>}>
+          <Form.Item<FormState> name="goodsType" className="!mb-0" rules={[{ required: true, message: 'Vui lòng chọn loại hàng' }]}>
+            <FormFieldSlot>
+              {!unitConfig && <Skeleton active paragraph={{ rows: 2 }} />}
+              {unitConfig && customGoodsTypes.length > 0 && <div className="grid gap-3 sm:grid-cols-2">
+                {customGoodsTypes.map((type) => {
+                  const active = form.unitGoodsTypeId === type.id;
+                  return <Button key={type.id} type="default" aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`} onClick={() => {
+                    if (active) return;
+                    set('goodsType', type.baseType);
+                    set('unitGoodsTypeId', type.id);
+                    set('vehicleType', '');
+                  }}>
+                    {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+                    <div className="py-2 text-left"><Typography.Text strong>{type.name}</Typography.Text></div>
+                  </Button>;
+                })}
+              </div>}
+              {unitConfig && customGoodsTypes.length === 0 && <div className="grid gap-3 sm:grid-cols-2">
+                {GOODS_OPTIONS.filter((option) => (
+                  option.value === 'FRESH_FOOD' ? unitConfig.freshFoodEnabled : option.value === 'GENERAL_GOODS' ? unitConfig.generalGoodsEnabled : unitConfig.thiCongEnabled
+                )).map((option) => {
+                  const active = form.goodsType === option.value && !form.unitGoodsTypeId;
+                  return <Button key={option.value} type="default" aria-pressed={active} className={`selection-card-button !h-auto !whitespace-normal ${active ? 'selection-card-button-selected' : ''}`} onClick={() => {
+                    if (active) return;
+                    set('goodsType', option.value);
+                    set('unitGoodsTypeId', '');
+                    set('vehicleType', '');
+                  }}>
+                    {active && <CheckCircleFilled className="selection-card-check" aria-hidden />}
+                    <div className="flex min-h-16 items-center gap-3 px-1 py-2 text-left"><span className="text-lg">{option.icon}</span><Typography.Text strong>{option.label}</Typography.Text></div>
+                  </Button>;
+                })}
+              </div>}
+              {unitConfig?.sundayFreshFoodOnly && <Tag color="gold" className="mt-3">Chủ nhật chỉ nhận hàng tươi sống</Tag>}
+            </FormFieldSlot>
+          </Form.Item>
+        </Card>
       </div>}
 
       {form.goodsType && <div ref={vehicleRef}>
-        <FieldFrame field="vehicleType" highlightedField={highlightedField} variant="choice">
-          <Card size="small" title={<Space><CarOutlined />Phương tiện giao hàng</Space>}>
-            {vehicleAvailabilityLoading && <Skeleton active paragraph={{ rows: 2 }} />}
-            {!vehicleAvailabilityLoading && vehicleAvailability.length > 0 && <>
-              <div className={`grid gap-3 md:hidden ${vehicleAvailability.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                {vehicleAvailability.map(renderVehicleChoice)}
-              </div>
-              <AdaptiveGrid minColumnWidth={180} maxColumnWidth={240} className="hidden md:grid">
-                {vehicleAvailability.map(renderVehicleChoice)}
-              </AdaptiveGrid>
-            </>}
-            {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && <Alert type="warning" showIcon title={vehicleAvailabilityMsg || 'Không có phương tiện phù hợp cho loại hàng này.'} />}
-            <FieldHint text={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn loại phương tiện giao hàng.'} />
-            {fieldErrors.vehicleType && <FieldError text={fieldErrors.vehicleType} />}
-          </Card>
-        </FieldFrame>
+        <Card size="small" title={<Space><CarOutlined />Phương tiện giao hàng</Space>}>
+          <Form.Item<FormState>
+            name="vehicleType"
+            className="!mb-0"
+            rules={[{ required: true, message: 'Vui lòng chọn loại phương tiện' }]}
+            extra={form.vehicleType && VEHICLE_INFO[form.vehicleType] ? VEHICLE_INFO[form.vehicleType].hint : 'Chọn loại phương tiện giao hàng.'}
+          >
+            <FormFieldSlot>
+              {vehicleAvailabilityLoading && <Skeleton active paragraph={{ rows: 2 }} />}
+              {!vehicleAvailabilityLoading && vehicleAvailability.length > 0 && <>
+                <div className={`grid gap-3 md:hidden ${vehicleAvailability.length > 1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {vehicleAvailability.map(renderVehicleChoice)}
+                </div>
+                <AdaptiveGrid minColumnWidth={180} maxColumnWidth={240} className="hidden md:grid">
+                  {vehicleAvailability.map(renderVehicleChoice)}
+                </AdaptiveGrid>
+              </>}
+              {!vehicleAvailabilityLoading && vehicleAvailability.length === 0 && <Alert type="warning" showIcon title={vehicleAvailabilityMsg || 'Không có phương tiện phù hợp cho loại hàng này.'} />}
+            </FormFieldSlot>
+          </Form.Item>
+        </Card>
       </div>}
     </div>
   );

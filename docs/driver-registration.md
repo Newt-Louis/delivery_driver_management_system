@@ -75,7 +75,9 @@ Logic trong `useRegisterForm.ts`:
 - Lấy thống kê mật độ đăng ký theo ngày: `GET /api/units/:unit/daily-registration-stats?month=YYYY-MM&goodsType=...&vehicleType=...&businessLocationId=...&unitConfigId=...`.
 - Lấy ngày giao hàng: `POST /api/deliveries/manual-registration-code` trả `deliveryDate` theo ngày Việt Nam của server; mã tạo kèm không được dùng trong wizard.
 - Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend kiểm tra ngày hiện tại và tự lưu `requestedTime` tại `00:00` giờ Việt Nam nếu payload không gửi giờ. Nếu client không gửi ngày, backend tự dùng ngày hiện tại.
-- Scroll tới field lỗi đầu tiên khi validate fail.
+- Các field của wizard là `Form.Item name + rules` của antd trong một `Form` dùng chung (`REGISTER_FORM_NAME`); nhóm thẻ chọn (đơn vị, loại hàng, phương tiện) và ngày giao được bọc bằng `FormFieldSlot` để dùng chung rules/trạng thái lỗi.
+- Nút **Tiếp theo**/**Hoàn tất đăng ký** luôn hiển thị. Khi bấm, `antForm.validateFields()` kiểm tra các field đang hiển thị của step; field lỗi được viền đỏ và hiện dòng lỗi đỏ ngay bên dưới, trang cuộn tới field lỗi nằm cao nhất (input text được focus).
+- State `form` trong `useRegisterForm` vẫn là nguồn dữ liệu chính cho các effect gọi API: giá trị người dùng nhập đi vào state qua `onValuesChange`; thay đổi lập trình (chọn thẻ, quét mã, reset, dữ liệu API) được đẩy ngược vào antd form và xóa lỗi của field đó.
 - Khi sửa từ step review, bấm tiếp theo quay lại step 4.
 
 Các step trong `frontend/src/features/register-manual/*` thuộc wizard thủ công; một số API, component và helper được trang đăng ký mặc định dùng chung.

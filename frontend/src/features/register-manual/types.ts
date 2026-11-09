@@ -39,8 +39,6 @@ export interface SuccessInfo {
   locationName: string;
 }
 
-export type RegisterFieldErrors = Partial<Record<keyof FormState, string>>;
-
 export type SetFormField = (key: keyof FormState, val: string) => void;
 
 export interface DateOption {
