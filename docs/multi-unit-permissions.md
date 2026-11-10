@@ -2,7 +2,9 @@
 
 ## Mục Tiêu
 
-Một tài khoản vận hành có thể được phân quyền thao tác trên nhiều `UnitConfig` trong cùng `BusinessLocation`. Áp dụng cho `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`, `CHECKIN`.
+Một tài khoản vận hành có thể được phân quyền thao tác trên nhiều `UnitConfig` trong cùng `BusinessLocation`. Áp dụng cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN`.
+
+`ADMIN_LOC` không được gán unit riêng: operation scope của `ADMIN_LOC` luôn là toàn bộ `UnitConfig` thuộc `BusinessLocation` của tài khoản (`roleUsesLocationWideUnits`).
 
 Scope chính vẫn là:
 
@@ -40,7 +42,7 @@ Helper chính:
 - `enforceDeliveryUnitPermission(req, res, delivery, operation)`: chặn thao tác delivery theo unit.
 - `enforceUserUnitPermissionForUnit(req, res, receivingUnit, operation)`: chặn thao tác trực tiếp theo unit code.
 
-Các role `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`, `CHECKIN` đều bị enforce theo unit permission khi thao tác trên resource có unit. `SUPERADMIN` không bị giới hạn operation scope.
+Các role `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`, `CHECKIN` đều bị enforce theo unit permission khi thao tác trên resource có unit. Với `ADMIN_LOC`, `getUserUnitPermissions`/`getUserUnitPermissionsFromDb` resolve thành mọi `UnitConfig` của location thay vì đọc `user_unit_permissions`; Superadmin tạo/sửa/deactivate/xóa `UnitConfig` sẽ refresh permission cache và auth profile của các `ADMIN_LOC` trong location đó. `SUPERADMIN` không bị giới hạn operation scope.
 
 ## API User
 
@@ -94,14 +96,15 @@ Module backend:
 - `backend/prisma/migrations/20260803110000_add_user_deleted_at/migration.sql`: thêm `users.deleted_at` để soft-delete user.
 - `backend/prisma/migrations/20260804100000_add_user_updated_at/migration.sql`: thêm `users.updated_at` để UI quản trị hiển thị thời điểm cập nhật tài khoản.
 
-Với role `ADMIN_LOC`/`ADMIN_OPE`/`CHECKIN`/`RECEIVING`, backend bắt buộc có ít nhất một unit permission. Nếu client cũ chỉ gửi `unit`, backend sẽ dùng `unit` để resolve một `UnitConfig` tương ứng nhằm giữ tương thích.
+Với role `ADMIN_OPE`/`CHECKIN`/`RECEIVING`, backend bắt buộc có ít nhất một unit permission (`roleRequiresUnitPermission`). Với `ADMIN_LOC`, backend bỏ qua `unitConfigIds` và xóa các `user_unit_permissions` cũ khi lưu. Nếu client cũ chỉ gửi `unit`, backend sẽ dùng `unit` để resolve một `UnitConfig` tương ứng nhằm giữ tương thích.
 
 User lifecycle:
 
 - `isActive = true`, `deletedAt = null`: tài khoản đăng nhập và thao tác bình thường theo role/unit scope.
 - `isActive = false`, `deletedAt = null`: tài khoản bị disable, không được đăng nhập; dữ liệu vẫn hiện trong màn hình quản trị phù hợp.
 - `deletedAt != null`: tài khoản đã bị soft-delete. Non-superadmin API quản lý nhân viên không query dòng này; Superadmin vẫn thấy để audit và có thể `Regenerate`.
-- `SUPERADMIN` CUD lifecycle `ADMIN_LOC` và `ADMIN_OPE`, đồng thời gán unit scope cho hai role này.
+- `SUPERADMIN` CUD lifecycle `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`, `CHECKIN`, gán location cho mọi role này và gán unit scope cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN`.
+- `PATCH /api/users/:id` nhận thêm `password` (tùy chọn, tối thiểu 6 ký tự) để Superadmin đổi mật khẩu ngay trong modal chỉnh sửa; audit chỉ ghi `metadata.passwordReset = true`, không ghi mật khẩu. `POST /api/users` nhận thêm `isActive` (mặc định `true`).
 - `ADMIN_LOC` CUD lifecycle `RECEIVING` và `CHECKIN`.
 - `ADMIN_LOC` được thấy `ADMIN_OPE` trong API location-staff, nhưng chỉ được PATCH scope-only (`unit`, `unitConfigIds`) cho `ADMIN_OPE`; không reset password, disable, delete hoặc sửa thông tin hồ sơ của `ADMIN_OPE`.
 - `DELETE /api/users/:id` và `DELETE /api/users/location-staff/:id` set `deletedAt` và revoke session/cache thay vì hard-delete nếu actor có lifecycle permission trên target role.

@@ -391,6 +391,7 @@ export async function createUser(body: CreateUserPayload, user: AuthUser | undef
     unit: assignment.unit,
     department: body.department ?? null,
     businessLocationId,
+    isActive: body.isActive,
   });
   await replaceUserUnitPermissions(created.id, assignment.unitConfigIds);
   await refreshAuthUserCache(created.id);
@@ -447,10 +448,13 @@ export async function updateUser(id: string, body: UpdateUserPayload, requester:
   assertCanAssignScopeForRole(requester, nextRole);
   assertCanAssignUnits(requester, assignment.unitConfigIds);
 
+  const { password, ...profileChanges } = body;
+  const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
   const updated = await userRepository.updateUser(id, {
-    ...body,
+    ...profileChanges,
     unit: assignment.unit,
     businessLocationId,
+    passwordHash,
   });
   await replaceUserUnitPermissions(updated.id, assignment.unitConfigIds);
   await refreshAuthUserCache(updated.id);
@@ -474,6 +478,7 @@ export async function updateUser(id: string, body: UpdateUserPayload, requester:
     businessLocationId,
     before: auditUserSnapshot(before),
     after: auditUserSnapshot(after),
+    ...(passwordHash ? { metadata: { passwordReset: true } } : {}),
   });
   return after;
 }

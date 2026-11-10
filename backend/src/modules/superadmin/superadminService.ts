@@ -45,7 +45,20 @@ function maskAppConfig<T extends { isSensitive: boolean; value: unknown }>(item:
   };
 }
 
-async function refreshUsersForUnit(unitConfigId: string) {
+// ADMIN_LOC operation scope covers every unit of its location, so any unit
+// change in that location must refresh its cached permissions and profile.
+async function refreshLocationAdmins(businessLocationId: string) {
+  const admins = await prisma.user.findMany({
+    where: { businessLocationId, role: 'ADMIN_LOC', deletedAt: null },
+    select: { id: true },
+  });
+  await Promise.all(admins.map(async ({ id }) => {
+    await invalidateUserUnitPermissionCache(id);
+    await refreshAuthUserCache(id);
+  }));
+}
+
+async function refreshUsersForUnit(unitConfigId: string, businessLocationId: string) {
   const permissions = await prisma.userUnitPermission.findMany({
     where: { unitConfigId },
     select: { userId: true },
@@ -54,6 +67,7 @@ async function refreshUsersForUnit(unitConfigId: string) {
     await invalidateUserUnitPermissionCache(userId);
     await refreshAuthUserCache(userId);
   }));
+  await refreshLocationAdmins(businessLocationId);
 }
 
 async function refreshUsersForLocation(businessLocationId: string, revokeInactive = false) {
@@ -201,6 +215,7 @@ export async function createUnitConfig(body: UnitConfigCreate, actor: AuthUser |
 
   const unit = await prisma.unitConfig.create({ data: body });
   await ensureUnitUploadDirectory(location.code, unit.unit);
+  await refreshLocationAdmins(unit.businessLocationId);
   await recordAuditLog({
     ...userActor(actor),
     action: 'unit_config.create',
@@ -219,7 +234,7 @@ export async function updateUnitConfig(id: string, body: UnitConfigUpdate, actor
 
   const unit = await prisma.unitConfig.update({ where: { id }, data: body });
   if (body.isActive !== undefined || body.unit !== undefined || body.displayName !== undefined || body.shortName !== undefined) {
-    await refreshUsersForUnit(id);
+    await refreshUsersForUnit(id, unit.businessLocationId);
   }
   await recordAuditLog({
     ...userActor(actor),
@@ -258,7 +273,7 @@ export async function deleteUnitConfig(id: string, actor: AuthUser | undefined) 
   const linked = Object.values(existing._count).some((count) => count > 0);
   if (linked) {
     const unit = await prisma.unitConfig.update({ where: { id }, data: { isActive: false } });
-    await refreshUsersForUnit(id);
+    await refreshUsersForUnit(id, unit.businessLocationId);
     await recordAuditLog({
       ...userActor(actor),
       action: 'unit_config.deactivate',
@@ -273,6 +288,7 @@ export async function deleteUnitConfig(id: string, actor: AuthUser | undefined) 
   }
 
   await prisma.unitConfig.delete({ where: { id } });
+  await refreshLocationAdmins(existing.businessLocationId);
   await recordAuditLog({
     ...userActor(actor),
     action: 'unit_config.delete',

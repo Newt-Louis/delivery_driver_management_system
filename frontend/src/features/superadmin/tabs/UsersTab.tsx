@@ -1,10 +1,10 @@
-import { Fragment, FormEvent, ReactNode, useMemo, useState } from 'react';
+import { Fragment, ReactNode, useMemo, useState } from 'react';
 import type { Role, UnitConfig, User } from '../../../lib/types';
 import { canManageUserRole } from '../../../lib/permissions';
 import { superadminApi } from '../api';
 import type { BusinessLocation } from '../types';
-import { Alert, AutoComplete, Avatar, Button, Card, Checkbox, Collapse, Descriptions, Empty, Flex, Grid, Input, Modal, Pagination, Popconfirm, Select, Space, Table, Tag, Tooltip, Typography, type TableColumnsType } from 'antd';
-import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, StopOutlined, CheckOutlined } from '@ant-design/icons';
+import { Alert, AutoComplete, Avatar, Button, Card, Checkbox, Col, Collapse, Descriptions, Empty, Flex, Form, Grid, Input, Modal, Pagination, Popconfirm, Row, Select, Space, Table, Tag, Tooltip, Typography, type TableColumnsType } from 'antd';
+import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons';
 import ResponsiveDataToolbar, { SearchButton } from '../../backoffice/components/ResponsiveDataToolbar';
 
 type UserRow = User & {
@@ -17,21 +17,29 @@ type SortKey = 'name' | 'email' | 'role' | 'location' | 'units' | 'status' | 'cr
 type SortDirection = 'asc' | 'desc';
 type SortRule = { key: SortKey; direction: SortDirection };
 
-type UserFormState = {
+type ManagedRole = 'ADMIN_LOC' | 'ADMIN_OPE' | 'RECEIVING' | 'CHECKIN';
+
+type UserFormValues = {
+  businessLocationId?: string;
+  role: ManagedRole;
+  unitConfigIds: string[];
   name: string;
   email: string;
-  password: string;
-  role: 'ADMIN_LOC' | 'ADMIN_OPE';
-  businessLocationId: string;
-  department: string;
-  unitConfigIds: string[];
+  password?: string;
+  department?: string;
+  isActive: boolean;
 };
 
 type UserModalState =
   | { mode: 'create'; user?: undefined }
   | { mode: 'edit'; user: UserRow };
 
-const ROLE_OPTIONS: Array<'ADMIN_LOC' | 'ADMIN_OPE'> = ['ADMIN_LOC', 'ADMIN_OPE'];
+const ROLE_OPTIONS: Array<{ value: ManagedRole; label: string }> = [
+  { value: 'ADMIN_LOC', label: 'Admin Khu Vực' },
+  { value: 'ADMIN_OPE', label: 'Admin Điều Phối' },
+  { value: 'RECEIVING', label: 'Nhân viên nhận hàng' },
+  { value: 'CHECKIN', label: 'Nhân viên Check-In' },
+];
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
 
 function userStatus(user: UserRow): UserStatus {
@@ -80,19 +88,20 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return <>{parts.map((part, idx) => <Fragment key={idx}>{part}</Fragment>)}</>;
 }
 
-function userFormInitialState(locations: BusinessLocation[], user?: UserRow): UserFormState {
-  const editableRole = user?.role && ROLE_OPTIONS.includes(user.role as 'ADMIN_LOC' | 'ADMIN_OPE')
-    ? user.role as 'ADMIN_LOC' | 'ADMIN_OPE'
-    : 'ADMIN_LOC';
+function isManagedRole(role: string | undefined): role is ManagedRole {
+  return ROLE_OPTIONS.some((option) => option.value === role);
+}
 
+function userFormInitialValues(user?: UserRow): UserFormValues {
   return {
+    businessLocationId: user?.businessLocationId ?? undefined,
+    role: isManagedRole(user?.role) ? user.role : 'ADMIN_LOC',
+    unitConfigIds: user?.unitPermissions?.map((unit) => unit.id) ?? [],
     name: user?.name ?? '',
     email: user?.email ?? '',
     password: '',
-    role: editableRole,
-    businessLocationId: user?.businessLocationId ?? locations[0]?.id ?? '',
     department: user?.department ?? '',
-    unitConfigIds: user?.unitPermissions?.map((unit) => unit.id) ?? [],
+    isActive: user?.isActive ?? true,
   };
 }
 
@@ -113,43 +122,32 @@ function UserFormModal({
   onClose: () => void;
   onDone: () => void;
 }) {
-  const [form, setForm] = useState(() => userFormInitialState(locations, user));
+  const [form] = Form.useForm<UserFormValues>();
+  const [initialValues] = useState(() => userFormInitialValues(user));
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const locationUnits = units.filter((unit) => unit.businessLocationId === form.businessLocationId && (unit.isActive ?? true));
+  const role = Form.useWatch('role', form) ?? initialValues.role;
+  const businessLocationId = Form.useWatch('businessLocationId', form) ?? initialValues.businessLocationId;
+  const needsUnits = role !== 'ADMIN_LOC';
+  // Keep already-assigned inactive units visible so editing does not drop them silently.
+  const locationUnits = units.filter((unit) => unit.businessLocationId === businessLocationId
+    && ((unit.isActive ?? true) || initialValues.unitConfigIds.includes(unit.id)));
 
-  function toggleUnit(id: string) {
-    setForm((current) => ({
-      ...current,
-      unitConfigIds: current.unitConfigIds.includes(id)
-        ? current.unitConfigIds.filter((unitId) => unitId !== id)
-        : [...current.unitConfigIds, id],
-    }));
-  }
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
+  async function submit(values: UserFormValues) {
     setError('');
-    if (!form.businessLocationId) {
-      setError('Chọn BusinessLocation trước khi lưu tài khoản.');
-      return;
-    }
-    if (form.unitConfigIds.length === 0) {
-      setError('Tài khoản vận hành phải được gán ít nhất một unit operation scope.');
-      return;
-    }
-
-    const firstUnit = locationUnits.find((unitConfig) => unitConfig.id === form.unitConfigIds[0]);
+    const unitConfigIds = needsUnits ? values.unitConfigIds ?? [] : [];
+    const firstUnit = locationUnits.find((unitConfig) => unitConfig.id === unitConfigIds[0]);
     const payload: Record<string, unknown> = {
-      name: form.name,
-      email: form.email,
-      role: form.role,
-      businessLocationId: form.businessLocationId,
-      department: form.department || null,
+      name: values.name.trim(),
+      email: values.email.trim(),
+      role: values.role,
+      businessLocationId: values.businessLocationId,
+      department: values.department?.trim() || null,
       unit: firstUnit?.unit ?? null,
-      unitConfigIds: form.unitConfigIds,
+      unitConfigIds,
+      isActive: values.isActive,
     };
-    if (mode === 'create') payload.password = form.password;
+    if (values.password) payload.password = values.password;
 
     try {
       setSaving(true);
@@ -160,14 +158,109 @@ function UserFormModal({
       }
       onDone();
     } catch (err) {
-      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Không lưu được tài khoản.');
+      const data = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
+      setError(data?.message ?? data?.error ?? 'Không lưu được tài khoản.');
     } finally {
       setSaving(false);
     }
   }
 
-  return <Modal open title={mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản'} onCancel={onClose} footer={null} width={900} maskClosable={!saving} closable={!saving} keyboard={!saving}><form onSubmit={submit} className="space-y-4"><div className="grid sm:grid-cols-2 gap-3"><Input aria-label="Họ tên" placeholder="Họ tên" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required /><Input aria-label="Email" type="email" placeholder="Email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} required />{mode === 'create' && <Input.Password aria-label="Mật khẩu" placeholder="Mật khẩu" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} required minLength={6} />}<Select aria-label="Role" value={form.role} onChange={v => setForm({ ...form, role: v })} options={ROLE_OPTIONS.map(v => ({ value: v, label: v }))} /><Select aria-label="Location" value={form.businessLocationId || undefined} onChange={v => setForm({ ...form, businessLocationId: v, unitConfigIds: [] })} options={locations.map(l => ({ value: l.id, label: `${l.code} - ${l.locationName}` }))} /><Input aria-label="Bộ phận hoặc ghi chú" placeholder="Bộ phận/ghi chú" value={form.department} onChange={e => setForm({ ...form, department: e.target.value })} /></div><Space wrap>{locationUnits.map(unit => <Checkbox key={unit.id} checked={form.unitConfigIds.includes(unit.id)} onChange={() => toggleUnit(unit.id)}>{unit.unit} - {unit.displayName}</Checkbox>)}{!locationUnits.length && <Typography.Text type="secondary">Location này chưa có unit active.</Typography.Text>}</Space>{error && <Alert type="error" message={error} />}<div className="flex justify-end gap-2"><Button onClick={onClose} disabled={saving}>Hủy</Button><Button type="primary" htmlType="submit" loading={saving}>Lưu</Button></div></form></Modal>;
-
+  return (
+    <Modal
+      open
+      centered
+      title={mode === 'edit' ? 'Chỉnh sửa tài khoản' : 'Tạo tài khoản'}
+      width="min(760px, calc(100vw - 32px))"
+      styles={{ body: { maxHeight: 'calc(100dvh - 200px)', overflowY: 'auto' } }}
+      onCancel={onClose}
+      maskClosable={!saving}
+      closable={!saving}
+      keyboard={!saving}
+      footer={[
+        <Button key="cancel" onClick={onClose} disabled={saving}>Hủy</Button>,
+        <Button key="submit" type="primary" loading={saving} onClick={() => form.submit()}>Lưu</Button>,
+      ]}
+    >
+      <Form<UserFormValues>
+        form={form}
+        layout="vertical"
+        initialValues={initialValues}
+        onFinish={submit}
+        onValuesChange={() => setError('')}
+      >
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Form.Item name="businessLocationId" label="Khu vực" rules={[{ required: true, message: 'Vui lòng chọn khu vực.' }]}>
+              <Select
+                placeholder="Chọn khu vực"
+                showSearch={{ optionFilterProp: 'label' }}
+                options={locations.map((location) => ({ value: location.id, label: `${location.code} - ${location.locationName}` }))}
+                onChange={() => form.setFieldValue('unitConfigIds', [])}
+              />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item name="role" label="Vai trò" rules={[{ required: true, message: 'Vui lòng chọn vai trò.' }]}>
+              <Select options={ROLE_OPTIONS} />
+            </Form.Item>
+          </Col>
+          {needsUnits && (
+            <Col xs={24} sm={12}>
+              <Form.Item
+                name="unitConfigIds"
+                label="Đơn vị được phép"
+                rules={[{ required: true, type: 'array', min: 1, message: 'Vui lòng chọn ít nhất một đơn vị.' }]}
+              >
+                <Select
+                  mode="multiple"
+                  allowClear
+                  disabled={!businessLocationId}
+                  placeholder={businessLocationId ? 'Chọn đơn vị' : 'Chọn khu vực trước'}
+                  showSearch={{ optionFilterProp: 'label' }}
+                  notFoundContent="Khu vực này chưa có đơn vị hoạt động."
+                  options={locationUnits.map((unit) => ({
+                    value: unit.id,
+                    label: `${unit.unit} - ${unit.displayName}${(unit.isActive ?? true) ? '' : ' (ngừng hoạt động)'}`,
+                  }))}
+                />
+              </Form.Item>
+            </Col>
+          )}
+          <Col xs={24} sm={12}>
+            <Form.Item name="name" label="Họ và tên" rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập họ và tên.' }, { max: 80 }]}>
+              <Input placeholder="Nguyễn Văn A" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item name="email" label="Email" rules={[{ required: true, message: 'Vui lòng nhập email.' }, { type: 'email', message: 'Email không hợp lệ.' }]}>
+              <Input type="email" placeholder="ten@thaco.vn" autoComplete="off" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item
+              name="password"
+              label={mode === 'edit' ? 'Mật khẩu mới' : 'Mật khẩu'}
+              extra={mode === 'edit' ? 'Để trống nếu không đổi mật khẩu.' : undefined}
+              rules={[{ required: mode === 'create', message: 'Vui lòng nhập mật khẩu.' }, { min: 6, message: 'Mật khẩu tối thiểu 6 ký tự.' }]}
+            >
+              <Input.Password placeholder="Tối thiểu 6 ký tự" autoComplete="new-password" />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item name="department" label="Bộ phận / Ghi chú" rules={[{ max: 100 }]}>
+              <Input placeholder="Ví dụ: Ca sáng, cổng B..." />
+            </Form.Item>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Form.Item name="isActive" label="Trạng thái" valuePropName="checked">
+              <Checkbox>Tài khoản đang hoạt động</Checkbox>
+            </Form.Item>
+          </Col>
+        </Row>
+        {error && <Alert type="error" showIcon title={error} />}
+      </Form>
+    </Modal>
+  );
 }
 
 export default function UsersTab({ users, locations, units, onRefresh }: { users: UserRow[]; locations: BusinessLocation[]; units: UnitConfig[]; onRefresh: () => void }) {
@@ -286,7 +379,6 @@ export default function UsersTab({ users, locations, units, onRefresh }: { users
     const disabled = !canManageUserRole('SUPERADMIN', user.role) || user.role === 'SUPERADMIN' || busy;
     return <Space size="small" onClick={event => event.stopPropagation()}>
       <Tooltip title="Chỉnh sửa"><Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa ${user.name}`} disabled={disabled || deleted} onClick={() => setModal({ mode: 'edit', user })} /></Tooltip>
-      {!deleted && <Tooltip title={user.isActive ? 'Disable' : 'Active'}><Button color={user.isActive ? 'danger' : 'primary'} variant="solid" size="small" icon={user.isActive ? <StopOutlined /> : <CheckOutlined />} aria-label={`${user.isActive ? 'Disable' : 'Active'} ${user.name}`} disabled={disabled} loading={busy} onClick={() => mutateUser(user.id, () => superadminApi.updateUser(user.id, { isActive: !user.isActive }))} /></Tooltip>}
       {deleted ? <Tooltip title="Regenerate"><Button type="primary" size="small" icon={<ReloadOutlined />} aria-label={`Regenerate ${user.name}`} disabled={disabled} loading={busy} onClick={() => mutateUser(user.id, () => superadminApi.regenerateUser(user.id))} /></Tooltip> : <Popconfirm title={`Xóa mềm tài khoản ${user.email}?`} onConfirm={() => mutateUser(user.id, () => superadminApi.deleteUser(user.id))}><Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Delete ${user.name}`} disabled={disabled} loading={busy} /></Popconfirm>}
     </Space>;
   }

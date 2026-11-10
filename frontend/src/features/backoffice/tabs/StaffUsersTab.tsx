@@ -13,7 +13,6 @@ import {
   Avatar,
   Button,
   Card,
-  Checkbox,
   Col,
   Collapse,
   Descriptions,
@@ -204,7 +203,7 @@ function StaffUserModal({
       ]}
     >
       <Form layout="vertical" requiredMark={false} onFinish={submit}>
-        {isScopeOnlyEdit ? (
+        {isScopeOnlyEdit && (
           <Alert
             className="mb-4"
             type="info"
@@ -212,58 +211,69 @@ function StaffUserModal({
             title={user?.name}
             description="ADMIN_LOC chỉ được chỉnh phạm vi đơn vị thao tác của ADMIN_OPE."
           />
-        ) : (
-          <>
-            <Form.Item label="Họ và tên" required>
-              <Input value={form.name} placeholder="Nguyễn Văn A" onChange={(event) => setField('name', event.target.value)} />
-            </Form.Item>
-            <Form.Item label="Email">
-              <Input type="email" value={form.email} placeholder="co-the-bo-trong@thaco.vn" onChange={(event) => setField('email', event.target.value)} />
-              <Typography.Text type="secondary" className="text-xs">Để trống thì hệ thống sinh email nội bộ để giữ tính unique.</Typography.Text>
-            </Form.Item>
-            {!isEdit && (
-              <Form.Item label="Mật khẩu" required>
-                <Input.Password value={form.password} placeholder="Tối thiểu 6 ký tự" onChange={(event) => setField('password', event.target.value)} />
-              </Form.Item>
-            )}
-            <Form.Item label="Vai trò" required>
+        )}
+        <Row gutter={16}>
+          {!isScopeOnlyEdit && (
+            <>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Họ và tên" required>
+                  <Input value={form.name} placeholder="Nguyễn Văn A" onChange={(event) => setField('name', event.target.value)} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Email" extra="Để trống thì hệ thống sinh email nội bộ để giữ tính unique.">
+                  <Input type="email" value={form.email} placeholder="co-the-bo-trong@thaco.vn" onChange={(event) => setField('email', event.target.value)} />
+                </Form.Item>
+              </Col>
+              {!isEdit && (
+                <Col xs={24} sm={12}>
+                  <Form.Item label="Mật khẩu" required>
+                    <Input.Password value={form.password} placeholder="Tối thiểu 6 ký tự" onChange={(event) => setField('password', event.target.value)} />
+                  </Form.Item>
+                </Col>
+              )}
+              <Col xs={24} sm={12}>
+                <Form.Item label="Vai trò" required>
+                  <Select
+                    value={form.role}
+                    options={manageableRoles.map((role) => ({ value: role, label: STAFF_ROLE_META[role].label }))}
+                    onChange={selectRole}
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item label="Bộ phận / Ca làm việc">
+                  <Input value={form.department} maxLength={100} placeholder="Ví dụ: Ca sáng, cổng B, kho tươi..." onChange={(event) => setField('department', event.target.value)} />
+                </Form.Item>
+              </Col>
+              {isEdit && (
+                <Col xs={24} sm={12}>
+                  <Form.Item label="Trạng thái tài khoản">
+                    <Switch checked={form.isActive} checkedChildren="Hoạt động" unCheckedChildren="Vô hiệu" onChange={(checked) => setField('isActive', checked)} />
+                  </Form.Item>
+                </Col>
+              )}
+            </>
+          )}
+          <Col xs={24} sm={isScopeOnlyEdit ? 24 : 12}>
+            <Form.Item label="Đơn vị được phép" required extra="Có thể chọn một hoặc nhiều đơn vị trong BusinessLocation hiện tại.">
               <Select
-                value={form.role}
-                options={manageableRoles.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon ? `${STAFF_ROLE_META[role].icon} ` : ''}${STAFF_ROLE_META[role].label}` }))}
-                onChange={selectRole}
+                mode="multiple"
+                allowClear
+                className="w-full"
+                placeholder="Chọn đơn vị"
+                value={form.unitConfigIds}
+                onChange={(ids: string[]) => setField('unitConfigIds', ids)}
+                showSearch={{ optionFilterProp: 'label' }}
+                notFoundContent="Chưa có đơn vị trong location hiện tại."
+                options={unitConfigs.map((unit) => ({
+                  value: unit.id,
+                  label: `${unit.icon?.trim() || '🏬'} ${unitLabel(unit)} (${unit.shortName || unit.unit})`,
+                }))}
               />
             </Form.Item>
-          </>
-        )}
-
-        <Form.Item label="Đơn vị được phép" required>
-          {unitConfigs.length === 0 ? (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Chưa có đơn vị trong location hiện tại." />
-          ) : (
-            <Checkbox.Group value={form.unitConfigIds} onChange={(ids) => setField('unitConfigIds', ids.map(String))} className="w-full">
-              <Space orientation="vertical" size="small" className="w-full">
-                {unitConfigs.map((unit) => (
-                  <Checkbox key={unit.id} value={unit.id} className="w-full">
-                    {unit.icon?.trim() || '🏬'} {unitLabel(unit)}
-                    <Typography.Text type="secondary" className="ml-2 text-xs">{unit.shortName || unit.unit}</Typography.Text>
-                  </Checkbox>
-                ))}
-              </Space>
-            </Checkbox.Group>
-          )}
-          <Typography.Text type="secondary" className="text-xs">Có thể chọn một hoặc nhiều đơn vị trong BusinessLocation hiện tại.</Typography.Text>
-        </Form.Item>
-
-        {!isScopeOnlyEdit && (
-          <Form.Item label="Bộ phận / Ca làm việc">
-            <Input value={form.department} maxLength={100} placeholder="Ví dụ: Ca sáng, cổng B, kho tươi..." onChange={(event) => setField('department', event.target.value)} />
-          </Form.Item>
-        )}
-        {isEdit && !isScopeOnlyEdit && (
-          <Form.Item label="Trạng thái tài khoản">
-            <Switch checked={form.isActive} checkedChildren="Hoạt động" unCheckedChildren="Vô hiệu" onChange={(checked) => setField('isActive', checked)} />
-          </Form.Item>
-        )}
+          </Col>
+        </Row>
         {error && <Alert type="error" showIcon title={error} />}
       </Form>
     </Modal>
@@ -422,7 +432,7 @@ export default function StaffUsersTab() {
       title: 'Vai trò',
       dataIndex: 'role',
       width: 200,
-      render: (role: StaffRoleValue) => <Tag>{STAFF_ROLE_META[role].icon} {STAFF_ROLE_META[role].label}</Tag>,
+      render: (role: StaffRoleValue) => <Tag>{STAFF_ROLE_META[role].label}</Tag>,
     },
     {
       title: 'Đơn vị',
@@ -531,7 +541,7 @@ export default function StaffUsersTab() {
             </Space>
             <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Vai trò</Typography.Text>
-              <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => { setFilterRole(value ?? ''); setPage(1); }} options={STAFF_ROLES.map((role) => ({ value: role, label: `${STAFF_ROLE_META[role].icon ? `${STAFF_ROLE_META[role].icon} ` : ''}${STAFF_ROLE_META[role].label}` }))} />
+              <Select className="min-w-48" allowClear placeholder="Tất cả vai trò" value={filterRole || undefined} onChange={(value) => { setFilterRole(value ?? ''); setPage(1); }} options={STAFF_ROLES.map((role) => ({ value: role, label: STAFF_ROLE_META[role].label }))} />
             </Space>
             <Space orientation="vertical" size={4}>
               <Typography.Text type="secondary">Đơn vị</Typography.Text>
@@ -591,7 +601,7 @@ export default function StaffUsersTab() {
               children: (
                 <Descriptions size="small" column={1} items={[
                   { key: 'email', label: 'Email đăng nhập', children: <Typography.Text code>{user.email}</Typography.Text> },
-                  { key: 'role', label: 'Vai trò', children: <Tag>{STAFF_ROLE_META[user.role].icon} {STAFF_ROLE_META[user.role].label}</Tag> },
+                  { key: 'role', label: 'Vai trò', children: <Tag>{STAFF_ROLE_META[user.role].label}</Tag> },
                   { key: 'units', label: 'Đơn vị', children: user.unitPermissions?.length ? <Space size={[4, 4]} wrap>{user.unitPermissions.map((unit) => <Tag key={unit.id}>{unit.icon?.trim() || '🏬'} {staffPermissionUnitLabel(unit)}</Tag>)}</Space> : user.unit || '—' },
                   { key: 'department', label: 'Bộ phận', children: user.department || '—' },
                   { key: 'status', label: 'Trạng thái', children: <Tag color={user.isActive ? 'success' : 'default'}>{user.isActive ? 'Hoạt động' : 'Vô hiệu'}</Tag> },

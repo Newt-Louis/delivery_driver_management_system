@@ -36,7 +36,7 @@ Tab và quyền:
 - `Cấu hình Đơn vị`: `SUPERADMIN`, `ADMIN_LOC`; thao tác config theo unit scope.
 - `Kho tự động`: `SUPERADMIN`, `ADMIN_LOC`; vendor phải gắn với `unitConfigId`/location-aware.
 - `Thiết bị`: `SUPERADMIN` (sau khi chọn BusinessLocation vận hành), `ADMIN_LOC`; đăng ký/sửa/vô hiệu hóa thiết bị qua `/api/devices`, luôn gắn với `businessLocationId` của tài khoản, không có ô chọn location.
-- `Nhân viên`: `ADMIN_LOC` quản trị `RECEIVING` và `CHECKIN`, đồng thời được thấy/sửa unit scope của `ADMIN_OPE` trong location. `SUPERADMIN` cũng dùng được tab này sau khi chọn BusinessLocation vận hành, với đầy đủ quyền tạo/sửa/reset mật khẩu/vô hiệu hóa các tài khoản `ADMIN_OPE`, `RECEIVING` và `CHECKIN` của location đó.
+- `Nhân viên`: `ADMIN_LOC` quản trị `RECEIVING` và `CHECKIN`, đồng thời được thấy/sửa unit scope của `ADMIN_OPE` trong location. Modal thêm/sửa chia 2 cột; `Bộ phận / Ca làm việc` nằm trước, `Đơn vị được phép` là Select multiple nằm cuối. `SUPERADMIN` cũng dùng được tab này sau khi chọn BusinessLocation vận hành, với đầy đủ quyền tạo/sửa/reset mật khẩu/vô hiệu hóa các tài khoản `ADMIN_OPE`, `RECEIVING` và `CHECKIN` của location đó.
 - Zone/slot/goods types/time windows/receiving time config/unit brand: `SUPERADMIN`, `ADMIN_LOC` theo backend guard và unit operation scope.
 - `ADMIN_OPE` không truy cập Backoffice để chỉnh cấu hình. Role này thuộc nhóm vận hành dashboard/docks/reports trong phạm vi unit được cấp.
 - Link `Superadmin` trong Navbar và CTA trong Backoffice chỉ visible với `SUPERADMIN`.
@@ -136,7 +136,7 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
   - Logo/avatar location upload đi qua `POST /api/files/upload`; file nằm trong `DATAFILE_ROOT/uploads/<locationCode>/<yyyy>/<mm>/<dd>/`, còn `BusinessLocation.logoUrl/avatarUrl` lưu `publicUrl` đang được dùng.
 - Unit configs: tạo/sửa/deactivate unit động trong từng location; response không trả `vendorApiKey`/`poApiKey`.
 - Zones và Slots: dữ liệu vận hành cụ thể thuộc Backoffice/ADMIN_LOC. `/superadmin` có thể đọc/audit system-wide khi cần, nhưng không phải bề mặt chính để ADMIN_LOC cấu hình zone/slot hằng ngày.
-- Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC` và `ADMIN_OPE` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.
+- Users: đọc user system-wide qua `/api/users` nhưng backend loại tài khoản `SUPERADMIN` khỏi danh sách; Superadmin tạo/sửa `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`, `CHECKIN` bằng modal riêng trong `UsersTab`, tiếp tục dùng user API để giữ rule hierarchy/cache/audit tập trung.
 - Goods types và Time windows: dữ liệu vận hành theo `UnitConfig`; bề mặt cấu hình chính thuộc ADMIN_LOC trong Backoffice.
 - Devices: không còn tab trong `/superadmin`; đăng ký thiết bị chuyển sang tab `Thiết bị` của Backoffice. Backend `/api/superadmin/devices` vẫn tồn tại nhưng frontend không còn gọi.
 - App configs: chỉnh JSON runtime config khi `isRuntimeEditable = true`; sensitive value bị mask.
@@ -144,18 +144,17 @@ Trang `Superadmin` là master-data console, không phải dashboard vận hành.
 
 Trong tab Users:
 
-- Nút `Tạo tài khoản` mở modal tạo mới với thông tin tên, email, mật khẩu, role, location, department và unit operation scope.
+- Nút `Tạo tài khoản` mở modal 2 cột theo thứ tự: Khu vực, Vai trò, Đơn vị được phép (multi-select, chỉ hiện và bắt buộc khi vai trò khác `Admin Khu Vực`), Họ và tên, Email, Mật khẩu, Bộ phận / Ghi chú, checkbox trạng thái hoạt động. Label vai trò: `Admin Khu Vực` (`ADMIN_LOC`), `Admin Điều Phối` (`ADMIN_OPE`), `Nhân viên nhận hàng` (`RECEIVING`), `Nhân viên Check-In` (`CHECKIN`). Đổi khu vực sẽ xóa các đơn vị đã chọn.
 - Toolbar responsive dùng chung với Backoffice: filter location, unit, role, status và tìm tên/email trên dữ liệu đã load. Tìm kiếm được áp dụng khi nhấn tìm kiếm; sắp xếp tổng quát trong toolbar là placeholder vô hiệu.
 - Role filter lấy các role có trong response `/api/users`; status filter được suy ra từ `isActive` và `deletedAt`.
 - Danh sách dùng bảng từ breakpoint `lg`; dưới `lg` dùng Collapse theo từng tài khoản với action ở đầu dòng và thông tin còn lại bên trong. Cả hai có phân trang. Tiêu đề cột không còn select sắp xếp; trên màn hình nhỏ vẫn có vùng `Sắp xếp theo cột` với multi-sort hiện tại. Ô sắp xếp trong toolbar dành cho chức năng sẽ được bổ sung sau.
 - Bảng phân trang client-side, cho chọn 20, 50 hoặc 100 dòng mỗi trang ở cuối danh sách.
-- Nút `Edit` mở lại cùng modal ở chế độ chỉnh sửa cho `ADMIN_LOC`/`ADMIN_OPE`; mật khẩu không nằm trong modal edit, đổi mật khẩu đi qua API reset password riêng.
+- Nút `Edit` mở lại cùng modal ở chế độ chỉnh sửa cho mọi role trừ `SUPERADMIN`; ô `Mật khẩu mới` để trống thì giữ nguyên mật khẩu, nhập giá trị thì đổi mật khẩu cùng lần lưu.
 - Cột `Status` hiển thị `Active`, `Disabled` hoặc `Deleted`.
 - Các cột thời gian `Tạo mới`, `Cập nhật`, `Xóa` map lần lượt từ `createdAt`, `updatedAt`, `deletedAt`; giá trị null hiển thị `-`.
-- Nút `Active`/`Disable` chỉ đổi `isActive`; khi disable thì backend revoke session/cache của user đó.
+- Trạng thái `isActive` chỉnh bằng checkbox trong modal tạo/sửa (danh sách không còn nút `Active`/`Disable`); khi disable thì backend revoke session/cache của user đó.
 - Nút `Delete` là soft delete: backend set `users.deleted_at` và `is_active = false`, không hard-delete user.
 - Với dòng đã soft-delete, Superadmin vẫn nhìn thấy và nút `Delete` đổi thành `Regenerate`; thao tác này clear `deleted_at` và bật lại `isActive`.
-- Các role `RECEIVING` và `CHECKIN` vẫn có thể xuất hiện trong danh sách system-wide để đọc/audit, nhưng Superadmin UI/API không CUD lifecycle các role này.
 
 Các thao tác delete với dữ liệu đã có liên kết lịch sử được service backend chuyển thành deactivate hoặc soft delete thay vì hard-delete. Riêng `User` hiện luôn soft-delete bằng `deleted_at` để giữ audit/history và cho phép regenerate.
 

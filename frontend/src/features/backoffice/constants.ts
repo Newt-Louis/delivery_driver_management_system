@@ -43,16 +43,16 @@ export function allowedBackofficeTabs(role?: string): BackofficeTab[] {
   return [];
 }
 
-export const ROLE_META: Record<string, { label: string; color: string; icon?: string }> = {
-  SUPERADMIN: { label: 'Superadmin', color: 'bg-purple-100 text-purple-700', icon: '🛡' },
-  ADMIN_LOC: { label: 'Admin khu vực', color: 'bg-red-100 text-red-700', icon: '👑' },
-  ADMIN_OPE: { label: 'Admin vận hành', color: 'bg-orange-100 text-orange-700', icon: '🛠' },
+export const ROLE_META: Record<string, { label: string; color: string }> = {
+  SUPERADMIN: { label: 'Superadmin', color: 'bg-purple-100 text-purple-700' },
+  ADMIN_LOC: { label: 'Admin khu vực', color: 'bg-red-100 text-red-700' },
+  ADMIN_OPE: { label: 'Admin vận hành', color: 'bg-orange-100 text-orange-700' },
   RECEIVING: { label: 'Nhận hàng', color: 'bg-sky-100 text-sky-700' },
-  CHECKIN: { label: 'Check-in', color: 'bg-amber-100 text-amber-700', icon: '🔐' },
+  CHECKIN: { label: 'Check-in', color: 'bg-amber-100 text-amber-700' },
 };
 
-export const STAFF_ROLE_META: Record<string, { label: string; color: string; icon?: string }> = {
-  ADMIN_OPE: { label: 'Nhân viên điều phối', color: 'bg-orange-100 text-orange-700', icon: '🛠' },
+export const STAFF_ROLE_META: Record<string, { label: string; color: string }> = {
+  ADMIN_OPE: { label: 'Nhân viên điều phối', color: 'bg-orange-100 text-orange-700' },
   RECEIVING: { label: 'Nhân viên nhận hàng', color: 'bg-sky-100 text-sky-700' },
-  CHECKIN: { label: 'Nhân viên check-in', color: 'bg-amber-100 text-amber-700', icon: '🔐' },
+  CHECKIN: { label: 'Nhân viên check-in', color: 'bg-amber-100 text-amber-700' },
 };

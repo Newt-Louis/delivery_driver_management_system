@@ -96,6 +96,7 @@ export function createUser(data: {
   unit: string | null;
   department: string | null;
   businessLocationId: string | null;
+  isActive?: boolean;
 }) {
   return prisma.user.create({
     data: {
@@ -106,6 +107,7 @@ export function createUser(data: {
       unit: data.unit as never,
       department: data.department,
       businessLocationId: data.businessLocationId,
+      ...(data.isActive !== undefined && { isActive: data.isActive }),
     },
     select: USER_SAFE_SELECT,
   });
@@ -119,10 +121,11 @@ export function findUserRole(id: string) {
   return prisma.user.findUnique({ where: { id }, select: { role: true } });
 }
 
-export function updateUser(id: string, data: Partial<UpdateUserPayload> & {
+export function updateUser(id: string, data: Partial<Omit<UpdateUserPayload, 'password'>> & {
   email?: string;
   unit?: string | null;
   businessLocationId?: string | null;
+  passwordHash?: string;
 }) {
   return prisma.user.update({
     where: { id },
@@ -134,6 +137,7 @@ export function updateUser(id: string, data: Partial<UpdateUserPayload> & {
       ...(data.department !== undefined && { department: data.department ?? null }),
       ...(data.businessLocationId !== undefined && { businessLocationId: data.businessLocationId }),
       ...(data.isActive !== undefined && { isActive: data.isActive }),
+      ...(data.passwordHash !== undefined && { passwordHash: data.passwordHash }),
     },
     select: USER_SAFE_SELECT,
   });

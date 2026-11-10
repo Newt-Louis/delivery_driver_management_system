@@ -23,8 +23,17 @@ function unitPermissionKey(userId: string): string {
   return `auth:user:${userId}:unit-permissions`;
 }
 
+/**
+ * ADMIN_LOC operates on every UnitConfig of its BusinessLocation, so it is
+ * never assigned explicit unit permissions.
+ */
+export function roleUsesLocationWideUnits(role: string | null | undefined): boolean {
+  return role === 'ADMIN_LOC';
+}
+
+/** Roles that must be assigned at least one explicit UnitConfig permission. */
 export function roleRequiresUnitPermission(role: string | null | undefined): boolean {
-  return roleHasUnitOperationScope(role);
+  return roleHasUnitOperationScope(role) && !roleUsesLocationWideUnits(role);
 }
 
 function parseCachedPermissions(raw: string | null): PermissionUnit[] | null {
@@ -47,22 +56,35 @@ function normalizePermissionUnit(unit: CachedPermissionUnit): PermissionUnit {
   };
 }
 
+const PERMISSION_UNIT_SELECT = {
+  id: true,
+  unit: true,
+  displayName: true,
+  shortName: true,
+  icon: true,
+  businessLocationId: true,
+  isActive: true,
+} as const;
+
 async function queryUserUnitPermissions(userId: string): Promise<PermissionUnit[]> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, businessLocationId: true },
+  });
+
+  if (roleUsesLocationWideUnits(user?.role)) {
+    if (!user?.businessLocationId) return [];
+    const unitConfigs = await prisma.unitConfig.findMany({
+      where: { businessLocationId: user.businessLocationId },
+      select: PERMISSION_UNIT_SELECT,
+      orderBy: { unit: 'asc' },
+    });
+    return unitConfigs.map((unitConfig) => normalizePermissionUnit({ ...unitConfig, code: unitConfig.unit }));
+  }
+
   const rows = await prisma.userUnitPermission.findMany({
     where: { userId },
-    select: {
-      unitConfig: {
-        select: {
-          id: true,
-          unit: true,
-          displayName: true,
-          shortName: true,
-          icon: true,
-          businessLocationId: true,
-          isActive: true,
-        },
-      },
-    },
+    select: { unitConfig: { select: PERMISSION_UNIT_SELECT } },
     orderBy: { unitConfig: { unit: 'asc' } },
   });
 
@@ -97,26 +119,7 @@ export async function getUserUnitPermissions(userId: string): Promise<Permission
 }
 
 export async function getUserUnitPermissionsFromDb(userId: string): Promise<PermissionUnit[]> {
-  return prisma.userUnitPermission.findMany({
-    where: { userId },
-    select: {
-      unitConfig: {
-        select: {
-            id: true,
-            unit: true,
-            displayName: true,
-            shortName: true,
-            icon: true,
-            businessLocationId: true,
-            isActive: true,
-          },
-        },
-      },
-    orderBy: { unitConfig: { unit: 'asc' } },
-  }).then((rows) => rows.map((row) => normalizePermissionUnit({
-    ...row.unitConfig,
-    code: row.unitConfig.unit,
-  })));
+  return queryUserUnitPermissions(userId);
 }
 
 export async function replaceUserUnitPermissions(userId: string, unitConfigIds: string[]): Promise<void> {

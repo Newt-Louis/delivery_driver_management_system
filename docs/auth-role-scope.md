@@ -196,13 +196,13 @@ Auth profile hiện có ba lớp dữ liệu quyền:
 
 `unitPermissions` vẫn được trả như alias để tương thích code cũ, nhưng code mới nên dùng `operationUnits`.
 
-`ADMIN_LOC` có một case đặc biệt: `operationUnits` là các unit mà ADMIN_LOC tự thao tác cấu hình/vận hành được; `manageableUnits` là toàn bộ unit active trong `BusinessLocation` để ADMIN_LOC có thể phân quyền cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN` ở bất kỳ unit nào trong location đó.
+`ADMIN_LOC` có một case đặc biệt: tài khoản này không được gán unit riêng; `operationUnits` là toàn bộ unit trong `BusinessLocation` của ADMIN_LOC, còn `manageableUnits` là toàn bộ unit active trong location đó để ADMIN_LOC có thể phân quyền cho `ADMIN_OPE`, `RECEIVING`, `CHECKIN`.
 
 `SUPERADMIN` trong `/superadmin` không cần operational context. Ngoài `/superadmin`, frontend bắt `SUPERADMIN` chọn `BusinessLocation`; sau khi chọn, auth profile của phiên hiện tại có toàn bộ unit active của location đó trong `operationUnits` và `manageableUnits`.
 
 ## Unit Permission Cache
 
-Quyền nhiều unit của `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING` và `CHECKIN` nằm trong bảng `user_unit_permissions`, nhưng thao tác vận hành đọc qua Redis:
+Quyền nhiều unit của `ADMIN_OPE`, `RECEIVING` và `CHECKIN` nằm trong bảng `user_unit_permissions` (`ADMIN_LOC` được resolve thành mọi unit của location, vẫn đi qua cùng Redis key), nhưng thao tác vận hành đọc qua Redis:
 
 1. Route delivery gọi helper trong `unitPermission.ts`.
 2. Helper đọc `auth:user:{userId}:unit-permissions`.
@@ -225,7 +225,7 @@ Các thao tác đã đi qua helper này gồm check-in lookup, check-in by id, m
 
 Role hiện có:
 
-- `SUPERADMIN`: tài khoản duy nhất, toàn quyền hệ thống, không bắt buộc gắn `BusinessLocation`, có route master data riêng `/superadmin`; CUD tất cả role cấp dưới. Khi đã chọn BusinessLocation vận hành, Superadmin cũng dùng được tab Nhân viên ở `/backoffice` để tạo/sửa/reset mật khẩu/vô hiệu hóa `ADMIN_OPE`, `RECEIVING` và `CHECKIN` trong location đang chọn.
+- `SUPERADMIN`: tài khoản duy nhất, toàn quyền hệ thống, không bắt buộc gắn `BusinessLocation`, có route master data riêng `/superadmin`; CUD tất cả role cấp dưới (`ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`, `CHECKIN`), gán location và đơn vị, đổi mật khẩu trong modal chỉnh sửa. Khi đã chọn BusinessLocation vận hành, Superadmin cũng dùng được tab Nhân viên ở `/backoffice` để tạo/sửa/reset mật khẩu/vô hiệu hóa `ADMIN_OPE`, `RECEIVING` và `CHECKIN` trong location đang chọn.
 - `ADMIN_LOC`: admin của một `BusinessLocation`, CUD `RECEIVING`/`CHECKIN`, được thấy `ADMIN_OPE` và chỉ được chỉnh unit scope của `ADMIN_OPE`.
 - `ADMIN_OPE`: vận hành/điều phối trong khu vực theo unit được gán; không quản trị user và không sở hữu master data system-wide.
 - `RECEIVING`: nhận hàng, bắt đầu và hoàn tất giao hàng theo unit được gán.
@@ -259,7 +259,7 @@ Mọi role vận hành dưới `SUPERADMIN` đều có operation scope:
 
 Khi route/service đã resolve resource ra `unitConfigId`, backend gọi `assertCanOperateUnit(user, unitConfigId)` hoặc helper tương đương. Với action delivery cũ chỉ có `receivingUnit`, service phải resolve scope qua slot/unit config trước khi quyết định.
 
-Không dùng shortcut `ADMIN_LOC` hoặc `ADMIN_OPE` là toàn quyền trên mọi unit nữa. Hai role này vẫn có quyền theo màn hình khác nhau, nhưng phạm vi dữ liệu và thao tác trong màn hình đó bị giới hạn bởi `operationUnits`.
+Không dùng shortcut role để bỏ qua kiểm tra unit; mọi role trên vẫn bị giới hạn bởi `operationUnits`. Riêng `ADMIN_LOC` có `operationUnits` là toàn bộ unit trong location của mình, nên thực tế được thao tác mọi unit của location đó nhưng không bao giờ vượt location.
 
 Các API list phục vụ màn hình vận hành nên lọc dữ liệu theo unit scope ở backend. Frontend không được coi disabled/read-only là lớp bảo mật chính; UI chỉ render dữ liệu mà backend đã trả về trong scope hợp lệ.
 

@@ -14,11 +14,13 @@ const createSchema = z.object({
   unitConfigIds: z.array(z.string().min(1)).optional(),
   department: z.string().max(100).nullable().optional(),
   businessLocationId: z.string().trim().min(1).nullable().optional(),
+  isActive: z.boolean().optional(),
 });
 
 const updateSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   email: z.string().email().optional(),
+  password: z.string().min(6, 'Mật khẩu tối thiểu 6 ký tự').optional(),
   role: z.enum(USER_ROLES).optional(),
   unit: unitSchema,
   unitConfigIds: z.array(z.string().min(1)).optional(),
