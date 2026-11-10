@@ -159,6 +159,9 @@ export default function Register() {
   const codeLooksSupported = isPoCode(normalizedCode) || constructionCodeLooksSupported;
   const isConstruction = verified?.kind === 'CONSTRUCTION';
   const effectiveGoodsType = isConstruction ? form.goodsType : (verified?.goodsType ?? '');
+  // Vendor data returned by the verified code is authoritative; only empty fields stay editable.
+  const vendorCodeLocked = Boolean(verified?.vendorCode);
+  const vendorNameLocked = Boolean(verified?.vendorName);
   const vendorCheckKey = JSON.stringify([form.vendorCode.trim().toUpperCase(), verified?.receivingUnit, verified?.businessLocationId, verified?.unitConfigId]);
   useEffect(() => {
     const code = form.vendorCode.trim();
@@ -191,7 +194,7 @@ export default function Register() {
     const businessLocationId = verified?.businessLocationId;
     const unitConfigId = verified?.unitConfigId;
     setVendorSuggestions([]);
-    if (step !== 2 || query.length < 2 || !businessLocationId || !unitConfigId) {
+    if (step !== 2 || vendorCodeLocked || query.length < 2 || !businessLocationId || !unitConfigId) {
       setVendorSuggestionsLoading(false);
       return;
     }
@@ -212,7 +215,7 @@ export default function Register() {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [form.vendorCode, step, verified?.businessLocationId, verified?.unitConfigId]);
+  }, [form.vendorCode, step, vendorCodeLocked, verified?.businessLocationId, verified?.unitConfigId]);
 
   const vendorOptions = vendorSuggestions.map((vendor) => ({
     value: vendor.vendorCode,
@@ -645,16 +648,17 @@ export default function Register() {
                     <Col xs={24} sm={12}><Form.Item label="Biển số xe" required><Input value={form.vehiclePlate} onChange={(event) => setField('vehiclePlate', event.target.value.toUpperCase())} placeholder="51C12345" autoComplete="off" className="font-mono uppercase" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Mã NCC"><AutoComplete
                       value={form.vendorCode}
+                      disabled={vendorCodeLocked}
                       options={vendorOptions}
                       filterOption={false}
                       notFoundContent={vendorSuggestionsLoading ? <Space><LoadingOutlined />Đang tìm NCC...</Space> : null}
                       onChange={(value) => setField('vendorCode', value.toUpperCase().replace(/\s/g, ''))}
                       onSelect={(_value, option) => {
                         const vendor = (option as { vendor?: AutoWarehouseVendorSuggestion }).vendor;
-                        if (vendor) setForm((current) => ({ ...current, vendorCode: vendor.vendorCode, vendorName: vendor.vendorName }));
+                        if (vendor) setForm((current) => ({ ...current, vendorCode: vendor.vendorCode, vendorName: vendorNameLocked ? current.vendorName : vendor.vendorName }));
                       }}
                     ><Input placeholder="08723875" autoComplete="off" className="font-mono" /></AutoComplete></Form.Item></Col>
-                    <Col span={24}><Form.Item label="Tên NCC / Công ty"><Input value={form.vendorName} onChange={(event) => setField('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" /></Form.Item></Col>
+                    <Col span={24}><Form.Item label="Tên NCC / Công ty"><Input value={form.vendorName} disabled={vendorNameLocked} onChange={(event) => setField('vendorName', event.target.value)} placeholder="Công ty TNHH ABC" autoComplete="organization" /></Form.Item></Col>
                   </Row>
                 </Form>
                 <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between"><Button onClick={() => setStep(1)}>Nhập mã khác</Button><Button type="primary" icon={<ArrowRightOutlined />} iconPlacement="end" onClick={goReview}>Tiếp tục</Button></div>
