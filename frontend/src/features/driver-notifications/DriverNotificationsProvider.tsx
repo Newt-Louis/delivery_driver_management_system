@@ -367,7 +367,12 @@ export function DriverNotificationsProvider({ children }: { children: ReactNode 
     <Modal open={!!switchTo} title="Chuyển chuyến nhận thông báo?" onCancel={() => setSwitchTo(null)} footer={<Space orientation="vertical" size="small" className="w-full"><Button block size="large" type="primary" onClick={() => { if (switchTo) selectTrip(switchTo); setSwitchTo(null); }}>Theo dõi chuyến mới</Button><Button block size="large" onClick={() => setSwitchTo(null)}>Giữ chuyến hiện tại</Button></Space>}>
       <Typography.Paragraph>Điện thoại đang nhận thông báo cho xe {followed?.plate}. Chuyển sang xe {switchTo?.vehiclePlate} ({switchTo?.registrationCode})?</Typography.Paragraph>
     </Modal>
-    <Modal open={setupOpen && !notice} focusable={{ focusTriggerAfterClose: !notice }} centered title="Bật thông báo cho chuyến giao hàng" onCancel={() => setSetupOpen(false)} footer={<Space orientation="vertical" size="small" className="w-full"><Button block size="large" type="primary" icon={<BellOutlined />} loading={busy} onClick={() => void enableDevice()}>Bật thông báo và âm báo</Button><Button block size="large" onClick={() => setSetupOpen(false)}>Để sau</Button></Space>}>
+    <Modal 
+      open={setupOpen && !notice} focusable={{ focusTriggerAfterClose: !notice }} 
+      centered title="Bật thông báo cho chuyến giao hàng" 
+      onCancel={() => setSetupOpen(false)} 
+      footer={<Space orientation="vertical" size="small" className="w-full"><Button block size="large" type="primary" icon={<BellOutlined />} loading={busy} onClick={() => void enableDevice()}>Bật thông báo và âm báo</Button><Button block size="large" onClick={() => setSetupOpen(false)}>Để sau</Button></Space>}
+    >
       <Space orientation="vertical" size="middle" className="w-full">
         <Typography.Paragraph>Nhận báo check-in thành công, gọi vào khu vực nhận hàng và hoàn tất chuyến. Chạm nút bên dưới rồi chọn Cho phép nếu thiết bị hỏi.</Typography.Paragraph>
         {support.reason === 'ios_needs_pwa' && <Alert type="info" showIcon title="Nhận thông báo trên iPhone/iPad" description="Thông báo đẩy chỉ hoạt động khi mở ứng dụng từ Màn hình chính. Trong trình duyệt, hãy giữ trang mở để xem cảnh báo." />}
