@@ -9,6 +9,8 @@ Từ phase dynamic unit/Superadmin, Backoffice và Superadmin là hai bề mặt
 - Backoffice: cấu hình/vận hành theo `BusinessLocation` và theo quyền của tài khoản đang đăng nhập.
 - Superadmin: master data toàn hệ thống ở `/superadmin`, chỉ tài khoản `SUPERADMIN` thấy và truy cập được.
 
+Header Backoffice có nút **SEEDING** (dropdown chọn loại seed + popup xác nhận) để sinh dữ liệu mô phỏng trên local/UAT; chi tiết ở `simulation-seeding.md`.
+
 ## Frontend
 
 Files:

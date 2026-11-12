@@ -25,6 +25,7 @@ Mỗi file tập trung vào một miền nghiệp vụ riêng:
 - [rate-limit-security.md](rate-limit-security.md): rate limit và bảo vệ public API.
 - [timezone-expire.md](timezone-expire.md): timezone Việt Nam và expire stale deliveries.
 - [seed-and-data-bootstrap.md](seed-and-data-bootstrap.md): bootstrap database mới và seed app config.
+- [simulation-seeding.md](simulation-seeding.md): nút SEEDING ở Backoffice và `/api/seeding` sinh dữ liệu mô phỏng trên local/UAT.
 - [testing-load-concurrency.md](testing-load-concurrency.md): concurrency test và load test Artillery.
 - [delivery-history-scheduler.md](delivery-history-scheduler.md): scheduler, history snapshot và timeline chuyến giao hàng.
 - [datafile-storage.md](datafile-storage.md): storage nội bộ cho logo/avatar và file upload theo `DATAFILE_ROOT`.

@@ -29,6 +29,7 @@ import historiesRoutes from './routes/histories';
 import superadminRoutes from './routes/superadmin';
 import configRoutes from './routes/config';
 import fileRoutes from './routes/files';
+import seedingRoutes from './routes/seeding';
 import { ensureDatafileRoot, getUploadsDirectory } from './modules/files/fileStorageService';
 import { loadLocationCodeGroups, locationGroupsFilePath } from './modules/deliveries/locationCodeGroups';
 
@@ -64,6 +65,7 @@ app.use('/api/histories', historiesRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/seeding', seedingRoutes);
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.get('/health/scheduler', (_req, res) => res.json({ status: 'ok', scheduler: getSchedulerStatus() }));

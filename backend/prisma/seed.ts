@@ -19,8 +19,8 @@ const UNIT_DEFINITIONS = [
     zoneName: 'Khu Thiskyhall 1',
   },
   {
-    // TENANT is the existing runtime code for the business-facing THISO Mall unit.
-    unit: 'TENANT',
+    // MALL is the existing runtime code for the business-facing THISO Mall unit.
+    unit: 'MALL',
     displayName: 'THISO Mall',
     shortName: 'THISO Mall',
     description: 'Khu nhận hàng THISO Mall',
@@ -41,9 +41,9 @@ const SLOT_DEFINITIONS = [
   { unit: 'THISKYHALL', code: 'T1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
   { unit: 'THISKYHALL', code: 'T2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
   { unit: 'THISKYHALL', code: 'T3', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
-  { unit: 'TENANT', code: 'M1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
-  { unit: 'TENANT', code: 'M2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
-  { unit: 'TENANT', code: 'M3', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
+  { unit: 'MALL', code: 'M1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'MALL', code: 'M2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'MALL', code: 'M3', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
   { unit: 'EMART', code: 'E1', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
   { unit: 'EMART', code: 'E2', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
   { unit: 'EMART', code: 'E3', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },

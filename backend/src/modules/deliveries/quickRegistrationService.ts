@@ -393,7 +393,7 @@ async function normalizePo(code: string, body: unknown): Promise<NormalizedQuick
   const unitConfig = await findUnitConfig({
     businessLocationId: location.id,
     unitMatcher: (unit) => normalizeText(unit) === normalizeText(PO_UNIT_CODE),
-    missingMessage: `Không tìm thấy unit ${PO_UNIT_CODE} tại khu vực ${location.code}.`,
+    missingMessage: `Không tìm thấy đơn vị ${PO_UNIT_CODE} tại khu vực ${location.code}.`,
   });
   const deliveryDate = parseYyyyMmDd(item.EINDT);
   if (!deliveryDate) {
@@ -455,7 +455,7 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
   const unitConfig = await findUnitConfig({
     businessLocationId: location.id,
     unitMatcher: constructionUnitMatcher(unitLabel),
-    missingMessage: `Không tìm thấy unit tương ứng "${unitLabel}" tại khu vực ${location.code}.`,
+    missingMessage: `Không tìm thấy đơn vị tương ứng "${unitLabel}" tại khu vực ${location.code}.`,
   });
   const customer = asRecord(data.customer);
 

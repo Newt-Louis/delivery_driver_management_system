@@ -20,7 +20,7 @@ Backend package scripts:
 
 ## Bootstrap Master Data
 
-`npm run db:bootstrap` chạy `seed.ts` để khởi tạo master data; không tạo dữ liệu đăng ký, check-in hay receiving giả.
+`npm run db:bootstrap` chạy `seed.ts` để khởi tạo master data; không tạo dữ liệu đăng ký, check-in hay receiving giả. Dữ liệu đăng ký mô phỏng cho tester dùng nút SEEDING ở Backoffice, xem `simulation-seeding.md`.
 
 Lệnh tự kiểm tra trước khi ghi. Chỉ hai trạng thái được chấp nhận:
 
