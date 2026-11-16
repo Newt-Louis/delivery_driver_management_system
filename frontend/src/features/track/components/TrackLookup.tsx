@@ -33,9 +33,12 @@ export default function TrackLookup() {
         navigate(`/track/${res.data.registrationCode}`);
       }
     } catch (err) {
+      const data = axios.isAxiosError(err) ? err.response?.data as { code?: string; error?: string } | undefined : undefined;
       setError(axios.isAxiosError(err) && err.response?.status === 409
         ? 'Biển số có lượt đăng ký tại nhiều khu vực. Vui lòng chọn khu vực trước khi tra cứu.'
-        : 'Không tìm thấy. Kiểm tra lại mã đăng ký hoặc biển số xe.');
+        : data?.code === 'RegistrationSuperseded' && data.error
+          ? data.error
+          : 'Không tìm thấy. Kiểm tra lại mã đăng ký hoặc biển số xe.');
       setChecking(false);
     }
   }
@@ -54,7 +57,7 @@ export default function TrackLookup() {
             ref={inputRef}
             value={input}
             onChange={(e) => { setInput(e.target.value.toUpperCase()); setError(''); }}
-            placeholder="VD: PVTABCD261026001 hoặc 51C-123.45"
+            placeholder="VD: PVTABCD261026001 hoặc 51G55673"
             size="large"
             autoComplete="off"
             autoCapitalize="characters"

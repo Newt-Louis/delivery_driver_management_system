@@ -20,6 +20,8 @@ import {
 import { LS_KEY, REGISTER_FORM_NAME } from '../constants';
 import type { FormState, SuccessInfo, Unit } from '../types';
 import { isSundayDate } from '../utils/date';
+import { useToast } from '../../../context/ToastContext';
+import { normalizeVehiclePlateInput, vehiclePlateError } from '../../../lib/vehiclePlate';
 
 type ErrorField = { name: Array<string | number> };
 
@@ -45,6 +47,7 @@ function scrollToTopMostError(errorFields: ErrorField[]) {
 export function useRegisterForm() {
   const { selectedBusinessLocationId, selectedBusinessLocation } = usePublicBusinessLocation();
   const [antForm] = Form.useForm<FormState>();
+  const toast = useToast();
   const [step, setStep] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -401,10 +404,19 @@ export function useRegisterForm() {
 
   async function submit() {
     if (!(await validateStep())) return;
+    // Sửa loại xe từ màn review sẽ quay thẳng về review, bỏ qua bước biển số.
+    const plateMessage = vehiclePlateError(form.vehiclePlate, form.vehicleType);
+    if (plateMessage) {
+      toast.error(plateMessage);
+      setReturnToReviewAfterEdit(true);
+      setStep(3);
+      window.setTimeout(() => { antForm.validateFields(['vehiclePlate']).catch(() => {}); }, 0);
+      return;
+    }
     setSubmitting(true);
     setSubmitError('');
     try {
-      const plate = form.vehiclePlate.toUpperCase().replace(/\s+/g, '');
+      const plate = normalizeVehiclePlateInput(form.vehiclePlate);
       const poNumber = form.poNumber.trim();
       const selectedCustomType = customGoodsTypes.find(ct => ct.id === form.unitGoodsTypeId);
       const res = await registerDelivery({
@@ -441,7 +453,9 @@ export function useRegisterForm() {
       });
     } catch (err: unknown) {
       const d = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
-      setSubmitError(d?.message ?? d?.error ?? 'Đăng ký thất bại. Vui lòng thử lại.');
+      const message = d?.message ?? d?.error ?? 'Đăng ký thất bại. Vui lòng thử lại.';
+      if (d?.error === 'VehiclePlateExists') toast.error(message);
+      else setSubmitError(message);
     } finally {
       setSubmitting(false);
     }

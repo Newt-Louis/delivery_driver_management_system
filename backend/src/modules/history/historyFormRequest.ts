@@ -26,6 +26,17 @@ const DELIVERY_SORT_FIELDS = new Set([
   'callCount',
 ]);
 
+const REGISTRATION_SORT_FIELDS = new Set([
+  'registeredAt',
+  'supersededAt',
+  'registrationCode',
+  'vehiclePlate',
+  'receivingUnit',
+  'vehicleType',
+]);
+
+const REGISTRATION_STATUSES = ['ACTIVE', 'SUPERSEDED'] as const;
+
 const AUDIT_SORT_FIELDS = new Set([
   'createdAt',
   'actorType',
@@ -103,7 +114,27 @@ function parseAuditHistoryQuery(query: Record<string, unknown>) {
   };
 }
 
+function parseRegistrationHistoryQuery(query: Record<string, unknown>) {
+  const page = parsePage(query.page);
+  const limit = parseLimit(query.limit);
+
+  return {
+    page,
+    limit,
+    skip: (page - 1) * limit,
+    sortField: helperFunctions.sortField(query.sortField, REGISTRATION_SORT_FIELDS, 'registeredAt'),
+    sortDir: helperFunctions.sortDir(query.sortDir),
+    from: parseOptionalDate(query.from, 'from'),
+    to: parseOptionalDate(query.to, 'to', true),
+    status: parseEnum(query.status, REGISTRATION_STATUSES, 'status'),
+    receivingUnit: helperFunctions.stringValue(query.receivingUnit)?.trim().toUpperCase() as ReceivingUnitCode | undefined,
+    vehicleType: parseEnum(query.vehicleType, Object.values(VehicleType), 'vehicleType'),
+    search: helperFunctions.stringValue(query.search),
+  };
+}
+
 export const HistoryFormRequest = {
   parseDeliveryHistoryQuery,
   parseAuditHistoryQuery,
+  parseRegistrationHistoryQuery,
 };

@@ -13,7 +13,8 @@ function pad(n, width = 3) {
 
 function buildPayloads(note) {
   if (MODE === 'same-plate') {
-    const vehiclePlate = `${note}PLATE`.slice(0, 24);
+    // Biển số phải đúng định dạng xe tải: 2 số + 1 chữ + 5 số.
+    const vehiclePlate = `99Z${pad(Math.floor(Math.random() * 100000), 5)}`;
     return Array.from({ length: COUNT }, () => ({
       vendorName: 'Race Test Vendor',
       driverName: 'Race Test Driver',
@@ -32,7 +33,7 @@ function buildPayloads(note) {
       vendorName: 'Race Slot Vendor',
       driverName: `Race Driver ${i}`,
       driverPhone: `091${pad(i, 7)}`,
-      vehiclePlate: `${note}${pad(i)}`.slice(0, 24),
+      vehiclePlate: `99Z${pad(i, 5)}`,
       vehicleType: 'TRUCK',
       receivingUnit: 'EMART',
       goodsType: 'GENERAL_GOODS',
@@ -96,6 +97,7 @@ async function cleanup(note) {
     prisma.deliveryHistoryEvent.deleteMany({ where: { originalDeliveryId: { in: ids } } }),
     prisma.deliveryHistory.deleteMany({ where: { originalDeliveryId: { in: ids } } }),
     prisma.pushSubscription.deleteMany({ where: { deliveryCode: { in: codes } } }),
+    prisma.registrationHistory.deleteMany({ where: { note } }),
     prisma.deliveryRegistration.deleteMany({ where: { id: { in: ids } } }),
   ]);
   return ids.length;

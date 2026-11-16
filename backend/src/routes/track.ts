@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/asyncHandler';
 import { getTrackDelivery } from '../services/trackRealtime';
 import { publicLookupLimiter } from '../middleware/rateLimit';
 import { normalizeVehiclePlate } from '../modules/deliveries/deliveryRepository';
+import { findSupersededRegistration } from '../modules/registrationHistory/registrationHistoryRepository';
 
 // ─── Ticket code format: UNIT-VTYPE + 3-digit sequence ───────────────────────
 const VT_TICKET_PREFIX: Record<string, string> = {
@@ -63,7 +64,20 @@ router.get('/search', publicLookupLimiter, asyncHandler(async (req: Request, res
 // When status=WAITING, also returns queueInfo { position, totalWaiting, estimatedWaitMinutes, availableSlots }
 router.get('/:code', asyncHandler(async (req: Request, res: Response) => {
   const delivery = await getTrackDelivery(req.params.code);
-  if (!delivery) { res.status(404).json({ error: 'Không tìm thấy đăng ký' }); return; }
+  if (!delivery) {
+    // Trang public: chỉ báo mã đã bị thay thế, không tiết lộ mã mới.
+    const superseded = await findSupersededRegistration(req.params.code.trim().toUpperCase());
+    if (superseded) {
+      res.status(404).json({
+        error: 'Mã đăng ký này đã được thay thế bởi lần đăng ký mới hơn. Vui lòng dùng mã QR của lần đăng ký mới nhất.',
+        code: 'RegistrationSuperseded',
+        supersededAt: superseded.supersededAt.toISOString(),
+      });
+      return;
+    }
+    res.status(404).json({ error: 'Không tìm thấy đăng ký' });
+    return;
+  }
   res.json(delivery);
 }));
 

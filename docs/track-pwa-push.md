@@ -6,7 +6,8 @@
 2. Mở `/track/:code`, kiểm tra biển số. Nút cuối trang là **Nhận thông báo cho chuyến này** hoặc **Dừng nhận thông báo chuyến này** nếu đã chọn. Chỉ xem một chuyến không tự chuyển liên kết thông báo của thiết bị sang chuyến đó. Màn thành công và Track thể hiện riêng trạng thái đã chọn, quyền thông báo, kết nối push, tình trạng âm thanh và nút thử lại khi cần.
 3. Mỗi trình duyệt/PWA theo dõi chủ động một chuyến. Bấm bật trên chuyến khác sẽ hỏi xác nhận trước khi chuyển; chuyến cũ có thể nằm trong danh sách gần đây nhưng không còn là chuyến được chọn.
 4. Sau khi chọn, cảnh báo cá nhân hoạt động trên mọi route khi ứng dụng đang mở, kể cả `/waiting-screen`.
-5. Hoàn tất: hiển thị thông báo hoàn thành rồi xóa lựa chọn theo dõi, mã khỏi danh sách gần đây và binding push tương ứng. Hủy/hết hạn/kết thúc chưa hoàn tất cũng ngừng theo dõi, không bị hiểu nhầm là giao thành công.
+5. Mã đã bị thay thế do đăng ký lại cùng biển số: `/api/track/:code` trả 404 kèm `code: RegistrationSuperseded`; Track hiển thị "Mã đăng ký đã được thay thế" và yêu cầu dùng QR mới nhất, không tiết lộ mã mới. Danh sách gần đây và chuyến đang theo dõi tự gỡ mã này như với 404 thường; push subscription của mã cũ bị xóa khi thay thế.
+6. Hoàn tất: hiển thị thông báo hoàn thành rồi xóa lựa chọn theo dõi, mã khỏi danh sách gần đây và binding push tương ứng. Hủy/hết hạn/kết thúc chưa hoàn tất cũng ngừng theo dõi, không bị hiểu nhầm là giao thành công.
 
 `/waiting-screen` vẫn là bảng quan sát hàng chờ. Event toàn khu vực chỉ refresh/highlight dòng xe. TV không chọn chuyến không nhận cảnh báo cá nhân; tài xế đã theo dõi chuyến vẫn nhận cảnh báo đúng chuyến khi mở bảng hàng chờ.
 

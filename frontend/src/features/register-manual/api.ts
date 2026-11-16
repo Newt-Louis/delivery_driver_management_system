@@ -1,4 +1,5 @@
 import api from '../../lib/api';
+import { detectClientMobile } from '../../lib/clientDevice';
 import type { BusinessLocation, ReceivingUnit, UnitConfig, /* UnitGoodsType, */ SlotInfo, VehicleType, GoodsType } from '../../lib/types';
 
 export type SlotAvailabilityParams = {
@@ -154,7 +155,11 @@ export async function getAutoWarehouseVendorSuggestions(query: string, scope: Re
 }
 
 export async function registerDelivery(payload: RegisterDeliveryPayload): Promise<RegisterDeliveryResponse> {
-  const res = await api.post('/api/deliveries/register', payload);
+  const mobile = detectClientMobile();
+  const res = await api.post('/api/deliveries/register', {
+    ...payload,
+    ...(mobile === undefined ? {} : { clientDevice: { mobile } }),
+  });
   return res.data;
 }
 

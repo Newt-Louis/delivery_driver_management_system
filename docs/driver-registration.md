@@ -105,7 +105,9 @@ Module backend:
 - `backend/src/routes/deliveries.ts`: controller mỏng cho endpoint đăng ký và lifecycle delivery.
 - `backend/src/modules/deliveries/deliveryFormRequest.ts`: validate payload đăng ký, check-in lookup, call/cancel và query list.
 - `backend/src/modules/deliveries/deliveryRepository.ts`: query delivery, queue, resolve `UnitConfig`, capacity ước lượng theo ngày, duplicate theo ngày giao và auto-warehouse vendor.
-- `backend/src/modules/deliveries/deliveryService.ts`: tạo hoặc cập nhật đăng ký theo biển số, khu vực và ngày giao; capacity lock, Sunday fresh-food-only, history event và response.
+- `backend/src/modules/deliveries/deliveryService.ts`: tạo lượt đăng ký mới, thay thế lượt `REGISTERED` cũ cùng biển số/khu vực/ngày giao/mã PO hoặc Thi Công; capacity lock, Sunday fresh-food-only, history event, lịch sử đăng ký và response.
+- `backend/src/domain/vehiclePlate.ts`: chuẩn hóa và kiểm tra định dạng biển số theo loại xe; bản sao phía frontend tại `frontend/src/lib/vehiclePlate.ts`.
+- `backend/src/modules/registrationHistory/*`: ghi `registration_history`, đánh dấu lượt bị thay thế, nhận diện thiết bị đăng ký và truy vấn cho trang Histories.
 - `backend/src/modules/deliveries/quickRegistrationService.ts`: đọc API Config, gọi API PO/Thi Công bên thứ 3, log response thật, chuẩn hóa location/unit/goods/date và phát token xác thực ngắn hạn cho submit cuối.
 - `backend/src/routes/units.ts`: controller mỏng cho unit config, goods type, vehicle availability và slot availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API.
@@ -129,7 +131,11 @@ Service:
 
 ## Rule Nghiệp Vụ
 
-- Biển số xe được normalize uppercase và bỏ khoảng trắng.
+- Biển số xe được normalize uppercase, bỏ khoảng trắng và dấu `-`, `.`; người dùng nhập chữ thường vẫn được tự chuyển chữ hoa.
+- Biển số phải đúng định dạng theo loại xe đã chọn (frontend báo lỗi đỏ dưới ô nhập, backend kiểm tra lại và trả `InvalidVehiclePlate`):
+  - Xe tải: 2 số + 1 chữ + 4 hoặc 5 số. Ví dụ `51G55673`, `51G4938`.
+  - Xe máy: 2 số + (1 chữ 1 số hoặc 2 chữ) + 4 hoặc 5 số. Ví dụ `59D255488`, `63AA24593`.
+  - Hai định dạng có vùng giao nhau: `51G55673` vừa là biển xe tải 5 số vừa là biển xe máy cũ 4 số `51-G5 5673`, nên quy tắc chỉ chặn được biển sai cấu trúc chứ không phân biệt loại xe từ biển số.
 - Số điện thoại duplicate được normalize chỉ còn chữ số.
 - Luồng thủ công `/register-manual` lưu mã người dùng nhập hoặc quét vào `poNumber`, không ràng buộc định dạng hay xác thực API đối tác. Payload gửi `manualRegistration: true`; backend vẫn áp dụng các quy tắc ngày, phạm vi và công suất thủ công.
 - Mã PO / Thi Công được hiển thị ở step review, màn hình thành công và trang track.
@@ -137,11 +143,15 @@ Service:
 - `registrationCode` có format `BUSINESSLOCATIONCODE + 4 ký tự cuối của UnitConfig.id + YYMMDD + số thứ tự ba chữ số`. Số thứ tự reset theo ngày và `UnitConfig`; mã location và suffix UnitConfig giữ mã đăng ký unique toàn cục để `/track/:code` và check-in không cần thêm scope.
 - `BusinessLocation` public là phạm vi chung của các route public, không phải field trong wizard `/register-manual`; frontend không hardcode danh sách unit. Unit hiển thị từ `unit_configs` active của khu vực được chọn toàn cục.
 - Submit register phải có `unitConfigId`. Backend validate `unitConfigId` active, thuộc `businessLocationId` đã chọn và có unit code trùng `receivingUnit`.
-- Trong cùng BusinessLocation và ngày giao Việt Nam, đăng ký lại cùng biển số cập nhật lượt `REGISTERED` chưa check-in, giữ nguyên biển số và registration code; có thể đổi đơn vị và các thông tin đăng ký khác. Đăng ký thành công vẫn trả cùng mã để tracking.
-- Một biển số có thể có lượt riêng tại các BusinessLocation khác nhau. Nếu lượt cùng khu vực đã check-in hoặc mang trạng thái khác `REGISTERED`, `COMPLETED`, `CANCELLED`, đăng ký bị chặn; chỉ `COMPLETED` hoặc `CANCELLED` cho phép tạo lượt mới trong cùng ngày. Lượt `EXPIRED`/`INCOMPLETED` đã archive cũng được kiểm tra trong history.
+- Mỗi lần đăng ký thành công luôn tạo một dòng `REGISTERED` mới với **registration code/QR mới**, đồng thời ghi một dòng vào `registration_history`.
+- Trong cùng BusinessLocation và ngày giao Việt Nam, một biển số chỉ có một lượt vận hành. Khi đăng ký lại cùng biển số mà lượt cũ còn `REGISTERED` chưa check-in:
+  - Cùng mã PO/Thi Công (so sánh sau `normalizeOrderCode`): lượt cũ bị thay thế. Dòng lịch sử của lượt cũ được đánh dấu `supersededAt`/`supersededByCode`; event `REGISTERED` và push subscription của mã cũ bị xóa; dòng cũ bị xóa khỏi `delivery_registrations`. Số điện thoại, tên tài xế, đơn vị, loại xe/hàng có thể khác.
+  - Khác mã PO/Thi Công: trả `409 VehiclePlateExists` với thông báo `Biển số xe đã tồn tại!` (frontend hiện Toast) và không chạm lượt hiện có. Đây có thể là hai xe trùng biển thật hoặc một người nhập sai biển số; tài xế liên hệ vận hành để được hướng dẫn ghi chú biển số thực tế.
+- Một biển số có thể có lượt riêng tại các BusinessLocation khác nhau. Nếu lượt cùng khu vực đã check-in hoặc mang trạng thái khác `REGISTERED`, `COMPLETED`, `CANCELLED`, đăng ký bị chặn; chỉ `COMPLETED` hoặc `CANCELLED` cho phép tạo lượt mới trong cùng ngày, và lượt đã kết thúc đó không bị đánh dấu thay thế. Lượt `EXPIRED`/`INCOMPLETED` đã archive trong cùng ngày giao cũng được kiểm tra trong history; qua ngày khác thì đăng ký lại bình thường.
+- Lượt `WAITING`/`CALLED` còn sót từ ngày trước do vận hành tự xử lý; quy tắc trùng chỉ xét trong ngày giao hiện tại.
 - Trường hợp dữ liệu cũ có nhiều lượt chưa kết thúc cùng biển số/khu vực/ngày, API trả lỗi yêu cầu nhân viên xử lý thay vì tự chọn hoặc xóa dữ liệu. Giao dịch đăng ký khóa theo khu vực, ngày và biển số, rồi khóa dòng trước khi cập nhật để đồng bộ với check-in.
-- Điều chỉnh đăng ký thủ công tại cùng đơn vị và loại xe không tính thêm công suất; nếu đổi đơn vị/loại xe, backend kiểm tra công suất đích. Frontend hiển thị cảnh báo công suất nhưng không chặn trước khi backend xác định đây là cập nhật hay tạo mới.
-- Tra cứu check-in theo biển số lọc theo khu vực của nhân viên; trang track gửi khu vực public đang chọn khi tra cứu biển số. Nếu chưa chọn khu vực và có lượt tại nhiều khu vực, tra cứu yêu cầu chọn khu vực thay vì tự chọn một chuyến. Một đăng ký được cập nhật phát `queue_updated` cho đơn vị cũ và mới và `track_updated` cho mã đăng ký giữ nguyên.
+- Với đăng ký thủ công, lượt cũ bị xóa trước khi kiểm tra công suất nên lượt thay thế không bị đếm trùng; nếu công suất đích đã đầy, transaction rollback và lượt cũ được giữ nguyên. Frontend hiển thị cảnh báo công suất nhưng không chặn trước khi backend xác định kết quả.
+- Tra cứu check-in theo biển số lọc theo khu vực của nhân viên; trang track gửi khu vực public đang chọn khi tra cứu biển số. Nếu chưa chọn khu vực và có lượt tại nhiều khu vực, tra cứu yêu cầu chọn khu vực thay vì tự chọn một chuyến. Một đăng ký thay thế phát `queue_updated` cho đơn vị cũ và mới. Mã cũ không còn dòng vận hành: `/api/track/:code` trả 404 kèm `code: RegistrationSuperseded` (không tiết lộ mã mới), `/check-in-lookup` bằng mã cũ trả `409 RegistrationSuperseded` kèm mã hiện hành và số lần đăng ký trong ngày cho nhân viên.
 - Nếu unit bật `sundayFreshFoodOnly`, ngày Chủ nhật chỉ cho `FRESH_FOOD`.
 - Với đăng ký thủ công, backend validate lại capacity ước lượng theo ngày khi submit để tránh frontend bị stale. Đăng ký bằng mã PO/Thi Công không áp dụng giới hạn capacity này.
 - Capacity ngày tính theo:

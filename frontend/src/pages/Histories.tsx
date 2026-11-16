@@ -5,12 +5,14 @@ import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api';
 import { useDeliveryHistory } from '../features/histories/hooks/useDeliveryHistory';
 import { useAuditLogs } from '../features/histories/hooks/useAuditLogs';
-import { DELIVERY_COLUMNS, AUDIT_COLUMNS, DELIVERY_STORAGE_KEY, AUDIT_STORAGE_KEY, GOODS_LABEL, VEHICLE_LABEL } from '../features/histories/constants';
+import { useRegistrationHistory } from '../features/histories/hooks/useRegistrationHistory';
+import { DELIVERY_COLUMNS, AUDIT_COLUMNS, REGISTRATION_COLUMNS, DELIVERY_STORAGE_KEY, AUDIT_STORAGE_KEY, REGISTRATION_STORAGE_KEY, GOODS_LABEL, VEHICLE_LABEL } from '../features/histories/constants';
 import type { DeliveryHistoryItem, AuditLogItem, HistoryTab } from '../features/histories/types';
 import type { UnitConfig } from '../lib/types';
 import ColumnToggle from '../features/histories/components/ColumnToggle';
 import DeliveryTable from '../features/histories/components/DeliveryTable';
 import AuditTable from '../features/histories/components/AuditTable';
+import RegistrationTable from '../features/histories/components/RegistrationTable';
 import TimelineModal from '../features/histories/components/TimelineModal';
 import AuditDetailModal from '../features/histories/components/AuditDetailModal';
 import PlaceholderTab from '../features/histories/components/PlaceholderTab';
@@ -51,6 +53,16 @@ export default function Histories() {
     try { localStorage.setItem(DELIVERY_STORAGE_KEY, JSON.stringify(deliveryVisible)); } catch { /* ignore */ }
   }, [deliveryVisible]);
 
+  // ─── Registration tab ─────────────────────────────────────────────────────
+  const registration = useRegistrationHistory(tab === 'registration');
+  const [registrationVisible, setRegistrationVisible] = useState(() =>
+    loadColumns(REGISTRATION_STORAGE_KEY, REGISTRATION_COLUMNS.filter((c) => c.defaultVisible).map((c) => c.key))
+  );
+
+  useEffect(() => {
+    try { localStorage.setItem(REGISTRATION_STORAGE_KEY, JSON.stringify(registrationVisible)); } catch { /* ignore */ }
+  }, [registrationVisible]);
+
   // ─── Audit tab ────────────────────────────────────────────────────────────
   const audit = useAuditLogs();
   const [auditVisible, setAuditVisible] = useState(() =>
@@ -65,6 +77,7 @@ export default function Histories() {
   const tabs: { id: HistoryTab; label: string }[] = [
     { id: 'access', label: 'Truy cập' },
     { id: 'delivery', label: 'Giao/Nhận' },
+    { id: 'registration', label: 'Đăng ký' },
     { id: 'audit', label: 'Audit' },
   ];
 
@@ -74,7 +87,7 @@ export default function Histories() {
         {/* Header */}
         <div className="mb-6">
           <Typography.Title level={2}>Lịch sử</Typography.Title>
-          <p className="text-sm text-thiso-500 mt-0.5">Truy cập, giao/nhận hàng và nhật ký thao tác</p>
+          <p className="text-sm text-thiso-500 mt-0.5">Truy cập, giao/nhận hàng, lượt đăng ký và nhật ký thao tác</p>
         </div>
 
         {/* Tab bar */}
@@ -114,6 +127,35 @@ export default function Histories() {
             />
 
             {selectedDelivery && <TimelineModal item={selectedDelivery} onClose={() => setSelectedDelivery(null)} />}
+          </div>
+        )}
+
+        {/* ─── Registration Tab ───────────────────────────────────────── */}
+        {tab === 'registration' && (
+          <div className="space-y-4">
+            <Space wrap>
+              <Input allowClear aria-label="Tìm lịch sử đăng ký" placeholder="Tìm biển số, mã đăng ký, PO, tài xế, SĐT..." value={registration.search} onChange={e => registration.setSearch(e.target.value)} style={{ width: 280 }} />
+              <Select aria-label="Trạng thái đăng ký" value={registration.filters.status} onChange={v => registration.setFilter('status', v)} style={{ minWidth: 180 }} options={[{ value: '', label: 'Tất cả trạng thái' }, { value: 'ACTIVE', label: 'Lượt được sử dụng' }, { value: 'SUPERSEDED', label: 'Đã bị thay thế' }]} />
+              <Select aria-label="Đơn vị" value={registration.filters.receivingUnit} onChange={v => registration.setFilter('receivingUnit', v)} style={{ minWidth: 160 }} options={[{value:'',label:'Tất cả đơn vị'}, ...units.map(u => ({value:u.unit,label:u.shortName || u.displayName || u.unit}))]} />
+              <Select aria-label="Loại xe" value={registration.filters.vehicleType} onChange={v => registration.setFilter('vehicleType', v)} style={{ minWidth: 140 }} options={[{value:'',label:'Tất cả xe'}, ...Object.entries(VEHICLE_LABEL).map(([value,label]) => ({value,label}))]} />
+              <DatePicker aria-label="Từ ngày" value={registration.filters.from ? dayjs(registration.filters.from) : null} onChange={d => registration.setFilter('from', d ? d.format('YYYY-MM-DD') : '')} />
+              <DatePicker aria-label="Đến ngày" value={registration.filters.to ? dayjs(registration.filters.to) : null} onChange={d => registration.setFilter('to', d ? d.format('YYYY-MM-DD') : '')} />
+              <ColumnToggle columns={REGISTRATION_COLUMNS} visibleKeys={registrationVisible} onChange={setRegistrationVisible} />{registration.data && <Typography.Text type="secondary">Tổng: {registration.data.total.toLocaleString()}</Typography.Text>}
+            </Space>
+
+            {registration.isError && <Alert type="error" showIcon message="Không thể tải lịch sử đăng ký" action={<Button onClick={() => registration.refetch()}>Thử lại</Button>} />}
+            <RegistrationTable
+              items={registration.data?.items ?? []}
+              isLoading={registration.isLoading}
+              page={registration.page}
+              pages={registration.data?.pages ?? 0}
+              total={registration.data?.total ?? 0}
+              onPageChange={registration.setPage}
+              sortField={registration.sortField}
+              sortDir={registration.sortDir}
+              onSort={registration.handleSort}
+              visibleColumns={registrationVisible}
+            />
           </div>
         )}
 

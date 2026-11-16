@@ -16,6 +16,7 @@ export function useTrackContent(code: string) {
   const [delivery, setDelivery] = useState<TrackDelivery | null>(null);
   const [loading, setLoading] = useState(true);
   const [fetchErr, setFetchErr] = useState('');
+  const [superseded, setSuperseded] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   const [qrExpanded, setQrExpanded] = useState(false);
   const [queueBanner, setQueueBanner] = useState<QueueBannerState | null>(null);
@@ -29,10 +30,20 @@ export function useTrackContent(code: string) {
       const data = await fetchDeliveryByCode(normalizedCode);
       setDelivery(data);
       setFetchErr('');
+      setSuperseded(false);
       if (TERMINAL_STATUSES.has(data.status)) removeDeliverySession(normalizedCode);
       else saveDeliverySession(normalizedCode);
-    } catch {
-      setFetchErr('Không thể tải chuyến. Kiểm tra mã đăng ký và kết nối mạng.');
+    } catch (error) {
+      const data = (error as { response?: { data?: { code?: string; error?: string } } })?.response?.data;
+      if (data?.code === 'RegistrationSuperseded') {
+        // Tài xế đã đăng ký lại cùng biển số: mã này không còn dùng để check-in.
+        setDelivery(null);
+        setSuperseded(true);
+        setFetchErr(data.error ?? 'Mã đăng ký này đã được thay thế bởi lần đăng ký mới hơn.');
+        removeDeliverySession(normalizedCode);
+      } else {
+        setFetchErr('Không thể tải chuyến. Kiểm tra mã đăng ký và kết nối mạng.');
+      }
     } finally { setLoading(false); }
   }, [normalizedCode]);
 
@@ -114,7 +125,7 @@ export function useTrackContent(code: string) {
     return () => clearTimeout(timer);
   }, [queueBanner]);
 
-  return { delivery, loading, fetchErr, qrDataUrl, qrExpanded, setQrExpanded, queueBanner, setQueueBanner, wakeLockActive,
+  return { delivery, loading, fetchErr, superseded, qrDataUrl, qrExpanded, setQrExpanded, queueBanner, setQueueBanner, wakeLockActive,
     si: delivery ? STATUS_INFO[delivery.status] ?? STATUS_INFO.REGISTERED : STATUS_INFO.REGISTERED,
     isTerminal: !!delivery && TERMINAL_STATUSES.has(delivery.status),
     isUrgentQueue: delivery?.status === 'WAITING' && (delivery.queueInfo?.position ?? 99) <= 5,

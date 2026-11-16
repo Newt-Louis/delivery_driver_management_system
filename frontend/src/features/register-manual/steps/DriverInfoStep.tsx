@@ -1,6 +1,7 @@
 import { InfoCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Card, Form, Input, Space, Switch, Typography } from 'antd';
 import type { FormState } from '../types';
+import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE, VEHICLE_PLATE_HINT } from '../../../lib/vehiclePlate';
 
 type DriverInfoStepProps = {
   form: FormState;
@@ -8,10 +9,10 @@ type DriverInfoStepProps = {
   setRememberInfo: (updater: (value: boolean) => boolean) => void;
 };
 
-const normalizePlate = (value: string = '') => value.toUpperCase().replace(/[^A-Z0-9\-.]/g, '');
 const normalizePhone = (value: string = '') => value.replace(/[^\d+\-\s]/g, '');
 
 export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: DriverInfoStepProps) {
+  const vehicleType = form.vehicleType;
   return (
     <div className="space-y-5">
       {(form.driverName || form.vehiclePlate) && <Alert type="info" showIcon icon={<InfoCircleOutlined />} title="Đã điền sẵn thông tin từ lần trước. Hãy kiểm tra lại trước khi tiếp tục." />}
@@ -19,11 +20,19 @@ export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: 
         <Form.Item<FormState>
           label="Biển số xe"
           name="vehiclePlate"
-          normalize={normalizePlate}
-          rules={[{ required: true, whitespace: true, message: 'Vui lòng nhập biển số xe' }]}
-          extra="Ví dụ: 51C-123.45 — nhập chữ in hoa, không cần dấu cách."
+          normalize={normalizeVehiclePlateInput}
+          rules={[
+            { required: true, whitespace: true, message: 'Vui lòng nhập biển số xe' },
+            {
+              validator: async (_, value: string = '') => {
+                const message = value.trim() ? vehiclePlateError(value, vehicleType) : '';
+                if (message) throw new Error(message);
+              },
+            },
+          ]}
+          extra={vehicleType ? VEHICLE_PLATE_HINT[vehicleType] : 'Viết liền, không dấu. Chữ thường sẽ tự chuyển thành chữ hoa.'}
         >
-          <Input size="large" placeholder="51C-123.45" autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} className="font-mono tracking-widest" />
+          <Input size="large" placeholder={vehicleType ? VEHICLE_PLATE_EXAMPLE[vehicleType] : VEHICLE_PLATE_EXAMPLE.TRUCK} autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} className="font-mono tracking-widest" />
         </Form.Item>
         <Form.Item<FormState> label="Tên tài xế" name="driverName">
           <Input size="large" placeholder="Nguyễn Văn A" autoComplete="name" />

@@ -21,6 +21,24 @@ export const DELIVERY_COLUMNS: ColumnConfig[] = [
   { key: 'archivedAt',         label: 'Thời gian lưu trữ', sortable: true, defaultVisible: true },
 ];
 
+export const REGISTRATION_COLUMNS: ColumnConfig[] = [
+  { key: 'registeredAt',         label: 'Giờ đăng ký',          sortable: true,  defaultVisible: true },
+  { key: 'registrationCode',     label: 'Mã đăng ký',           sortable: true,  defaultVisible: true },
+  { key: 'vehiclePlate',         label: 'Biển số',              sortable: true,  defaultVisible: true },
+  { key: 'dailyRegistrationCount', label: 'Số lần đăng ký trong ngày', sortable: false, defaultVisible: true },
+  { key: 'status',               label: 'Trạng thái',           sortable: false, defaultVisible: true },
+  { key: 'deviceType',           label: 'Thiết bị',             sortable: false, defaultVisible: true },
+  { key: 'registrationSource',   label: 'Hình thức',            sortable: false, defaultVisible: true },
+  { key: 'poNumber',             label: 'Mã PO / Thi Công',     sortable: false, defaultVisible: true },
+  { key: 'driverName',           label: 'Tài xế',               sortable: false, defaultVisible: true },
+  { key: 'driverPhone',          label: 'Số điện thoại',        sortable: false, defaultVisible: true },
+  { key: 'vendorName',           label: 'Nhà cung cấp',         sortable: false, defaultVisible: true },
+  { key: 'receivingUnit',        label: 'Đơn vị nhận',          sortable: true,  defaultVisible: true },
+  { key: 'vehicleType',          label: 'Loại xe',              sortable: true,  defaultVisible: true },
+  { key: 'goodsType',            label: 'Loại hàng',            sortable: false, defaultVisible: true },
+  { key: 'note',                 label: 'Ghi chú',              sortable: false, defaultVisible: true },
+];
+
 export const AUDIT_COLUMNS: ColumnConfig[] = [
   { key: 'createdAt',   label: 'Thời gian',    sortable: true,  defaultVisible: true },
   { key: 'actorLabel',  label: 'Actor',         sortable: false, defaultVisible: true },
@@ -52,6 +70,16 @@ export const VEHICLE_LABEL: Record<string, string> = {
   MOTORBIKE: 'Xe máy',
 };
 
+export const REGISTRATION_DEVICE_LABEL: Record<string, string> = {
+  MOBILE: 'Đăng ký trên điện thoại',
+  DESKTOP: 'Đăng ký trên máy tính',
+};
+
+export const REGISTRATION_SOURCE_LABEL: Record<string, string> = {
+  QUICK: 'Đăng ký nhanh',
+  MANUAL: 'Đăng ký thủ công',
+};
+
 export const ACTOR_TYPE_LABEL: Record<string, string> = {
   USER: 'Người dùng',
   STAFF: 'Nhân viên',
@@ -80,3 +108,4 @@ export const DEFAULT_PAGE_SIZE = 50;
 
 export const DELIVERY_STORAGE_KEY = 'histories-delivery-columns';
 export const AUDIT_STORAGE_KEY = 'histories-audit-columns';
+export const REGISTRATION_STORAGE_KEY = 'histories-registration-columns';

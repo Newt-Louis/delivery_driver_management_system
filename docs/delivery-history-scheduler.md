@@ -34,6 +34,17 @@ Giai đoạn 3 tách hai trách nhiệm mới:
 - `INCOMPLETED`
 - `ARCHIVED`
 
+`registration_history` lưu mỗi lượt đăng ký thành công từ `/register` và `/register-manual` (seeding không ghi):
+
+- Snapshot thông tin đăng ký: mã, khu vực, đơn vị, NCC, mã PO/Thi Công, tài xế, SĐT, biển số, loại xe/hàng, ghi chú.
+- `registrationSource`: `QUICK` hoặc `MANUAL`.
+- `deviceType`: `MOBILE` (điện thoại/máy tính bảng) hoặc `DESKTOP`, suy ra từ gợi ý `clientDevice.mobile` của frontend, User-Agent và header `Sec-CH-UA-Mobile`. Không lưu tên đời máy hay IP.
+- `userAgent`: chuỗi gốc tối đa 512 ký tự, chỉ để IT tra cứu trong database, không trả ra API.
+- `supersededAt`, `supersededByCode`, `supersededByRegistrationId`: có giá trị khi lượt bị thay thế bởi lần đăng ký lại cùng biển số/khu vực/ngày/mã.
+- Lưu vĩnh viễn, chưa có job dọn. Lượt đăng ký trước khi có bảng chỉ được ghi lịch sử khi bị thay thế.
+
+Bảng này là bằng chứng đối chiếu (ví dụ tài xế đăng ký nhiều lần rồi dùng QR cũ), không tham gia vận hành, báo cáo hay `delivery_history`.
+
 `scheduler_job_histories` lưu:
 
 - Tên job.
@@ -97,5 +108,6 @@ Nguyên tắc:
 - Dashboard hiển thị số lần gọi từ `callCount`.
 - Dashboard bắt buộc nhập lý do khi hủy chuyến.
 - Trang Histories đọc danh sách lịch sử từ `delivery_history` qua `/api/histories/delivery`.
+- Tab **Đăng ký** của Histories đọc `registration_history` qua `/api/histories/registrations` (role `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, scope theo `businessLocationId` và unit được phân quyền). Bảng hiển thị trạng thái "Lượt được sử dụng"/"Đã bị thay thế bởi … lúc …", số lần đăng ký trong ngày của biển số, nhãn "Đăng ký trên điện thoại"/"Đăng ký trên máy tính" và hình thức đăng ký; lọc theo trạng thái, đơn vị, loại xe, ngày và tìm theo biển số/mã/PO/tài xế/SĐT.
 - Double-click một dòng lịch sử trong Histories để mở modal timeline từ `delivery_history_events`.
 - Feature Histories nằm trong `frontend/src/features/histories`, gồm API helper, hooks, bảng giao/nhận, bảng audit, modal timeline/audit detail, formatter dùng chung và component bảng/pagination dùng chung.

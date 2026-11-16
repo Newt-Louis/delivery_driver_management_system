@@ -1,6 +1,6 @@
 import type { ReceivingUnit, GoodsType, VehicleType, DeliveryStatus, UnitConfig } from '../../lib/types';
 
-export type HistoryTab = 'delivery' | 'audit' | 'access';
+export type HistoryTab = 'delivery' | 'registration' | 'audit' | 'access';
 
 export interface DeliveryHistoryItem {
   id: string;
@@ -65,6 +65,32 @@ export interface AuditLogItem {
   createdAt: string;
 }
 
+export interface RegistrationHistoryItem {
+  id: string;
+  registrationCode: string;
+  businessLocationId: string;
+  unitConfigId: string | null;
+  unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'> | null;
+  receivingUnit: ReceivingUnit;
+  vendorName: string;
+  vendorCode: string | null;
+  poNumber: string | null;
+  driverName: string;
+  driverPhone: string;
+  vehiclePlate: string;
+  vehicleType: VehicleType;
+  goodsType: GoodsType;
+  autoWarehouse: boolean;
+  requestedTime: string | null;
+  note: string | null;
+  registrationSource: 'QUICK' | 'MANUAL' | null;
+  deviceType: 'MOBILE' | 'DESKTOP' | null;
+  registeredAt: string;
+  supersededAt: string | null;
+  supersededByCode: string | null;
+  dailyRegistrationCount: number;
+}
+
 export interface PaginatedResponse<T> {
   items: T[];
   total: number;
@@ -80,6 +106,8 @@ export type DeliverySortField =
   | 'goodsType' | 'vehicleType' | 'ticketNumber' | 'callCount';
 
 export type AuditSortField = 'createdAt' | 'actorType' | 'action' | 'targetType';
+
+export type RegistrationSortField = 'registeredAt' | 'supersededAt' | 'registrationCode' | 'vehiclePlate' | 'receivingUnit' | 'vehicleType';
 
 export interface ColumnConfig {
   key: string;

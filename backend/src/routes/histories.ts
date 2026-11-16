@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma';
 import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { HistoryFormRequest } from '../modules/history/historyFormRequest';
+import { dailyCountFor, listRegistrationHistory } from '../modules/registrationHistory/registrationHistoryRepository';
 
 const router = Router();
 
@@ -163,6 +164,88 @@ router.get('/delivery/:id/events', authenticate, enforceScope, requireRole('SUPE
     },
   });
   res.json(events);
+}));
+
+// ─── Registration History ─────────────────────────────────────────────────────
+
+router.get('/registrations', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE'), asyncHandler(async (req: Request, res: Response) => {
+  const form = HistoryFormRequest.parseRegistrationHistoryQuery(req.query as Record<string, unknown>);
+
+  const where: Prisma.RegistrationHistoryWhereInput = {};
+
+  // Scope
+  if (req.scope?.businessLocationId) {
+    where.businessLocationId = req.scope.businessLocationId;
+  }
+  const operationUnitIds = req.user?.role === 'SUPERADMIN'
+    ? undefined
+    : req.user?.operationUnits?.filter((unit) => unit.isActive).map((unit) => unit.id);
+  if (req.scope?.unitConfigId) {
+    where.unitConfigId = req.scope.unitConfigId;
+  } else if (operationUnitIds) {
+    where.unitConfigId = operationUnitIds.length > 0 ? { in: operationUnitIds } : '__NO_UNIT_SCOPE__';
+  }
+
+  // Date range
+  if (form.from || form.to) {
+    where.registeredAt = {
+      ...(form.from ? { gte: form.from } : {}),
+      ...(form.to ? { lte: form.to } : {}),
+    };
+  }
+
+  // Filters
+  if (form.status === 'ACTIVE') where.supersededAt = null;
+  if (form.status === 'SUPERSEDED') where.supersededAt = { not: null };
+  if (form.receivingUnit) where.receivingUnit = form.receivingUnit;
+  if (form.vehicleType) where.vehicleType = form.vehicleType;
+
+  // Search
+  if (form.search) {
+    const q = form.search;
+    where.OR = [
+      { vehiclePlate: { contains: q.replace(/[\s.\-]+/g, '') || q, mode: 'insensitive' } },
+      { registrationCode: { contains: q, mode: 'insensitive' } },
+      { supersededByCode: { contains: q, mode: 'insensitive' } },
+      { poNumber: { contains: q, mode: 'insensitive' } },
+      { driverName: { contains: q, mode: 'insensitive' } },
+      { driverPhone: { contains: q.replace(/\D/g, '') || q, mode: 'insensitive' } },
+      { vendorName: { contains: q, mode: 'insensitive' } },
+    ];
+  }
+
+  const orderBy = { [form.sortField]: form.sortDir } as Prisma.RegistrationHistoryOrderByWithRelationInput;
+  const { items, total, dailyCounts } = await listRegistrationHistory({ where, orderBy, skip: form.skip, take: form.limit });
+
+  const unitConfigIds = [...new Set(items.map((item) => item.unitConfigId).filter(Boolean))] as string[];
+  const unitConfigs = unitConfigIds.length
+    ? await prisma.unitConfig.findMany({
+        where: { id: { in: unitConfigIds } },
+        select: {
+          id: true,
+          unit: true,
+          displayName: true,
+          shortName: true,
+          icon: true,
+          logoUrl: true,
+          primaryColor: true,
+          businessLocationId: true,
+        },
+      })
+    : [];
+  const unitConfigById = new Map(unitConfigs.map((unit) => [unit.id, unit]));
+
+  res.json({
+    items: items.map((item) => ({
+      ...item,
+      dailyRegistrationCount: dailyCountFor(dailyCounts, item),
+      unitConfig: item.unitConfigId ? unitConfigById.get(item.unitConfigId) ?? null : null,
+    })),
+    total,
+    page: form.page,
+    limit: form.limit,
+    pages: Math.ceil(total / form.limit),
+  });
 }));
 
 // ─── Audit Logs ───────────────────────────────────────────────────────────────

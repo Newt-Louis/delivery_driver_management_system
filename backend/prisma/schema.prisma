@@ -105,6 +105,16 @@ enum SchedulerJobTrigger {
   STARTUP
 }
 
+enum RegistrationSource {
+  QUICK
+  MANUAL
+}
+
+enum RegistrationDeviceType {
+  MOBILE
+  DESKTOP
+}
+
 enum UploadedFileScope {
   BUSINESS_LOCATION
   UNIT_CONFIG
@@ -429,6 +439,45 @@ model DeliveryHistoryEvent {
   @@index([unitConfigId, occurredAt])
   @@index([eventType, occurredAt])
   @@map("delivery_history_events")
+}
+
+/// Lịch sử từng lượt đăng ký thành công từ trang public. Lượt bị thay thế khi
+/// tài xế đăng ký lại cùng biển số trong cùng BusinessLocation và ngày giao
+/// được đánh dấu supersededAt; bảng chỉ phục vụ đối chiếu, không dùng cho vận hành.
+model RegistrationHistory {
+  id                         String                  @id @default(cuid())
+  deliveryRegistrationId     String                  @map("delivery_registration_id")
+  registrationCode           String                  @unique @map("registration_code")
+  businessLocationId         String                  @map("business_location_id")
+  unitConfigId               String?                 @map("unit_config_id")
+  receivingUnit              String                  @map("receiving_unit")
+  vendorName                 String                  @map("vendor_name")
+  vendorCode                 String?                 @map("vendor_code")
+  poNumber                   String?                 @map("po_number")
+  driverName                 String                  @map("driver_name")
+  driverPhone                String                  @map("driver_phone")
+  vehiclePlate               String                  @map("vehicle_plate")
+  vehicleType                VehicleType             @map("vehicle_type")
+  goodsType                  GoodsType               @map("goods_type")
+  originalGoodsType          GoodsType?              @map("original_goods_type")
+  unitGoodsTypeId            String?                 @map("unit_goods_type_id")
+  autoWarehouse              Boolean                 @default(false) @map("auto_warehouse")
+  requestedTime              DateTime?               @map("requested_time")
+  note                       String?
+  registrationSource         RegistrationSource?     @map("registration_source")
+  deviceType                 RegistrationDeviceType? @map("device_type")
+  userAgent                  String?                 @map("user_agent")
+  registeredAt               DateTime                @map("registered_at")
+  supersededAt               DateTime?               @map("superseded_at")
+  supersededByCode           String?                 @map("superseded_by_code")
+  supersededByRegistrationId String?                 @map("superseded_by_registration_id")
+  createdAt                  DateTime                @default(now()) @map("created_at")
+
+  @@index([businessLocationId, registeredAt])
+  @@index([businessLocationId, vehiclePlate, registeredAt])
+  @@index([unitConfigId, registeredAt])
+  @@index([supersededByCode])
+  @@map("registration_history")
 }
 
 model SchedulerJobHistory {

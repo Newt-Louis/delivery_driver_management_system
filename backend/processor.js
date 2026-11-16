@@ -14,7 +14,8 @@ function generateDriverData(userContext, events, done) {
     .toString(36)
     .substring(2, 7)
     .toUpperCase()}`;
-  const randomPlate = `51C-${randomStr.slice(-8)}`;
+  // Biển số xe tải hợp lệ: 2 số + 1 chữ + 5 số.
+  const randomPlate = `51C${Math.floor(Math.random() * 100000).toString().padStart(5, '0')}`;
   
   userContext.vars.vendorName = `Vendor ${randomStr}`;
   userContext.vars.driverName = `Driver ${randomStr}`;
@@ -53,6 +54,7 @@ async function cleanupDelivery(registrationCode) {
         prisma.deliveryHistoryEvent.deleteMany({ where: { originalDeliveryId: delivery.id } }),
         prisma.deliveryHistory.deleteMany({ where: { originalDeliveryId: delivery.id } }),
         prisma.pushSubscription.deleteMany({ where: { deliveryCode: delivery.registrationCode } }),
+        prisma.registrationHistory.deleteMany({ where: { registrationCode: delivery.registrationCode } }),
         prisma.deliveryRegistration.delete({ where: { id: delivery.id } }),
       ]);
 

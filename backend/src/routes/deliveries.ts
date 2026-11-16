@@ -31,7 +31,11 @@ router.post('/auto-dispatch/:unit', authenticate, enforceScope, requireRole('SUP
 // POST /api/deliveries/register
 router.post('/register', publicWriteLimiter, asyncHandler(async (req, res) => {
   const body = DeliveryFormRequest.parseRegister(req.body);
-  await respond(res, deliveryService.registerDelivery(body), 201);
+  await respond(res, deliveryService.registerDelivery(body, {
+    userAgent: req.get('user-agent'),
+    clientHintMobile: req.get('sec-ch-ua-mobile'),
+    clientMobile: body.clientDevice?.mobile,
+  }), 201);
 }));
 
 // POST /api/deliveries/quick-verify

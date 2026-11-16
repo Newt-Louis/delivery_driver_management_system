@@ -27,6 +27,12 @@ function TrackContent({ code }: { code: string }) {
     );
   }
 
+  if (hook.superseded) {
+    return (
+      <Result className="mx-auto grid min-h-[calc(100vh-60px)] max-w-lg place-content-center" status="warning" title="Mã đăng ký đã được thay thế" subTitle={<>{hook.fetchErr}<br />{code}</>} />
+    );
+  }
+
   if (hook.fetchErr || !hook.delivery) {
     return (
       <Result className="mx-auto grid min-h-[calc(100vh-60px)] max-w-lg place-content-center" status="404" icon={<SearchOutlined />} title="Không tìm thấy lượt đăng ký" subTitle={code} />

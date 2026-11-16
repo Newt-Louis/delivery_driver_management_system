@@ -58,6 +58,8 @@ API:
   - Role: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `CHECKIN`.
   - Check delivery đúng ngày giao.
   - Gọi `checkInDelivery()`.
+  - Nếu `registrationCode` là mã đã bị thay thế do tài xế đăng ký lại (xem `driver-registration.md`), trả `409 RegistrationSuperseded` với thông báo gồm thời điểm thay thế, mã hiện hành và số lần đăng ký của biển số trong ngày; nhân viên tra theo biển số hoặc dùng mã mới.
+  - Tra theo biển số chấp nhận cả cách gõ có dấu `-`, `.` hoặc khoảng trắng.
   - Emit realtime và trigger auto-assign.
 - `PATCH /api/deliveries/:id/check-in`
   - Check-in bằng id.

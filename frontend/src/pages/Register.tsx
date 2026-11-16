@@ -20,6 +20,7 @@ import type { SuccessInfo } from '../features/register-manual/types';
 import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
 import { createScanHints } from '../features/register-manual/utils/scanner';
 import { canOfferManualRegistration } from '../features/register-manual/quickVerifyErrors';
+import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE, VEHICLE_PLATE_HINT } from '../lib/vehiclePlate';
 
 type Step = 1 | 2 | 3;
 
@@ -138,6 +139,7 @@ export default function Register() {
   const [form, setForm] = useState<QuickForm>(emptyForm);
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [plateTouched, setPlateTouched] = useState(false);
   const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
   const [unitConfigLoading, setUnitConfigLoading] = useState(false);
   const [unitConfigMsg, setUnitConfigMsg] = useState('');
@@ -464,8 +466,10 @@ export default function Register() {
       toast.error('Số điện thoại không hợp lệ.');
       return false;
     }
-    if (!form.vehiclePlate.trim()) {
-      toast.error('Vui lòng nhập biển số xe.');
+    const plateMessage = vehiclePlateError(form.vehiclePlate, form.vehicleType);
+    if (plateMessage) {
+      setPlateTouched(true);
+      toast.error(plateMessage);
       return false;
     }
     return true;
@@ -483,7 +487,7 @@ export default function Register() {
 
     setSubmitting(true);
     try {
-      const plate = form.vehiclePlate.toUpperCase().replace(/\s+/g, '');
+      const plate = normalizeVehiclePlateInput(form.vehiclePlate);
       const res = await registerDelivery({
         businessLocationId: verified.businessLocationId,
         unitConfigId: verified.unitConfigId,
@@ -532,10 +536,13 @@ export default function Register() {
     setManualFallback(false);
     setVerified(null);
     setForm(emptyForm());
+    setPlateTouched(false);
     setUnitConfig(null);
     setUnitConfigMsg('');
     setSuccess(null);
   }
+
+  const plateErrorText = plateTouched ? vehiclePlateError(form.vehiclePlate, form.vehicleType) : '';
 
   if (success) {
     return <SuccessScreen info={success} onReset={resetFlow} />;
@@ -645,7 +652,13 @@ export default function Register() {
                   <Row gutter={[16, 0]}>
                     <Col xs={24} sm={12}><Form.Item label="Tên tài xế"><Input value={form.driverName} onChange={(event) => setField('driverName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Số điện thoại" required><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', event.target.value)} placeholder="090..." inputMode="tel" autoComplete="tel" /></Form.Item></Col>
-                    <Col xs={24} sm={12}><Form.Item label="Biển số xe" required><Input value={form.vehiclePlate} onChange={(event) => setField('vehiclePlate', event.target.value.toUpperCase())} placeholder="51C12345" autoComplete="off" className="font-mono uppercase" /></Form.Item></Col>
+                    <Col xs={24} sm={12}><Form.Item
+                      label="Biển số xe"
+                      required
+                      validateStatus={plateErrorText ? 'error' : undefined}
+                      help={plateErrorText || undefined}
+                      extra={form.vehicleType ? VEHICLE_PLATE_HINT[form.vehicleType] : undefined}
+                    ><Input value={form.vehiclePlate} onChange={(event) => setField('vehiclePlate', normalizeVehiclePlateInput(event.target.value))} onBlur={() => setPlateTouched(true)} placeholder={form.vehicleType ? VEHICLE_PLATE_EXAMPLE[form.vehicleType] : VEHICLE_PLATE_EXAMPLE.TRUCK} autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} className="font-mono uppercase" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Mã NCC"><AutoComplete
                       value={form.vendorCode}
                       disabled={vendorCodeLocked}
@@ -677,7 +690,7 @@ export default function Register() {
                   { key: 'vehicle', label: 'Loại xe', children: form.vehicleType ? VEHICLE_LABEL[form.vehicleType] : 'Chưa chọn' },
                   { key: 'driver', label: 'Tài xế', children: form.driverName || '—' },
                   { key: 'phone', label: 'Số điện thoại', children: form.driverPhone },
-                  { key: 'plate', label: 'Biển số', children: <Typography.Text code>{form.vehiclePlate.toUpperCase().replace(/\s+/g, '')}</Typography.Text> },
+                  { key: 'plate', label: 'Biển số', children: <Typography.Text code>{normalizeVehiclePlateInput(form.vehiclePlate)}</Typography.Text> },
                   { key: 'vendor-code', label: 'Mã NCC', children: form.vendorCode || '—' },
                   { key: 'vendor', label: 'Tên NCC / Công ty', children: form.vendorName || '—' },
                 ]} />

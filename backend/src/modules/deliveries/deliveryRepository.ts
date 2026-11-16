@@ -4,6 +4,7 @@ import { prisma } from '../../lib/prisma';
 import type { SocketScope } from '../../socket';
 import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import { getCallHistoryCounts } from '../history/historyRepository';
+import { normalizeVehiclePlate } from '../../domain/vehiclePlate';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
   id: true,
@@ -16,9 +17,7 @@ const DELIVERY_UNIT_CONFIG_SELECT = {
   primaryColor: true,
 } as const;
 
-export function normalizeVehiclePlate(value: string): string {
-  return value.trim().toUpperCase().replace(/\s+/g, '');
-}
+export { normalizeVehiclePlate };
 
 export function normalizeDriverPhone(value: string): string {
   return value.replace(/\D/g, '');

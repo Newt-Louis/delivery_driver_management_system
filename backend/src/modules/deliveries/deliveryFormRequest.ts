@@ -20,6 +20,7 @@ const registerSchema = z.object({
   note: z.string().optional(),
   quickVerificationToken: z.string().optional(),
   manualRegistration: z.boolean().optional(),
+  clientDevice: z.object({ mobile: z.boolean().optional() }).optional(),
 });
 
 const quickVerifySchema = z.object({

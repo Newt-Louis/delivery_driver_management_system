@@ -17,6 +17,9 @@ import deliveryRoutes from '../routes/deliveries';
 import { autoCancelCalledNoShowDeliveries, closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
 import { reconcileSlots } from '../modules/slots/slotService';
 import { getVehicleAvailability } from '../modules/units/unitService';
+import { checkInLookup } from '../modules/deliveries/deliveryService';
+import { findSupersededRegistration } from '../modules/registrationHistory/registrationHistoryRepository';
+import type { AuthUser } from '../middleware/auth';
 
 const server = createServer();
 initSocket(server);
@@ -107,6 +110,7 @@ async function cleanupPrefix(prefix: string): Promise<void> {
     ...(deliveryIds.length ? [prisma.deliveryHistoryEvent.deleteMany({ where: { originalDeliveryId: { in: deliveryIds } } })] : []),
     ...(deliveryIds.length ? [prisma.deliveryHistory.deleteMany({ where: { originalDeliveryId: { in: deliveryIds } } })] : []),
     ...(deliveryIds.length ? [prisma.deliveryRegistration.deleteMany({ where: { id: { in: deliveryIds } } })] : []),
+    ...(locationIds.length ? [prisma.registrationHistory.deleteMany({ where: { businessLocationId: { in: locationIds } } })] : []),
     ...(slotIds.length ? [prisma.slot.deleteMany({ where: { id: { in: slotIds } } })] : []),
     ...(zoneIds.length ? [prisma.zone.deleteMany({ where: { id: { in: zoneIds } } })] : []),
     ...(unitConfigIds.length ? [prisma.unitConfig.deleteMany({ where: { id: { in: unitConfigIds } } })] : []),
@@ -361,31 +365,66 @@ async function skipAutoAssignIfForeignWaiting(
   return false;
 }
 
-test('concurrent registrations update one delivery per plate and location', async () => {
+test('concurrent registrations keep one operational row per plate and record every attempt', async () => {
   await withRegisterServer(async (baseUrl) => {
     await withScope('REGPLATE', ReceivingUnit.EMART, async (scope) => {
+      const vehiclePlate = '99Z12345';
       const payload = {
         businessLocationId: scope.businessLocationId, unitConfigId: scope.unitConfigId,
         vendorName: 'Vendor', driverName: 'Driver', driverPhone: '0900000000',
-        vehiclePlate: `${scope.prefix}PLATE`, vehicleType: 'TRUCK', receivingUnit: 'EMART',
+        vehiclePlate: '99z-123.45', vehicleType: 'TRUCK', receivingUnit: 'EMART',
         goodsType: 'GENERAL_GOODS', poNumber: 'ABC1234', note: scope.prefix,
       };
-      const submit = (body: object) => fetch(`${baseUrl}/api/deliveries/register`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      const submit = (body: object, userAgent = 'Mozilla/5.0 (Linux; Android 14; K) Mobile') => fetch(`${baseUrl}/api/deliveries/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', 'User-Agent': userAgent }, body: JSON.stringify(body),
       });
       const responses = await Promise.all(Array.from({ length: 10 }, (_, i) => submit({ ...payload, driverPhone: `09000000${String(i).padStart(2, '0')}` })));
-      assert.ok(responses.every((response) => response.status === 201));
+      assert.deepEqual(responses.map((response) => response.status), Array(10).fill(201));
       const bodies = await Promise.all(responses.map((response) => response.json() as Promise<{ registrationCode: string }>));
-      assert.equal(new Set(bodies.map((body) => body.registrationCode)).size, 1);
-      const rows = await prisma.deliveryRegistration.findMany({ where: { vehiclePlate: payload.vehiclePlate } });
+      assert.equal(new Set(bodies.map((body) => body.registrationCode)).size, 10, 'each registration gets a new code');
+
+      const rows = await prisma.deliveryRegistration.findMany({ where: { vehiclePlate, unitConfigId: scope.unitConfigId } });
       assert.equal(rows.length, 1);
-      assert.equal(rows[0].registrationCode, bodies[0].registrationCode);
+      const histories = await prisma.registrationHistory.findMany({ where: { businessLocationId: scope.businessLocationId, vehiclePlate } });
+      assert.equal(histories.length, 10);
+      const active = histories.filter((row) => !row.supersededAt);
+      assert.equal(active.length, 1);
+      assert.equal(active[0].registrationCode, rows[0].registrationCode);
+      assert.ok(histories.every((row) => row.deviceType === 'MOBILE' && row.registrationSource === 'MANUAL'));
+      assert.ok(histories.filter((row) => row.supersededAt).every((row) => row.supersededByCode));
+      const orphanEvents = await prisma.deliveryHistoryEvent.count({
+        where: { registrationCode: { in: histories.filter((row) => row.supersededAt).map((row) => row.registrationCode) } },
+      });
+      assert.equal(orphanEvents, 0);
+
+      const oldCode = histories.find((row) => row.supersededAt)!.registrationCode;
+      await assert.rejects(
+        checkInLookup({ registrationCode: oldCode }, { businessLocationId: scope.businessLocationId } as AuthUser),
+        { code: 'RegistrationSuperseded' },
+      );
+      const superseded = await findSupersededRegistration(oldCode);
+      assert.equal(superseded?.current?.registrationCode, rows[0].registrationCode);
+      assert.equal(superseded?.registrationCount, 10);
+
+      const otherOrder = await submit({ ...payload, poNumber: 'XYZ9999' }, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
+      assert.equal(otherOrder.status, 409);
+      assert.equal(((await otherOrder.json()) as { message: string }).message, 'Biển số xe đã tồn tại!');
+      assert.equal(await prisma.registrationHistory.count({ where: { businessLocationId: scope.businessLocationId } }), 10);
+
+      const invalid = await submit({ ...payload, vehiclePlate: '99Z-123' });
+      assert.equal(invalid.status, 400);
+
       await prisma.deliveryRegistration.update({ where: { id: rows[0].id }, data: { status: DeliveryStatus.WAITING, checkinTime: new Date() } });
       assert.equal((await submit(payload)).status, 409);
       await prisma.deliveryRegistration.update({ where: { id: rows[0].id }, data: { status: DeliveryStatus.CANCELLED } });
-      const fresh = await submit(payload);
+      const fresh = await submit(payload, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)');
       assert.equal(fresh.status, 201);
-      assert.notEqual(((await fresh.json()) as { registrationCode: string }).registrationCode, rows[0].registrationCode);
+      const freshCode = ((await fresh.json()) as { registrationCode: string }).registrationCode;
+      assert.notEqual(freshCode, rows[0].registrationCode);
+      const cancelledHistory = await prisma.registrationHistory.findUniqueOrThrow({ where: { registrationCode: rows[0].registrationCode } });
+      assert.equal(cancelledHistory.supersededAt, null, 'a cancelled delivery is not superseded');
+      const freshHistory = await prisma.registrationHistory.findUniqueOrThrow({ where: { registrationCode: freshCode } });
+      assert.equal(freshHistory.deviceType, 'DESKTOP');
     });
   });
 });
@@ -419,7 +458,7 @@ test('50 concurrent registrations for one day respect estimated daily capacity',
             vendorName: 'Concurrent Slot Vendor',
             driverName: `Driver ${i}`,
             driverPhone: `091${String(i).padStart(7, '0')}`,
-            vehiclePlate: `${scope.prefix}${String(i).padStart(3, '0')}`,
+            vehiclePlate: `99Z${String(i).padStart(5, '0')}`,
             vehicleType: 'TRUCK',
             receivingUnit: 'EMART',
             businessLocationId: scope.businessLocationId,

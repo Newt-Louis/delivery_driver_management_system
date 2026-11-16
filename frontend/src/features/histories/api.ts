@@ -1,5 +1,5 @@
 import api from '../../lib/api';
-import type { DeliveryHistoryItem, DeliveryHistoryEventItem, AuditLogItem, PaginatedResponse } from './types';
+import type { DeliveryHistoryItem, DeliveryHistoryEventItem, AuditLogItem, PaginatedResponse, RegistrationHistoryItem } from './types';
 import { cleanQueryParams } from './utils/queryParams';
 
 export interface DeliveryHistoryParams {
@@ -12,6 +12,19 @@ export interface DeliveryHistoryParams {
   finalStatus?: string;
   receivingUnit?: string;
   goodsType?: string;
+  vehicleType?: string;
+  search?: string;
+}
+
+export interface RegistrationHistoryParams {
+  page?: number;
+  limit?: number;
+  sortField?: string;
+  sortDir?: 'asc' | 'desc';
+  from?: string;
+  to?: string;
+  status?: string;
+  receivingUnit?: string;
   vehicleType?: string;
   search?: string;
 }
@@ -35,6 +48,10 @@ export async function getDeliveryHistory(params: DeliveryHistoryParams): Promise
 
 export async function getDeliveryHistoryEvents(id: string): Promise<DeliveryHistoryEventItem[]> {
   return (await api.get(`/api/histories/delivery/${id}/events`)).data;
+}
+
+export async function getRegistrationHistory(params: RegistrationHistoryParams): Promise<PaginatedResponse<RegistrationHistoryItem>> {
+  return (await api.get('/api/histories/registrations', { params: cleanQueryParams(params) })).data;
 }
 
 export async function getAuditLogs(params: AuditLogParams): Promise<PaginatedResponse<AuditLogItem>> {
