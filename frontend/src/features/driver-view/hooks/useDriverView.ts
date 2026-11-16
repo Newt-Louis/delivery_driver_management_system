@@ -98,10 +98,10 @@ export function useDriverView() {
         warnedUpcoming.current.add(key);
         vibrate([200, 100, 200]);
         sendNotif(
-          '⏰ Sắp đến giờ giao hàng',
+          'Sắp đến giờ giao hàng',
           `Còn khoảng ${minsLeft} phút — vui lòng di chuyển đến cổng mall`,
         );
-        pushNotif('upcoming', `⏰ Còn ~${minsLeft} phút đến giờ hẹn lúc ${formatTime(myDelivery.requestedTime)}`);
+        pushNotif('upcoming', `Còn ~${minsLeft} phút đến giờ hẹn lúc ${formatTime(myDelivery.requestedTime)}`);
       }
     };
 

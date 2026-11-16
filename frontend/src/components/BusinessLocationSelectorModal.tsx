@@ -18,8 +18,8 @@ interface BusinessLocationSelectorModalProps {
 
 export default function BusinessLocationSelectorModal({
   open,
-  title = 'Chọn khu vực vận hành',
-  description = 'Chọn một BusinessLocation để bắt đầu làm việc trong phạm vi dữ liệu của khu vực đó.',
+  title = 'Chọn khu vực giao hàng',
+  description = 'Vui lòng chọn nơi bạn muốn giao hàng',
   locations,
   currentId,
   loading = false,
@@ -78,9 +78,9 @@ export default function BusinessLocationSelectorModal({
                     }}
                   >
                     <Card.Meta
-                      avatar={<Avatar shape="square" size={44} src={location.logoUrl || undefined} icon={<EnvironmentOutlined />}>{location.code.slice(0, 2).toUpperCase()}</Avatar>}
+                      avatar={<Avatar shape="square" size={44} src={location.logoUrl || undefined} icon={<EnvironmentOutlined />}>{location.code}</Avatar>}
                       title={<Flex justify="space-between" gap="small"><Typography.Text strong ellipsis>{location.locationName}</Typography.Text>{selected && <Tag color="processing" icon={<CheckCircleOutlined />}>Đang chọn</Tag>}</Flex>}
-                      description={<Space orientation="vertical" size={2}><Typography.Text code type="secondary">{location.code}</Typography.Text><Typography.Text type="secondary">{unitCount} đơn vị đang hoạt động</Typography.Text></Space>}
+                      description={<Space orientation="vertical" size={2}><Typography.Text type="secondary">{location.address}</Typography.Text></Space>}
                     />
                   </Card>
                 </Col>

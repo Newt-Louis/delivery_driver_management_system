@@ -29,7 +29,7 @@ export default function Home() {
     <BusinessLocationSelectorModal
       open={canSelect && !selectedBusinessLocationId && !dismissed}
       title="Chọn khu vực"
-      description="Chọn khu vực giao hàng để hiển thị thông tin phù hợp."
+      description="Vui lòng chọn nơi bạn muốn giao hàng"
       locations={locations}
       currentId={selectedBusinessLocationId}
       loading={isLoading}

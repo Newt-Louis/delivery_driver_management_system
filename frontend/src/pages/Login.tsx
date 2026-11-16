@@ -62,8 +62,6 @@ export default function Login() {
     }
   }
 
-  const locationName = mall.locationName || mall.mallName;
-
   return (
     <Layout className="min-h-screen px-4 py-6 sm:px-6 lg:p-8">
       <Layout.Content className="m-auto w-full max-w-6xl">
@@ -77,11 +75,8 @@ export default function Login() {
                   className="h-16 w-auto object-contain"
                 />
                 <Typography.Title level={1} className="!mb-0">
-                  Vận hành giao nhận, rõ ràng từng lượt
+                  Hệ thống điều phối nhận hàng
                 </Typography.Title>
-                <Typography.Paragraph type="secondary" className="!mb-0 !text-base">
-                  Đăng nhập để điều phối, check-in và nhận hàng trong cùng một không gian làm việc.
-                </Typography.Paragraph>
               </Space>
             </Col>
           )}
@@ -103,9 +98,6 @@ export default function Login() {
                     <Typography.Title level={2} className="!mb-1">
                       Đăng nhập
                     </Typography.Title>
-                    <Typography.Text type="secondary">
-                      {locationName}
-                    </Typography.Text>
                   </div>
                 </Space>
 

@@ -66,7 +66,7 @@ export default function AllTabOverview({ dispatch, summary, onAction }: {
       onClick={() => setExpanded((current) => current === severity ? null : severity)}
       style={{ height: '100%', minHeight: 92, justifyContent: 'flex-start', textAlign: 'left', borderColor: color, background: expanded === severity ? (severity === 'error' ? token.colorErrorBg : token.colorWarningBg) : undefined, whiteSpace: 'normal' }}
     >
-      <Statistic title={label} value={summary ? alerts[severity].length : '–'} valueStyle={{ color }} suffix={<span style={{ fontSize: token.fontSize }}>{severity === 'error' ? 'trường hợp cần xử lý gấp' : 'trường hợp cảnh báo cần xử lý'}</span>} />
+      <Statistic title={label} value={summary ? alerts[severity].length : '–'} valueStyle={{ color }} />
     </Button>;
   };
 
