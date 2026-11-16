@@ -5,15 +5,12 @@ import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
 import {
   checkAutoWarehouseVendor,
   createManualRegistrationCode,
-  getDailyRegistrationStats,
   getAutoWarehouseVendorSuggestions,
   getPublicUnitConfigs,
   getUnitConfig,
   // getUnitGoodsTypes, ⛔ Tính năng thêm loại hàng (unit_goods_types) đang tạm khóa
   getVehicleAvailability,
   registerDelivery,
-  type DailyRegistrationStat,
-  type DailyRegistrationStatsParams,
   type AutoWarehouseVendorSuggestion,
   type VehicleAvailabilityOption,
 } from '../api';
@@ -22,6 +19,7 @@ import type { FormState, SuccessInfo, Unit } from '../types';
 import { isSundayDate } from '../utils/date';
 import { useToast } from '../../../context/ToastContext';
 import { normalizeVehiclePlateInput, vehiclePlateError } from '../../../lib/vehiclePlate';
+import { normalizeDriverPhoneInput } from '../../../lib/driverPhone';
 
 type ErrorField = { name: Array<string | number> };
 
@@ -71,7 +69,6 @@ export function useRegisterForm() {
       driverPhone: prev.driverPhone ?? '',
       vehiclePlate: prev.vehiclePlate ?? '',
       deliveryDate: '',
-      timeSlot: '',
       note: '',
     };
   });
@@ -82,9 +79,6 @@ export function useRegisterForm() {
   const [publicUnitsMsg, setPublicUnitsMsg] = useState('');
   const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
   const [customGoodsTypes, setCustomGoodsTypes] = useState<UnitGoodsType[]>([]);
-  const [dailyStats, setDailyStats] = useState<DailyRegistrationStat[]>([]);
-  const [dailyStatsMsg, setDailyStatsMsg] = useState('');
-  const [dailyStatsLoading, setDailyStatsLoading] = useState(false);
   const [vehicleAvailability, setVehicleAvailability] = useState<VehicleAvailabilityOption[]>([]);
   const [vehicleAvailabilityMsg, setVehicleAvailabilityMsg] = useState('');
   const [vehicleAvailabilityLoading, setVehicleAvailabilityLoading] = useState(false);
@@ -153,7 +147,6 @@ export function useRegisterForm() {
         goodsType: '',
         unitGoodsTypeId: '',
         vehicleType: '',
-        timeSlot: '',
       };
     });
   }, [resetValidation, selectedBusinessLocationId]);
@@ -169,7 +162,6 @@ export function useRegisterForm() {
         goodsType: '',
         unitGoodsTypeId: '',
         vehicleType: '',
-        timeSlot: '',
       }));
       return;
     }
@@ -189,7 +181,6 @@ export function useRegisterForm() {
             goodsType: '',
             unitGoodsTypeId: '',
             vehicleType: '',
-            timeSlot: '',
           };
         });
         if (units.length === 0) setPublicUnitsMsg('Khu vực này chưa có đơn vị nhận hàng đang hoạt động.');
@@ -264,26 +255,6 @@ export function useRegisterForm() {
       .catch(() => setVehicleAvailabilityMsg('Không thể tải loại phương tiện khả dụng. Vui lòng thử lại.'))
       .finally(() => setVehicleAvailabilityLoading(false));
   }, [form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.unitGoodsTypeId]);
-
-  useEffect(() => {
-    if (step !== 2 || !form.receivingUnit || !selectedUnitScope || !form.goodsType || !form.vehicleType || !form.deliveryDate) return;
-    let cancelled = false;
-    setDailyStatsLoading(true);
-    setDailyStatsMsg('');
-    setDailyStats([]);
-    setForm(f => ({ ...f, timeSlot: '' }));
-    const statsParams: DailyRegistrationStatsParams = {
-      month: form.deliveryDate.slice(0, 7),
-      goodsType: form.goodsType,
-      vehicleType: form.vehicleType,
-    };
-    if (form.unitGoodsTypeId) statsParams.unitGoodsTypeId = form.unitGoodsTypeId;
-    getDailyRegistrationStats(form.receivingUnit, statsParams, selectedUnitScope)
-      .then(data => { if (!cancelled) { setDailyStats(data.days ?? []); if (data.reason) setDailyStatsMsg(data.reason); } })
-      .catch(() => { if (!cancelled) setDailyStatsMsg('Không thể tải thông tin ngày đăng ký. Vui lòng thử lại.'); })
-      .finally(() => { if (!cancelled) setDailyStatsLoading(false); });
-    return () => { cancelled = true; };
-  }, [step, form.receivingUnit, form.businessLocationId, form.unitConfigId, form.goodsType, form.vehicleType, form.deliveryDate, form.unitGoodsTypeId]);
 
   useEffect(() => {
     if (awDebounceRef.current) clearTimeout(awDebounceRef.current);
@@ -374,7 +345,7 @@ export function useRegisterForm() {
     if (rememberInfo && step === 3) {
       localStorage.setItem(LS_KEY, JSON.stringify({
         driverName: form.driverName,
-        driverPhone: form.driverPhone,
+        driverPhone: normalizeDriverPhoneInput(form.driverPhone),
         vehiclePlate: form.vehiclePlate,
         vendorName: form.vendorName,
         vendorCode: form.vendorCode,
@@ -425,7 +396,7 @@ export function useRegisterForm() {
         vendorName: '',
         manualRegistration: true,
         driverName: form.driverName,
-        driverPhone: form.driverPhone,
+        driverPhone: normalizeDriverPhoneInput(form.driverPhone),
         vehiclePlate: plate,
         vehicleType: form.vehicleType,
         receivingUnit: form.receivingUnit,
@@ -479,7 +450,6 @@ export function useRegisterForm() {
       unitGoodsTypeId: '',
       vehicleType: '',
       deliveryDate: '',
-      timeSlot: '',
       note: '',
       poNumber: '',
       vendorCode: '',
@@ -509,9 +479,6 @@ export function useRegisterForm() {
     setRememberInfo,
     unitConfig,
     customGoodsTypes,
-    dailyStats,
-    dailyStatsMsg,
-    dailyStatsLoading,
     manualReferenceLoading,
     manualReferenceError,
     vehicleAvailability,

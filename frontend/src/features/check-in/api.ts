@@ -12,8 +12,15 @@ export async function fetchRegisteredDeliveries(): Promise<DeliveryRegistration[
   return response.data;
 }
 
-export async function checkInByLookup(mode: CheckInMode, input: string): Promise<DeliveryRegistration> {
+export async function checkInByLookup(
+  mode: CheckInMode,
+  input: string,
+  options: { overrideDeliveryWindow?: boolean } = {},
+): Promise<DeliveryRegistration> {
   const payload = mode === 'plate' ? { vehiclePlate: input } : { registrationCode: input };
-  const response = await api.patch('/api/deliveries/check-in-lookup', payload);
+  const response = await api.patch('/api/deliveries/check-in-lookup', {
+    ...payload,
+    ...(options.overrideDeliveryWindow ? { overrideDeliveryWindow: true } : {}),
+  });
   return response.data;
 }

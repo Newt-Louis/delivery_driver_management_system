@@ -5,7 +5,7 @@ import { z } from 'zod';
 const registerSchema = z.object({
   vendorName: z.string().optional().default(''),
   driverName: z.string().default(''),
-  driverPhone: z.string().min(9, 'Số điện thoại không hợp lệ'),
+  driverPhone: z.string().trim().min(1, 'Vui lòng nhập số điện thoại'),
   vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),
   vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
   receivingUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
@@ -30,7 +30,13 @@ const quickVerifySchema = z.object({
 const checkInLookupSchema = z.object({
   registrationCode: z.string().optional(),
   vehiclePlate: z.string().optional(),
+  /** ADMIN_OPE trở lên xác nhận check-in ngoài khung giờ giao hàng. */
+  overrideDeliveryWindow: z.boolean().optional(),
 });
+
+const checkInByIdSchema = z.object({
+  overrideDeliveryWindow: z.boolean().optional(),
+}).optional().default({});
 
 const callSchema = z.object({ slotId: z.string() });
 
@@ -54,6 +60,7 @@ export const DeliveryFormRequest = {
     status: typeof query.status === 'string' ? query.status : undefined,
   }),
   parseCheckInLookup: (body: unknown): CheckInLookupPayload => checkInLookupSchema.parse(body),
+  parseCheckInById: (body: unknown): { overrideDeliveryWindow?: boolean } => checkInByIdSchema.parse(body ?? {}),
   parseCallSlotId: (body: unknown): string => callSchema.parse(body).slotId,
   parseCancelReason: (body: unknown): string => cancelSchema.parse(body).reason,
 };

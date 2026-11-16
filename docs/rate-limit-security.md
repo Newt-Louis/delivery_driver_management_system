@@ -34,7 +34,6 @@ Public write:
 Public lookup/read:
 
 - `GET /api/track/search`
-- `GET /api/units/:unit/slots`
 - `GET /api/units/:unit/vehicle-availability`
 
 ## Response Headers

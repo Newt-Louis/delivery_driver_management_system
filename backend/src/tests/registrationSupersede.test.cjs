@@ -132,3 +132,20 @@ test('vehicle plates must match the selected vehicle type format', async () => {
     await assert.rejects(ctx.register({ ...payload, vehiclePlate: '51G4938', vehicleType: 'MOTORBIKE' }), { code: 'InvalidVehiclePlate' });
   } finally { ctx.cleanup(); }
 });
+
+test('driver phone must have 10 digits and accepts the +84 prefix', async () => {
+  const ctx = setup();
+  try {
+    await assert.rejects(ctx.register({ ...payload, driverPhone: '090000000' }), { code: 'InvalidDriverPhone' });
+    await assert.rejects(ctx.register({ ...payload, driverPhone: '09000000000' }), { code: 'InvalidDriverPhone' });
+    await assert.rejects(ctx.register({ ...payload, driverPhone: '9000000000' }), { code: 'InvalidDriverPhone' });
+    const intl = await ctx.register({ ...payload, driverPhone: '+84857382937' });
+    assert.equal(intl.driverPhone, '0857382937');
+    const spaced = await ctx.register({ ...payload, driverPhone: '+84 0857 382 937', businessLocationId: 'loc2' });
+    assert.equal(spaced.driverPhone, '0857382937');
+    const bare = await ctx.register({ ...payload, driverPhone: '84857382937', businessLocationId: 'loc3' });
+    assert.equal(bare.driverPhone, '0857382937');
+    const local = await ctx.register({ ...payload, driverPhone: '0857.382.937', businessLocationId: 'loc4' });
+    assert.equal(local.driverPhone, '0857382937');
+  } finally { ctx.cleanup(); }
+});

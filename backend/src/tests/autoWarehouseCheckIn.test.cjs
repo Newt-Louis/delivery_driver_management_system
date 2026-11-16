@@ -13,6 +13,7 @@ test('check-in rechecks scoped vendor before issuing ticket and stores classific
   let event;
   const tx = {
     $queryRaw: async () => [],
+    deliveryTimeWindow: { findMany: async () => [] },
     deliveryRegistration: {
       findUnique: async () => current,
       update: async ({ data }) => ({ ...current, ...data }),

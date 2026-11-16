@@ -24,7 +24,7 @@ Models:
   - `businessLocationId`, `unit`, `isActive`.
   - Cấu hình loại hàng: `freshFoodEnabled`, `generalGoodsEnabled`, `thiCongEnabled`.
   - Rule Chủ nhật: `sundayFreshFoodOnly`.
-  - Cấu hình capacity ngày và slot: `truckSlotMinutes`, `motorbikeSlotMinutes`, `truckMaxPerSlot`, `motorbikeMaxPerSlot`.
+  - `truckSlotMinutes`, `motorbikeSlotMinutes`: phút nhận hàng ước tính mỗi xe, chỉ làm fallback cho thời gian chờ trên trang track khi chưa có `ReceivingTimeConfig`. Cột `truckMaxPerSlot`, `motorbikeMaxPerSlot` còn trong DB nhưng không còn được dùng hay hiển thị.
   - Cấu hình auto-cancel xe đã gọi không vào: `autoCancelCalledEnabled`, `autoCancelCalledAfterMinutes`.
   - Branding và API vendor/PO.
   - `logoUrl` là URL ảnh đang được đơn vị sử dụng; file vật lý và metadata upload nằm trong `datafile`/`uploaded_files`.
@@ -66,8 +66,6 @@ Time windows:
 Vehicle/slot availability public:
 
 - `GET /api/units/:unit/vehicle-availability`
-- `GET /api/units/:unit/slots`
-- `GET /api/units/:unit/daily-registration-stats`
 
 Mock order code public:
 
@@ -119,7 +117,7 @@ Module backend:
 - `backend/src/modules/zones/zoneService.ts`: rule tạo/sửa/xóa zone, scope decision và audit.
 - `backend/src/routes/units.ts`: controller mỏng cho endpoint unit config, custom goods type, time window và availability public.
 - `backend/src/modules/units/unitFormRequest.ts`: validate params/query/body của unit API bằng Zod.
-- `backend/src/modules/units/unitRepository.ts`: query `BusinessLocation`, `UnitConfig`, `UnitGoodsType`, `DeliveryTimeWindow`, `Slot` và booking active.
+- `backend/src/modules/units/unitRepository.ts`: query `BusinessLocation`, `UnitConfig`, `UnitGoodsType`, `DeliveryTimeWindow` và `Slot`.
 - `backend/src/modules/units/unitService.ts`: rule scope location, CRUD unit settings, tính vehicle/slot availability, proxy vendor/PO và audit.
 - `backend/src/routes/slots.ts`: controller mỏng cho endpoint slot.
 - `backend/src/modules/slots/slotFormRequest.ts`: validate payload/status/query slot bằng Zod.
@@ -201,15 +199,13 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 
 ## Quy Tắc Hiện Tại
 
-- `/register-manual` không chọn ngày hoặc khung giờ; ngày hiện tại được backend cung cấp, còn `daily-registration-stats` kiểm tra công suất của ngày đó.
-- Capacity ngày của `/register-manual` được ước lượng từ `DeliveryTimeWindow` enabled, `truckSlotMinutes`/`motorbikeSlotMinutes` và `truckMaxPerSlot`/`motorbikeMaxPerSlot`; `DeliveryTimeWindow` không còn sinh các ô giờ để tài xế chọn trong đăng ký thủ công.
-- API slot availability theo khung giờ vẫn còn để tương thích/luồng cũ, nhưng không còn là gate của `/register-manual`.
+- Đăng ký không chọn ngày hoặc khung giờ và không có giới hạn công suất; ngày hiện tại do backend cung cấp.
+- `DeliveryTimeWindow` chỉ dùng để chặn check-in theo `UnitConfig` + loại hàng (xem `check-in-flow.md`). Danh sách, tạo, sửa, xóa khung giờ luôn giới hạn theo `unitConfigId` của khu vực; giờ phải dạng `HH:mm` 00:00–23:59 và giờ bắt đầu sớm hơn giờ kết thúc.
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
 - Ticket prefix ưu tiên `UnitConfig.shortName`, sau đó `displayName`, sau đó mã `unit`; frontend không tự giữ bảng prefix cố định theo ba unit demo.
 - `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.
 - Non-`SUPERADMIN` phải đi qua `BusinessLocation` scope và `operationUnits` khi action resolve được `unitConfigId`.
 - Public routes dùng `PublicBusinessLocationContext`, không dùng `user.businessLocationId` hoặc Superadmin operational context. Tên khu vực trên public header mở bộ chọn `BusinessLocation` active cho người chưa đăng nhập và `SUPERADMIN`; mỗi public feature dùng `selectedBusinessLocationId` khi dữ liệu phụ thuộc khu vực. Staff route chỉ đọc scope từ auth session; `SUPERADMIN` đổi operational context qua tên khu vực trên header nội bộ. Nếu chưa có khu vực, modal bắt buộc chọn vẫn được hiển thị.
-- Capacity ngày không tách theo `goodsType` khi đếm số lượt đã đăng ký; goods type dùng cho eligibility, nhóm time window ước lượng và ưu tiên dispatch.
 - `Slot.goodsPriority` điều khiển thứ tự ưu tiên auto-assign trong phạm vi các loại hàng slot được phép nhận. Nếu cùng một loại hàng, xe có `checkinTime`/số thứ tự sớm hơn được gọi trước.
 - `MAINTENANCE` và `RESERVED` là trạng thái manual.
 - `AVAILABLE` và `OCCUPIED` nên được reconcile từ active deliveries.

@@ -5,6 +5,7 @@ import { asyncHandler } from '../lib/asyncHandler';
 import { authenticate, requireRole, enforceScope, enforceResourceScope } from '../middleware/auth';
 import { HistoryFormRequest } from '../modules/history/historyFormRequest';
 import { dailyCountFor, listRegistrationHistory } from '../modules/registrationHistory/registrationHistoryRepository';
+import { normalizeDriverPhone } from '../domain/driverPhone';
 
 const router = Router();
 
@@ -209,7 +210,7 @@ router.get('/registrations', authenticate, enforceScope, requireRole('SUPERADMIN
       { supersededByCode: { contains: q, mode: 'insensitive' } },
       { poNumber: { contains: q, mode: 'insensitive' } },
       { driverName: { contains: q, mode: 'insensitive' } },
-      { driverPhone: { contains: q.replace(/\D/g, '') || q, mode: 'insensitive' } },
+      { driverPhone: { contains: normalizeDriverPhone(q) || q, mode: 'insensitive' } },
       { vendorName: { contains: q, mode: 'insensitive' } },
     ];
   }

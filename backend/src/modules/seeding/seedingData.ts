@@ -43,7 +43,7 @@ export const GIVEN_NAMES = ['An', 'Bình', 'Cường', 'Dũng', 'Hải', 'Hùng'
 export const PHONE_PREFIXES = ['090', '091', '093', '094', '096', '097', '098', '086', '032', '033', '035', '037', '038', '039', '070', '076', '077', '078', '079', '081', '083', '084', '085', '088'] as const;
 
 export const PLATE_PROVINCES = ['50', '51', '52', '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '70', '72', '29', '30', '43', '92'] as const;
-export const TRUCK_PLATE_SERIES = ['C', 'D', 'H', 'LD'] as const;
+export const TRUCK_PLATE_SERIES = ['C', 'D', 'H'] as const;
 export const MOTORBIKE_PLATE_SERIES = ['B', 'D', 'F', 'G', 'H', 'K', 'L', 'M', 'N', 'P', 'S', 'T', 'U', 'V', 'X', 'Y', 'Z'] as const;
 
 export const CONSTRUCTION_CODE_LETTERS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';

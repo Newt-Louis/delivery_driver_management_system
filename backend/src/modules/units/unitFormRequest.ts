@@ -14,8 +14,8 @@ const timeWindowSchema = z.object({
   goodsType: z.nativeEnum(GoodsType),
   unitGoodsTypeId: z.string().optional(),
   label: z.string().max(40).nullable().optional(),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ bắt đầu phải có dạng HH:mm (00:00–23:59)'),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ kết thúc phải có dạng HH:mm (00:00–23:59)'),
   enabled: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
 });
@@ -51,20 +51,6 @@ const vehicleAvailabilityQuerySchema = z.object({
   unitGoodsTypeId: z.string().optional(),
 });
 
-const slotsQuerySchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  goodsType: z.nativeEnum(GoodsType),
-  vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
-  unitGoodsTypeId: z.string().optional(),
-});
-
-const dailyStatsQuerySchema = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/),
-  goodsType: z.nativeEnum(GoodsType),
-  vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
-  unitGoodsTypeId: z.string().optional(),
-});
-
 const unitConfigSchema = z.object({
   freshFoodEnabled: z.boolean().optional(),
   generalGoodsEnabled: z.boolean().optional(),
@@ -72,8 +58,6 @@ const unitConfigSchema = z.object({
   sundayFreshFoodOnly: z.boolean().optional(),
   truckSlotMinutes: z.number().int().min(15).max(120).optional(),
   motorbikeSlotMinutes: z.number().int().min(5).max(60).optional(),
-  truckMaxPerSlot: z.number().int().min(1).max(20).optional(),
-  motorbikeMaxPerSlot: z.number().int().min(1).max(20).optional(),
   autoCancelCalledEnabled: z.boolean().optional(),
   autoCancelCalledAfterMinutes: z.number().int().min(5).max(999).optional(),
   vendorApiUrl: z.string().url().nullable().optional(),
@@ -114,8 +98,6 @@ export type UnitGoodsTypePayload = z.infer<typeof unitGoodsTypeSchema>;
 export type UpdateUnitGoodsTypePayload = z.infer<typeof updateUnitGoodsTypeSchema>;
 export type GoodsTypeQuery = z.infer<typeof goodsTypeQuerySchema>;
 export type VehicleAvailabilityQuery = z.infer<typeof vehicleAvailabilityQuerySchema>;
-export type SlotsQuery = z.infer<typeof slotsQuerySchema>;
-export type DailyStatsQuery = z.infer<typeof dailyStatsQuerySchema>;
 export type UnitConfigPayload = z.infer<typeof unitConfigSchema>;
 export type IntegrationQuery = z.infer<typeof integrationQuerySchema>;
 export type OrderCodeQuery = z.infer<typeof orderCodeQuerySchema>;
@@ -136,20 +118,6 @@ export const UnitFormRequest = {
     const raw = query as Record<string, unknown>;
     if (!raw.goodsType) throw new UnitRequestError('goodsType required');
     return vehicleAvailabilityQuerySchema.parse(query);
-  },
-  parseSlotsQuery: (query: unknown): SlotsQuery => {
-    const raw = query as Record<string, unknown>;
-    if (!raw.date || !raw.goodsType || !raw.vehicleType) {
-      throw new UnitRequestError('date, goodsType, vehicleType required');
-    }
-    return slotsQuerySchema.parse(query);
-  },
-  parseDailyStatsQuery: (query: unknown): DailyStatsQuery => {
-    const raw = query as Record<string, unknown>;
-    if (!raw.month || !raw.goodsType || !raw.vehicleType) {
-      throw new UnitRequestError('month, goodsType, vehicleType required');
-    }
-    return dailyStatsQuerySchema.parse(query);
   },
   parseUnitConfig: (body: unknown): UnitConfigPayload => unitConfigSchema.parse(body),
   parseIntegrationQuery: (query: unknown): IntegrationQuery => integrationQuerySchema.parse(query),

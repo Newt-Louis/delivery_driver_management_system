@@ -195,8 +195,6 @@ export interface UnitConfig {
   sundayFreshFoodOnly: boolean;
   truckSlotMinutes: number;
   motorbikeSlotMinutes: number;
-  truckMaxPerSlot: number;
-  motorbikeMaxPerSlot: number;
   autoCancelCalledEnabled: boolean;
   autoCancelCalledAfterMinutes: number;
   vendorApiUrl: string | null;
@@ -233,15 +231,6 @@ export interface DeliveryTimeWindow {
   sortOrder: number;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface SlotInfo {
-  time: string;
-  booked: number;
-  maxPerSlot: number;
-  available: boolean;
-  isPast: boolean;
-  windowLabel?: string | null;
 }
 
 export interface DashboardSummary {

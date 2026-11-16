@@ -47,7 +47,7 @@ Các tab cấu hình theo đơn vị không tự dựng danh sách unit ở fron
 
 - `BrandTab`: render card thương hiệu cho từng `UnitConfig`; lưu bằng `PATCH /api/units/:unit/config` để giữ contract cũ nhưng dữ liệu resolve trong scope hiện tại.
   - Logo upload đi qua `POST /api/files/upload`, file nằm trong `DATAFILE_ROOT/uploads/<locationCode>/<unitCode>/<yyyy>/<mm>/<dd>/`, sau đó `UnitConfig.logoUrl` lưu `publicUrl` đang được dùng.
-- `UnitsTab`: render cấu hình hàng hóa, khung giờ, slot duration/capacity, auto-cancel no-show và API tích hợp theo từng `UnitConfig`.
+- `UnitsTab`: render cấu hình hàng hóa, khung giờ được check-in (bật/tắt từng khung; không có khung nào bật = check-in cả ngày), phút nhận hàng ước tính mỗi xe, auto-cancel no-show và API tích hợp theo từng `UnitConfig`.
 - `ZonesTab`: tạo/sửa zone bằng `unitConfigId`; nhãn đơn vị lấy từ `UnitConfig.displayName/shortName/unit`.
 - `SlotsTab`: filter hiển thị slot bằng `slot.zone.unitConfig.id`, không bằng text `assignedUnit`; `SlotModal` cho ADMIN_LOC sắp xếp thứ tự ưu tiên loại hàng bằng kéo thả.
 - `AWVendorTab`: filter/tạo vendor bằng `unitConfigId`; backend tự lưu snapshot `unit` để tương thích public register.

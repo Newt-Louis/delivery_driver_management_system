@@ -113,6 +113,7 @@ async function cleanupPrefix(prefix: string): Promise<void> {
     ...(locationIds.length ? [prisma.registrationHistory.deleteMany({ where: { businessLocationId: { in: locationIds } } })] : []),
     ...(slotIds.length ? [prisma.slot.deleteMany({ where: { id: { in: slotIds } } })] : []),
     ...(zoneIds.length ? [prisma.zone.deleteMany({ where: { id: { in: zoneIds } } })] : []),
+    ...(unitConfigIds.length ? [prisma.deliveryTimeWindow.deleteMany({ where: { unitConfigId: { in: unitConfigIds } } })] : []),
     ...(unitConfigIds.length ? [prisma.unitConfig.deleteMany({ where: { id: { in: unitConfigIds } } })] : []),
     ...(userIds.length ? [prisma.user.deleteMany({ where: { id: { in: userIds } } })] : []),
     ...(locationIds.length ? [prisma.businessLocation.deleteMany({ where: { id: { in: locationIds } } })] : []),
@@ -429,62 +430,6 @@ test('concurrent registrations keep one operational row per plate and record eve
   });
 });
 
-test('50 concurrent registrations for one day respect estimated daily capacity', async () => {
-  await withRegisterServer(async (baseUrl) => {
-    await withScope('REGDAY50', ReceivingUnit.EMART, async (scope) => {
-      await prisma.unitConfig.update({
-        where: { id: scope.unitConfigId },
-        data: { truckSlotMinutes: 30, truckMaxPerSlot: 1 },
-      });
-      await prisma.deliveryTimeWindow.create({
-        data: {
-          unitConfigId: scope.unitConfigId,
-          unit: ReceivingUnit.EMART,
-          goodsType: GoodsType.GENERAL_GOODS,
-          label: 'Daily capacity test',
-          startTime: '08:00',
-          endTime: '11:00',
-          enabled: true,
-        },
-      });
-      const deliveryDate = localDateTimeAfterDays(30, 0, 0).slice(0, 10);
-      const expectedCapacity = 6;
-
-      const responses = await Promise.all(
-        Array.from({ length: 50 }, (_, i) => fetch(`${baseUrl}/api/deliveries/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            vendorName: 'Concurrent Slot Vendor',
-            driverName: `Driver ${i}`,
-            driverPhone: `091${String(i).padStart(7, '0')}`,
-            vehiclePlate: `99Z${String(i).padStart(5, '0')}`,
-            vehicleType: 'TRUCK',
-            receivingUnit: 'EMART',
-            businessLocationId: scope.businessLocationId,
-            unitConfigId: scope.unitConfigId,
-            goodsType: 'GENERAL_GOODS',
-            poNumber: 'PO5839102746',
-            deliveryDate,
-            note: scope.prefix,
-          }),
-        })),
-      );
-
-      const statuses = responses.map((res) => res.status);
-      assert.equal(statuses.filter((status) => status === 201).length, expectedCapacity);
-      assert.equal(statuses.filter((status) => status === 409).length, 50 - expectedCapacity);
-
-      const deliveries = await prisma.deliveryRegistration.findMany({
-        where: {
-          note: scope.prefix,
-          status: DeliveryStatus.REGISTERED,
-        },
-      });
-      assert.equal(deliveries.length, expectedCapacity);
-    });
-  });
-});
 test('20 concurrent check-ins receive unique ticket numbers', async () => {
   const snapshot = await captureTicketSequence(ReceivingUnit.EMART, VehicleType.TRUCK);
   try {
@@ -528,6 +473,61 @@ test('5 concurrent scans of the same QR are idempotent', async () => {
       assert.notEqual(final.ticketNumber, null);
       const nonNullTickets = results.map((result) => result.delivery?.ticketNumber).filter(Boolean);
       assert.equal(new Set(nonNullTickets).size, 1);
+    });
+  } finally {
+    await restoreTicketSequence(snapshot);
+  }
+});
+
+test('check-in is blocked outside enabled delivery windows unless an operator confirms', async () => {
+  const snapshot = await captureTicketSequence(ReceivingUnit.EMART, VehicleType.TRUCK);
+  try {
+    await withScope('WINDOW', ReceivingUnit.EMART, async (scope) => {
+      const at = (hhmm: string) => new Date(`${getVNDateKey()}T${hhmm}:00+07:00`);
+      const window = await prisma.deliveryTimeWindow.create({
+        data: { unitConfigId: scope.unitConfigId, unit: ReceivingUnit.EMART, goodsType: GoodsType.GENERAL_GOODS, startTime: '06:00', endTime: '08:00', enabled: true },
+      });
+      // Khung của loại hàng khác không ảnh hưởng.
+      await prisma.deliveryTimeWindow.create({
+        data: { unitConfigId: scope.unitConfigId, unit: ReceivingUnit.EMART, goodsType: GoodsType.FRESH_FOOD, startTime: '01:00', endTime: '02:00', enabled: true },
+      });
+
+      const blocked = await createDelivery(scope, 1);
+      await assert.rejects(
+        checkInDelivery({ deliveryId: blocked.id, resultArgs: {}, now: at('09:00') }),
+        { code: 'OutsideDeliveryWindow', message: 'Quá khung giờ giao hàng quy định', details: { deliveryWindows: '06:00–08:00', canOverride: false } },
+      );
+      await assert.rejects(
+        checkInDelivery({ deliveryId: blocked.id, resultArgs: {}, now: at('05:30'), deliveryWindow: { allowOverride: false, override: true } }),
+        { code: 'OutsideDeliveryWindow' },
+        'CHECKIN cannot self-confirm',
+      );
+      await assert.rejects(
+        checkInDelivery({ deliveryId: blocked.id, resultArgs: {}, now: at('09:00'), deliveryWindow: { allowOverride: true, override: false } }),
+        { code: 'OutsideDeliveryWindow', details: { deliveryWindows: '06:00–08:00', canOverride: true } },
+      );
+      const untouched = await prisma.deliveryRegistration.findUniqueOrThrow({ where: { id: blocked.id } });
+      assert.equal(untouched.status, DeliveryStatus.REGISTERED);
+      assert.equal(untouched.ticketNumber, null);
+
+      const confirmed = await checkInDelivery({ deliveryId: blocked.id, resultArgs: {}, now: at('09:00'), deliveryWindow: { allowOverride: true, override: true } });
+      assert.equal(confirmed.checkedIn, true);
+      assert.equal(confirmed.deliveryWindowOverride?.windows, '06:00–08:00');
+      const event = await prisma.deliveryHistoryEvent.findFirstOrThrow({ where: { deliveryRegistrationId: blocked.id, eventType: DeliveryHistoryEventType.CHECKED_IN } });
+      assert.equal((event.metadata as { deliveryWindowOverride?: boolean }).deliveryWindowOverride, true);
+
+      const inside = await createDelivery(scope, 2);
+      assert.equal((await checkInDelivery({ deliveryId: inside.id, resultArgs: {}, now: at('08:00') })).checkedIn, true);
+
+      // Lượt kho tự động kiểm tra theo loại hàng tài xế đã chọn.
+      const warehouse = await createDelivery(scope, 3, { goodsType: GoodsType.AUTO_WAREHOUSE });
+      await prisma.deliveryRegistration.update({ where: { id: warehouse.id }, data: { originalGoodsType: GoodsType.GENERAL_GOODS } });
+      await assert.rejects(checkInDelivery({ deliveryId: warehouse.id, resultArgs: {}, now: at('12:00') }), { code: 'OutsideDeliveryWindow' });
+
+      // Tắt khung giờ = cho check-in cả ngày.
+      await prisma.deliveryTimeWindow.update({ where: { id: window.id }, data: { enabled: false } });
+      const freeDay = await createDelivery(scope, 4);
+      assert.equal((await checkInDelivery({ deliveryId: freeDay.id, resultArgs: {}, now: at('22:00') })).checkedIn, true);
     });
   } finally {
     await restoreTicketSequence(snapshot);

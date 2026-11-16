@@ -13,8 +13,6 @@ type UnitConfigFormData = {
   sundayFreshFoodOnly: boolean;
   truckSlotMinutes: number;
   motorbikeSlotMinutes: number;
-  truckMaxPerSlot: number;
-  motorbikeMaxPerSlot: number;
   autoCancelCalledEnabled: boolean;
   autoCancelCalledAfterMinutes: number;
   vendorApiUrl: string;
@@ -38,10 +36,10 @@ const GOODS_CONFIGS: GoodsConfig[] = [
 
 function errorMessage(error: unknown, fallback = 'Lỗi lưu cấu hình.') {
   const response = error as { response?: { data?: { error?: string; message?: string } } };
-  return response.response?.data?.error ?? response.response?.data?.message ?? fallback;
+  return response.response?.data?.message ?? response.response?.data?.error ?? fallback;
 }
 
-function TimeWindowEditor({ unit, goodsType, editing }: { unit: string; goodsType: GoodsType; editing: boolean }) {
+function TimeWindowEditor({ unit, unitConfigId, goodsType, editing }: { unit: string; unitConfigId: string; goodsType: GoodsType; editing: boolean }) {
   const queryClient = useQueryClient();
   const [addMode, setAddMode] = useState(false);
   const [newWindow, setNewWindow] = useState({ label: '', startTime: '08:00', endTime: '17:00' });
@@ -49,7 +47,7 @@ function TimeWindowEditor({ unit, goodsType, editing }: { unit: string; goodsTyp
   const [editWindow, setEditWindow] = useState<{ label: string; startTime: string; endTime: string } | null>(null);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const queryKey = ['time-windows', unit, goodsType, ''];
+  const queryKey = ['time-windows', unitConfigId, unit, goodsType];
   const { data: windows = [], isLoading, isError, refetch } = useQuery<DeliveryTimeWindow[]>({
     queryKey,
     queryFn: async () => (await api.get(`/api/units/${unit}/time-windows`, { params: { goodsType } })).data,
@@ -173,8 +171,6 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
     sundayFreshFoodOnly: config.sundayFreshFoodOnly ?? false,
     truckSlotMinutes: config.truckSlotMinutes ?? 30,
     motorbikeSlotMinutes: config.motorbikeSlotMinutes ?? 15,
-    truckMaxPerSlot: config.truckMaxPerSlot ?? 1,
-    motorbikeMaxPerSlot: config.motorbikeMaxPerSlot ?? 3,
     autoCancelCalledEnabled: config.autoCancelCalledEnabled ?? false,
     autoCancelCalledAfterMinutes: config.autoCancelCalledAfterMinutes ?? 15,
     vendorApiUrl: config.vendorApiUrl ?? '', vendorApiKey: '', poApiUrl: config.poApiUrl ?? '', poApiKey: '',
@@ -191,7 +187,6 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
       await api.patch(`/api/units/${config.unit}/config`, {
         freshFoodEnabled: form.freshFoodEnabled, generalGoodsEnabled: form.generalGoodsEnabled, thiCongEnabled: form.thiCongEnabled,
         sundayFreshFoodOnly: form.sundayFreshFoodOnly, truckSlotMinutes: Number(form.truckSlotMinutes), motorbikeSlotMinutes: Number(form.motorbikeSlotMinutes),
-        truckMaxPerSlot: Number(form.truckMaxPerSlot), motorbikeMaxPerSlot: Number(form.motorbikeMaxPerSlot),
         autoCancelCalledEnabled: form.autoCancelCalledEnabled, autoCancelCalledAfterMinutes: Number(form.autoCancelCalledAfterMinutes),
         vendorApiUrl: form.vendorApiUrl || null, vendorApiKey: form.vendorApiKey || null, poApiUrl: form.poApiUrl || null, poApiKey: form.poApiKey || null,
       });
@@ -204,7 +199,7 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
     }
   }
 
-  const numberField = (label: string, field: 'truckSlotMinutes' | 'motorbikeSlotMinutes' | 'truckMaxPerSlot' | 'motorbikeMaxPerSlot', min: number, max: number) => (
+  const numberField = (label: string, field: 'truckSlotMinutes' | 'motorbikeSlotMinutes', min: number, max: number) => (
     <Form.Item label={label} className="mb-0"><InputNumber className="w-full" min={min} max={max} value={form[field]} disabled={!editing} onChange={(value) => setField(field, Number(value ?? min))} /></Form.Item>
   );
 
@@ -217,7 +212,7 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
           <Typography.Text type="secondary">Cho phép nhận loại hàng này</Typography.Text>
           <Switch checked={form[goods.field]} disabled={!editing} checkedChildren="Bật" unCheckedChildren="Tắt" onChange={(checked) => setField(goods.field, checked)} />
         </Flex>
-        {form[goods.field] && <><Typography.Text type="secondary">Khung giờ nhận hàng</Typography.Text><TimeWindowEditor unit={config.unit} goodsType={goods.type} editing={editing} /></>}
+        {form[goods.field] && <><Typography.Text type="secondary">Khung giờ được check-in</Typography.Text><Typography.Text type="secondary" className="text-xs">Tài xế chỉ được check-in trong các khung đang bật. Không có khung nào bật thì check-in cả ngày; tắt khung để mở check-in tự do.</Typography.Text><TimeWindowEditor unit={config.unit} unitConfigId={config.id} goodsType={goods.type} editing={editing} /></>}
         {goods.type === 'FRESH_FOOD' && <Flex justify="space-between" align="center" gap="small" wrap="wrap"><Typography.Text type="secondary">Chủ nhật chỉ nhận hàng tươi sống</Typography.Text><Switch checked={form.sundayFreshFoodOnly} disabled={!editing} checkedChildren="Bật" unCheckedChildren="Tắt" onChange={(checked) => setField('sundayFreshFoodOnly', checked)} /></Flex>}
       </Space>
     ),
@@ -246,12 +241,11 @@ function UnitConfigCard({ config, onSaved }: { config: UnitConfig; onSaved: () =
       </Flex>
       <Form layout="vertical" requiredMark={false}>
         <Collapse defaultActiveKey={GOODS_CONFIGS.map((goods) => goods.type)} items={goodsSections} />
-        <Card size="small" className="mt-4" title={<Space><SettingOutlined /><span>Cấu hình slot</span></Space>}>
+        <Card size="small" className="mt-4" title={<Space><SettingOutlined /><span>Thời gian nhận hàng ước tính</span></Space>}>
+          <Typography.Paragraph type="secondary" className="!mb-3">Dùng để ước tính thời gian chờ trên trang theo dõi của tài xế khi chưa có số liệu thời gian nhận hàng thực tế.</Typography.Paragraph>
           <Row gutter={[12, 16]}>
-            <Col xs={24} sm={12}>{numberField('Xe tải: phút / slot', 'truckSlotMinutes', 15, 120)}</Col>
-            <Col xs={24} sm={12}>{numberField('Xe tải: tối đa xe / slot', 'truckMaxPerSlot', 1, 20)}</Col>
-            <Col xs={24} sm={12}>{numberField('Xe máy: phút / slot', 'motorbikeSlotMinutes', 5, 60)}</Col>
-            <Col xs={24} sm={12}>{numberField('Xe máy: tối đa xe / slot', 'motorbikeMaxPerSlot', 1, 20)}</Col>
+            <Col xs={24} sm={12}>{numberField('Xe tải: phút / xe', 'truckSlotMinutes', 15, 120)}</Col>
+            <Col xs={24} sm={12}>{numberField('Xe máy: phút / xe', 'motorbikeSlotMinutes', 5, 60)}</Col>
           </Row>
         </Card>
         <Card size="small" className="mt-4" title={<Space><Tag color="gold">Cảnh báo</Tag><span>Tự động hủy xe đã gọi không vào</span></Space>}>

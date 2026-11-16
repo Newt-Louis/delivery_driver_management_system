@@ -27,8 +27,6 @@ type UnitFormState = {
   sundayFreshFoodOnly: boolean;
   truckSlotMinutes: number;
   motorbikeSlotMinutes: number;
-  truckMaxPerSlot: number;
-  motorbikeMaxPerSlot: number;
   vendorApiUrl: string;
   vendorApiKey: string;
   poApiUrl: string;
@@ -53,8 +51,6 @@ function formFromUnit(unit: UnitConfig | null, businessLocationId: string): Unit
     sundayFreshFoodOnly: unit?.sundayFreshFoodOnly ?? false,
     truckSlotMinutes: unit?.truckSlotMinutes ?? 30,
     motorbikeSlotMinutes: unit?.motorbikeSlotMinutes ?? 15,
-    truckMaxPerSlot: unit?.truckMaxPerSlot ?? 1,
-    motorbikeMaxPerSlot: unit?.motorbikeMaxPerSlot ?? 3,
     vendorApiUrl: unit?.vendorApiUrl || '',
     vendorApiKey: '',
     poApiUrl: unit?.poApiUrl || '',
@@ -77,8 +73,6 @@ function unitPayload(form: UnitFormState) {
     poApiKey: form.poApiKey || null,
     truckSlotMinutes: Number(form.truckSlotMinutes),
     motorbikeSlotMinutes: Number(form.motorbikeSlotMinutes),
-    truckMaxPerSlot: Number(form.truckMaxPerSlot),
-    motorbikeMaxPerSlot: Number(form.motorbikeMaxPerSlot),
   };
 }
 
@@ -278,22 +272,14 @@ function UnitEditModal({
             ))}
           </div>
 
-          <div className="grid md:grid-cols-4 gap-3">
+          <div className="grid md:grid-cols-2 gap-3">
             <div>
-              <label className="label">Xe tải phút/slot</label>
+              <label className="label">Xe tải: phút nhận hàng ước tính / xe</label>
               <Input type="number" className="input" value={form.truckSlotMinutes} onChange={(e) => set('truckSlotMinutes', Number(e.target.value))} min={1} max={1440} />
             </div>
             <div>
-              <label className="label">Xe tải tối đa/slot</label>
-              <Input type="number" className="input" value={form.truckMaxPerSlot} onChange={(e) => set('truckMaxPerSlot', Number(e.target.value))} min={1} max={100} />
-            </div>
-            <div>
-              <label className="label">Xe máy phút/slot</label>
+              <label className="label">Xe máy: phút nhận hàng ước tính / xe</label>
               <Input type="number" className="input" value={form.motorbikeSlotMinutes} onChange={(e) => set('motorbikeSlotMinutes', Number(e.target.value))} min={1} max={1440} />
-            </div>
-            <div>
-              <label className="label">Xe máy tối đa/slot</label>
-              <Input type="number" className="input" value={form.motorbikeMaxPerSlot} onChange={(e) => set('motorbikeMaxPerSlot', Number(e.target.value))} min={1} max={100} />
             </div>
           </div>
 
@@ -385,14 +371,14 @@ export default function UnitConfigsTab({
     { title: 'Unit', dataIndex: 'unit', width: 160, render: (code: string) => <Typography.Text strong code>{code}</Typography.Text> },
     { title: 'Tên unit', key: 'name', width: 240, render: (_, unit) => <Space><Avatar src={unit.logoUrl || undefined}>{(unit.displayName || unit.unit).charAt(0)}</Avatar><Typography.Text>{unit.displayName || unit.unit}</Typography.Text></Space> },
     { title: 'Location', key: 'location', render: (_, unit) => locationName(unit) },
-    { title: 'Xe tải', key: 'truck', render: (_, unit) => `${unit.truckSlotMinutes} phút / ${unit.truckMaxPerSlot} xe` },
-    { title: 'Xe máy', key: 'motorbike', render: (_, unit) => `${unit.motorbikeSlotMinutes} phút / ${unit.motorbikeMaxPerSlot} xe` },
+    { title: 'Xe tải', key: 'truck', render: (_, unit) => `${unit.truckSlotMinutes} phút / xe` },
+    { title: 'Xe máy', key: 'motorbike', render: (_, unit) => `${unit.motorbikeSlotMinutes} phút / xe` },
     { title: 'Trạng thái', key: 'status', render: (_, unit) => <StatusBadge active={unit.isActive ?? true} /> },
     { title: 'Thao tác', key: 'actions', fixed: 'right', width: 120, render: (_, unit) => actions(unit) },
   ];
   return <Space orientation="vertical" size="large" className="w-full">
     <ResponsiveDataToolbar filters={<><Space orientation="vertical" size={4} className="w-full sm:w-auto"><Typography.Text type="secondary">Tìm tên unit</Typography.Text><AutoComplete className="w-full sm:w-64" value={searchDraft} options={names} open={searchOpen && Boolean(searchDraft.trim())} onFocus={() => setSearchOpen(Boolean(searchDraft.trim()))} onBlur={() => setSearchOpen(false)} onChange={value => { setSearchDraft(value); setSearchOpen(Boolean(value.trim())); }} onSelect={value => { setSearchDraft(value); setSearchOpen(false); }} filterOption={(input, option) => String(option?.value ?? '').toLocaleLowerCase('vi-VN').includes(input.toLocaleLowerCase('vi-VN'))}><Input.Search aria-label="Tìm tên unit" allowClear placeholder="Nhập tên unit" enterButton={<SearchButton />} onSearch={value => { setSearch(value.trim()); setSearchOpen(false); setPage(1); }} /></AutoComplete></Space><Space orientation="vertical" size={4}><Typography.Text type="secondary">Location</Typography.Text><Select aria-label="Location" className="min-w-52" allowClear placeholder="Tất cả locations" value={businessLocationId || undefined} onChange={value => { onBusinessLocationChange(value ?? ''); setPage(1); }} options={locations.map(location => ({ value: location.id, label: `${location.code} - ${location.locationName}` }))} /></Space><Space orientation="vertical" size={4}><Typography.Text type="secondary">Trạng thái</Typography.Text><Select aria-label="Trạng thái unit" className="min-w-44" allowClear placeholder="Tất cả trạng thái" value={status || undefined} onChange={value => { setStatus(value ?? ''); setPage(1); }} options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} /></Space></>} createAction={<Button type="primary" icon={<PlusOutlined />} disabled={!locations.length} onClick={() => setCreating(true)}>Thêm unit</Button>} />
-    {screens.lg ? <Card size="small" styles={{ body: { padding: 0 } }}><Table<UnitConfig> rowKey="id" columns={columns} dataSource={visibleUnits} scroll={{ x: 1100 }} locale={{ emptyText: <Empty description="Không có unit phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} pagination={{ position: ['bottomCenter'], size: 'small', current: currentPage, pageSize, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: total => `${total} unit`, onChange: updatePagination }} /></Card> : paged.length === 0 ? <Empty description="Không có unit phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : <Space orientation="vertical" size="middle" className="w-full"><Collapse items={paged.map(unit => ({ key: unit.id, label: <Space orientation="vertical" size={0} className="min-w-0"><Typography.Text strong code>{unit.unit}</Typography.Text><Typography.Text style={{ overflowWrap: 'anywhere' }}>{unit.displayName || unit.unit}</Typography.Text></Space>, extra: actions(unit), children: <Descriptions size="small" column={1} items={[{ key: 'logo', label: 'Logo', children: <Avatar src={unit.logoUrl || undefined}>{(unit.displayName || unit.unit).charAt(0)}</Avatar> }, { key: 'location', label: 'Location', children: locationName(unit) }, { key: 'truck', label: 'Xe tải', children: `${unit.truckSlotMinutes} phút / ${unit.truckMaxPerSlot} xe` }, { key: 'motorbike', label: 'Xe máy', children: `${unit.motorbikeSlotMinutes} phút / ${unit.motorbikeMaxPerSlot} xe` }, { key: 'status', label: 'Trạng thái', children: <StatusBadge active={unit.isActive ?? true} /> }]} /> }))} /><Flex justify="center"><Pagination current={currentPage} pageSize={pageSize} total={visibleUnits.length} size="small" showSizeChanger={false} showTotal={total => `${total} unit`} onChange={updatePagination} /></Flex></Space>}
+    {screens.lg ? <Card size="small" styles={{ body: { padding: 0 } }}><Table<UnitConfig> rowKey="id" columns={columns} dataSource={visibleUnits} scroll={{ x: 1100 }} locale={{ emptyText: <Empty description="Không có unit phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }} pagination={{ position: ['bottomCenter'], size: 'small', current: currentPage, pageSize, showSizeChanger: true, pageSizeOptions: [10, 20, 50], showTotal: total => `${total} unit`, onChange: updatePagination }} /></Card> : paged.length === 0 ? <Empty description="Không có unit phù hợp" image={Empty.PRESENTED_IMAGE_SIMPLE} /> : <Space orientation="vertical" size="middle" className="w-full"><Collapse items={paged.map(unit => ({ key: unit.id, label: <Space orientation="vertical" size={0} className="min-w-0"><Typography.Text strong code>{unit.unit}</Typography.Text><Typography.Text style={{ overflowWrap: 'anywhere' }}>{unit.displayName || unit.unit}</Typography.Text></Space>, extra: actions(unit), children: <Descriptions size="small" column={1} items={[{ key: 'logo', label: 'Logo', children: <Avatar src={unit.logoUrl || undefined}>{(unit.displayName || unit.unit).charAt(0)}</Avatar> }, { key: 'location', label: 'Location', children: locationName(unit) }, { key: 'truck', label: 'Xe tải', children: `${unit.truckSlotMinutes} phút / xe` }, { key: 'motorbike', label: 'Xe máy', children: `${unit.motorbikeSlotMinutes} phút / xe` }, { key: 'status', label: 'Trạng thái', children: <StatusBadge active={unit.isActive ?? true} /> }]} /> }))} /><Flex justify="center"><Pagination current={currentPage} pageSize={pageSize} total={visibleUnits.length} size="small" showSizeChanger={false} showTotal={total => `${total} unit`} onChange={updatePagination} /></Flex></Space>}
     {creating && <Modal open title="Tạo unit mới" footer={null} width={800} closable={!createSaving} maskClosable={!createSaving} keyboard={!createSaving} onCancel={() => setCreating(false)} destroyOnHidden><UnitForm locations={locations} businessLocationId={businessLocationId} onSavingChange={setCreateSaving} onCancel={() => setCreating(false)} onDone={() => { setCreating(false); onRefresh(); }} /></Modal>}
     {editUnit && <UnitEditModal unit={editUnit} locations={locations} onClose={() => setEditUnit(null)} onDone={() => { setEditUnit(null); onRefresh(); }} />}
   </Space>;

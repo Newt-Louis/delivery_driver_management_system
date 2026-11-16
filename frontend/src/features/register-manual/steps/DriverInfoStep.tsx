@@ -2,6 +2,7 @@ import { InfoCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Card, Form, Input, Space, Switch, Typography } from 'antd';
 import type { FormState } from '../types';
 import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE, VEHICLE_PLATE_HINT } from '../../../lib/vehiclePlate';
+import { DRIVER_PHONE_HINT, driverPhoneError, normalizeDriverPhoneInput } from '../../../lib/driverPhone';
 
 type DriverInfoStepProps = {
   form: FormState;
@@ -9,7 +10,6 @@ type DriverInfoStepProps = {
   setRememberInfo: (updater: (value: boolean) => boolean) => void;
 };
 
-const normalizePhone = (value: string = '') => value.replace(/[^\d+\-\s]/g, '');
 
 export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: DriverInfoStepProps) {
   const vehicleType = form.vehicleType;
@@ -40,19 +40,20 @@ export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: 
         <Form.Item<FormState>
           label="Số điện thoại"
           name="driverPhone"
-          normalize={normalizePhone}
+          normalize={normalizeDriverPhoneInput}
           rules={[
             { required: true, whitespace: true, message: 'Vui lòng nhập số điện thoại' },
             {
               validator: async (_, value: string = '') => {
-                if (value.trim() && value.replace(/\D/g, '').length < 9) throw new Error('Số điện thoại không hợp lệ (cần ít nhất 9 số)');
+                const message = value.trim() ? driverPhoneError(value) : '';
+                if (message) throw new Error(message);
               },
             },
           ]}
-          extra="Số này dùng để liên lạc khi cần."
+          extra={`${DRIVER_PHONE_HINT} Số này dùng để liên lạc khi cần.`}
           className="!mb-0"
         >
-          <Input size="large" type="tel" inputMode="numeric" placeholder="0901 234 567" autoComplete="tel" />
+          <Input size="large" type="tel" inputMode="tel" placeholder="0857382937" autoComplete="tel" />
         </Form.Item>
       </Card>
 

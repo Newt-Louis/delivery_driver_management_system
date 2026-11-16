@@ -73,7 +73,8 @@ router.get('/:id', authenticate, enforceScope, asyncHandler(async (req, res) => 
 
 // PATCH /api/deliveries/:id/check-in
 router.patch('/:id/check-in', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'CHECKIN'), asyncHandler(async (req, res) => {
-  await respond(res, deliveryService.checkInById(req.params.id, req.user));
+  const body = DeliveryFormRequest.parseCheckInById(req.body);
+  await respond(res, deliveryService.checkInById(req.params.id, req.user, body));
 }));
 
 // PATCH /api/deliveries/:id/call

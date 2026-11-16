@@ -5,6 +5,7 @@ import type { SocketScope } from '../../socket';
 import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import { getCallHistoryCounts } from '../history/historyRepository';
 import { normalizeVehiclePlate } from '../../domain/vehiclePlate';
+import { normalizeDriverPhone } from '../../domain/driverPhone';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
   id: true,
@@ -17,11 +18,7 @@ const DELIVERY_UNIT_CONFIG_SELECT = {
   primaryColor: true,
 } as const;
 
-export { normalizeVehiclePlate };
-
-export function normalizeDriverPhone(value: string): string {
-  return value.replace(/\D/g, '');
-}
+export { normalizeVehiclePlate, normalizeDriverPhone };
 
 export function normalizeOrderCode(value: string): string {
   return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -107,69 +104,6 @@ export async function getRegistrationSlotCapacity(unitConfigId: string, unit: Re
   });
 
   return slots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
-}
-
-function timeToMinutes(value: string): number {
-  const [hours, minutes] = value.split(':').map(Number);
-  return hours * 60 + minutes;
-}
-
-export async function getRegistrationDailyCapacity(args: {
-  unitConfigId: string;
-  unit: ReceivingUnitCode;
-  goodsType: GoodsType;
-  vehicleType: VehicleType;
-  unitGoodsTypeId?: string;
-}): Promise<number | null> {
-  const unitConfig = await prisma.unitConfig.findUnique({
-    where: { id: args.unitConfigId },
-    select: {
-      truckSlotMinutes: true,
-      motorbikeSlotMinutes: true,
-      truckMaxPerSlot: true,
-      motorbikeMaxPerSlot: true,
-    },
-  });
-  if (!unitConfig) return null;
-
-  let timeWindows = args.unitGoodsTypeId
-    ? await prisma.deliveryTimeWindow.findMany({
-        where: { unitGoodsTypeId: args.unitGoodsTypeId, enabled: true },
-        select: { startTime: true, endTime: true },
-      })
-    : await prisma.deliveryTimeWindow.findMany({
-        where: {
-          unitConfigId: args.unitConfigId,
-          unit: args.unit,
-          goodsType: args.goodsType,
-          unitGoodsTypeId: null,
-          enabled: true,
-        },
-        select: { startTime: true, endTime: true },
-      });
-
-  if (timeWindows.length === 0 && args.unitGoodsTypeId) {
-    timeWindows = await prisma.deliveryTimeWindow.findMany({
-      where: {
-        unitConfigId: args.unitConfigId,
-        unit: args.unit,
-        goodsType: args.goodsType,
-        unitGoodsTypeId: null,
-        enabled: true,
-      },
-      select: { startTime: true, endTime: true },
-    });
-  }
-
-  if (timeWindows.length === 0) return null;
-
-  const isMotorbike = args.vehicleType === VehicleType.MOTORBIKE;
-  const slotMinutes = isMotorbike ? unitConfig.motorbikeSlotMinutes : unitConfig.truckSlotMinutes;
-  const maxPerSlot = isMotorbike ? unitConfig.motorbikeMaxPerSlot : unitConfig.truckMaxPerSlot;
-  return timeWindows.reduce((total, win) => {
-    const slotCount = Math.max(0, Math.floor((timeToMinutes(win.endTime) - timeToMinutes(win.startTime)) / slotMinutes));
-    return total + slotCount * maxPerSlot;
-  }, 0);
 }
 
 export async function resolveScopedUnits(scope?: SocketScope): Promise<ReceivingUnitCode[]> {

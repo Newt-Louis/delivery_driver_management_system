@@ -4,6 +4,7 @@ import { UNIT_FALLBACKS, type UnitBranding } from '../../../context/BrandingCont
 import type { UnitConfig } from '../../../lib/types';
 import { GOODS_LABEL, VEHICLE_INFO } from '../constants';
 import type { FormState, Unit, VehicleType } from '../types';
+import { normalizeDriverPhoneInput } from '../../../lib/driverPhone';
 
 type ReviewSubmitStepProps = {
   form: FormState;
@@ -32,7 +33,7 @@ export default function ReviewSubmitStep({ form, unitConfig, brandUnits, locatio
           { key: 'vehicle', label: <Space><CarOutlined />Phương tiện</Space>, children: vehicle?.label ?? form.vehicleType },
           { key: 'plate', label: <Space><CarOutlined />Biển số xe</Space>, children: <Typography.Text code>{form.vehiclePlate}</Typography.Text> },
           { key: 'driver', label: <Space><UserOutlined />Tài xế</Space>, children: form.driverName || '—' },
-          { key: 'phone', label: <Space><PhoneOutlined />Điện thoại</Space>, children: <Typography.Text code>{form.driverPhone}</Typography.Text> },
+          { key: 'phone', label: <Space><PhoneOutlined />Điện thoại</Space>, children: <Typography.Text code>{normalizeDriverPhoneInput(form.driverPhone)}</Typography.Text> },
           { key: 'reference', label: 'Mã PO / Thi Công', children: <Typography.Text code>{form.poNumber}</Typography.Text> },
           { key: 'date', label: 'Ngày giao', children: form.deliveryDate.split('-').reverse().join('/') },
         ]} />

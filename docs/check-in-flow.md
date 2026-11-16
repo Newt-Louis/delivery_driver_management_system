@@ -9,6 +9,19 @@ Role `CHECKIN` chỉ làm nhiệm vụ:
 - Tìm lượt đăng ký bằng QR/registration code hoặc biển số.
 - Check-in tài xế từ `REGISTERED` sang `WAITING`.
 
+## Khung Giờ Được Check-in
+
+`DeliveryTimeWindow` (Backoffice > UnitsTab, theo `UnitConfig` và loại hàng) chỉ dùng để chặn check-in; đăng ký, gọi xe, mượn slot và nhận hàng không phụ thuộc khung giờ. Logic nằm ở `backend/src/services/deliveryWindowPolicy.ts` và được gọi trong transaction của `checkInDelivery()`, nên áp dụng cho mọi đường check-in.
+
+- Lấy các khung **đang bật** của `UnitConfig` và loại hàng tài xế chọn khi đăng ký (`originalGoodsType`, fallback `goodsType`; lượt kho tự động dùng loại hàng gốc). Khung lỗi dữ liệu (giờ bắt đầu >= kết thúc) bị bỏ qua.
+- Không có khung nào bật: check-in cả ngày. Vận hành tắt các khung trong Backoffice để mở check-in tự do (ví dụ dịp lễ).
+- Giờ Việt Nam hiện tại nằm trong ít nhất một khung (tính cả hai đầu): check-in bình thường. Tới sớm hay quá giờ đều bị chặn.
+- Ngoài khung: trả `422 OutsideDeliveryWindow`, message `Quá khung giờ giao hàng quy định`, kèm `deliveryWindows` (ví dụ `06:00–08:00, 14:00–16:00`) và `canOverride`.
+  - `CHECKIN`: `canOverride = false`, màn `/check-in` hiển thị lỗi kèm khung giờ quy định.
+  - `ADMIN_OPE`, `ADMIN_LOC`, `SUPERADMIN`: `canOverride = true`, màn `/check-in` hiện popup "Xe giao hàng không trong khung giờ quy định, vẫn tiếp tục nhận hàng không?" với nút **Đồng ý** (primary) gửi lại kèm `overrideDeliveryWindow: true` và nút **Huỷ bỏ** (danger) giữ nguyên lượt `REGISTERED`.
+  - Check-in được xác nhận ghi `deliveryWindowOverride: true` và `deliveryWindows` vào metadata của event `CHECKED_IN` và audit `delivery.check_in`.
+- Sau khi check-in, khung giờ không còn ảnh hưởng: xe `WAITING` vẫn được gọi và nhận hàng dù khung đã hết.
+
 ## Frontend
 
 File:
@@ -60,10 +73,11 @@ API:
   - Gọi `checkInDelivery()`.
   - Nếu `registrationCode` là mã đã bị thay thế do tài xế đăng ký lại (xem `driver-registration.md`), trả `409 RegistrationSuperseded` với thông báo gồm thời điểm thay thế, mã hiện hành và số lần đăng ký của biển số trong ngày; nhân viên tra theo biển số hoặc dùng mã mới.
   - Tra theo biển số chấp nhận cả cách gõ có dấu `-`, `.` hoặc khoảng trắng.
+  - Body có thể gửi `overrideDeliveryWindow: true` để xác nhận check-in ngoài khung giờ (chỉ có hiệu lực với `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`).
   - Emit realtime và trigger auto-assign.
 - `PATCH /api/deliveries/:id/check-in`
   - Check-in bằng id.
-  - Role như trên.
+  - Role như trên; body tùy chọn `{ overrideDeliveryWindow: true }` như lookup.
 
 Service:
 

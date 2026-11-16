@@ -21,8 +21,6 @@ const unitConfigCreateSchema = z.object({
   sundayFreshFoodOnly: z.boolean().optional().default(false),
   truckSlotMinutes: z.coerce.number().int().min(1).max(1440).optional().default(30),
   motorbikeSlotMinutes: z.coerce.number().int().min(1).max(1440).optional().default(15),
-  truckMaxPerSlot: z.coerce.number().int().min(1).max(100).optional().default(1),
-  motorbikeMaxPerSlot: z.coerce.number().int().min(1).max(100).optional().default(3),
   vendorApiUrl: nullableText,
   vendorApiKey: nullableText,
   poApiUrl: nullableText,

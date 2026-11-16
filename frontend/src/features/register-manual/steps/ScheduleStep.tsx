@@ -3,15 +3,11 @@ import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import { createScanHints } from '../utils/scanner';
 import { Alert, Button, Card, Form, Input, Modal, Space, Typography } from 'antd';
-import type { DailyRegistrationStat } from '../api';
 import FormFieldSlot from '../components/FormFieldSlot';
 import type { FormState, SetFormField } from '../types';
 
 type ScheduleStepProps = {
   form: FormState;
-  dailyStats: DailyRegistrationStat[];
-  dailyStatsMsg: string;
-  dailyStatsLoading: boolean;
   manualReferenceLoading: boolean;
   manualReferenceError: string;
   sundayFreshFoodBlocked: boolean;
@@ -19,8 +15,7 @@ type ScheduleStepProps = {
   onRetryManualReferenceCode: () => void;
 };
 
-export default function ScheduleStep({ form, dailyStats, dailyStatsMsg, dailyStatsLoading, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, set, onRetryManualReferenceCode }: ScheduleStepProps) {
-  const todayStats = dailyStats.find((item) => item.date === form.deliveryDate);
+export default function ScheduleStep({ form, manualReferenceLoading, manualReferenceError, sundayFreshFoodBlocked, set, onRetryManualReferenceCode }: ScheduleStepProps) {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -85,7 +80,6 @@ export default function ScheduleStep({ form, dailyStats, dailyStatsMsg, dailySta
   return (
     <div className="space-y-5">
       <Card size="small" title={<><CalendarOutlined /> Ngày giao hàng</>}>
-        {dailyStatsMsg && <Alert className="mb-4" type="warning" showIcon title={dailyStatsMsg} />}
         {sundayFreshFoodBlocked && <Alert className="mb-4" type="warning" showIcon title="Chủ nhật chỉ nhận hàng tươi sống" />}
         <Form.Item<FormState>
           name="deliveryDate"
@@ -100,8 +94,6 @@ export default function ScheduleStep({ form, dailyStats, dailyStatsMsg, dailySta
         >
           <FormFieldSlot>
             <Typography.Text strong>{form.deliveryDate ? form.deliveryDate.split('-').reverse().join('/') : 'Đang xác định ngày giao hàng...'}</Typography.Text>
-            {dailyStatsLoading && <div><Typography.Text type="secondary">Đang kiểm tra công suất đăng ký...</Typography.Text></div>}
-            {todayStats?.available === false && <Alert className="mt-3" type="warning" showIcon title={todayStats.reason ?? 'Hôm nay đã đạt công suất đăng ký.'} />}
           </FormFieldSlot>
         </Form.Item>
       </Card>

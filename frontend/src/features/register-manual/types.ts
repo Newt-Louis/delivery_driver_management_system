@@ -18,7 +18,6 @@ export interface FormState {
   driverPhone: string;
   vehiclePlate: string;
   deliveryDate: string;
-  timeSlot: string;
   note: string;
 }
 

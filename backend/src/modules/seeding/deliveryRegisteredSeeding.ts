@@ -29,9 +29,8 @@ import {
  *
  * Mirrors the rules of `registerDelivery()`: unique plate per location/day under
  * the same advisory lock, atomic registration code, auto-warehouse resolution by
- * vendor code, REGISTERED history event and `queue_updated` emit. The manual
- * daily-capacity estimate is intentionally skipped (as for verified PO/Thi Công
- * registrations) so a bulk run is never rejected with SlotFull.
+ * vendor code, REGISTERED history event and `queue_updated` emit. Registration
+ * has no capacity limit; delivery windows only gate check-in.
  */
 
 export const REGISTERED_DELIVERY_SEED_COUNT = 100;
@@ -142,9 +141,10 @@ function generateDriverPhone(): string {
 
 function generatePlate(vehicleType: VehicleType): string {
   const province = pick(PLATE_PROVINCES);
-  const tail = `${randomDigits(3)}.${randomDigits(2)}`;
-  if (vehicleType === VehicleType.TRUCK) return `${province}${pick(TRUCK_PLATE_SERIES)}-${tail}`;
-  return `${province}${pick(MOTORBIKE_PLATE_SERIES)}${1 + randomInt(9)}-${tail}`;
+  // Cùng định dạng chuẩn hóa với /register (viết liền, không dấu) để tra cứu theo biển số khớp.
+  const tail = randomDigits(5);
+  if (vehicleType === VehicleType.TRUCK) return `${province}${pick(TRUCK_PLATE_SERIES)}${tail}`;
+  return `${province}${pick(MOTORBIKE_PLATE_SERIES)}${1 + randomInt(9)}${tail}`;
 }
 
 /** PO: 10 digits starting with 450 (same format `/register` validates). */

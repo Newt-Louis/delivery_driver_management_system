@@ -1,20 +1,17 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
-import { GoodsType, Prisma, VehicleType } from '@prisma/client';
+import { Prisma, VehicleType } from '@prisma/client';
 import type { AuthUser } from '../../middleware/auth';
 import { helperFunctions } from '../../helperFunction';
-import { getVNDateKey } from '../../lib/dateVN';
 import { roleHasUnitOperationScope } from '../../domain/permissions';
 import { assertCanOperateUnit } from '../../domain/permissionAssertions';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { domainError } from '../shared/domainError';
 import type {
   GoodsTypeQuery,
-  DailyStatsQuery,
   IntegrationQuery,
   OrderCodeQuery,
   PublicLocationQuery,
   PublicUnitScopeQuery,
-  SlotsQuery,
   TimeWindowPayload,
   TimeWindowQuery,
   UnitConfigPayload,
@@ -37,8 +34,6 @@ interface UnitConfigAuditSnapshot {
   sundayFreshFoodOnly: boolean;
   truckSlotMinutes: number;
   motorbikeSlotMinutes: number;
-  truckMaxPerSlot: number;
-  motorbikeMaxPerSlot: number;
   autoCancelCalledEnabled: boolean;
   autoCancelCalledAfterMinutes: number;
   displayName: string;
@@ -66,6 +61,22 @@ async function assertUnitInLocation(unit: ReceivingUnitCode, businessLocationId:
   return config;
 }
 
+function timeOfDayMinutes(value: string): number {
+  const [hours, minutes] = value.split(':').map(Number);
+  return hours * 60 + minutes;
+}
+
+/** Khung giờ chỉ dùng để chặn check-in trong ngày nên phải bắt đầu trước khi kết thúc. */
+function assertValidTimeWindowRange(startTime: string, endTime: string) {
+  if (timeOfDayMinutes(startTime) >= timeOfDayMinutes(endTime)) {
+    throw domainError.badRequest('Giờ bắt đầu phải sớm hơn giờ kết thúc.', 'InvalidTimeWindow');
+  }
+}
+
+function assertTimeWindowInUnit(window: { unitConfigId: string | null }, unitConfigId: string) {
+  if (window.unitConfigId && window.unitConfigId !== unitConfigId) throw domainError.notFound('Not found');
+}
+
 function stripSecrets<T extends { vendorApiKey?: string | null; poApiKey?: string | null }>(config: T) {
   const { vendorApiKey, poApiKey, ...safe } = config;
   void vendorApiKey;
@@ -81,8 +92,6 @@ function auditUnitConfigSnapshot(config: UnitConfigAuditSnapshot): Record<string
     sundayFreshFoodOnly: config.sundayFreshFoodOnly,
     truckSlotMinutes: config.truckSlotMinutes,
     motorbikeSlotMinutes: config.motorbikeSlotMinutes,
-    truckMaxPerSlot: config.truckMaxPerSlot,
-    motorbikeMaxPerSlot: config.motorbikeMaxPerSlot,
     autoCancelCalledEnabled: config.autoCancelCalledEnabled,
     autoCancelCalledAfterMinutes: config.autoCancelCalledAfterMinutes,
     displayName: config.displayName,
@@ -105,81 +114,6 @@ async function resolvePublicUnitConfig(unit: ReceivingUnitCode, scope?: PublicUn
   const config = await unitRepository.findDefaultUnitConfig(unit);
   if (!config) throw domainError.notFound('Config not found');
   return config;
-}
-
-function parseLocalDate(date: string) {
-  const [year, month, day] = date.split('-').map(Number);
-  return {
-    year,
-    month,
-    day,
-    parsedDate: new Date(year, month - 1, day),
-    dayStart: new Date(year, month - 1, day, 0, 0, 0),
-    dayEnd: new Date(year, month - 1, day, 23, 59, 59),
-  };
-}
-
-function parseMonthRange(monthKey: string) {
-  const [year, month] = monthKey.split('-').map(Number);
-  const monthStart = new Date(Date.UTC(year, month - 1, 1) - 7 * 60 * 60 * 1000);
-  const monthEnd = new Date(Date.UTC(year, month, 1) - 7 * 60 * 60 * 1000);
-  return { year, month, monthStart, monthEnd, daysInMonth: new Date(year, month, 0).getDate() };
-}
-
-function localDateKey(date: Date): string {
-  return getVNDateKey(date);
-}
-
-async function listEnabledCapacityWindows(args: {
-  unitConfigId: string;
-  unit: ReceivingUnitCode;
-  goodsType: GoodsType;
-  unitGoodsTypeId?: string;
-}) {
-  let timeWindows = args.unitGoodsTypeId
-    ? await unitRepository.listTimeWindows({ unitGoodsTypeId: args.unitGoodsTypeId, enabled: true })
-    : await unitRepository.listTimeWindows({
-        unitConfigId: args.unitConfigId,
-        unit: args.unit,
-        goodsType: args.goodsType,
-        unitGoodsTypeId: null,
-        enabled: true,
-      });
-
-  if (timeWindows.length === 0 && args.unitGoodsTypeId) {
-    timeWindows = await unitRepository.listTimeWindows({
-      unitConfigId: args.unitConfigId,
-      unit: args.unit,
-      goodsType: args.goodsType,
-      unitGoodsTypeId: null,
-      enabled: true,
-    });
-  }
-
-  return timeWindows;
-}
-
-function estimateDailyCapacity(args: {
-  timeWindows: Array<{ startTime: string; endTime: string }>;
-  slotMinutes: number;
-  maxPerSlot: number;
-}): number {
-  if (args.slotMinutes <= 0 || args.maxPerSlot <= 0) return 0;
-
-  return args.timeWindows.reduce((total, win) => {
-    const startMins = helperFunctions.timeToMinutes(win.startTime);
-    const endMins = helperFunctions.timeToMinutes(win.endTime);
-    const slotCount = Math.max(0, Math.floor((endMins - startMins) / args.slotMinutes));
-    return total + slotCount * args.maxPerSlot;
-  }, 0);
-}
-
-function capacityLevel(registered: number, capacity: number | null) {
-  if (!capacity || capacity <= 0) return 'none';
-  const percent = registered / capacity;
-  if (percent < 0.5) return 'low';
-  if (percent <= 0.8) return 'medium';
-  return 'high';
 }
 
 export async function listConfigs(user: AuthUser | undefined, scope?: ScopeInput) {
@@ -224,13 +158,14 @@ export async function listTimeWindows(
   const config = await assertUnitInLocation(unit, businessLocationId);
   assertCanOperateUnit(user, config.id);
 
+  // Luôn giới hạn theo UnitConfig của khu vực: cùng mã unit có thể tồn tại ở nhiều BusinessLocation.
   let where: Prisma.DeliveryTimeWindowWhereInput;
   if (query.unitGoodsTypeId) {
-    where = { unitGoodsTypeId: query.unitGoodsTypeId };
+    where = { unitConfigId: config.id, unitGoodsTypeId: query.unitGoodsTypeId };
   } else if (query.goodsType) {
-    where = { unit, goodsType: query.goodsType, unitGoodsTypeId: null };
+    where = { unitConfigId: config.id, goodsType: query.goodsType, unitGoodsTypeId: null };
   } else {
-    where = { unit };
+    where = { unitConfigId: config.id };
   }
 
   return unitRepository.listTimeWindows(where);
@@ -246,6 +181,7 @@ export async function createTimeWindow(
   const config = await assertUnitInLocation(unit, businessLocationId);
   assertCanOperateUnit(user, config.id);
 
+  assertValidTimeWindowRange(body.startTime, body.endTime);
   const win = await unitRepository.createTimeWindow(unit, body, config.id);
   await recordAuditLog({
     ...userActor(user),
@@ -275,8 +211,10 @@ export async function updateTimeWindow(
 
   const businessLocationId = await resolveLocationId(user, scope);
   const config = await assertUnitInLocation(existing.unit, businessLocationId);
+  assertTimeWindowInUnit(existing, config.id);
   assertCanOperateUnit(user, existing.unitConfigId ?? config.id);
 
+  assertValidTimeWindowRange(body.startTime ?? existing.startTime, body.endTime ?? existing.endTime);
   const win = await unitRepository.updateTimeWindow(id, body);
   await recordAuditLog({
     ...userActor(user),
@@ -308,6 +246,7 @@ export async function deleteTimeWindow(id: string, user: AuthUser | undefined, s
 
   const businessLocationId = await resolveLocationId(user, scope);
   const config = await assertUnitInLocation(existing.unit, businessLocationId);
+  assertTimeWindowInUnit(existing, config.id);
   assertCanOperateUnit(user, existing.unitConfigId ?? config.id);
 
   await unitRepository.deleteTimeWindow(id);
@@ -442,160 +381,6 @@ export async function getVehicleAvailability(unit: ReceivingUnitCode, query: Veh
   return {
     vehicles,
     reason: vehicles.length === 0 ? 'Không có slot khả dụng cho loại hàng này' : undefined,
-  };
-}
-
-export async function getAvailableSlots(unit: ReceivingUnitCode, query: SlotsQuery, scope?: PublicUnitScopeQuery) {
-  const config = await resolvePublicUnitConfig(unit, scope);
-
-  const { year, month, day, parsedDate, dayStart, dayEnd } = parseLocalDate(query.date);
-  const dayOfWeek = parsedDate.getDay();
-
-  if (dayOfWeek === 0 && config.sundayFreshFoodOnly && query.goodsType !== GoodsType.FRESH_FOOD) {
-    return { slots: [], reason: 'Chủ nhật chỉ nhận hàng tươi sống' };
-  }
-
-  if (!helperFunctions.unitAcceptsGoods(config, query.goodsType)) {
-    return { slots: [], reason: 'Đơn vị này không nhận loại hàng đã chọn' };
-  }
-
-  const isMotorbike = query.vehicleType === VehicleType.MOTORBIKE;
-  const slotMinutes = isMotorbike ? config.motorbikeSlotMinutes : config.truckSlotMinutes;
-  const matchingSlots = await unitRepository.listMatchingOperationalSlots({
-    unitConfigId: config.id,
-    unit,
-    vehicleType: query.vehicleType,
-  });
-  const maxPerSlot = matchingSlots.reduce((sum, slot) => sum + slot.maxCapacity, 0);
-
-  if (maxPerSlot <= 0) {
-    return { slots: [], reason: 'Không có slot khả dụng cho loại xe này' };
-  }
-
-  let timeWindows = query.unitGoodsTypeId
-    ? await unitRepository.listTimeWindows({ unitGoodsTypeId: query.unitGoodsTypeId, enabled: true })
-    : await unitRepository.listTimeWindows({
-        unitConfigId: config.id,
-        unit,
-        goodsType: query.goodsType,
-        unitGoodsTypeId: null,
-        enabled: true,
-      });
-
-  if (timeWindows.length === 0 && query.unitGoodsTypeId) {
-    timeWindows = await unitRepository.listTimeWindows({
-      unitConfigId: config.id,
-      unit,
-      goodsType: query.goodsType,
-      unitGoodsTypeId: null,
-      enabled: true,
-    });
-  }
-
-  if (timeWindows.length === 0) {
-    return { slots: [], reason: 'Chưa cấu hình khung giờ nhận hàng. Liên hệ quản trị viên.' };
-  }
-
-  const bookings = await unitRepository.listActiveBookingsForDay({
-    unit,
-    unitConfigId: config.id,
-    vehicleType: query.vehicleType,
-    dayStart,
-    dayEnd,
-  });
-
-  const slotCounts: Record<string, number> = {};
-  for (const booking of bookings) {
-    if (!booking.requestedTime) continue;
-    const key = helperFunctions.minutesToTime(
-      booking.requestedTime.getHours() * 60 + booking.requestedTime.getMinutes(),
-    );
-    slotCounts[key] = (slotCounts[key] ?? 0) + 1;
-  }
-
-  const now = new Date();
-  const isToday = now.getFullYear() === year && now.getMonth() === month - 1 && now.getDate() === day;
-  const nowMins = now.getHours() * 60 + now.getMinutes();
-
-  const slots = [];
-  for (const win of timeWindows) {
-    const startMins = helperFunctions.timeToMinutes(win.startTime);
-    const endMins = helperFunctions.timeToMinutes(win.endTime);
-    let cur = startMins;
-    while (cur + slotMinutes <= endMins) {
-      const time = helperFunctions.minutesToTime(cur);
-      const booked = slotCounts[time] ?? 0;
-      const isPast = isToday && cur <= nowMins;
-      slots.push({
-        time,
-        booked,
-        maxPerSlot,
-        available: !isPast && booked < maxPerSlot,
-        isPast,
-        windowLabel: win.label,
-      });
-      cur += slotMinutes;
-    }
-  }
-
-  return { slots };
-}
-
-export async function getDailyRegistrationStats(unit: ReceivingUnitCode, query: DailyStatsQuery, scope?: PublicUnitScopeQuery) {
-  const config = await resolvePublicUnitConfig(unit, scope);
-  const { year, month, monthStart, monthEnd, daysInMonth } = parseMonthRange(query.month);
-
-  if (!helperFunctions.unitAcceptsGoods(config, query.goodsType)) {
-    return { days: [], reason: 'Đơn vị này không nhận loại hàng đã chọn' };
-  }
-
-  const isMotorbike = query.vehicleType === VehicleType.MOTORBIKE;
-  const slotMinutes = isMotorbike ? config.motorbikeSlotMinutes : config.truckSlotMinutes;
-  const maxPerWindowSlot = isMotorbike ? config.motorbikeMaxPerSlot : config.truckMaxPerSlot;
-  const timeWindows = await listEnabledCapacityWindows({
-    unitConfigId: config.id,
-    unit,
-    goodsType: query.goodsType,
-    unitGoodsTypeId: query.unitGoodsTypeId,
-  });
-  const dailyCapacity = estimateDailyCapacity({ timeWindows, slotMinutes, maxPerSlot: maxPerWindowSlot });
-
-  const bookings = await unitRepository.listActiveBookingsForRange({
-    unit,
-    unitConfigId: config.id,
-    vehicleType: query.vehicleType,
-    rangeStart: monthStart,
-    rangeEnd: monthEnd,
-  });
-
-  const counts = new Map<string, number>();
-  for (const booking of bookings) {
-    if (!booking.requestedTime) continue;
-    const key = localDateKey(booking.requestedTime);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-
-  const days = Array.from({ length: daysInMonth }, (_, index) => {
-    const date = new Date(year, month - 1, index + 1);
-    const dateKey = localDateKey(date);
-    const registered = counts.get(dateKey) ?? 0;
-    const sundayBlocked = date.getDay() === 0 && config.sundayFreshFoodOnly && query.goodsType !== GoodsType.FRESH_FOOD;
-    const capacity = sundayBlocked ? 0 : dailyCapacity;
-    const percent = capacity > 0 ? registered / capacity : null;
-    return {
-      date: dateKey,
-      registered,
-      capacity,
-      percent,
-      level: capacityLevel(registered, capacity),
-      available: !sundayBlocked && (capacity <= 0 || registered < capacity),
-      reason: sundayBlocked ? 'Chủ nhật chỉ nhận hàng tươi sống' : undefined,
-    };
-  });
-
-  return {
-    days,
-    reason: timeWindows.length === 0 ? 'Chưa cấu hình khung giờ nhận hàng để ước lượng công suất ngày.' : undefined,
   };
 }
 

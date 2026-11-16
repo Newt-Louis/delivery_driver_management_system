@@ -21,6 +21,7 @@ import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
 import { createScanHints } from '../features/register-manual/utils/scanner';
 import { canOfferManualRegistration } from '../features/register-manual/quickVerifyErrors';
 import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE, VEHICLE_PLATE_HINT } from '../lib/vehiclePlate';
+import { DRIVER_PHONE_HINT, driverPhoneError, normalizeDriverPhoneInput } from '../lib/driverPhone';
 
 type Step = 1 | 2 | 3;
 
@@ -140,6 +141,7 @@ export default function Register() {
   const [verifying, setVerifying] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [plateTouched, setPlateTouched] = useState(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
   const [unitConfig, setUnitConfig] = useState<UnitConfig | null>(null);
   const [unitConfigLoading, setUnitConfigLoading] = useState(false);
   const [unitConfigMsg, setUnitConfigMsg] = useState('');
@@ -462,8 +464,10 @@ export default function Register() {
       toast.error('Vui lòng chọn loại xe giao hàng.');
       return false;
     }
-    if (form.driverPhone.replace(/\D/g, '').length < 9) {
-      toast.error('Số điện thoại không hợp lệ.');
+    const phoneMessage = driverPhoneError(form.driverPhone);
+    if (phoneMessage) {
+      setPhoneTouched(true);
+      toast.error(phoneMessage);
       return false;
     }
     const plateMessage = vehiclePlateError(form.vehiclePlate, form.vehicleType);
@@ -493,7 +497,7 @@ export default function Register() {
         unitConfigId: verified.unitConfigId,
         vendorName: form.vendorName.trim(),
         driverName: form.driverName.trim(),
-        driverPhone: form.driverPhone.trim(),
+        driverPhone: normalizeDriverPhoneInput(form.driverPhone),
         vehiclePlate: plate,
         vehicleType: form.vehicleType,
         receivingUnit: verified.receivingUnit,
@@ -537,12 +541,14 @@ export default function Register() {
     setVerified(null);
     setForm(emptyForm());
     setPlateTouched(false);
+    setPhoneTouched(false);
     setUnitConfig(null);
     setUnitConfigMsg('');
     setSuccess(null);
   }
 
   const plateErrorText = plateTouched ? vehiclePlateError(form.vehiclePlate, form.vehicleType) : '';
+  const phoneErrorText = phoneTouched ? driverPhoneError(form.driverPhone) : '';
 
   if (success) {
     return <SuccessScreen info={success} onReset={resetFlow} />;
@@ -651,7 +657,13 @@ export default function Register() {
                   </Form.Item>
                   <Row gutter={[16, 0]}>
                     <Col xs={24} sm={12}><Form.Item label="Tên tài xế"><Input value={form.driverName} onChange={(event) => setField('driverName', event.target.value)} placeholder="Nguyễn Văn A" autoComplete="name" /></Form.Item></Col>
-                    <Col xs={24} sm={12}><Form.Item label="Số điện thoại" required><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', event.target.value)} placeholder="090..." inputMode="tel" autoComplete="tel" /></Form.Item></Col>
+                    <Col xs={24} sm={12}><Form.Item
+                      label="Số điện thoại"
+                      required
+                      validateStatus={phoneErrorText ? 'error' : undefined}
+                      help={phoneErrorText || undefined}
+                      extra={DRIVER_PHONE_HINT}
+                    ><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', normalizeDriverPhoneInput(event.target.value))} onBlur={() => setPhoneTouched(true)} placeholder="0857382937" inputMode="tel" autoComplete="tel" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item
                       label="Biển số xe"
                       required
@@ -689,7 +701,7 @@ export default function Register() {
                   { key: 'goods', label: 'Loại hàng', children: reviewGoodsLabel },
                   { key: 'vehicle', label: 'Loại xe', children: form.vehicleType ? VEHICLE_LABEL[form.vehicleType] : 'Chưa chọn' },
                   { key: 'driver', label: 'Tài xế', children: form.driverName || '—' },
-                  { key: 'phone', label: 'Số điện thoại', children: form.driverPhone },
+                  { key: 'phone', label: 'Số điện thoại', children: normalizeDriverPhoneInput(form.driverPhone) },
                   { key: 'plate', label: 'Biển số', children: <Typography.Text code>{normalizeVehiclePlateInput(form.vehiclePlate)}</Typography.Text> },
                   { key: 'vendor-code', label: 'Mã NCC', children: form.vendorCode || '—' },
                   { key: 'vendor', label: 'Tên NCC / Công ty', children: form.vendorName || '—' },

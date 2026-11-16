@@ -1,5 +1,5 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
-import { DeliveryStatus, GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
+import { GoodsType, Prisma, SlotStatus, VehicleType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import type {
   TimeWindowPayload,
@@ -17,8 +17,6 @@ export const UNIT_CONFIG_AUDIT_SELECT = {
   sundayFreshFoodOnly: true,
   truckSlotMinutes: true,
   motorbikeSlotMinutes: true,
-  truckMaxPerSlot: true,
-  motorbikeMaxPerSlot: true,
   autoCancelCalledEnabled: true,
   autoCancelCalledAfterMinutes: true,
   displayName: true,
@@ -241,60 +239,6 @@ export function listMatchingOperationalSlots(args: {
       acceptedGoods: true,
       goodsPriority: true,
     },
-  });
-}
-
-export function listActiveBookingsForDay(args: {
-  unit: ReceivingUnitCode;
-  unitConfigId?: string;
-  vehicleType: VehicleType;
-  dayStart: Date;
-  dayEnd: Date;
-}) {
-  return prisma.deliveryRegistration.findMany({
-    where: {
-      receivingUnit: args.unit,
-      ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
-      vehicleType: args.vehicleType,
-      requestedTime: { gte: args.dayStart, lte: args.dayEnd },
-      status: {
-        in: [
-          DeliveryStatus.REGISTERED,
-          DeliveryStatus.WAITING,
-          DeliveryStatus.CALLED,
-          DeliveryStatus.RECEIVING,
-          DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-        ],
-      },
-    },
-    select: { requestedTime: true },
-  });
-}
-
-export function listActiveBookingsForRange(args: {
-  unit: ReceivingUnitCode;
-  unitConfigId?: string;
-  vehicleType: VehicleType;
-  rangeStart: Date;
-  rangeEnd: Date;
-}) {
-  return prisma.deliveryRegistration.findMany({
-    where: {
-      receivingUnit: args.unit,
-      ...(args.unitConfigId ? { unitConfigId: args.unitConfigId } : {}),
-      vehicleType: args.vehicleType,
-      requestedTime: { gte: args.rangeStart, lt: args.rangeEnd },
-      status: {
-        in: [
-          DeliveryStatus.REGISTERED,
-          DeliveryStatus.WAITING,
-          DeliveryStatus.CALLED,
-          DeliveryStatus.RECEIVING,
-          DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-        ],
-      },
-    },
-    select: { requestedTime: true },
   });
 }
 

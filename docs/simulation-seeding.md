@@ -56,7 +56,7 @@ Nội dung mỗi lượt:
 - `status = REGISTERED`, `requestedTime` = 00:00 giờ VN hôm nay (giống luồng thủ công), `createdAt` = thời điểm seed.
 - Luôn có `vendorCode` + `vendorName`. Mã lấy xoay vòng từ 30 NCC mẫu cố định `NCC10001`–`NCC10030` trong `seedingData.ts`; nếu unit đã có vendor kho tự động active, khoảng 1/5 lượt hàng không phải thi công dùng vendor đó. Mã NCC nào nằm trong danh sách kho tự động active của unit thì lượt thành `AUTO_WAREHOUSE`, `autoWarehouse = true`, `originalGoodsType` giữ loại gốc — giống `registerDelivery()`. Muốn có thêm lượt kho tự động, thêm mã NCC mẫu vào tab Kho tự động trước khi seed.
 - `poNumber`: PO `450xxxxxxx` cho hàng tươi sống/hàng tổng hợp, mã Thi Công 5 ký tự (có chữ) cho hàng thi công. Khoảng 25% mã mới được 2–3 xe khác biển số dùng chung (một đơn tách nhiều xe).
-- Biển số định dạng VN (`51C-123.45`, `59X1-123.45`), không trùng biển số đã có trong khu vực hôm nay (kể cả history). Kiểm tra dưới cùng advisory lock `registration-duplicate:*` của luồng đăng ký thật.
+- Biển số định dạng VN viết liền đúng quy tắc của `/register` (`51C12345`, `59X112345`), không trùng biển số đã có trong khu vực hôm nay (kể cả history). Kiểm tra dưới cùng advisory lock `registration-duplicate:*` của luồng đăng ký thật.
 - Tên tài xế, số điện thoại 10 số ngẫu nhiên.
 - `note = "Dữ liệu mô phỏng tự sinh"` để phân biệt khi xem báo cáo.
 
@@ -67,6 +67,5 @@ An toàn và nhất quán:
 - `registrationCode` cấp qua `reserveRegistrationCode()`; event `REGISTERED` ghi `DeliveryHistoryEvent` với actor `SYSTEM` `seeding:registered-deliveries`.
 - Audit `seeding.registered_deliveries` (actor là user bấm, target `BusinessLocation`).
 - Sau commit emit `queue_updated` cho từng unit.
-- Bỏ qua ước lượng công suất ngày của luồng thủ công (giống đăng ký PO/Thi Công đã xác thực) để seed lớn không bị `SlotFull`.
 
 Response trả `deliveryDate`, `totalCreated` và tóm tắt theo khu vực (`SEEDED` / `SKIPPED` / `FAILED`) và unit (theo loại xe, loại hàng, số mã đơn dùng chung).

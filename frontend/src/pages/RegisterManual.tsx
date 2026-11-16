@@ -21,8 +21,8 @@ export default function RegisterManual() {
   const { selectedBusinessLocation, isLoading: publicLocationLoading, error: publicLocationError } = usePublicBusinessLocation();
   const {
     antForm, step, submitting, submitError, success, form, rememberInfo, setRememberInfo,
-    publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig, customGoodsTypes, dailyStats, dailyStatsMsg,
-    dailyStatsLoading, manualReferenceLoading, manualReferenceError, vehicleAvailability, vehicleAvailabilityMsg,
+    publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig, customGoodsTypes,
+    manualReferenceLoading, manualReferenceError, vehicleAvailability, vehicleAvailabilityMsg,
     vehicleAvailabilityLoading, sundayFreshFoodBlocked, awStatus, awVendorName,
     contentRef, set, handleValuesChange, retryManualReferenceCode,
     next, back, editStepFromReview, submit, resetForm,
@@ -68,7 +68,7 @@ export default function RegisterManual() {
 
           <Form<FormState> form={antForm} name={REGISTER_FORM_NAME} layout="vertical" requiredMark={false} component="div" onValuesChange={handleValuesChange}>
             {step === 1 && <UnitGoodsVehicleStep form={form} publicUnits={publicUnits} publicUnitsLoading={publicUnitsLoading} publicUnitsMsg={publicUnitsMsg} unitConfig={unitConfig} customGoodsTypes={customGoodsTypes} vehicleAvailability={vehicleAvailability} vehicleAvailabilityMsg={vehicleAvailabilityMsg} vehicleAvailabilityLoading={vehicleAvailabilityLoading} brandUnits={brandUnits} hasPublicLocation={Boolean(selectedLocationName)} set={set} />}
-            {step === 2 && <ScheduleStep form={form} dailyStats={dailyStats} dailyStatsMsg={dailyStatsMsg} dailyStatsLoading={dailyStatsLoading} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} set={set} onRetryManualReferenceCode={retryManualReferenceCode} />}
+            {step === 2 && <ScheduleStep form={form} manualReferenceLoading={manualReferenceLoading} manualReferenceError={manualReferenceError} sundayFreshFoodBlocked={sundayFreshFoodBlocked} set={set} onRetryManualReferenceCode={retryManualReferenceCode} />}
             {step === 3 && <DriverInfoStep form={form} rememberInfo={rememberInfo} setRememberInfo={setRememberInfo} />}
             {step === 4 && <ReviewSubmitStep form={form} unitConfig={unitConfig} brandUnits={brandUnits} locationName={selectedLocationName} awStatus={awStatus} awVendorName={awVendorName} submitError={submitError} onEditStep={editStepFromReview} />}
           </Form>
