@@ -361,8 +361,8 @@ export default function ZonesTab() {
                     {slots.length > 0 ? (
                       <Space size={[4, 4]} wrap>
                         {slots.map((slot) => (
-                          <Tooltip key={slot.id} title={`${slot.name} · ${STATUS_LABEL[slot.status]}`}>
-                            <Tag color={SLOT_STATUS_COLOR[slot.status]}>{slot.code}</Tag>
+                          <Tooltip key={slot.id} title={STATUS_LABEL[slot.status]}>
+                            <Tag color={SLOT_STATUS_COLOR[slot.status]}>{slot.name}</Tag>
                           </Tooltip>
                         ))}
                       </Space>

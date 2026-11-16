@@ -93,7 +93,7 @@ export default function QueueContext({
                   )}
                   {isCalled && (
                     <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-sky-500 text-white leading-none animate-pulse">
-                      📣 GỌI VÀO
+                      GỌI VÀO
                     </span>
                   )}
                 </div>
@@ -107,7 +107,7 @@ export default function QueueContext({
                 {isCalled && item.assignedSlot ? (
                   <div>
                     <div className="font-black text-sm" style={{ color: brand.sttColor }}>
-                      {item.assignedSlot.code}
+                      {item.assignedSlot.name}
                     </div>
                     <div className="text-[10px] text-thiso-400">dock</div>
                   </div>

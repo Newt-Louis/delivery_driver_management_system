@@ -122,12 +122,7 @@ export default function SlotsTab() {
       fixed: 'left',
       width: 160,
       render: (_, slot) => (
-        <Space size={8} align="center" className="flex w-full">
-          <Typography.Text strong code className="shrink-0">{slot.code}</Typography.Text>
-            <span className="min-w-0 flex-1">
-              <Typography.Text ellipsis>{slot.name}</Typography.Text>
-            </span>
-        </Space>
+        <Typography.Text strong ellipsis>{slot.name}</Typography.Text>
       ),
     },
     {
@@ -176,7 +171,7 @@ export default function SlotsTab() {
           checked={slot.isActive}
           checkedChildren="Bật"
           unCheckedChildren="Tắt"
-          aria-label={`${slot.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} slot ${slot.code}`}
+          aria-label={`${slot.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} slot ${slot.name}`}
           onChange={() => toggleActive(slot)}
         />
       ),
@@ -190,17 +185,17 @@ export default function SlotsTab() {
       render: (_, slot) => (
         <Space size="small">
           <Tooltip title="Chỉnh sửa slot">
-            <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa slot ${slot.code}`} onClick={() => setEditSlot(slot)} />
+            <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa slot ${slot.name}`} onClick={() => setEditSlot(slot)} />
           </Tooltip>
           <Popconfirm
-            title={`Xóa slot ${slot.code}?`}
+            title={`Xóa slot ${slot.name}?`}
             description="Nếu slot đã có lịch sử sử dụng, hệ thống sẽ vô hiệu hóa thay vì xóa hoàn toàn."
             okText="Xóa / vô hiệu"
             cancelText="Hủy"
             okButtonProps={{ color: 'danger', variant: 'solid' }}
             onConfirm={() => confirmDelete(slot)}
           >
-            <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa slot ${slot.code}`} />
+            <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa slot ${slot.name}`} />
           </Popconfirm>
         </Space>
       ),
@@ -214,21 +209,21 @@ export default function SlotsTab() {
           checked={slot.isActive}
           checkedChildren="Bật"
           unCheckedChildren="Tắt"
-          aria-label={`${slot.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} slot ${slot.code}`}
+          aria-label={`${slot.isActive ? 'Vô hiệu hóa' : 'Kích hoạt'} slot ${slot.name}`}
           onChange={() => toggleActive(slot)}
         />
         <Tooltip title="Chỉnh sửa slot">
-          <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa slot ${slot.code}`} onClick={() => setEditSlot(slot)} />
+          <Button color="gold" variant="solid" size="small" icon={<EditOutlined />} aria-label={`Chỉnh sửa slot ${slot.name}`} onClick={() => setEditSlot(slot)} />
         </Tooltip>
         <Popconfirm
-          title={`Xóa slot ${slot.code}?`}
+          title={`Xóa slot ${slot.name}?`}
           description="Nếu slot đã có lịch sử sử dụng, hệ thống sẽ vô hiệu hóa thay vì xóa hoàn toàn."
           okText="Xóa / vô hiệu"
           cancelText="Hủy"
           okButtonProps={{ color: 'danger', variant: 'solid' }}
           onConfirm={() => confirmDelete(slot)}
         >
-          <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa slot ${slot.code}`} />
+          <Button color="danger" variant="solid" size="small" icon={<DeleteOutlined />} aria-label={`Xóa slot ${slot.name}`} />
         </Popconfirm>
       </Space>
     );
@@ -351,10 +346,7 @@ export default function SlotsTab() {
               label: (
                 <Space orientation="vertical" size={0} className="min-w-0">
                   <Typography.Text type="secondary" ellipsis className="block max-w-44">{slot.zone?.code ?? 'Chưa gán khu'} · {slotUnitLabel(slot)}</Typography.Text>
-                  <Space size="small" className="min-w-0">
-                    <Typography.Text strong code>{slot.code}</Typography.Text>
-                    <Typography.Text ellipsis className="max-w-36">{slot.name}</Typography.Text>
-                  </Space>
+                  <Typography.Text strong ellipsis className="max-w-36">{slot.name}</Typography.Text>
                 </Space>
               ),
               extra: slotActions(slot),

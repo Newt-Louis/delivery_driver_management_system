@@ -2,7 +2,7 @@ import { InfoCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Card, Form, Input, Space, Switch, Typography } from 'antd';
 import type { FormState } from '../types';
 import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE } from '../../../lib/vehiclePlate';
-import { DRIVER_PHONE_HINT, driverPhoneError, normalizeDriverPhoneInput } from '../../../lib/driverPhone';
+import { driverPhoneError, normalizeDriverPhoneInput } from '../../../lib/driverPhone';
 
 type DriverInfoStepProps = {
   form: FormState;
@@ -49,7 +49,6 @@ export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: 
               },
             },
           ]}
-          extra={`${DRIVER_PHONE_HINT} Số này dùng để liên lạc khi cần.`}
           className="!mb-0"
         >
           <Input size="large" type="tel" inputMode="tel" placeholder="0857382937" autoComplete="tel" />

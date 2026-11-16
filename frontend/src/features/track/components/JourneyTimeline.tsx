@@ -21,7 +21,7 @@ export default function JourneyTimeline({ delivery }: { delivery: TrackDelivery 
   const steps: JourneyStep[] = [
     { title: 'Đăng ký giao hàng', time: delivery.createdAt, icon: <SolutionOutlined /> },
     { title: 'Check-in tại cổng', time: delivery.checkinTime, icon: <LoginOutlined /> },
-    { title: delivery.assignedSlot ? `Được gọi vào ${delivery.assignedSlot.code}` : 'Được gọi vào dock', time: delivery.calledTime, detail: delivery.assignedSlot ? `${delivery.assignedSlot.name}${delivery.assignedSlot.zone ? ` · ${delivery.assignedSlot.zone.name}` : ''}` : null, icon: <NotificationOutlined /> },
+    { title: delivery.assignedSlot ? `Được gọi vào ${delivery.assignedSlot.name}` : 'Được gọi vào dock', time: delivery.calledTime, detail: delivery.assignedSlot?.zone?.name ?? null, icon: <NotificationOutlined /> },
     { title: delivery.status === 'AUTO_WAREHOUSE_RECEIVING' ? 'Đang nhận tại kho tự động' : 'Bắt đầu nhận hàng', time: delivery.receivingStartTime, icon: <ShoppingOutlined /> },
     cancelled ? { title: 'Chuyến đã hủy', time: null, detail: 'Lượt giao hàng này không tiếp tục xử lý.', icon: <CloseCircleOutlined /> } : { title: 'Hoàn thành giao hàng', time: delivery.completedTime, icon: <CheckCircleFilled /> },
   ];

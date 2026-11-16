@@ -35,8 +35,8 @@ Seed tạo:
 
 - Hai `BusinessLocation`: `SAL` (THISO SALA) và `PVT` (THISO Phan Văn Trị).
 - Mỗi location có ba unit runtime: `THISKYHALL` (hiển thị Thiskyhall), `TENANT` (hiển thị THISO Mall) và `EMART` (hiển thị Emart).
-- Mỗi unit có một zone: `KT-1`, `KM-1`, `KE-1`; mỗi zone chứa các slot tương ứng `T1`–`T3`, `M1`–`M3`, `E1`–`E6`.
-- `T3` và `M3` là xe máy, capacity 5; `E1`–`E6` là xe tải, capacity 5; các slot còn lại là xe tải, capacity 1. Mọi slot nhận bốn loại hàng theo thứ tự Fresh food, General goods, Thi công, Kho tự động.
+- Mỗi unit có một zone: `KT-1`, `KM-1`, `KE-1`. Tên slot dùng chung một dãy `T1`–`T10` trong mỗi location, không phân biệt loại xe: Emart `T1`–`T6`, THISO Mall `T7`–`T8`, THISKYHALL `T9`–`T10`. Seed tạm đặt `code` bằng tên slot; giao diện chỉ hiển thị tên slot.
+- `T1`–`T6` là xe tải, capacity 5; `T7` và `T9` là xe tải, capacity 1; `T8` và `T10` là xe máy, capacity 5. Mọi slot nhận bốn loại hàng theo thứ tự Fresh food, General goods, Thi công, Kho tự động.
 - Ba `UnitGoodsType` cho mỗi unit; không tạo `DeliveryTimeWindow` hoặc `ReceivingTimeConfig` để người dùng cấu hình sau.
 - Không tạo, xóa hoặc cập nhật Device. Nếu database đã có Device, bootstrap dừng ngay.
 
@@ -46,7 +46,7 @@ Tài khoản tạo sẵn:
 - SAL: `adminloc.sal@mall.com`, `adminope.sal@mall.com`, `receiving.sal@mall.com`, `checkin.sal@mall.com` / `Thiso@123456`.
 - PVT: `adminloc.pvt@mall.com`, `adminope.pvt@mall.com`, `receiving.pvt@mall.com`, `checkin.pvt@mall.com` / `Thiso@123456`.
 
-Mỗi tài khoản nghiệp vụ có `UserUnitPermission` trên cả ba unit thuộc location của mình. Mã slot được unique trong zone, không phải toàn hệ thống; do đó SAL và PVT đều có thể có slot `T1`, `M1`, `E1`.
+Mỗi tài khoản nghiệp vụ có `UserUnitPermission` trên cả ba unit thuộc location của mình. Mã slot được unique trong zone, không phải toàn hệ thống; do đó SAL và PVT đều có thể có slot `T1`.
 
 ## App Config Seed
 

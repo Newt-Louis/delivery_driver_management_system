@@ -36,7 +36,7 @@ export default function DeliveryTable({
     vehicleType: { header: <SortHeader field="vehicleType" label="Loại xe" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{VEHICLE_LABEL[d.vehicleType] ?? d.vehicleType}</span> },
     finalStatus: { header: <SortHeader field="finalStatus" label="Trạng thái" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <Tag color={d.finalStatus === 'COMPLETED' ? 'success' : 'default'}>{STATUS_LABEL[d.finalStatus] ?? d.finalStatus}</Tag> },
     ticketNumber: { header: <SortHeader field="ticketNumber" label="Số phiếu" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs font-mono">{d.ticketNumber ?? '—'}</span> },
-    assignedSlotCode: { header: <CellHeader label="Slot" />, render: (d) => <span className="text-xs font-mono text-thiso-500">{d.assignedSlotCode ?? '—'}</span> },
+    assignedSlotCode: { header: <CellHeader label="Slot" />, render: (d) => <span className="text-xs text-thiso-500">{d.assignedSlotName ?? '—'}</span> },
     callCount: { header: <SortHeader field="callCount" label="Số lần gọi" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs">{d.callCount}</span> },
     registeredAt: { header: <SortHeader field="registeredAt" label="Giờ đăng ký" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.registeredAt)}</span> },
     checkinTime: { header: <SortHeader field="checkinTime" label="Giờ check-in" sortField={sortField} sortDir={sortDir} onSort={onSort} />, render: (d) => <span className="text-xs text-thiso-500">{formatDateTime(d.checkinTime)}</span> },

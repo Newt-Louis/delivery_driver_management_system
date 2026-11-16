@@ -41,7 +41,7 @@ export default function DarkUnitPanel({ unitKey, deliveries, highlightId, brand,
         <div className="ml-auto flex items-center gap-2 relative z-10">
           {calledCount > 0 && (
             <span className="bg-white/25 text-white font-black px-2.5 py-1 rounded-full animate-pulse"
-                  style={{ fontSize: compact ? '0.82rem' : '0.78rem' }}>📣 {calledCount}</span>
+                  style={{ fontSize: compact ? '0.82rem' : '0.78rem' }}>{calledCount}</span>
           )}
           <span className="bg-black/25 text-white font-bold px-2.5 py-1 rounded-full"
                 style={{ fontSize: compact ? '0.82rem' : '0.78rem' }}>{activeCount}</span>

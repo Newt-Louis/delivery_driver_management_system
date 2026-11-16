@@ -69,11 +69,10 @@ export default function DriverDeliveryCard({
               {isCalled ? 'Di chuyển vào' : 'Đang nhận hàng tại'}
             </div>
             <div className="font-black text-4xl tracking-widest" style={{ color: brand.sttColor }}>
-              {delivery.assignedSlot.code}
+              {delivery.assignedSlot.name}
             </div>
             <div className="text-xs mt-1" style={{ color: brand.sttColor, opacity: 0.7 }}>
-              {delivery.assignedSlot.name}
-              {delivery.assignedSlot.zone && ` · ${delivery.assignedSlot.zone.code}`}
+              {delivery.assignedSlot.zone?.code}
             </div>
           </div>
         )}

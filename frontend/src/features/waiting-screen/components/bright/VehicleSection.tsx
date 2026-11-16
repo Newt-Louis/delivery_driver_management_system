@@ -45,8 +45,8 @@ export default function BrightVehicleSection({ items, highlightId, status, waiti
       key: 'slot',
       width: '20%',
       render: (_, delivery) => {
-        const slotCode = delivery.assignedSlot?.code;
-        return slotCode ? <Typography.Text strong className="break-words" title={slotCode}>{slotCode}</Typography.Text> : <Typography.Text type="secondary">—</Typography.Text>;
+        const slotName = delivery.assignedSlot?.name;
+        return slotName ? <Typography.Text strong className="break-words" title={slotName}>{slotName}</Typography.Text> : <Typography.Text type="secondary">—</Typography.Text>;
       },
     },
   ];

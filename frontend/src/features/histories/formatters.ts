@@ -8,7 +8,7 @@ export function formatDateTime(iso: string | null | undefined, timeStyle: 'short
 
 export function formatEventText(event: DeliveryHistoryEventItem): string {
   const base = EVENT_LABEL[event.eventType]?.label ?? event.eventType;
-  const slot = event.slotCode ? ` → ${event.slotCode}` : '';
+  const slot = event.slotName ? ` → ${event.slotName}` : '';
   const actor = event.actorLabel ? ` (${event.actorLabel})` : '';
   const reason = event.reason ? `: ${event.reason}` : '';
   return `${base}${slot}${actor}${reason}`;

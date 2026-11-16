@@ -10,7 +10,6 @@ import { GOODS_LABELS } from '../constants';
 import { SLOT_GOODS, slotGoodsPriority } from '../slotGoods';
 
 const slotSchema = z.object({
-  code: z.string().min(1, 'Bắt buộc').max(20),
   name: z.string().min(1, 'Bắt buộc').max(50),
   assignedUnit: z.string().trim().min(1, 'Bắt buộc chọn đơn vị').transform((value) => value.toUpperCase()),
   vehicleType: z.enum(['TRUCK', 'MOTORBIKE']).default('TRUCK'),
@@ -37,7 +36,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
   const { register, handleSubmit, watch, setValue, control, formState: { errors, isSubmitting } } = useForm<SlotForm>({
     resolver: zodResolver(slotSchema),
     defaultValues: slot
-      ? { code: slot.code, name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: slotGoodsPriority(slot) }
+      ? { name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: slotGoodsPriority(slot) }
       : { vehicleType: 'TRUCK', assignedUnit: defaultUnit, status: 'AVAILABLE', zoneId: '', autoAssign: true, maxCapacity: 1, acceptedGoods: [], goodsPriority: SLOT_GOODS.filter((goodsType) => goodsType !== 'AUTO_WAREHOUSE') },
   });
 
@@ -77,10 +76,13 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
       }
       const acceptedGoods = orderedGoods.length === SLOT_GOODS.length ? [] : orderedGoods;
       const payload = { ...data, zoneId: data.zoneId, acceptedGoods, goodsPriority: orderedGoods };
+      // Tạm thời: backend vẫn bắt buộc `code` khi tạo slot; giao diện không còn nhập mã nên lấy từ tên slot.
+      // Bỏ dòng này khi backend tự sinh code.
+      const createPayload = { ...payload, code: payload.name.trim().toUpperCase().slice(0, 20) };
       if (isEdit) {
         await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods, goodsPriority: payload.goodsPriority });
       } else {
-        await api.post('/api/slots', payload);
+        await api.post('/api/slots', createPayload);
       }
       onSaved();
     } catch (err: unknown) {
@@ -92,7 +94,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
   return (
     <Modal
       open
-      title={isEdit ? `Chỉnh sửa slot — ${slot!.code}` : 'Thêm slot mới'}
+      title={isEdit ? `Chỉnh sửa slot — ${slot!.name}` : 'Thêm slot mới'}
       onCancel={onClose}
       footer={null}
       centered
@@ -101,18 +103,9 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <Form layout="vertical" component={false}>
-          <Row gutter={16}>
-            <Col xs={24} sm={12}>
-              <Form.Item label="Mã slot" required validateStatus={errors.code ? 'error' : ''} help={errors.code?.message}>
-                <Input {...register('code')} placeholder="T10, M16..." disabled={isEdit} />
-              </Form.Item>
-            </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item label="Tên hiển thị" required validateStatus={errors.name ? 'error' : ''} help={errors.name?.message}>
-                <Input {...register('name')} placeholder="Slot tải 10" />
-              </Form.Item>
-            </Col>
-          </Row>
+          <Form.Item label="Tên slot" required validateStatus={errors.name ? 'error' : ''} help={errors.name?.message}>
+            <Input {...register('name')} placeholder="T1, T10..." />
+          </Form.Item>
 
           <Row gutter={16}>
             <Col xs={24} sm={12}>

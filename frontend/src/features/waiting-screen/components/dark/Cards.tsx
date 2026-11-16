@@ -17,7 +17,7 @@ export function CalledCard({ d, stt, highlight, primaryColor }: {
         <span className="text-base leading-none">{GOODS_LABEL[d.goodsType]}</span>
         <div className="text-right">
           <div className="font-black leading-none tracking-widest"
-               style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)', color: primaryColor }}>{d.assignedSlot?.code ?? '?'}</div>
+               style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)', color: primaryColor }}>{d.assignedSlot?.name ?? '?'}</div>
           <div className="text-[9px] tracking-widest mt-0.5" style={{ color: primaryColor, opacity: 0.7 }}>VỊ TRÍ</div>
         </div>
       </div>
@@ -77,7 +77,7 @@ export function ReceivingCard({ d, stt, highlight }: { d: DeliveryRegistration; 
           {d.assignedSlot ? (
             <>
               <div className="font-black text-green-600 leading-none tracking-widest"
-                   style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)' }}>{d.assignedSlot.code}</div>
+                   style={{ fontSize: 'clamp(1rem, 2vw, 1.4rem)' }}>{d.assignedSlot.name}</div>
               <div className="text-[9px] text-green-400 tracking-widest mt-0.5">NHẬN HÀNG</div>
             </>
           ) : (

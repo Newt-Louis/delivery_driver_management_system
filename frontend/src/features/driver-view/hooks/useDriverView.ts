@@ -72,8 +72,8 @@ export function useDriverView() {
       seenCalled.current.add(data.id);
 
       vibrate([300, 100, 300, 100, 600]);
-      sendNotif('📣 Xe của bạn được gọi!', `Vui lòng vào ${data.slotCode} — ${data.slotName}`);
-      pushNotif('called', `📣 Xe ${data.vehiclePlate} được gọi vào ${data.slotCode}!`);
+      sendNotif('Đã tới lượt của bạn!', `Vui lòng vào ${data.slotName}`);
+      pushNotif('called', `Mời xe ${data.vehiclePlate} di chuyển vào ${data.slotName}!`);
     };
     socket.on('delivery_called', handler);
     return () => {
@@ -99,7 +99,7 @@ export function useDriverView() {
         vibrate([200, 100, 200]);
         sendNotif(
           'Sắp đến giờ giao hàng',
-          `Còn khoảng ${minsLeft} phút — vui lòng di chuyển đến cổng mall`,
+          `Còn khoảng ${minsLeft} phút — vui lòng di chuyển đến cổng giao hàng`,
         );
         pushNotif('upcoming', `Còn ~${minsLeft} phút đến giờ hẹn lúc ${formatTime(myDelivery.requestedTime)}`);
       }

@@ -205,7 +205,7 @@ export function buildDispatchCsvRows(
       unitBrand.label,
       GOODS_CSV_LABEL[delivery.goodsType] ?? delivery.goodsType,
       VEHICLE_LABEL[delivery.vehicleType] ?? delivery.vehicleType,
-      delivery.assignedSlot?.code ?? '',
+      delivery.assignedSlot?.name ?? '',
       STATUS_CSV_LABEL[delivery.status] ?? delivery.status,
       delivery.checkinTime ? new Date(delivery.checkinTime).toLocaleString('vi-VN') : '',
       delivery.checkinTime ? Math.round((Date.now() - new Date(delivery.checkinTime).getTime()) / 60000) : '',

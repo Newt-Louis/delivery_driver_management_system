@@ -37,19 +37,19 @@ const UNIT_DEFINITIONS = [
   },
 ] as const;
 
+// Tên slot dùng chung một dãy T1–T10 trong mỗi location (không phân biệt xe tải/xe máy);
+// `code` tạm thời lấy bằng tên cho tới khi backend tự sinh code.
 const SLOT_DEFINITIONS = [
-  { unit: 'THISKYHALL', code: 'T1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
-  { unit: 'THISKYHALL', code: 'T2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
-  { unit: 'THISKYHALL', code: 'T3', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
-  { unit: 'MALL', code: 'M1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
-  { unit: 'MALL', code: 'M2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
-  { unit: 'MALL', code: 'M3', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
-  { unit: 'EMART', code: 'E1', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
-  { unit: 'EMART', code: 'E2', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
-  { unit: 'EMART', code: 'E3', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
-  { unit: 'EMART', code: 'E4', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
-  { unit: 'EMART', code: 'E5', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
-  { unit: 'EMART', code: 'E6', vehicleType: VehicleType.TRUCK, maxCapacity: 5 },
+  { unit: 'EMART', name: 'T1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'EMART', name: 'T2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'EMART', name: 'T3', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'EMART', name: 'T4', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'EMART', name: 'T5', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'EMART', name: 'T6', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'MALL', name: 'T7', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'MALL', name: 'T8', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
+  { unit: 'THISKYHALL', name: 'T9', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
+  { unit: 'THISKYHALL', name: 'T10', vehicleType: VehicleType.MOTORBIKE, maxCapacity: 5 },
 ] as const;
 
 const LOCATION_DEFINITIONS = [
@@ -213,8 +213,8 @@ async function seedLocation(
 
   await db.slot.createMany({
     data: SLOT_DEFINITIONS.map((slot) => ({
-      code: slot.code,
-      name: `Vị trí ${slot.code}`,
+      code: slot.name,
+      name: slot.name,
       assignedUnit: slot.unit,
       vehicleType: slot.vehicleType,
       maxCapacity: slot.maxCapacity,

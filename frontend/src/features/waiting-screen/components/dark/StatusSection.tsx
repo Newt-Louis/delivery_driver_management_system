@@ -81,7 +81,7 @@ export default function DarkVehicleSection({ items, primaryColor, highlightId, i
             {showsSlot && (
               <span className="font-black text-right leading-none"
                     style={{ color: statusColor, fontSize: compact ? '1.1rem' : 'clamp(1.1rem, 1.9vw, 1.45rem)' }}>
-                {d.assignedSlot?.code ?? '?'}
+                {d.assignedSlot?.name ?? '?'}
               </span>
             )}
           </div>

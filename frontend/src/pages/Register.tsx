@@ -21,7 +21,7 @@ import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
 import { createScanHints } from '../features/register-manual/utils/scanner';
 import { canOfferManualRegistration } from '../features/register-manual/quickVerifyErrors';
 import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE } from '../lib/vehiclePlate';
-import { DRIVER_PHONE_HINT, driverPhoneError, normalizeDriverPhoneInput } from '../lib/driverPhone';
+import { driverPhoneError, normalizeDriverPhoneInput } from '../lib/driverPhone';
 
 type Step = 1 | 2 | 3;
 
@@ -662,7 +662,6 @@ export default function Register() {
                       required
                       validateStatus={phoneErrorText ? 'error' : undefined}
                       help={phoneErrorText || undefined}
-                      extra={DRIVER_PHONE_HINT}
                     ><Input value={form.driverPhone} onChange={(event) => setField('driverPhone', normalizeDriverPhoneInput(event.target.value))} onBlur={() => setPhoneTouched(true)} placeholder="0857382937" inputMode="tel" autoComplete="tel" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item
                       label="Biển số xe"

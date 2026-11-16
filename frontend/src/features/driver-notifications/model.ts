@@ -75,7 +75,7 @@ export function noticeFromDelivery(delivery: TrackDelivery): DriverNotice {
   const occurredAt = (status === 'CALLED' ? delivery.notificationCalledAt ?? delivery.calledTime : status === 'WAITING'
     ? delivery.checkinTime : status === 'COMPLETED' ? delivery.completedTime
       : TERMINAL_STATUSES.has(status) ? delivery.updatedAt : delivery.receivingStartTime) ?? '';
-  const slot = delivery.assignedSlot?.code ?? 'khu vực nhận hàng';
+  const slot = delivery.assignedSlot?.name ?? 'khu vực nhận hàng';
   const title = status === 'CALLED' ? `Mời xe vào ${slot}`
     : status === 'WAITING' ? 'Check-in thành công' : status === 'COMPLETED' ? 'Giao hàng hoàn thành' : 'Trạng thái chuyến đã cập nhật';
   const body = status === 'CALLED' ? `Xe ${delivery.vehiclePlate} — Vui lòng di chuyển vào ${slot} ngay.`

@@ -1,7 +1,6 @@
 // Bản sao quy tắc của backend/src/domain/driverPhone.ts; đổi quy tắc phải sửa cả hai nơi.
 const DRIVER_PHONE_PATTERN = /^0\d{9}$/;
 
-export const DRIVER_PHONE_HINT = 'Gồm 10 số, bắt đầu bằng 0. Có thể dán số dạng +84, hệ thống tự đổi +84 thành 0.';
 const DRIVER_PHONE_ERROR = 'Số điện thoại phải gồm 10 số, bắt đầu bằng 0 hoặc +84. Ví dụ: 0857382937.';
 
 /**
