@@ -12,8 +12,8 @@ export const VEHICLE_FULL: Record<VehicleType, string> = {
 };
 
 export const GOODS_LABEL: Record<GoodsType, string> = {
-  FRESH_FOOD: '🥦 Hàng tươi sống',
-  AUTO_WAREHOUSE: '🤖 Kho tự động',
+  FRESH_FOOD: 'Hàng tươi sống',
+  AUTO_WAREHOUSE: 'Kho tự động',
   GENERAL_GOODS: 'Hàng thông thường',
   THI_CONG: 'Thi công',
 };
@@ -70,20 +70,20 @@ export const DISPATCH_CSV_HEADERS = [
 ];
 
 export const EVENT_LABEL: Record<string, { label: string; icon?: string; accent?: string }> = {
-  REGISTERED: { label: 'Đăng ký giao hàng', icon: '📝' },
-  CHECKED_IN: { label: 'Check-in tại cổng', icon: '🔐' },
-  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', icon: '🤖', accent: 'text-thiso-700' },
-  MANUAL_CALLED: { label: 'Gọi vào vị trí', icon: '📣', accent: 'text-thiso-700' },
-  RECALLED: { label: 'Gọi lại', icon: '🔁', accent: 'text-thiso-700' },
-  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', icon: '🔀', accent: 'text-thiso-700' },
+  REGISTERED: { label: 'Đăng ký giao hàng' },
+  CHECKED_IN: { label: 'Check-in tại cổng' },
+  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', accent: 'text-thiso-700' },
+  MANUAL_CALLED: { label: 'Gọi vào vị trí', accent: 'text-thiso-700' },
+  RECALLED: { label: 'Gọi lại', accent: 'text-thiso-700' },
+  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', accent: 'text-thiso-700' },
   RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', accent: 'text-green-700' },
-  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', icon: '🏭', accent: 'text-green-700' },
-  COMPLETED: { label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' },
-  CANCELLED: { label: 'Đã hủy', icon: '❌', accent: 'text-red-600' },
-  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', icon: '⌛', accent: 'text-red-600' },
-  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', icon: '⌛', accent: 'text-red-600' },
-  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', icon: '⚠️', accent: 'text-amber-700' },
-  ARCHIVED: { label: 'Đã lưu lịch sử', icon: '🗄️', accent: 'text-thiso-500' },
+  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', accent: 'text-green-700' },
+  COMPLETED: { label: 'Hoàn tất nhận hàng', accent: 'text-green-700' },
+  CANCELLED: { label: 'Đã hủy', accent: 'text-red-600' },
+  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', accent: 'text-red-600' },
+  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', accent: 'text-red-600' },
+  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', accent: 'text-amber-700' },
+  ARCHIVED: { label: 'Đã lưu lịch sử', accent: 'text-thiso-500' },
 };
 
 export function formatEventLabel(event: DeliveryHistoryEvent): string {

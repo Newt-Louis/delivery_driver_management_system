@@ -231,7 +231,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
         else if (waitMin >= 20) alerts.push({ level: 'warning', message: `${d.vehiclePlate} tươi sống chờ ${Math.round(waitMin)} phút`, deliveryId: d.id });
       }
       if (waitMin > 45 && d.goodsType !== GoodsType.FRESH_FOOD) {
-        alerts.push({ level: 'warning', message: `⚠️ ${d.vehiclePlate} chờ ${Math.round(waitMin)} phút (hàng thường)`, deliveryId: d.id });
+        alerts.push({ level: 'warning', message: `${d.vehiclePlate} chờ ${Math.round(waitMin)} phút (hàng thường)`, deliveryId: d.id });
       }
     }
 

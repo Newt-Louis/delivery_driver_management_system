@@ -118,21 +118,20 @@ export function formatDateOnly(iso: string | null | undefined): string {
 }
 
 export function getDeliveryTimeline(delivery: DeliveryRegistration) {
-  const timeline: { time: string; label: string; icon?: string; accent?: string }[] = [
-    { time: delivery.createdAt, label: 'Đăng ký giao hàng', icon: '📝' },
+  const timeline: { time: string; label: string; accent?: string }[] = [
+    { time: delivery.createdAt, label: 'Đăng ký giao hàng'},
   ];
 
   if (delivery.checkinTime) {
-    timeline.push({ time: delivery.checkinTime, label: 'Check-in tại cổng', icon: '🔐' });
+    timeline.push({ time: delivery.checkinTime, label: 'Check-in tại cổng' });
   }
 
   if (delivery.historyEvents?.length) {
     delivery.historyEvents.forEach((event) => {
-      const meta = EVENT_LABEL[event.eventType] ?? { icon: '•' };
+      const meta = EVENT_LABEL[event.eventType] ?? { label: event.eventType };
       timeline.push({
         time: event.occurredAt,
         label: formatEventLabel(event),
-        icon: meta.icon,
         accent: meta.accent,
       });
     });
@@ -141,10 +140,10 @@ export function getDeliveryTimeline(delivery: DeliveryRegistration) {
       timeline.push({ time: delivery.receivingStartTime, label: 'Bắt đầu nhận hàng', accent: 'text-green-700' });
     }
     if (delivery.completedTime) {
-      timeline.push({ time: delivery.completedTime, label: 'Hoàn tất nhận hàng', icon: '✅', accent: 'text-green-700' });
+      timeline.push({ time: delivery.completedTime, label: 'Hoàn tất nhận hàng', accent: 'text-green-700' });
     }
     if (delivery.status === 'CANCELLED') {
-      timeline.push({ time: delivery.updatedAt, label: 'Đã hủy', icon: '❌', accent: 'text-red-600' });
+      timeline.push({ time: delivery.updatedAt, label: 'Đã hủy', accent: 'text-red-600' });
     }
   }
 
