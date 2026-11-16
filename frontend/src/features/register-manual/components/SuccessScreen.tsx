@@ -249,6 +249,10 @@ ${locationRow}
           <Card size="small" title={<Space><ScanOutlined />Mã QR check-in</Space>}>
             <div className="text-center">
               <Typography.Paragraph type="secondary">Đưa mã QR này cho bảo vệ tại cổng để check-in.</Typography.Paragraph>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <Button color="default" variant="solid" size="large" icon={<DownloadOutlined />} disabled={!qrDataUrl} onClick={downloadQRWithInfo}>Tải QR</Button>
+                <Button color="default" variant="solid" size="large" icon={<PrinterOutlined />} disabled={!qrDataUrl} onClick={printTicket}>In phiếu</Button>
+              </div>
               {qrDataUrl ? <img src={qrDataUrl} alt={`Mã QR cho ${info.code}`} className="mx-auto h-56 w-56 max-w-full rounded-lg" /> : qrError ? <Alert type="error" showIcon title={qrError} action={<Button size="small" onClick={() => setQrGenerationAttempt((attempt) => attempt + 1)}>Thử lại</Button>} /> : <div className="grid h-56 place-items-center"><Spin description="Đang tạo mã QR..." /></div>}
               <Typography.Paragraph className="!mb-1 !mt-4"><Typography.Text code copyable className="text-base">{info.code}</Typography.Text></Typography.Paragraph>
               <Space size={[4, 4]} wrap className="justify-center"><Tag>{info.vehiclePlate}</Tag><Tag>{info.goodsTypeName || GOODS_LABEL[info.goodsType] || info.goodsType}</Tag><Tag>{info.requestedTime.split(' ')[0]}</Tag></Space>
@@ -272,10 +276,6 @@ ${locationRow}
           <Button type="primary" size="large" block icon={<TruckOutlined />} onClick={() => navigate(trackPath)}>
             Theo dõi hành trình {secondsToTrack > 0 ? `(${secondsToTrack}s)` : ''}
           </Button>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Button size="large" icon={<DownloadOutlined />} disabled={!qrDataUrl} onClick={downloadQRWithInfo}>Tải QR</Button>
-            <Button size="large" icon={<PrinterOutlined />} disabled={!qrDataUrl} onClick={printTicket}>In phiếu</Button>
-          </div>
           <Button size="large" block icon={<ReloadOutlined />} onClick={onReset}>Đăng ký chuyến khác</Button>
         </div>
       </Card>

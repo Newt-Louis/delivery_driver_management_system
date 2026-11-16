@@ -1,7 +1,7 @@
 import { InfoCircleOutlined, SaveOutlined } from '@ant-design/icons';
 import { Alert, Card, Form, Input, Space, Switch, Typography } from 'antd';
 import type { FormState } from '../types';
-import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE, VEHICLE_PLATE_HINT } from '../../../lib/vehiclePlate';
+import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE } from '../../../lib/vehiclePlate';
 import { DRIVER_PHONE_HINT, driverPhoneError, normalizeDriverPhoneInput } from '../../../lib/driverPhone';
 
 type DriverInfoStepProps = {
@@ -30,7 +30,6 @@ export default function DriverInfoStep({ form, rememberInfo, setRememberInfo }: 
               },
             },
           ]}
-          extra={vehicleType ? VEHICLE_PLATE_HINT[vehicleType] : 'Viết liền, không dấu. Chữ thường sẽ tự chuyển thành chữ hoa.'}
         >
           <Input size="large" placeholder={vehicleType ? VEHICLE_PLATE_EXAMPLE[vehicleType] : VEHICLE_PLATE_EXAMPLE.TRUCK} autoCapitalize="characters" autoCorrect="off" autoComplete="off" spellCheck={false} className="font-mono tracking-widest" />
         </Form.Item>

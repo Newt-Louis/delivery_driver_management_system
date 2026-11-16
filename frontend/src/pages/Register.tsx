@@ -20,7 +20,7 @@ import type { SuccessInfo } from '../features/register-manual/types';
 import type { GoodsType, UnitConfig, VehicleType } from '../lib/types';
 import { createScanHints } from '../features/register-manual/utils/scanner';
 import { canOfferManualRegistration } from '../features/register-manual/quickVerifyErrors';
-import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE, VEHICLE_PLATE_HINT } from '../lib/vehiclePlate';
+import { normalizeVehiclePlateInput, vehiclePlateError, VEHICLE_PLATE_EXAMPLE } from '../lib/vehiclePlate';
 import { DRIVER_PHONE_HINT, driverPhoneError, normalizeDriverPhoneInput } from '../lib/driverPhone';
 
 type Step = 1 | 2 | 3;
@@ -669,7 +669,6 @@ export default function Register() {
                       required
                       validateStatus={plateErrorText ? 'error' : undefined}
                       help={plateErrorText || undefined}
-                      extra={form.vehicleType ? VEHICLE_PLATE_HINT[form.vehicleType] : undefined}
                     ><Input value={form.vehiclePlate} onChange={(event) => setField('vehiclePlate', normalizeVehiclePlateInput(event.target.value))} onBlur={() => setPlateTouched(true)} placeholder={form.vehicleType ? VEHICLE_PLATE_EXAMPLE[form.vehicleType] : VEHICLE_PLATE_EXAMPLE.TRUCK} autoComplete="off" autoCapitalize="characters" autoCorrect="off" spellCheck={false} className="font-mono uppercase" /></Form.Item></Col>
                     <Col xs={24} sm={12}><Form.Item label="Mã NCC"><AutoComplete
                       value={form.vendorCode}
