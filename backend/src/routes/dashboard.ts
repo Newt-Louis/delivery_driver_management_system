@@ -6,6 +6,7 @@ import { authenticate, requireRole, enforceScope } from '../middleware/auth';
 import { getCallHistoryCounts } from '../modules/history/historyRepository';
 import { closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
 import { roleHasUnitOperationScope } from '../domain/permissions';
+import { compareSlotsForDisplay } from '../domain/slotCode';
 
 const router = Router();
 
@@ -188,8 +189,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
     }),
     prisma.slot.findMany({
       where: scopedSlotWhere(units, { isActive: true }),
-      orderBy: { code: 'asc' },
-    }),
+    }).then((slots) => slots.sort(compareSlotsForDisplay)),
   ]);
 
   const callCounts = await getCallHistoryCounts(allActive.map((delivery) => delivery.id));
@@ -241,7 +241,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       if (calledMin >= 15) {
         alerts.push({
           level: 'warning',
-          message: `Chưa vào: ${d.vehiclePlate} gọi vào ${(d as typeof d & { assignedSlot?: { code: string } }).assignedSlot?.code ?? '?'} chưa vào slot (${Math.round(calledMin)} phút)`,
+          message: `Chưa vào: ${d.vehiclePlate} gọi vào ${d.assignedSlot?.name ?? '?'} chưa vào slot (${Math.round(calledMin)} phút)`,
           deliveryId: d.id,
         });
       }
@@ -262,7 +262,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
           ? `chờ ${Math.round((now.getTime() - topVehicle.checkinTime.getTime()) / 60000)} phút`
           : '';
         recommendations.push({
-          message: `Gọi ngay: ${topVehicle.vehiclePlate}${waitStr ? ' (' + waitStr + ')' : ''} → ${bestSlot.code} [${match}]`,
+          message: `Gọi ngay: ${topVehicle.vehiclePlate}${waitStr ? ' (' + waitStr + ')' : ''} → ${bestSlot.name} [${match}]`,
           deliveryId: topVehicle.id,
           slotId: bestSlot.id,
         });
@@ -277,7 +277,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
               ?? availableSlots.find((s) => s.id !== bestSlot.id);
             if (nextSlot) {
               recommendations.push({
-                message: `💡 Tiếp theo: ${next.vehiclePlate} → ${nextSlot.code}`,
+                message: `💡 Tiếp theo: ${next.vehiclePlate} → ${nextSlot.name}`,
                 deliveryId: next.id,
                 slotId: nextSlot.id,
               });

@@ -7,12 +7,32 @@ import { recordAuditLog, userActor } from '../../services/auditLog';
 import { getScopeForDelivery, getScopeForSlot } from '../../services/realtimeScope';
 import { isManualSlotStatus, reconcileAllSlots, reconcileOneSlot, reconcileSlotState } from '../../services/slotState';
 import { domainError } from '../shared/domainError';
+import { formatSlotCode, nextSlotCodeSequence, normalizeSlotName } from '../../domain/slotCode';
+import type { Prisma } from '@prisma/client';
 import type { CreateSlotPayload, UpdateSlotPayload } from './slotFormRequest';
 import * as slotRepository from './slotRepository';
 
 function assertSlotOperationAccess(user: AuthUser | undefined, slot: { zone: { unitConfig: { businessLocationId: string }; unitConfigId: string } }) {
   assertCanAccessOperationalLocation(user, slot.zone.unitConfig.businessLocationId);
   assertCanOperateUnit(user, slot.zone.unitConfigId);
+}
+
+/** Tên slot là nhãn hiển thị duy nhất, nên không được trùng trong cùng business location. */
+async function assertSlotNameAvailable(tx: Prisma.TransactionClient, businessLocationId: string, name: string, excludeSlotId?: string) {
+  const conflict = await slotRepository.findSlotNameConflict(tx, businessLocationId, name, excludeSlotId);
+  if (!conflict) return;
+  throw domainError.conflict(
+    conflict.isActive
+      ? `Tên slot "${conflict.name}" đã tồn tại trong khu vực này.`
+      : `Tên slot "${conflict.name}" đang thuộc một slot đã vô hiệu hóa. Hãy kích hoạt lại slot đó hoặc đổi tên nó trước.`,
+    'SlotNameExists',
+  );
+}
+
+/** Mã slot tự sinh: `<mã zone>-<số lớn nhất trong zone + 1>`. Gọi sau `lockSlotWrites`. */
+async function generateSlotCode(tx: Prisma.TransactionClient, zone: { id: string; code: string }) {
+  const codes = await slotRepository.listZoneSlotCodes(tx, zone.id);
+  return formatSlotCode(zone.code, nextSlotCodeSequence(zone.code, codes));
 }
 
 async function emitSlotList(scope?: SocketScope) {
@@ -148,17 +168,19 @@ export async function createSlot(body: CreateSlotPayload, user: AuthUser | undef
   assertCanAccessOperationalLocation(user, zone.unitConfig.businessLocationId);
   assertCanOperateUnit(user, zone.unitConfigId);
 
-  const exists = await slotRepository.findSlotByCode(body.zoneId, body.code);
-  if (exists) {
-    throw domainError.conflict(`Mã slot "${body.code}" đã tồn tại trong khu này.`);
-  }
-
   const zoneError = await slotRepository.validateZoneForUnit(body.zoneId, body.assignedUnit);
   if (zoneError) {
     throw domainError.badRequest(zoneError);
   }
 
-  const slot = await slotRepository.createSlot(body);
+  const businessLocationId = zone.unitConfig.businessLocationId;
+  const name = normalizeSlotName(body.name);
+  const slot = await prisma.$transaction(async (tx) => {
+    await slotRepository.lockSlotWrites(tx, businessLocationId);
+    await assertSlotNameAvailable(tx, businessLocationId, name);
+    const code = await generateSlotCode(tx, zone);
+    return slotRepository.createSlot(tx, { ...body, name, code });
+  });
   const scope = await getScopeForSlot(slot.id);
   await recordAuditLog({
     ...userActor(user),
@@ -181,19 +203,33 @@ export async function updateSlot(id: string, body: UpdateSlotPayload, user: Auth
 
   const nextZoneId = body.zoneId ?? current.zoneId;
   const nextAssignedUnit = body.assignedUnit ?? current.assignedUnit;
-  if (nextZoneId !== current.zoneId) {
-    const nextZone = await slotRepository.findZoneWithLocation(nextZoneId);
-    if (!nextZone) throw domainError.badRequest('Khu nhận hàng không tồn tại.');
-    assertCanAccessOperationalLocation(user, nextZone.unitConfig.businessLocationId);
-    assertCanOperateUnit(user, nextZone.unitConfigId);
+  const zoneChanged = nextZoneId !== current.zoneId;
+  let nextZone: { id: string; code: string; unitConfig: { businessLocationId: string } } = current.zone;
+  if (zoneChanged) {
+    const found = await slotRepository.findZoneWithLocation(nextZoneId);
+    if (!found) throw domainError.badRequest('Khu nhận hàng không tồn tại.');
+    assertCanAccessOperationalLocation(user, found.unitConfig.businessLocationId);
+    assertCanOperateUnit(user, found.unitConfigId);
+    nextZone = found;
   }
   const zoneError = await slotRepository.validateZoneForUnit(nextZoneId, nextAssignedUnit);
   if (zoneError) {
     throw domainError.badRequest(zoneError);
   }
 
-  const { status, ...slotData } = body;
+  const { status, ...slotFields } = body;
+  const nextBusinessLocationId = nextZone.unitConfig.businessLocationId;
   const slot = await prisma.$transaction(async (tx) => {
+    const slotData: Prisma.SlotUncheckedUpdateInput = { ...slotFields };
+    const checksName = slotFields.name !== undefined || nextBusinessLocationId !== current.zone.unitConfig.businessLocationId;
+    if (checksName || zoneChanged) await slotRepository.lockSlotWrites(tx, nextBusinessLocationId);
+    if (checksName) {
+      const name = normalizeSlotName(slotFields.name ?? current.name);
+      await assertSlotNameAvailable(tx, nextBusinessLocationId, name, id);
+      slotData.name = name;
+    }
+    // Đổi zone: cấp mã mới trong zone đích (số lớn nhất + 1) để giữ unique (zoneId, code).
+    if (zoneChanged) slotData.code = await generateSlotCode(tx, nextZone);
     await tx.slot.update({ where: { id }, data: slotData });
     if (!status) {
       return reconcileSlotState(tx, id);
@@ -215,8 +251,8 @@ export async function updateSlot(id: string, body: UpdateSlotPayload, user: Auth
     targetId: id,
     businessLocationId: current.zone.unitConfig.businessLocationId,
     unitConfigId: current.zone.unitConfigId,
-    before: { code: current.code, name: current.name, assignedUnit: current.assignedUnit, vehicleType: current.vehicleType, isActive: current.isActive },
-    after: { code: slot.slot?.code ?? current.code, name: slot.slot?.name ?? current.name, assignedUnit: slot.slot?.assignedUnit ?? current.assignedUnit, vehicleType: slot.slot?.vehicleType ?? current.vehicleType, isActive: slot.slot?.isActive ?? current.isActive },
+    before: { code: current.code, name: current.name, assignedUnit: current.assignedUnit, vehicleType: current.vehicleType, zoneId: current.zoneId, isActive: current.isActive },
+    after: { code: slot.slot?.code ?? current.code, name: slot.slot?.name ?? current.name, assignedUnit: slot.slot?.assignedUnit ?? current.assignedUnit, vehicleType: slot.slot?.vehicleType ?? current.vehicleType, zoneId: slot.slot?.zoneId ?? nextZoneId, isActive: slot.slot?.isActive ?? current.isActive },
   });
   await emitSlotList(scope);
   return slot.slot;

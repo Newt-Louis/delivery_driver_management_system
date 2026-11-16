@@ -128,7 +128,7 @@ export async function manualCallDelivery(args: {
         outcome: 'slot_unavailable',
         delivery,
         slot,
-        message: `Slot ${slot.code} không sẵn sàng để gọi xe.`,
+        message: `Slot ${slot.name} không sẵn sàng để gọi xe.`,
       };
     }
 
@@ -139,7 +139,7 @@ export async function manualCallDelivery(args: {
         outcome: 'slot_mismatch',
         delivery,
         slot,
-        message: `Slot ${slot.code} không thuộc cùng khu vực vận hành.`,
+        message: `Slot ${slot.name} không thuộc cùng khu vực vận hành.`,
       };
     }
     const activeInTarget = await tx.deliveryRegistration.count({
@@ -200,7 +200,7 @@ export async function manualCallDelivery(args: {
         outcome: 'slot_full',
         delivery,
         slot,
-        message: `Slot ${slot.code} đã đủ sức chứa.`,
+        message: `Slot ${slot.name} đã đủ sức chứa.`,
       };
     }
 

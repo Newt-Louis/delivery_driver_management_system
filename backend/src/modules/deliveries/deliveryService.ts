@@ -616,8 +616,8 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
     emitTrackUpdatesForQueue(queue).catch(console.error);
     sendPushToDelivery(delivery.registrationCode, {
       status: 'CALLED', occurredAt: result.notificationOccurredAt.toISOString(),
-      title: `Mời xe vào ${slot.code}`,
-      body: `Xe ${delivery.vehiclePlate} — ${slot.name}. Vui lòng vào ngay!`,
+      title: `Mời xe vào ${slot.name}`,
+      body: `Xe ${delivery.vehiclePlate} — Vui lòng di chuyển vào ${slot.name} ngay.`,
       tag: 'delivery-called-manual',
       url: `/track/${delivery.registrationCode}`,
     }).catch(console.error);

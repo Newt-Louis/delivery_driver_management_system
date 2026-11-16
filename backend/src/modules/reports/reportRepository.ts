@@ -194,7 +194,6 @@ export async function listSlotPerformanceRows(range: ReportRange, scope: ReportS
       AND d.created_at >= ${range.gte} AND d.created_at <= ${range.lte}
     WHERE s.is_active = true ${scopeClause}
     GROUP BY s.id, s.code, s.name, s.vehicle_type, s.assigned_unit
-    ORDER BY s.assigned_unit, s.vehicle_type, s.code
   `);
 }
 

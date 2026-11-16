@@ -33,7 +33,7 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
   ).values());
   const defaultUnit = slot?.assignedUnit ?? unitOptions[0]?.unit ?? '';
 
-  const { register, handleSubmit, watch, setValue, control, formState: { errors, isSubmitting } } = useForm<SlotForm>({
+  const { handleSubmit, watch, setValue, control, formState: { errors, isSubmitting } } = useForm<SlotForm>({
     resolver: zodResolver(slotSchema),
     defaultValues: slot
       ? { name: slot.name, assignedUnit: slot.assignedUnit, vehicleType: slot.vehicleType, status: slot.status, zoneId: slot.zoneId ?? '', autoAssign: slot.autoAssign, maxCapacity: slot.maxCapacity ?? 1, acceptedGoods: slot.acceptedGoods as GoodsType[], goodsPriority: slotGoodsPriority(slot) }
@@ -76,13 +76,10 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
       }
       const acceptedGoods = orderedGoods.length === SLOT_GOODS.length ? [] : orderedGoods;
       const payload = { ...data, zoneId: data.zoneId, acceptedGoods, goodsPriority: orderedGoods };
-      // Tạm thời: backend vẫn bắt buộc `code` khi tạo slot; giao diện không còn nhập mã nên lấy từ tên slot.
-      // Bỏ dòng này khi backend tự sinh code.
-      const createPayload = { ...payload, code: payload.name.trim().toUpperCase().slice(0, 20) };
       if (isEdit) {
         await api.patch(`/api/slots/${slot!.id}`, { name: payload.name, assignedUnit: payload.assignedUnit, vehicleType: payload.vehicleType, status: payload.status, zoneId: payload.zoneId, autoAssign: payload.autoAssign, maxCapacity: payload.maxCapacity, acceptedGoods: payload.acceptedGoods, goodsPriority: payload.goodsPriority });
       } else {
-        await api.post('/api/slots', createPayload);
+        await api.post('/api/slots', payload);
       }
       onSaved();
     } catch (err: unknown) {
@@ -103,11 +100,18 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
     >
       <form onSubmit={handleSubmit(onSubmit)}>
         <Form layout="vertical" component={false}>
-          <Form.Item label="Tên slot" required validateStatus={errors.name ? 'error' : ''} help={errors.name?.message}>
-            <Input {...register('name')} placeholder="T1, T10..." />
-          </Form.Item>
-
           <Row gutter={16}>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Tên slot" required validateStatus={errors.name ? 'error' : ''} help={errors.name?.message}>
+                <Controller
+                  control={control}
+                  name="name"
+                  render={({ field }) => (
+                    <Input value={field.value ?? ''} onChange={field.onChange} onBlur={field.onBlur} placeholder="T1, T10..." />
+                  )}
+                />
+              </Form.Item>
+            </Col>
             <Col xs={24} sm={12}>
               <Form.Item label="Đơn vị" required validateStatus={errors.assignedUnit ? 'error' : ''} help={errors.assignedUnit?.message}>
                 <Controller
@@ -123,27 +127,6 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                 />
               </Form.Item>
             </Col>
-            <Col xs={24} sm={12}>
-              <Form.Item label="Loại phương tiện" required>
-                <Controller
-                  control={control}
-                  name="vehicleType"
-                  render={({ field }) => (
-                    <Select
-                      value={field.value}
-                      onChange={field.onChange}
-                      options={[
-                        { value: 'TRUCK', label: 'Xe tải' },
-                        { value: 'MOTORBIKE', label: 'Xe máy' },
-                      ]}
-                    />
-                  )}
-                />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Row gutter={16}>
             <Col xs={24} sm={12}>
               <Form.Item label="Khu (Zone)" required validateStatus={errors.zoneId ? 'error' : ''} help={errors.zoneId?.message}>
                 <Controller
@@ -179,6 +162,35 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
                 />
               </Form.Item>
             </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Loại phương tiện" required>
+                <Controller
+                  control={control}
+                  name="vehicleType"
+                  render={({ field }) => (
+                    <Select
+                      value={field.value}
+                      onChange={field.onChange}
+                      options={[
+                        { value: 'TRUCK', label: 'Xe tải' },
+                        { value: 'MOTORBIKE', label: 'Xe máy' },
+                      ]}
+                    />
+                  )}
+                />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Sức chứa tối đa (xe/slot)">
+                <Controller
+                  control={control}
+                  name="maxCapacity"
+                  render={({ field }) => (
+                    <InputNumber min={1} max={10} value={field.value} onChange={(value) => field.onChange(value ?? 1)} className="w-full" />
+                  )}
+                />
+              </Form.Item>
+            </Col>
           </Row>
 
           <Card size="small" className="mb-4">
@@ -190,17 +202,6 @@ export default function SlotModal({ slot, zones, onClose, onSaved }: { slot?: Sl
               <Switch checked={autoAssign} onChange={(checked) => setValue('autoAssign', checked, { shouldDirty: true })} />
             </Flex>
           </Card>
-
-          <Form.Item label="Sức chứa tối đa (xe/slot)">
-            <Controller
-              control={control}
-              name="maxCapacity"
-              render={({ field }) => (
-                <InputNumber min={1} max={10} value={field.value} onChange={(value) => field.onChange(value ?? 1)} />
-              )}
-            />
-            <Typography.Text type="secondary" className="ml-2"> Xe tải: 1 — xe máy: thường là 3.</Typography.Text>
-          </Form.Item>
 
           <Form.Item label="Loại hàng nhận">
             <Card size="small">

@@ -1,11 +1,13 @@
 import { ReceivingUnit, type ReceivingUnit as ReceivingUnitCode } from '../../domain/unitCodes';
-import { SlotStatus } from '@prisma/client';
+import { Prisma, SlotStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import type { SocketScope } from '../../socket';
+import { compareSlotsForDisplay } from '../../domain/slotCode';
+import { advisoryLockId } from '../deliveries/deliveryRepository';
 import type { CreateSlotPayload, UpdateSlotPayload } from './slotFormRequest';
 
-export function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) {
-  return prisma.slot.findMany({
+export async function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) {
+  const slots = await prisma.slot.findMany({
     where: {
       ...(activeOnly ? { isActive: true } : {}),
       zone: {
@@ -16,7 +18,6 @@ export function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) 
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },
-    orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
       zone: {
         select: {
@@ -43,6 +44,7 @@ export function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) 
       },
     },
   });
+  return slots.sort(compareSlotsForDisplay);
 }
 
 export function findSlotWithLocation(id: string) {
@@ -77,12 +79,33 @@ export function findZoneForUnit(zoneId: string) {
   });
 }
 
-export function findSlotByCode(zoneId: string, code: string) {
-  return prisma.slot.findUnique({ where: { zoneId_code: { zoneId, code } } });
+/**
+ * Khóa ghi slot theo business location trong transaction hiện tại: tuần tự hóa việc kiểm tra
+ * trùng tên và sinh mã slot để hai thao tác đồng thời không tạo trùng.
+ */
+export async function lockSlotWrites(tx: Prisma.TransactionClient, businessLocationId: string) {
+  await tx.$executeRaw(Prisma.sql`SELECT pg_advisory_xact_lock(${advisoryLockId(`slot-write:${businessLocationId}`)})`);
 }
 
-export function createSlot(data: CreateSlotPayload) {
-  return prisma.slot.create({ data });
+/** Slot khác (kể cả đã vô hiệu hóa) trong cùng business location có cùng tên, không phân biệt hoa thường. */
+export function findSlotNameConflict(tx: Prisma.TransactionClient, businessLocationId: string, name: string, excludeSlotId?: string) {
+  return tx.slot.findFirst({
+    where: {
+      name: { equals: name, mode: 'insensitive' },
+      zone: { unitConfig: { businessLocationId } },
+      ...(excludeSlotId ? { id: { not: excludeSlotId } } : {}),
+    },
+    select: { id: true, name: true, isActive: true },
+  });
+}
+
+export async function listZoneSlotCodes(tx: Prisma.TransactionClient, zoneId: string) {
+  const slots = await tx.slot.findMany({ where: { zoneId }, select: { code: true } });
+  return slots.map((slot) => slot.code);
+}
+
+export function createSlot(tx: Prisma.TransactionClient, data: CreateSlotPayload & { code: string }) {
+  return tx.slot.create({ data });
 }
 
 export function countSlotHistoryEvents(slotId: string) {

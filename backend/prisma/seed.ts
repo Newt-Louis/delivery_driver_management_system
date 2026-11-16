@@ -37,8 +37,14 @@ const UNIT_DEFINITIONS = [
   },
 ] as const;
 
-// Tên slot dùng chung một dãy T1–T10 trong mỗi location (không phân biệt xe tải/xe máy);
-// `code` tạm thời lấy bằng tên cho tới khi backend tự sinh code.
+// Tên slot dùng chung một dãy T1–T10 trong mỗi location (không phân biệt xe tải/xe máy).
+// `code` do hệ thống tự sinh theo zone (KE-1-01, KE-1-02, ...), giống khi tạo slot qua API.
+// Bản sao của formatSlotCode trong src/domain/slotCode.ts: image Docker runtime chỉ có `prisma/`
+// và `dist/`, không có `src/`, nên seed không import được từ src. Đổi định dạng phải sửa cả hai nơi.
+function formatSlotCode(zoneCode: string, sequence: number): string {
+  return `${zoneCode}-${String(sequence).padStart(2, '0')}`;
+}
+
 const SLOT_DEFINITIONS = [
   { unit: 'EMART', name: 'T1', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
   { unit: 'EMART', name: 'T2', vehicleType: VehicleType.TRUCK, maxCapacity: 1 },
@@ -211,17 +217,23 @@ async function seedLocation(
   })));
   const zoneByUnit = new Map(zones.map((zone) => [unitConfigs.find((unit) => unit.id === zone.unitConfigId)!.unit, zone]));
 
+  const slotSequenceByZone = new Map<string, number>();
   await db.slot.createMany({
-    data: SLOT_DEFINITIONS.map((slot) => ({
-      code: slot.name,
-      name: slot.name,
-      assignedUnit: slot.unit,
-      vehicleType: slot.vehicleType,
-      maxCapacity: slot.maxCapacity,
-      acceptedGoods: NORMAL_GOODS,
-      goodsPriority: NORMAL_GOODS,
-      zoneId: zoneByUnit.get(slot.unit)!.id,
-    })),
+    data: SLOT_DEFINITIONS.map((slot) => {
+      const zone = zoneByUnit.get(slot.unit)!;
+      const sequence = (slotSequenceByZone.get(zone.id) ?? 0) + 1;
+      slotSequenceByZone.set(zone.id, sequence);
+      return {
+        code: formatSlotCode(zone.code, sequence),
+        name: slot.name,
+        assignedUnit: slot.unit,
+        vehicleType: slot.vehicleType,
+        maxCapacity: slot.maxCapacity,
+        acceptedGoods: NORMAL_GOODS,
+        goodsPriority: NORMAL_GOODS,
+        zoneId: zone.id,
+      };
+    }),
   });
 
   await db.unitGoodsType.createMany({

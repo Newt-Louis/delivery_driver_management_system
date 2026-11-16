@@ -1,9 +1,10 @@
 import { prisma } from '../../lib/prisma';
 import type { SocketScope } from '../../socket';
+import { compareSlotNames } from '../../domain/slotCode';
 import type { ZonePayload, ZoneUpdatePayload } from './zoneFormRequest';
 
-export function listZones(scope?: SocketScope) {
-  return prisma.zone.findMany({
+export async function listZones(scope?: SocketScope) {
+  const zones = await prisma.zone.findMany({
     where: {
       ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       ...(scope?.unitConfigIds
@@ -28,11 +29,16 @@ export function listZones(scope?: SocketScope) {
       _count: { select: { slots: true } },
       slots: {
         where: { isActive: true },
-        orderBy: [{ vehicleType: 'asc' }, { code: 'asc' }],
+        orderBy: [{ vehicleType: 'asc' }],
         select: { id: true, code: true, name: true, vehicleType: true, assignedUnit: true, status: true, isActive: true },
       },
     },
   });
+  // Trong cùng loại xe, slot sắp theo tên tự nhiên (T1, T2, …, T10); sort ổn định giữ thứ tự loại xe từ DB.
+  return zones.map((zone) => ({
+    ...zone,
+    slots: [...zone.slots].sort((a, b) => (a.vehicleType === b.vehicleType ? compareSlotNames(a.name, b.name) : 0)),
+  }));
 }
 
 export function findUnitConfig(id: string) {

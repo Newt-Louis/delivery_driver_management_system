@@ -4,9 +4,9 @@ import { z } from 'zod';
 const statusSchema = z.object({ status: z.nativeEnum(SlotStatus) });
 const assignSchema = z.object({ deliveryId: z.string() });
 
+// `code` không nhận từ client: hệ thống tự sinh theo zone (xem domain/slotCode.ts).
 const createSlotSchema = z.object({
-  code: z.string().min(1).max(20),
-  name: z.string().min(1).max(50),
+  name: z.string().trim().min(1).max(50),
   assignedUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
   vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]).default(VehicleType.TRUCK),
   acceptedGoods: z.array(z.nativeEnum(GoodsType)).default([]),
@@ -18,7 +18,7 @@ const createSlotSchema = z.object({
 });
 
 const updateSlotSchema = z.object({
-  name: z.string().min(1).max(50).optional(),
+  name: z.string().trim().min(1).max(50).optional(),
   assignedUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()).optional(),
   vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]).optional(),
   acceptedGoods: z.array(z.nativeEnum(GoodsType)).optional(),

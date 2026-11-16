@@ -6,7 +6,7 @@ import { SuperadminFormRequest } from '../modules/superadmin/superadminFormReque
 
 test('vehicle inputs accept only trucks and motorbikes; registration requires an explicit type', () => {
   const delivery = { driverPhone: '0901234567', vehiclePlate: '51F-12345', receivingUnit: 'EMART', goodsType: 'GENERAL_GOODS' };
-  const slot = { code: 'T1', name: 'Slot', assignedUnit: 'EMART', zoneId: 'zone' };
+  const slot = { name: 'T1', assignedUnit: 'EMART', zoneId: 'zone' };
   for (const vehicleType of ['TRUCK', 'MOTORBIKE']) {
     assert.equal(DeliveryFormRequest.parseRegister({ ...delivery, vehicleType }).vehicleType, vehicleType);
     assert.equal(SlotFormRequest.parseCreate({ ...slot, vehicleType }).vehicleType, vehicleType);

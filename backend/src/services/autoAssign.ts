@@ -9,6 +9,7 @@ import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState }
 import { getScopeForSlot } from './realtimeScope';
 import { recordAuditLog, systemActor } from './auditLog';
 import { countCallHistoryEvents } from '../modules/history/historyRepository';
+import { compareSlotNames, compareSlotsForDisplay } from '../domain/slotCode';
 import { recordDeliveryEvent } from '../modules/history/historyService';
 
 type AutoAssignScope = {
@@ -95,7 +96,7 @@ async function getFullQueue(scope?: SocketScope) {
 }
 
 async function getAllSlotsWithDeliveries(scope?: SocketScope) {
-  return prisma.slot.findMany({
+  const slots = await prisma.slot.findMany({
     where: {
       isActive: true,
       zone: {
@@ -103,7 +104,6 @@ async function getAllSlotsWithDeliveries(scope?: SocketScope) {
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },
-    orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
       zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
       deliveries: {
@@ -112,6 +112,7 @@ async function getAllSlotsWithDeliveries(scope?: SocketScope) {
       },
     },
   });
+  return slots.sort(compareSlotsForDisplay);
 }
 
 function candidateGoodsForSlot(slot: Slot): GoodsType[] {
@@ -205,7 +206,7 @@ async function assignNextDeliveryToSlot(slotId: string, unit: ReceivingUnitCode)
     }
 
     const calledTime = new Date();
-    const message = `[Tự động] Mời xe ${next.vehiclePlate} vào ${slot.code}`;
+    const message = `[Tự động] Mời xe ${next.vehiclePlate} vào ${slot.name}`;
     const newActiveCount = activeCount + 1;
 
     const delivery = await tx.deliveryRegistration.update({
@@ -280,14 +281,14 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCod
   }, scope);
 
   console.log(
-    `[AutoAssign] ${unit}: ${result.delivery.vehiclePlate} -> ${result.slot.code} (${result.delivery.goodsType}) `
+    `[AutoAssign] ${unit}: ${result.delivery.vehiclePlate} -> ${result.slot.name} [${result.slot.code}] (${result.delivery.goodsType}) `
     + `[${result.activeCount}/${result.slot.maxCapacity}]`,
   );
 
   sendPushToDelivery(result.delivery.registrationCode, {
     status: 'CALLED', occurredAt: result.delivery.calledTime?.toISOString(),
-    title: `Mời xe vào ${result.slot.code}`,
-    body: `Xe ${result.delivery.vehiclePlate} — ${result.slot.name}. Vui lòng vào ngay!`,
+    title: `Mời xe vào ${result.slot.name}`,
+    body: `Xe ${result.delivery.vehiclePlate} — Vui lòng di chuyển vào ${result.slot.name} ngay.`,
     tag: 'delivery-called',
     url: `/track/${result.delivery.registrationCode}`,
   }).catch(console.error);
@@ -328,7 +329,6 @@ export async function triggerAutoAssign(unit: ReceivingUnitCode, scope: AutoAssi
           },
         },
       },
-      orderBy: { code: 'asc' },
     });
 
     const candidateSlots = slots
@@ -336,7 +336,7 @@ export async function triggerAutoAssign(unit: ReceivingUnitCode, scope: AutoAssi
       .sort((a, b) => {
         const remainingA = a.maxCapacity - a._count.deliveries;
         const remainingB = b.maxCapacity - b._count.deliveries;
-        return remainingB - remainingA || a.code.localeCompare(b.code);
+        return remainingB - remainingA || compareSlotNames(a.name, b.name);
       });
 
     candidateSeen = Math.max(candidateSeen, candidateSlots.length);

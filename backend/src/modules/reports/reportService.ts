@@ -2,6 +2,7 @@ import { helperFunctions } from '../../helperFunction';
 import type { ReportScope } from './reportTypes';
 import type { ReportQuery, SlotRecommendation } from './reportTypes';
 import * as reportRepository from './reportRepository';
+import { compareSlotsForDisplay } from '../../domain/slotCode';
 
 export async function getOverviewReport(query: ReportQuery, scope: ReportScope) {
   const [total, byStatus, avgWait, avgReceiving, checkinOnTime] = await Promise.all([
@@ -55,7 +56,10 @@ export async function getSlotPerformanceReport(query: ReportQuery, scope: Report
   const rows = await reportRepository.listSlotPerformanceRows(query.range, scope);
   const { availableMinutes } = helperFunctions.operatingWindowMinutes(query.range);
 
-  return rows.map((row) => {
+  return [...rows].sort((a, b) => compareSlotsForDisplay(
+    { assignedUnit: a.assignedUnit, vehicleType: a.vehicleType, name: a.slotName },
+    { assignedUnit: b.assignedUnit, vehicleType: b.vehicleType, name: b.slotName },
+  )).map((row) => {
     const total = Number(row.totalDeliveries);
     const completed = Number(row.completedDeliveries);
     const occupied = row.totalOccupiedMinutes ?? 0;

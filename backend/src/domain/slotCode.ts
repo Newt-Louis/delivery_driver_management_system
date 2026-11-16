@@ -3,7 +3,7 @@
  * Định dạng: `<mã zone>-<số thứ tự 2 chữ số>`, ví dụ `KE-1-01`. Số thứ tự = số lớn nhất đang có
  * trong zone + 1 (không lấp số còn trống). Tên slot (`Slot.name`) mới là nhãn hiển thị.
  *
- * Migration `20261117090000_regenerate_slot_codes` dùng cùng định dạng; đổi định dạng phải sửa cả hai.
+ * Migration `20261117090000_regenerate_slot_codes` và `prisma/seed.ts` dùng cùng định dạng; đổi định dạng phải sửa cả ba nơi.
  */
 const SLOT_CODE_SEQUENCE_WIDTH = 2;
 
@@ -35,9 +35,12 @@ export function compareSlotNames(a: string, b: string): number {
 
 type DisplaySortableSlot = { assignedUnit: string; vehicleType: string; name: string };
 
+// Giữ đúng thứ tự khai báo enum VehicleType như khi Postgres sắp xếp (xe tải trước xe máy).
+const VEHICLE_TYPE_RANK: Record<string, number> = { TRUCK: 0, MOTORBIKE: 1 };
+
 /** Thứ tự hiển thị chuẩn: đơn vị, loại xe, rồi tên slot theo thứ tự tự nhiên. */
 export function compareSlotsForDisplay(a: DisplaySortableSlot, b: DisplaySortableSlot): number {
   return a.assignedUnit.localeCompare(b.assignedUnit)
-    || a.vehicleType.localeCompare(b.vehicleType)
+    || (VEHICLE_TYPE_RANK[a.vehicleType] ?? 99) - (VEHICLE_TYPE_RANK[b.vehicleType] ?? 99)
     || compareSlotNames(a.name, b.name);
 }

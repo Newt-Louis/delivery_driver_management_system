@@ -6,6 +6,7 @@ import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import { getCallHistoryCounts } from '../history/historyRepository';
 import { normalizeVehiclePlate } from '../../domain/vehiclePlate';
 import { normalizeDriverPhone } from '../../domain/driverPhone';
+import { compareSlotsForDisplay } from '../../domain/slotCode';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
   id: true,
@@ -199,8 +200,8 @@ export async function getFullQueue(scope?: SocketScope) {
   return attachCallCounts(deliveries);
 }
 
-export function getAllSlots(scope?: SocketScope) {
-  return prisma.slot.findMany({
+export async function getAllSlots(scope?: SocketScope) {
+  const slots = await prisma.slot.findMany({
     where: {
       isActive: true,
       zone: {
@@ -211,7 +212,6 @@ export function getAllSlots(scope?: SocketScope) {
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },
-    orderBy: [{ assignedUnit: 'asc' }, { vehicleType: 'asc' }, { code: 'asc' }],
     include: {
       zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
       deliveries: {
@@ -220,6 +220,7 @@ export function getAllSlots(scope?: SocketScope) {
       },
     },
   });
+  return slots.sort(compareSlotsForDisplay);
 }
 
 export async function listDeliveries(args: {

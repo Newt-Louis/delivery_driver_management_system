@@ -35,7 +35,10 @@ Models:
   - `unitConfigId`, `code`, `name`.
   - Unique theo `[unitConfigId, code]`.
 - `Slot`
-  - `zoneId`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `maxCapacity`, `status`, `isActive`.
+  - `zoneId`, `code`, `name`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `maxCapacity`, `status`, `isActive`.
+  - Unique theo `[zoneId, code]`.
+  - `name` (ví dụ `T1`, `T10`) là nhãn duy nhất hiển thị trên mọi giao diện: TV, track, dashboard, docks, backoffice, báo cáo, lịch sử và nội dung thông báo cho tài xế.
+  - `code` là mã nội bộ do hệ thống tự sinh, client không gửi lên và giao diện không hiển thị. IT dùng `code` để tra cứu audit, lịch sử, database.
 
 Các bảng nghiệp vụ vẫn giữ cột text snapshot như `receivingUnit`, `assignedUnit`, `unit` để đọc lịch sử/report dễ hơn, nhưng source of truth quan hệ mới là `unitConfigId` khi model có field này.
 
@@ -204,6 +207,9 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 - `UnitConfig` là master unit động. Seed chỉ là bootstrap/dev; production có thể tạo location/unit từ Superadmin.
 - Ticket prefix ưu tiên `UnitConfig.shortName`, sau đó `displayName`, sau đó mã `unit`; frontend không tự giữ bảng prefix cố định theo ba unit demo.
 - `Slot.zoneId` phải trỏ tới zone thuộc cùng unit với `Slot.assignedUnit`. Backend validate bằng `validateZoneForUnit()`.
+- `Slot.code` tự sinh dạng `<Zone.code>-<số thứ tự>`, số thứ tự có ít nhất 2 chữ số (`KE-1-01`, `KE-1-02`, ...). Số thứ tự là số lớn nhất đang có trong zone + 1, không lấp số còn trống. Payload `POST /api/slots` không nhận `code`; nếu client gửi thì Zod bỏ qua. Khi `PATCH /api/slots/:id` đổi `zoneId`, slot được cấp mã mới trong zone đích theo cùng quy tắc. Định dạng nằm ở `backend/src/domain/slotCode.ts`, bản sao trong `backend/prisma/seed.ts` và migration `20261117090000_regenerate_slot_codes`.
+- `Slot.name` được trim, gộp khoảng trắng, và không được trùng (không phân biệt hoa thường) với slot khác trong cùng `BusinessLocation`, kể cả slot đã vô hiệu hóa. Trùng thì trả `409 SlotNameExists`. Hai location khác nhau được dùng chung tên `T1`. Kiểm tra trùng và sinh mã chạy trong transaction có advisory lock `slot-write:<businessLocationId>`.
+- Danh sách slot trả về (`/api/slots`, socket `slot_updated`, dashboard, zones, báo cáo hiệu suất slot) sắp theo đơn vị, loại xe (xe tải trước xe máy), rồi tên slot theo thứ tự tự nhiên (`T1`, `T2`, ..., `T10`). Khi auto-assign có nhiều slot còn trống ngang nhau, slot có tên đứng trước theo thứ tự tự nhiên được chọn trước.
 - Non-`SUPERADMIN` phải đi qua `BusinessLocation` scope và `operationUnits` khi action resolve được `unitConfigId`.
 - Public routes dùng `PublicBusinessLocationContext`, không dùng `user.businessLocationId` hoặc Superadmin operational context. Tên khu vực trên public header mở bộ chọn `BusinessLocation` active cho người chưa đăng nhập và `SUPERADMIN`; mỗi public feature dùng `selectedBusinessLocationId` khi dữ liệu phụ thuộc khu vực. Staff route chỉ đọc scope từ auth session; `SUPERADMIN` đổi operational context qua tên khu vực trên header nội bộ. Nếu chưa có khu vực, modal bắt buộc chọn vẫn được hiển thị.
 - `Slot.goodsPriority` điều khiển thứ tự ưu tiên auto-assign trong phạm vi các loại hàng slot được phép nhận. Nếu cùng một loại hàng, xe có `checkinTime`/số thứ tự sớm hơn được gọi trước.
