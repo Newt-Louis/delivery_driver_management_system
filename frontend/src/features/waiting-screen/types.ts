@@ -1,4 +1,4 @@
-import type { DeliveryRegistration } from '../../lib/types';
+import type { PublicQueueDelivery } from '../../lib/types';
 
 export interface BrandConfig {
   mall: { id?: string; code?: string; mallName: string; logoUrl: string | null; tagline: string };
@@ -24,5 +24,5 @@ export interface CalledAlert {
   receivingUnit?: string;
   callCount?: number;
   ticketCode?: string;
-  delivery?: DeliveryRegistration;
+  delivery?: PublicQueueDelivery;
 }

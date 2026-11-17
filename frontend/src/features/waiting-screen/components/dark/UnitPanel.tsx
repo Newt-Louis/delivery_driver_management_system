@@ -1,11 +1,11 @@
-import type { DeliveryRegistration } from '../../../../lib/types';
+import type { PublicQueueDelivery } from '../../../../lib/types';
 import UnitLogo from '../UnitLogo';
 import { getUnitBrand } from '../../utils';
 import type { BrandConfig, UnitKey } from '../../types';
 import DarkVehicleSection from './StatusSection';
 
 export default function DarkUnitPanel({ unitKey, deliveries, highlightId, brand, compact = false }: {
-  unitKey: UnitKey; deliveries: DeliveryRegistration[]; highlightId: string | null;
+  unitKey: UnitKey; deliveries: PublicQueueDelivery[]; highlightId: string | null;
   brand: BrandConfig | null; compact?: boolean;
 }) {
   const cfg = getUnitBrand(brand, unitKey);

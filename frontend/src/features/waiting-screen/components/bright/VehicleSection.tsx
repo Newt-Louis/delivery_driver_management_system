@@ -1,12 +1,12 @@
 import { ArrowRightOutlined } from '@ant-design/icons';
 import { Empty, Table, Typography, type TableColumnsType } from 'antd';
-import type { DeliveryRegistration } from '../../../../lib/types';
+import type { PublicQueueDelivery } from '../../../../lib/types';
 import { formatTicketForDelivery } from '../../utils';
 
 export type WaitingVehicleSectionStatus = 'called' | 'waiting';
 
 type BrightVehicleSectionProps = {
-  items: DeliveryRegistration[];
+  items: PublicQueueDelivery[];
   highlightId: string | null;
   status: WaitingVehicleSectionStatus;
   waitingCount?: number;
@@ -17,13 +17,13 @@ export default function BrightVehicleSection({ items, highlightId, status, waiti
   const emptyText = isWaiting
     ? 'Chưa có xe CHECK-IN'
     : waitingCount > 0 ? 'Chưa có khu vực giao hàng TRỐNG' : 'Không tìm thấy xe sẵn sàng';
-  const columns: TableColumnsType<DeliveryRegistration> = [
+  const columns: TableColumnsType<PublicQueueDelivery> = [
     {
       title: 'Số thứ tự',
       key: 'ticket',
       width: '35%',
       render: (_, delivery) => {
-        const ticket = formatTicketForDelivery(delivery) ?? delivery.registrationCode;
+        const ticket = formatTicketForDelivery(delivery) ?? '—';
         const isNext = isWaiting && items[0]?.id === delivery.id;
         return (
           <Typography.Text strong className="break-words" title={ticket}>

@@ -7,7 +7,6 @@ import DashboardAlerts from '../features/dashboard/components/DashboardAlerts';
 import DashboardHeader from '../features/dashboard/components/DashboardHeader';
 import DashboardLegend from '../features/dashboard/components/DashboardLegend';
 import DashboardTabs from '../features/dashboard/components/DashboardTabs';
-import DeliveryDetailModal from '../features/dashboard/components/DeliveryDetailModal';
 import LoadingState from '../features/dashboard/components/LoadingState';
 import UnitTabView from '../features/dashboard/components/UnitTabView';
 import { useDashboard } from '../features/dashboard/hooks/useDashboard';
@@ -24,7 +23,6 @@ export default function Dashboard() {
     callPreSlot,
     callLoading,
     actionLoading,
-    viewId,
     cancelTargetId,
     allSlots,
     tabs,
@@ -35,8 +33,6 @@ export default function Dashboard() {
     openCallModal,
     closeCallModal,
     openCallBySuggestion,
-    setViewId,
-    closeViewModal,
     closeCancelModal,
   } = useDashboard();
 
@@ -55,7 +51,7 @@ export default function Dashboard() {
     : undefined;
 
   return (
-    <div className="max-w-screen-xl mx-auto py-5 px-4">
+    <div className="py-5 px-4">
       {callTarget && (
         <CallModal
           delivery={callTarget}
@@ -65,15 +61,6 @@ export default function Dashboard() {
           onClose={closeCallModal}
           onCall={doCall}
           loading={callLoading}
-        />
-      )}
-
-      {viewId && (
-        <DeliveryDetailModal
-          id={viewId}
-          onClose={closeViewModal}
-          onCall={(delivery) => { closeViewModal(); openCallModal(delivery); }}
-          onAction={(id, action) => { closeViewModal(); doAction(id, action); }}
         />
       )}
 
@@ -108,7 +95,6 @@ export default function Dashboard() {
           onSuggestionAction={openCallBySuggestion}
           onCall={openCallModal}
           onAction={doAction}
-          onView={setViewId}
           actionLoading={actionLoading}
         />
       )}
@@ -125,7 +111,6 @@ export default function Dashboard() {
           onSuggestionAction={openCallBySuggestion}
           onCall={openCallModal}
           onAction={doAction}
-          onView={setViewId}
         />
       )}
 

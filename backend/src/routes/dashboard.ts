@@ -174,7 +174,23 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       where: scopedDeliveryWhere(units, {
         status: { in: [DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
       }),
-      include: { assignedSlot: { include: { zone: { include: { unitConfig: true } } } } },
+      include: {
+        assignedSlot: {
+          include: {
+            zone: {
+              include: {
+                // Never `unitConfig: true`: UnitConfig carries vendorApiKey/poApiKey.
+                unitConfig: {
+                  select: {
+                    id: true, unit: true, displayName: true, shortName: true,
+                    icon: true, logoUrl: true, primaryColor: true, businessLocationId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
       orderBy: [{ checkinTime: 'asc' }],
     }),
     prisma.deliveryRegistration.findMany({

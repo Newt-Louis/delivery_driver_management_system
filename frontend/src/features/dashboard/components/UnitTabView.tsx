@@ -13,7 +13,6 @@ interface UnitTabViewProps {
   onSuggestionAction: (id: string, slotId?: string) => void;
   onCall: (delivery: DeliveryRegistration, slotId?: string) => void;
   onAction: (id: string, action: DeliveryLifecycleAction) => void;
-  onView: (id: string) => void;
 }
 
 export default function UnitTabView({
@@ -23,7 +22,6 @@ export default function UnitTabView({
   onSuggestionAction,
   onCall,
   onAction,
-  onView,
 }: UnitTabViewProps) {
   if (!unitDispatch) {
     return <Empty description="Không có dữ liệu" />;
@@ -40,7 +38,6 @@ export default function UnitTabView({
         unitConfig={unitDispatch.unitConfig}
         onCall={onCall}
         onAction={onAction}
-        onView={onView}
         actionLoading={actionLoading}
       />
       <UpcomingSection deliveries={unitDispatch.upcoming} unit={unit} unitConfig={unitDispatch.unitConfig} />

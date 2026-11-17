@@ -56,7 +56,8 @@ Limiter hiện là in-memory single-instance. Nếu scale nhiều backend contai
 ## Bảo Mật Khác
 
 - JWT middleware verify token, kiểm tra Redis session/profile và fallback DB khi cache miss. User bị deactivate/delete sẽ bị chặn sau khi cache/session được refresh hoặc revoke.
-- UnitConfig public endpoint strip `vendorApiKey` và `poApiKey`.
+- UnitConfig public endpoint strip `vendorApiKey` và `poApiKey`. Không dùng `include: { unitConfig: true }` ở bất kỳ response, socket payload hay audit `before/after` nào; luôn `select` các trường cần.
+- Payload public của delivery/slot đi qua allow-list trong `backend/src/domain/publicDeliveryView.ts` (`toPublicQueue`, `toPublicSlots`). Áp dụng cho `GET /api/deliveries/queue` và socket `queue_updated`/`slot_updated`. Không trả `registrationCode` (chìa khoá `/track/:code`), tên/SĐT tài xế, NCC, PO, note ra kênh public. Thêm trường mới vào allow-list phải xét trường đó có an toàn khi công khai không.
 - Device API không trả `deviceSecretHash`.
 - Audit log không ghi password/secret/token.
 - Route staff PIN/action cũ trên track đã bị loại khỏi luồng vận hành; tài xế chỉ dùng các endpoint public read/search/subscribe.

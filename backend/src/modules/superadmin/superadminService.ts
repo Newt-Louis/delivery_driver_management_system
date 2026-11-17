@@ -400,7 +400,7 @@ export async function createAutoWarehouseVendor(body: AutoWarehouseVendorCreate,
 export async function updateAutoWarehouseVendor(id: string, body: AutoWarehouseVendorUpdate, actor: AuthUser | undefined) {
   const existing = await prisma.autoWarehouseVendor.findUnique({
     where: { id },
-    include: { unitConfig: true },
+    include: { unitConfig: { select: { businessLocationId: true } } },
   });
   if (!existing) throw domainError.notFound('AutoWarehouseVendor not found');
   const vendor = await prisma.autoWarehouseVendor.update({ where: { id }, data: body });
@@ -418,7 +418,7 @@ export async function updateAutoWarehouseVendor(id: string, body: AutoWarehouseV
 }
 
 export async function deleteAutoWarehouseVendor(id: string, actor: AuthUser | undefined) {
-  const existing = await prisma.autoWarehouseVendor.findUnique({ where: { id }, include: { unitConfig: true } });
+  const existing = await prisma.autoWarehouseVendor.findUnique({ where: { id }, include: { unitConfig: { select: { businessLocationId: true } } } });
   if (!existing) throw domainError.notFound('AutoWarehouseVendor not found');
   const vendor = await prisma.autoWarehouseVendor.update({ where: { id }, data: { active: false } });
   await recordAuditLog({
@@ -594,7 +594,7 @@ export async function createReceivingTimeConfig(body: ReceivingTimeConfigCreate,
 }
 
 export async function updateReceivingTimeConfig(id: string, body: ReceivingTimeConfigUpdate, actor: AuthUser | undefined) {
-  const existing = await prisma.receivingTimeConfig.findUnique({ where: { id }, include: { unitConfig: true } });
+  const existing = await prisma.receivingTimeConfig.findUnique({ where: { id }, include: { unitConfig: { select: { businessLocationId: true } } } });
   if (!existing) throw domainError.notFound('ReceivingTimeConfig not found');
   const config = await prisma.receivingTimeConfig.update({ where: { id }, data: body });
   await recordAuditLog({
@@ -611,7 +611,7 @@ export async function updateReceivingTimeConfig(id: string, body: ReceivingTimeC
 }
 
 export async function deleteReceivingTimeConfig(id: string, actor: AuthUser | undefined) {
-  const existing = await prisma.receivingTimeConfig.findUnique({ where: { id }, include: { unitConfig: true } });
+  const existing = await prisma.receivingTimeConfig.findUnique({ where: { id }, include: { unitConfig: { select: { businessLocationId: true } } } });
   if (!existing) throw domainError.notFound('ReceivingTimeConfig not found');
   await prisma.receivingTimeConfig.delete({ where: { id } });
   await recordAuditLog({

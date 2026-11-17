@@ -23,7 +23,6 @@ export function useDashboard() {
   const [callPreSlot, setCallPreSlot] = useState<string | undefined>(undefined);
   const [callLoading, setCallLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [viewId, setViewId] = useState<string | null>(null);
   const [cancelTargetId, setCancelTargetId] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
@@ -35,6 +34,8 @@ export function useDashboard() {
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     queryClient.invalidateQueries({ queryKey: ['slots'] });
+    // Refresh the expanded row's detail panel (only mounted panels refetch).
+    queryClient.invalidateQueries({ queryKey: ['delivery'] });
   }, [queryClient]);
 
   const { data: summary, isError: summaryError, refetch: retrySummary } = useQuery<DashboardSummary>({
@@ -129,10 +130,6 @@ export function useDashboard() {
     }
   }
 
-  function closeViewModal() {
-    setViewId(null);
-  }
-
   function closeCancelModal() {
     if (!actionLoading) setCancelTargetId(null);
   }
@@ -148,7 +145,6 @@ export function useDashboard() {
     callPreSlot,
     callLoading,
     actionLoading,
-    viewId,
     cancelTargetId,
     allSlots: getDispatchSlots(dispatch),
     tabs,
@@ -159,8 +155,6 @@ export function useDashboard() {
     openCallModal,
     closeCallModal,
     openCallBySuggestion,
-    setViewId,
-    closeViewModal,
     closeCancelModal,
   };
 }

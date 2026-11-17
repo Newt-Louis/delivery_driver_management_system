@@ -29,9 +29,9 @@ Events client -> server:
 
 Events server -> client:
 
-- `queue_updated`
+- `queue_updated`: mảng delivery đang hoạt động, dạng public rút gọn (`toPublicQueue`).
 - `delivery_called`
-- `slot_updated`
+- `slot_updated`: mảng slot đang hoạt động; `deliveries[]` trong slot cũng là dạng public rút gọn (`toPublicSlots`).
 - `delivery_completed`
 - `track_updated`
 - `driver_notification`: sự kiện cá nhân theo mã chuyến, gồm `deliveryCode/status/occurredAt/eventId/title/body`; emit trước I/O gửi Web Push.
@@ -78,6 +78,9 @@ File:
 - Với socket dashboard/docks, backend xác thực token rồi suy ra BusinessLocation từ session. Role có unit permission chỉ join các `unit-config:{id}` được cấp, không join room toàn location.
 - Payload có BusinessLocation/UnitConfig khác auth scope bị từ chối. Event thiếu scope bị bỏ qua, không broadcast global.
 - Track room public chỉ theo `registrationCode`; dashboard/docks room yêu cầu token hợp lệ khi join.
+- Phòng `business-location:{id}` và `unit-config:{id}` join được **không cần đăng nhập** (waiting screen public dùng `realtime:join` không có token). Vì vậy mọi payload phát vào các phòng này phải là dữ liệu public. `emitQueueUpdated()` và `emitSlotUpdated()` tự chiếu payload qua `domain/publicDeliveryView.ts`; dữ liệu nội bộ (ví dụ `registrationCode` cho `emitTrackUpdatesForQueue`) vẫn dùng bản đầy đủ phía server, không gửi ra client.
+- Dashboard và docks chỉ dùng `queue_updated`/`slot_updated` làm tín hiệu invalidate/tải lại, không đọc payload.
+- Thay đổi định dạng payload ghi trong `docs/api/CHANGELOG.md`.
 
 ## Lưu Ý
 

@@ -31,6 +31,7 @@ import { assertQuickRegistrationDate, assertRegistrationDateIsToday, requiresQui
 import { generateManualRegistrationCode } from './manualRegistrationCode';
 import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
+import { toPublicQueue } from '../../domain/publicDeliveryView';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
   id: true,
@@ -348,8 +349,9 @@ export function listDeliveries(args: Parameters<typeof deliveryRepository.listDe
   return deliveryRepository.listDeliveries(args);
 }
 
-export function getQueue(scope?: SocketScope) {
-  return deliveryRepository.getFullQueue(scope);
+// Public endpoint (GET /api/deliveries/queue): only the allow-listed projection may leave the server.
+export async function getQueue(scope?: SocketScope) {
+  return toPublicQueue(await deliveryRepository.getFullQueue(scope));
 }
 
 async function assertRegistrationNotSuperseded(registrationCode: string, businessLocationId: string) {

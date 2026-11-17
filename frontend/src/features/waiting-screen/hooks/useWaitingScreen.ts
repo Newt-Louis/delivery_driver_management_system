@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
 import api from '../../../lib/api';
-import type { DeliveryRegistration } from '../../../lib/types';
+import type { PublicQueueDelivery } from '../../../lib/types';
 import { getDeliveryUnitKey, normalizeWaitingScreenDeliveries } from '../utils';
 import type { BrandConfig, UnitKey } from '../types';
 
@@ -9,7 +9,7 @@ export function useWaitingScreen() {
   const socket        = useSocket();
   const realtimeScope = useRealtimeScope();
 
-  const [deliveries, setDeliveries]   = useState<DeliveryRegistration[]>([]);
+  const [deliveries, setDeliveries]   = useState<PublicQueueDelivery[]>([]);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [now, setNow]                 = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -54,7 +54,7 @@ export function useWaitingScreen() {
   const fetchQueue = useCallback(async () => {
     if (!realtimeScope.businessLocationId && !realtimeScope.unitConfigId) return;
     try {
-      const response = await api.get<DeliveryRegistration[]>('/api/deliveries/queue', { params: realtimeScope });
+      const response = await api.get<PublicQueueDelivery[]>('/api/deliveries/queue', { params: realtimeScope });
       setDeliveries(normalizeWaitingScreenDeliveries(response.data));
     } catch { /* silent */ }
   }, [realtimeScope]);
@@ -62,7 +62,7 @@ export function useWaitingScreen() {
   useEffect(() => { fetchQueue(); }, [fetchQueue]);
 
   useEffect(() => {
-    socket.on('queue_updated', (data: DeliveryRegistration[]) => {
+    socket.on('queue_updated', (data: PublicQueueDelivery[]) => {
       const normalized = normalizeWaitingScreenDeliveries(data);
       setDeliveries(normalized);
       setHighlightId((current) => {

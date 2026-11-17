@@ -144,6 +144,20 @@ export interface DeliveryRegistration {
   historyEvents?: DeliveryHistoryEvent[];
 }
 
+/**
+ * Delivery shape returned by the public `GET /api/deliveries/queue` and carried by the
+ * `queue_updated` / `slot_updated` socket events. Personal fields (driver, vendor, PO, note)
+ * and `registrationCode` are intentionally absent.
+ */
+export type PublicQueueDelivery = Pick<
+  DeliveryRegistration,
+  | 'id' | 'status' | 'ticketNumber' | 'vehiclePlate' | 'vehicleType' | 'goodsType'
+  | 'receivingUnit' | 'unitConfigId' | 'unitConfig' | 'assignedSlotId'
+  | 'checkinTime' | 'calledTime' | 'receivingStartTime' | 'createdAt' | 'callCount'
+> & {
+  assignedSlot: Pick<Slot, 'id' | 'name' | 'vehicleType' | 'zone'> | null;
+};
+
 export interface UnitBranding {
   displayName: string;
   shortName: string;

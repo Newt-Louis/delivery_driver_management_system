@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma';
 import { AuthSessionError, verifyAccessToken, type SafeAuthUser } from '../services/authSession';
 import { getRedis } from '../services/redis';
 import { invalidateUserUnitPermissionCache } from '../services/unitPermission';
+import { toPublicQueue, toPublicSlots, type PublicDeliverySource, type PublicSlotSource } from '../domain/publicDeliveryView';
 
 let io: SocketServer;
 
@@ -287,8 +288,10 @@ function emitScoped(event: string, payload: unknown, scope?: SocketScope): void 
   getIO().to(rooms).emit(event, payload);
 }
 
-export function emitQueueUpdated(queue: unknown[], scope?: SocketScope): void {
-  emitScoped('queue_updated', queue, scope);
+// Business-location/unit-config rooms are joinable without login (waiting-screen TVs),
+// so queue/slot payloads must go through the public allow-list projection.
+export function emitQueueUpdated(queue: PublicDeliverySource[], scope?: SocketScope): void {
+  emitScoped('queue_updated', toPublicQueue(queue), scope);
 }
 
 export function emitDeliveryCalled(data: {
@@ -305,8 +308,8 @@ export function emitDeliveryCalled(data: {
   emitScoped('delivery_called', data, scope);
 }
 
-export function emitSlotUpdated(slots: unknown[], scope?: SocketScope): void {
-  emitScoped('slot_updated', slots, scope);
+export function emitSlotUpdated(slots: PublicSlotSource[], scope?: SocketScope): void {
+  emitScoped('slot_updated', toPublicSlots(slots), scope);
 }
 
 export function emitDeliveryCompleted(id: string, scope?: SocketScope): void {

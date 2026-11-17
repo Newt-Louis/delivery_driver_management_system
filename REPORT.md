@@ -363,3 +363,28 @@ Quy ước:
   - Thêm graceful shutdown handler: listen `SIGTERM`/`SIGINT` → `scheduler.stop()`, `server.close()`, `prisma.$disconnect()`. Force exit sau 10s nếu graceful hang.
 - File chính: `backend/src/modules/scheduler/schedulerService.ts`, `backend/src/index.ts`.
 - Đã kiểm tra: `npm run build` trong `backend`.
+
+## Giai Đoạn 4 - Dashboard, Mượn Slot, Bảng Tình Trạng Vị Trí Và Tối Ưu API
+
+Kế hoạch: `PLAN.md` (việc 0 → 6). Thay đổi hợp đồng API ghi ở `docs/api/CHANGELOG.md`.
+
+### 2026-11-17 - Việc 0: Chặn Lộ Dữ Liệu Trên Kênh Public
+
+- Thêm allow-list `backend/src/domain/publicDeliveryView.ts` (`toPublicDelivery`, `toPublicQueue`, `toPublicSlot`, `toPublicSlots`).
+- `GET /api/deliveries/queue` (public) trả bản rút gọn: bỏ `registrationCode`, tên/SĐT tài xế, NCC, PO, note và các cột không cần cho màn hình chờ.
+- `emitQueueUpdated()`/`emitSlotUpdated()` trong `backend/src/socket/index.ts` tự chiếu payload qua allow-list, nên mọi điểm emit (lifecycle, auto-assign, scheduler, seeding, slot service) đều được che, không phải sửa từng nơi. Lý do: phòng `business-location:{id}`/`unit-config:{id}` join được không cần đăng nhập.
+- `GET /api/dashboard/dispatch`: thay `unitConfig: true` bằng `select` an toàn, không còn trả `vendorApiKey`/`poApiKey`.
+- `superadminService`: 4 chỗ `include: { unitConfig: true }` (cập nhật/vô hiệu vendor kho tự động, cập nhật/xoá cấu hình thời gian nhận hàng) làm API key của `UnitConfig` bị ghi vào `before` của audit log. Đổi sang chỉ lấy `businessLocationId`.
+- Frontend: thêm type `PublicQueueDelivery` (`lib/types.ts`); waiting screen dùng type này. Sắp xếp phụ đổi từ `registrationCode` sang `id`; ô số thứ tự khi chưa có số thẻ hiện `—` thay vì mã đăng ký.
+- Đã kiểm tra: `npm run build` ở `backend` và `frontend`. Gọi thật `GET /api/deliveries/queue` trên dev server: còn 16 trường allow-list, không còn trường cá nhân.
+- Chưa kiểm tra trực tiếp: payload socket `queue_updated`/`slot_updated` (cần phát sinh thao tác thật). Logic dùng chung hàm chiếu với REST queue đã kiểm tra.
+- Còn tồn tại, ngoài phạm vi việc 0: gọi `GET /api/deliveries/queue` **không kèm** `businessLocationId` trả hàng chờ của mọi khu vực (dữ liệu đã rút gọn). Trang legacy `DriverView` (không có route) đọc `vendorName` từ queue nên sẽ hiện trống.
+
+### 2026-11-17 - Việc 1: Click Dòng Để Xem Chi Tiết Thay Cho Nút "Xem"
+
+- Thêm `frontend/src/features/dashboard/components/DeliveryDetailPanel.tsx`: nội dung chi tiết chỉ đọc (Descriptions + timeline), tự gọi `GET /api/deliveries/:id` khi được mở, không có nút thao tác.
+- `QueueTable.tsx`: desktop dùng `expandable` của Ant Table (`expandRowByClick`, mỗi lần một dòng, dòng đang mở tô nền `colorPrimaryBg`, con trỏ dạng tay khi hover); mobile dùng `Collapse accordion` với cùng panel, kèm thời gian chờ và hàng nút thao tác bên dưới. Bỏ nút "Xem".
+- Bỏ prop `onView` ở `QueueTable`/`UnitTabView`/`AllTabView`, bỏ state `viewId`/`closeViewModal` ở `useDashboard`, xoá `DeliveryDetailModal.tsx` (không còn chỗ dùng).
+- `useDashboard.invalidateAll()` invalidate thêm query `['delivery']` để panel đang mở tự cập nhật theo socket.
+- Đã kiểm tra: `npm run build` ở `frontend`; gọi thật `GET /api/deliveries/:id` (200, có `historyEvents`, `callCount`, `unitConfig`).
+- Chưa kiểm tra: giao diện trên trình duyệt. Headless Chromium trong WSL thiếu thư viện hệ thống `libasound.so.2` (cần `sudo apt-get install libasound2t64`).

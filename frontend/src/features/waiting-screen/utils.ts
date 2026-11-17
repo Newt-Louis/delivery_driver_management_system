@@ -1,8 +1,8 @@
 import { formatTicketCode as formatDynamicTicketCode, unitPresentation, type UnitBrandSource } from '../../lib/unitPresentation';
-import type { DeliveryRegistration } from '../../lib/types';
+import type { PublicQueueDelivery } from '../../lib/types';
 import type { BrandConfig } from './types';
 
-const WAITING_SCREEN_VISIBLE_STATUSES = new Set<DeliveryRegistration['status']>(['CALLED', 'WAITING']);
+const WAITING_SCREEN_VISIBLE_STATUSES = new Set<PublicQueueDelivery['status']>(['CALLED', 'WAITING']);
 
 function timestamp(value: string | null | undefined): number {
   if (!value) return Number.POSITIVE_INFINITY;
@@ -10,17 +10,17 @@ function timestamp(value: string | null | undefined): number {
   return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
 }
 
-export function formatTicketForDelivery(delivery: DeliveryRegistration): string | null {
+export function formatTicketForDelivery(delivery: PublicQueueDelivery): string | null {
   if (!delivery.ticketNumber) return null;
   const unitConfig = delivery.unitConfig ?? delivery.assignedSlot?.zone?.unitConfig;
   return formatDynamicTicketCode(delivery.receivingUnit, delivery.vehicleType, delivery.ticketNumber, unitConfig);
 }
 
-export function isWaitingScreenVisibleDelivery(delivery: DeliveryRegistration): boolean {
+export function isWaitingScreenVisibleDelivery(delivery: PublicQueueDelivery): boolean {
   return WAITING_SCREEN_VISIBLE_STATUSES.has(delivery.status);
 }
 
-export function compareWaitingScreenQueueOrder(a: DeliveryRegistration, b: DeliveryRegistration): number {
+export function compareWaitingScreenQueueOrder(a: PublicQueueDelivery, b: PublicQueueDelivery): number {
   const byCheckinTime = timestamp(a.checkinTime) - timestamp(b.checkinTime);
   if (byCheckinTime !== 0) return byCheckinTime;
 
@@ -30,10 +30,10 @@ export function compareWaitingScreenQueueOrder(a: DeliveryRegistration, b: Deliv
   const byCreatedAt = timestamp(a.createdAt) - timestamp(b.createdAt);
   if (byCreatedAt !== 0) return byCreatedAt;
 
-  return a.registrationCode.localeCompare(b.registrationCode);
+  return a.id.localeCompare(b.id);
 }
 
-export function normalizeWaitingScreenDeliveries(deliveries: DeliveryRegistration[]): DeliveryRegistration[] {
+export function normalizeWaitingScreenDeliveries(deliveries: PublicQueueDelivery[]): PublicQueueDelivery[] {
   return deliveries
     .filter(isWaitingScreenVisibleDelivery)
     .sort(compareWaitingScreenQueueOrder);
@@ -57,6 +57,6 @@ export function getUnitBrand(brand: BrandConfig | null, unit: string | null | un
   };
 }
 
-export function getDeliveryUnitKey(delivery: DeliveryRegistration): string {
+export function getDeliveryUnitKey(delivery: PublicQueueDelivery): string {
   return delivery.assignedSlot?.zone?.unitConfig?.unit ?? delivery.receivingUnit;
 }

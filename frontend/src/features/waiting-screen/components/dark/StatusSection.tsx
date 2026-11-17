@@ -1,10 +1,10 @@
-import type { DeliveryRegistration } from '../../../../lib/types';
+import type { PublicQueueDelivery } from '../../../../lib/types';
 import { formatTicketForDelivery } from '../../utils';
 
 type SectionStatus = 'called' | 'waiting' | 'receiving';
 
 export default function DarkVehicleSection({ items, primaryColor, highlightId, isCalled, status, compact = false }: {
-  items: DeliveryRegistration[]; primaryColor: string; highlightId: string | null;
+  items: PublicQueueDelivery[]; primaryColor: string; highlightId: string | null;
   isCalled?: boolean; status?: SectionStatus; compact?: boolean;
 }) {
   if (items.length === 0) return null;

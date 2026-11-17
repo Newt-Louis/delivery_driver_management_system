@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { NotificationOutlined } from '@ant-design/icons';
 import { Avatar, Badge, Button, Card, Radio, Space, Typography, theme } from 'antd';
-import type { DeliveryRegistration, VehicleType } from '../../../../lib/types';
+import type { PublicQueueDelivery, VehicleType } from '../../../../lib/types';
 import { compareWaitingScreenQueueOrder, getUnitBrand } from '../../utils';
 import type { BrandConfig, UnitKey } from '../../types';
 import BrightVehicleSection from './VehicleSection';
 
 type BrightUnitPanelProps = {
   unitKey: UnitKey;
-  deliveries: DeliveryRegistration[];
+  deliveries: PublicQueueDelivery[];
   highlightId: string | null;
   cooldownSeconds: number | null;
   brand: BrandConfig | null;
@@ -17,7 +17,7 @@ type BrightUnitPanelProps = {
 
 type StatusGroupProps = {
   status: 'called' | 'waiting';
-  deliveries: DeliveryRegistration[];
+  deliveries: PublicQueueDelivery[];
   highlightId: string | null;
   desktop: boolean;
 };
@@ -60,7 +60,7 @@ function StatusGroup({ status, deliveries, highlightId, desktop }: StatusGroupPr
             <Badge status={isWaiting ? 'warning' : 'processing'} />
             <Typography.Text strong style={{ color: isWaiting ? token.colorWarning : token.colorPrimary, fontSize: 'clamp(1.25rem, 2.5vw, 1.75rem)' }}>
               {!isWaiting && <NotificationOutlined className="mr-1" />}
-              {isWaiting ? 'Đã check-in và đang chờ' : 'Đang gọi vào'} ({total})
+              {isWaiting ? 'Đã check-in / Đang chờ' : 'Đang gọi vào / Đang nhận hàng'} ({total})
             </Typography.Text>
           </span>
           {!desktop && (

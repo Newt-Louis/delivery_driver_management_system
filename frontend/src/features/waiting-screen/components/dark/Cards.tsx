@@ -1,9 +1,9 @@
-import type { DeliveryRegistration } from '../../../../lib/types';
+import type { PublicQueueDelivery } from '../../../../lib/types';
 import { GOODS_LABEL } from '../../constants';
 import { formatTicketForDelivery } from '../../utils';
 
 export function CalledCard({ d, stt, highlight, primaryColor }: {
-  d: DeliveryRegistration; stt: string; highlight: boolean; primaryColor: string;
+  d: PublicQueueDelivery; stt: string; highlight: boolean; primaryColor: string;
 }) {
   const waitMin = d.checkinTime ? Math.floor((Date.now() - new Date(d.checkinTime).getTime()) / 60000) : null;
   return (
@@ -31,7 +31,7 @@ export function CalledCard({ d, stt, highlight, primaryColor }: {
 }
 
 export function WaitingCard({ d, stt, highlight, isNext }: {
-  d: DeliveryRegistration; stt: string; highlight: boolean; isNext: boolean;
+  d: PublicQueueDelivery; stt: string; highlight: boolean; isNext: boolean;
 }) {
   const waitMin = d.checkinTime ? Math.floor((Date.now() - new Date(d.checkinTime).getTime()) / 60000) : null;
   const isUrgent = d.goodsType === 'FRESH_FOOD' && waitMin !== null && waitMin >= 25;
@@ -63,7 +63,7 @@ export function WaitingCard({ d, stt, highlight, isNext }: {
   );
 }
 
-export function ReceivingCard({ d, stt, highlight }: { d: DeliveryRegistration; stt: string; highlight: boolean }) {
+export function ReceivingCard({ d, stt, highlight }: { d: PublicQueueDelivery; stt: string; highlight: boolean }) {
   return (
     <div className={`rounded-xl border-2 border-green-400 bg-green-50 flex flex-col overflow-hidden transition-all
       ${highlight ? 'ring-4 ring-green-300/70 scale-[1.02]' : ''}`}>
@@ -90,7 +90,7 @@ export function ReceivingCard({ d, stt, highlight }: { d: DeliveryRegistration; 
 }
 
 export function VTypeColumn({ items, highlightId, primaryColor, cardType }: {
-  items: DeliveryRegistration[]; highlightId: string | null; primaryColor: string;
+  items: PublicQueueDelivery[]; highlightId: string | null; primaryColor: string;
   cardType: 'called' | 'waiting' | 'receiving';
 }) {
   if (items.length === 0) {
