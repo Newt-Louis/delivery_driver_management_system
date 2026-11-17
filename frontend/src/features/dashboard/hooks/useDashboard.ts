@@ -11,7 +11,7 @@ import {
   runDeliveryAction,
 } from '../api';
 import type { DeliveryLifecycleAction, TabKey } from '../types';
-import { getDashboardTabs, getDispatchSlots, getTotalActive } from '../utils';
+import { getDashboardTabs, getTotalActive } from '../utils';
 
 export function useDashboard() {
   const queryClient = useQueryClient();
@@ -36,6 +36,8 @@ export function useDashboard() {
     queryClient.invalidateQueries({ queryKey: ['slots'] });
     // Refresh the expanded row's detail panel (only mounted panels refetch).
     queryClient.invalidateQueries({ queryKey: ['delivery'] });
+    // Keep the open "Mượn slot" popup in sync with slot occupancy.
+    queryClient.invalidateQueries({ queryKey: ['borrowable-slots'] });
   }, [queryClient]);
 
   const { data: summary, isError: summaryError, refetch: retrySummary } = useQuery<DashboardSummary>({
@@ -171,7 +173,6 @@ export function useDashboard() {
     callLoading,
     actionLoading,
     cancelTargetId,
-    allSlots: getDispatchSlots(dispatch),
     tabs,
     totalActive: getTotalActive(dispatch),
     invalidateAll,

@@ -1,4 +1,4 @@
-import type { DeliveryHistoryEvent, GoodsType, VehicleType } from '../../lib/types';
+import type { GoodsType, VehicleType } from '../../lib/types';
 import type { StatusFilter, VehicleTypeFilter } from './types';
 
 export const VEHICLE_LABEL: Record<VehicleType, string> = {
@@ -68,28 +68,3 @@ export const DISPATCH_CSV_HEADERS = [
   'Check-in',
   'Chờ (phút)',
 ];
-
-export const EVENT_LABEL: Record<string, { label: string; icon?: string; accent?: string }> = {
-  REGISTERED: { label: 'Đăng ký giao hàng' },
-  CHECKED_IN: { label: 'Check-in tại cổng' },
-  AUTO_ASSIGNED: { label: 'Tự động gọi vào vị trí', accent: 'text-thiso-700' },
-  MANUAL_CALLED: { label: 'Gọi vào vị trí', accent: 'text-thiso-700' },
-  RECALLED: { label: 'Gọi lại', accent: 'text-thiso-700' },
-  REASSIGNED_SLOT: { label: 'Đổi vị trí nhận hàng', accent: 'text-thiso-700' },
-  RECEIVING_STARTED: { label: 'Bắt đầu nhận hàng', accent: 'text-green-700' },
-  AUTO_WAREHOUSE_RECEIVING_STARTED: { label: 'Bắt đầu nhận kho tự động', accent: 'text-green-700' },
-  COMPLETED: { label: 'Hoàn tất nhận hàng', accent: 'text-green-700' },
-  CANCELLED: { label: 'Đã hủy', accent: 'text-red-600' },
-  EXPIRED_NO_SHOW: { label: 'Hết hạn: không tới check-in', accent: 'text-red-600' },
-  EXPIRED_WAITING: { label: 'Hết hạn: không nhận hàng', accent: 'text-red-600' },
-  INCOMPLETED: { label: 'Chưa hoàn tất cuối ngày', accent: 'text-amber-700' },
-  ARCHIVED: { label: 'Đã lưu lịch sử', accent: 'text-thiso-500' },
-};
-
-export function formatEventLabel(event: DeliveryHistoryEvent): string {
-  const base = EVENT_LABEL[event.eventType]?.label ?? event.eventType;
-  const slot = event.slotName ? ` → ${event.slotName}` : '';
-  const actor = event.actorLabel ? ` (${event.actorLabel})` : '';
-  const reason = event.reason ? `: ${event.reason}` : '';
-  return `${base}${slot}${actor}${reason}`;
-}

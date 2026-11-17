@@ -7,6 +7,7 @@ import { getCallHistoryCounts } from '../modules/history/historyRepository';
 import { closeDailyDeliveries } from '../modules/scheduler/deliveryJobs';
 import { roleHasUnitOperationScope } from '../domain/permissions';
 import { compareSlotsForDisplay } from '../domain/slotCode';
+import { toPublicDelivery } from '../domain/publicDeliveryView';
 
 const router = Router();
 
@@ -175,6 +176,12 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
         status: { in: [DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
       }),
       include: {
+        unitConfig: {
+          select: {
+            id: true, unit: true, displayName: true, shortName: true,
+            icon: true, logoUrl: true, primaryColor: true, businessLocationId: true,
+          },
+        },
         assignedSlot: {
           include: {
             zone: {
@@ -209,16 +216,40 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
   ]);
 
   const callCounts = await getCallHistoryCounts(allActive.map((delivery) => delivery.id));
-  const activeWithCallCounts = allActive.map((delivery) => ({
-    ...delivery,
-    callCount: callCounts.get(delivery.id) ?? 0,
-  }));
+  // "Mượn slot": a delivery of one unit called into a slot owned by another unit.
+  // slotBorrow is set on every such row; the row is listed in its own unit's `active`
+  // and, read-only, in the lending unit's `lentSlotRows`.
+  const activeWithCallCounts = allActive.map((delivery) => {
+    const slotUnitConfigId = delivery.assignedSlot?.zone.unitConfigId ?? null;
+    const borrowed = !!(slotUnitConfigId && delivery.unitConfigId && slotUnitConfigId !== delivery.unitConfigId);
+    return {
+      ...delivery,
+      callCount: callCounts.get(delivery.id) ?? 0,
+      slotBorrow: borrowed
+        ? { lenderUnitConfigId: slotUnitConfigId!, borrowerUnitConfigId: delivery.unitConfigId! }
+        : null,
+    };
+  });
+  // Units the requester may operate/see in full on this dashboard.
+  const visibleUnitIds = new Set(units.map((unit) => unit.id));
+  const toLentSlotRow = (delivery: (typeof activeWithCallCounts)[number]) => (
+    delivery.unitConfigId && visibleUnitIds.has(delivery.unitConfigId)
+      ? { ...delivery, isLentSlotRow: true, detailRestricted: false }
+      // No permission on the borrowing unit: only what is needed to see that the slot is taken
+      // (plate, ticket, unit, slot, status, times) — no driver/vendor/PO/note.
+      : { ...toPublicDelivery(delivery), slotBorrow: delivery.slotBorrow, isLentSlotRow: true, detailRestricted: true }
+  );
 
   const result: Record<string, unknown> = {};
 
   for (const unitConfig of units) {
     const unit = unitConfig.unit;
     const active   = activeWithCallCounts.filter((d) => d.unitConfigId === unitConfig.id);
+    // Other units' deliveries currently occupying this unit's slots. Kept out of `active`
+    // so tab badges, stats, alerts and AI recommendations only count the unit's own deliveries.
+    const lentSlotRows = activeWithCallCounts
+      .filter((d) => d.slotBorrow?.lenderUnitConfigId === unitConfig.id)
+      .map(toLentSlotRow);
     const upcoming = allUpcoming.filter((d) => d.unitConfigId === unitConfig.id);
     const slots    = allSlots.filter((s) => s.assignedUnit === unit);
 
@@ -329,6 +360,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
     result[unit] = {
       unitConfig,
       active,
+      lentSlotRows,
       upcoming,
       slots,
       insights: {

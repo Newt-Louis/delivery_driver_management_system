@@ -398,3 +398,34 @@ Kế hoạch: `PLAN.md` (việc 0 → 6). Thay đổi hợp đồng API ghi ở 
 - Ghi nhận (không sửa): job `auto-cancel-called-no-show` tính thời hạn từ event gọi gần nhất, gồm `RECALLED`, nên mỗi lần "Gọi lại" kéo dài thời hạn tự hủy. Tag "Chưa vào" và `noShowRisk` vẫn tính từ `calledTime`.
 - Đã kiểm tra: `npm run build` ở `backend` và `frontend`.
 - Chưa kiểm tra: bấm "Gọi lại" thật trên dev server (backend dev server đã dừng tại thời điểm kiểm tra).
+
+### 2026-11-17 - Việc 3: "Mượn Slot"
+
+- Backend: thêm `GET /api/deliveries/:id/borrowable-slots` (`deliveryService.getBorrowableSlots`). Chỉ xe `WAITING`; trả slot cùng loại xe, cùng `BusinessLocation`, đang hoạt động và không `MAINTENANCE`/`RESERVED`; nhóm `sameUnit` (còn chỗ) và `otherUnits` (trống hoàn toàn) theo đúng luật `manualCallDelivery()`. Chỉ trả trường hiển thị.
+- Backend: `callDelivery` bỏ `assertCanOperateUnit` trên slot đích. Vẫn kiểm tra quyền trên đơn vị của xe, cùng khu vực, sức chứa và luật slot đơn vị khác phải trống.
+- 3d: `slotService.updateSlot` gọi `triggerAutoAssign` ngay khi `autoAssign` chuyển từ tắt sang bật. Đã xác minh tắt có hiệu lực ngay (cờ đọc lại dưới khoá `FOR UPDATE`, không cache).
+- 3e: audit `slot.update` ghi thêm before/after của `autoAssign`, `maxCapacity`.
+- Frontend: nút "Gọi vào vị trí" thành "Mượn slot" (chỉ xe `WAITING`). `CallModal` lấy dữ liệu từ endpoint mới, hai nhóm "Cùng đơn vị"/"Khác đơn vị", báo khi slot gợi ý không còn trống. Bỏ prop `slots`, `allSlots` và helper `getDispatchSlots`. Socket invalidate thêm `['borrowable-slots']`.
+- 3c không áp dụng: enum `VehicleType` trong `schema.prisma` chỉ có `TRUCK`, `MOTORBIKE` (AGENTS.md còn ghi `OTHER`).
+- Sửa phụ: bỏ `autoWarehouseOnly` khỏi allow-list `publicDeliveryView.ts` và CHANGELOG việc 0, vì model `Slot` không có cột này (AGENTS.md còn nhắc tới).
+- Đã kiểm tra: `npm run build` ở `backend` và `frontend`. Gọi thật endpoint trên dev server: xe tải EMART nhận E2–E5 (cùng đơn vị), M1/M2 (MALL), T2 (THISKY); E1 (đầy) và T1 (đang có xe EMART mượn) bị loại đúng; xe máy chỉ nhận slot xe máy; xe `CALLED` nhận 409.
+- Chưa kiểm tra: giao diện popup trên trình duyệt; trường hợp tài khoản chỉ có quyền một đơn vị (tài khoản test đều có cả ba đơn vị); bật lại `autoAssign` trên dev (sẽ gọi xe thật).
+
+### 2026-11-17 - Bỏ Timeline Khỏi Panel Chi Tiết Dashboard
+
+- Người dùng yêu cầu bỏ hẳn timeline: hiển thị lặp (một dòng đổi trạng thái và một dòng có tên tài khoản cho cùng sự kiện) và không cần thiết.
+- `DeliveryDetailPanel` chỉ còn bảng thông tin. Xoá `getDeliveryTimeline` (dashboard utils), `EVENT_LABEL`/`formatEventLabel` của dashboard (trang Lịch sử có bản riêng), trường `historyEvents` trong type `DeliveryRegistration`.
+- Backend `getDeliveryDetails` (`GET /api/deliveries/:id`) bỏ query `listDeliveryHistoryEvents`; response không còn `historyEvents` (đã ghi BREAKING trong `docs/api/CHANGELOG.md`).
+- Đã kiểm tra: build `backend` + `frontend`; gọi thật `GET /api/deliveries/:id`: 200, không có `historyEvents`, vẫn có `callCount`.
+
+### 2026-11-17 - Việc 4: Hiển Thị Xe Mượn Slot Ở Cả Hai Đơn Vị (Dashboard)
+
+- Bỏ dòng "Ngày giao" khỏi panel chi tiết (hệ thống vận hành trong ngày); xoá helper `formatDateOnly` không còn dùng.
+- `GET /api/dashboard/dispatch`: include `unitConfig` của xe; mỗi dòng có `slotBorrow`; mỗi đơn vị có thêm `lentSlotRows` (xe đơn vị khác trong slot của đơn vị này, `isLentSlotRow`, rút gọn qua `toPublicDelivery` + `detailRestricted: true` khi người xem không có quyền trên đơn vị của xe). `active`/badge/stats/alerts/gợi ý AI không tính dòng cho mượn.
+- Frontend: helper `getDeliveryUnitConfig()` (không suy đơn vị từ slot của đơn vị khác) dùng cho số thẻ, nhãn đơn vị, CSV, panel, `CallModal`, `UpcomingSection`, `Dashboard`. Tab đơn vị hiển thị `active` + `lentSlotRows` trong cùng bảng; tag vàng ở cột vị trí; nút thao tác của dòng cho mượn disabled; dòng `detailRestricted` không bung chi tiết; tab "Tất cả" mỗi xe một lần; CSV bỏ dòng cho mượn. Sửa ô tìm kiếm không crash khi dòng thiếu `vendorName`/`registrationCode`.
+- Sửa lỗi phát hiện khi làm:
+  - Realtime: `getScopeForDelivery()` cho xe mượn slot trả `unitConfigIds` cả hai đơn vị; trước đây nhân sự chỉ có quyền đơn vị đi mượn không nhận event (chỉ phát vào phòng đơn vị slot).
+  - Auto-assign: thêm `triggerAutoAssignForReleasedSlot()` dùng ở complete/cancel/job auto-cancel; trước đây khi xe mượn slot rời đi, auto-assign chạy với đơn vị của xe + scope slot đơn vị khác nên không gán được, slot cho mượn bị bỏ trống tới sự kiện kế tiếp.
+  - Audit `manual_call`/`start_receiving`/`complete`/`cancel`/`auto_cancel_called_no_show` ghi `unitConfigId` theo đơn vị của xe.
+- Đã kiểm tra: build `backend` + `frontend`; gọi thật dispatch trên dev: xe EMART "1154" ở "Vị trí T1" (slot THISKY) nằm trong `active` EMART với `unitConfig` EMART + `slotBorrow`, và trong `lentSlotRows` THISKY; thống kê "called" của THISKY không tính dòng này; không có API key trong payload. Đọc code `/docks`, `ZonesTab`, `SlotsTab`: nhóm theo đơn vị slot, không cần sửa.
+- Chưa kiểm tra: nhánh `detailRestricted: true` (tài khoản test đều có cả ba đơn vị); giao diện trên trình duyệt; realtime và auto-assign sau hoàn tất xe mượn trên dữ liệu thật (cần thao tác hoàn tất thật).

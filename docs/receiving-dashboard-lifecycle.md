@@ -33,8 +33,9 @@ Ghi chú kiến trúc frontend:
 - Unit label/icon/color/ticket prefix dùng `frontend/src/lib/unitPresentation.ts`, ưu tiên metadata từ `UnitConfig` trong payload backend.
 - Dashboard không còn tự dựng UI bằng danh sách unit demo cố định; backend trả unit nào trong scope thì frontend sinh tab tương ứng. Danh sách xe đang điều phối và đã đặt dùng Ant Table từ breakpoint `lg` và Collapse theo từng chuyến bên dưới `lg`; mỗi danh sách hiển thị 40 lượt đầu và tự mở thêm 40 khi cuộn gần cuối, có nút xem thêm dự phòng. Đây là phân đoạn hiển thị phía client: API vẫn trả toàn bộ dữ liệu. Bộ lọc hoặc chuyển đơn vị đặt lại số dòng; cập nhật realtime không đặt lại giới hạn đã mở.
 - Danh sách điều phối hiển thị loại hàng và loại xe thành hai cột riêng; tên loại hàng được in đậm. Nút thao tác được xếp xuống dòng trong cột gọn hơn và nút xuất dữ liệu dùng màu xanh thành công.
-- Không còn nút "Xem" và modal chi tiết. Click vào dòng (desktop) hoặc mở mục `Collapse` (mobile) để bung `DeliveryDetailPanel` ngay bên dưới. Panel chỉ hiển thị (nhà cung cấp, mã đăng ký, tài xế, điện thoại, loại xe/hàng, đơn vị nhận, số lần gọi, PO, ghi chú, lý do hủy, các mốc thời gian, vị trí và timeline lịch sử), **không có nút thao tác**; thao tác vẫn nằm trên dòng. Mỗi lần chỉ mở một dòng. Dòng có con trỏ dạng tay khi hover, dòng đang mở được tô nền `colorPrimaryBg`.
-- Panel gọi `GET /api/deliveries/:id` khi được mở (timeline không có trong payload dispatch), query key `['delivery', id]`. Socket `queue_updated`/`slot_updated`/`delivery_called`/`delivery_completed` invalidate cả `['delivery']`, nên panel đang mở tự cập nhật; panel đang đóng không gọi API.
+- Không còn nút "Xem" và modal chi tiết. Click vào dòng (desktop) hoặc mở mục `Collapse` (mobile) để bung `DeliveryDetailPanel` ngay bên dưới. Panel chỉ hiển thị (nhà cung cấp, mã đăng ký, tài xế, điện thoại, loại xe/hàng, đơn vị nhận, số lần gọi, PO, ghi chú, lý do hủy, các mốc thời gian trong ngày, vị trí; không hiện "Ngày giao" vì hệ thống chỉ vận hành trong ngày), **không có timeline lịch sử và không có nút thao tác**; thao tác vẫn nằm trên dòng. Mỗi lần chỉ mở một dòng. Dòng có con trỏ dạng tay khi hover, dòng đang mở được tô nền `colorPrimaryBg`.
+- Panel gọi `GET /api/deliveries/:id` khi được mở (một số trường như NCC, PO, note, các mốc thời gian không dùng cho bảng), query key `['delivery', id]`. Endpoint này không còn trả `historyEvents`; timeline xem ở trang Lịch sử. Socket `queue_updated`/`slot_updated`/`delivery_called`/`delivery_completed` invalidate cả `['delivery']`, nên panel đang mở tự cập nhật; panel đang đóng không gọi API.
+- Nút "Mượn slot" (chỉ xe `WAITING`) mở `CallModal`. Popup gọi `GET /api/deliveries/:id/borrowable-slots` mỗi lần mở (query key `['borrowable-slots', id]`, được invalidate theo socket), hiển thị hai nhóm "Cùng đơn vị" và "Khác đơn vị" (kèm logo/tên đơn vị của slot; slot nhiều chỗ hiện thêm "đang có/sức chứa"). Không hiển thị slot khác loại xe. Gợi ý AI vẫn mở popup này với slot chọn sẵn; nếu slot đó không còn trống thì popup báo và bắt chọn lại. Dashboard không còn nút đổi slot cho xe đã `CALLED`.
 - Nút "Gọi lại" (xe `CALLED`) không mở popup chọn slot: gọi thẳng `PATCH /api/deliveries/:id/call` với `slotId` = slot hiện tại của xe (`doRecall` trong `useDashboard`). Backend nhận diện là gọi lại (`outcome: 'recalled'`): ghi event `RECALLED`, emit `delivery_called`/`queue_updated`/`slot_updated`, gửi web push; không đổi trạng thái, slot hay `calledTime`. Nút chỉ bị khoá trong lúc request đang chạy; chưa có chống spam (TODO trong `useDashboard.doRecall` và `deliveryService.callDelivery`).
 - Mỗi lần gọi lại là một event `RECALLED`, nên mốc đếm của job `auto-cancel-called-no-show` được tính lại từ lần gọi lại gần nhất. Tag "Chưa vào" trên dashboard và chỉ số `noShowRisk` vẫn tính từ `calledTime` (lần gọi đầu).
 - Badge trên tab đếm các lượt trong danh sách đang điều phối của đơn vị (`WAITING`, `CALLED`, `RECEIVING`, `AUTO_WAREHOUSE_RECEIVING`); tab `Tất cả` cộng các đơn vị trong scope. Số này không phụ thuộc bộ lọc hoặc giới hạn số dòng đang hiển thị, và không bao gồm lượt đã hủy, hoàn tất hay chưa check-in.
@@ -44,6 +45,7 @@ API:
 - `GET /api/dashboard/summary`
 - `GET /api/dashboard/dispatch`
 - `POST /api/deliveries/auto-dispatch/:unit`
+- `GET /api/deliveries/:id/borrowable-slots`
 - `PATCH /api/deliveries/:id/call`
 - `PATCH /api/deliveries/:id/start-receiving`
 - `PATCH /api/deliveries/:id/complete`
@@ -85,8 +87,13 @@ Hai số `totalRegisteredToday` và `totalCheckedInToday` của summary đếm t
 
 API lifecycle:
 
+- `GET /api/deliveries/:id/borrowable-slots`
+  - Role: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`. Người gọi phải có quyền trên **đơn vị của xe** (`ensureDeliveryAccess`); không cần quyền trên đơn vị sở hữu slot.
+  - Chỉ cho xe `WAITING`; trạng thái khác trả 409.
+  - Trả slot đang hoạt động, không `MAINTENANCE`/`RESERVED`, **cùng loại xe**, cùng `BusinessLocation`, chia hai nhóm theo đúng luật của `manualCallDelivery()`: `sameUnit` (`slot.assignedUnit === delivery.receivingUnit`, số xe đang chiếm < `maxCapacity`) và `otherUnits` (khác đơn vị, không có xe nào). Mỗi slot chỉ gồm `id`, `name`, `vehicleType`, `maxCapacity`, `activeCount`, `zone { id, code, name }`, `unitConfig` (trường hiển thị).
 - `PATCH /api/deliveries/:id/call`
   - Role: `SUPERADMIN`, `ADMIN_LOC`, `ADMIN_OPE`, `RECEIVING`.
+  - Quyền: cần quyền trên đơn vị của xe và slot phải cùng khu vực vận hành. **Không** kiểm tra quyền trên đơn vị sở hữu slot, vì mượn slot được thoả thuận ngoài thực tế, hệ thống không duyệt.
   - Gọi `manualCallDelivery()`.
   - Tạo event timeline trong `delivery_history_events` khi gọi mới, gọi lại hoặc đổi slot.
   - Emit `delivery_called`, `queue_updated`, `slot_updated`.
@@ -112,7 +119,7 @@ Service:
 - `manualCallDelivery()`
   - Lock delivery.
   - Lock slot.
-  - Validate slot active, cùng khu vực và còn capacity. Người vận hành có thể chỉ định xe tải hoặc xe máy vào slot được cấu hình cho loại xe còn lại; sức chứa vẫn được kiểm tra dưới lock.
+  - Validate slot active, cùng khu vực và còn capacity. API vẫn cho chỉ định xe vào slot khác loại xe (sức chứa kiểm tra dưới lock), nhưng giao diện dashboard chỉ đưa ra slot cùng loại xe.
   - Cùng đơn vị: slot có thể nhận theo `maxCapacity`.
   - Khác đơn vị: chỉ cho mượn khi slot trống hoàn toàn và cùng business location. Khung giờ giao hàng không ảnh hưởng việc gọi xe hay mượn slot.
   - Không cho gọi vào slot `MAINTENANCE`/`RESERVED`.
@@ -140,3 +147,27 @@ Service:
 ## Lưu Ý
 
 - Flow chuẩn nên dùng các endpoint rõ ràng trong `/api/deliveries`.
+
+## Xe Mượn Slot ("Mượn slot")
+
+Quy tắc: **đơn vị** của một dòng là đơn vị tài xế giao hàng cho (`delivery.unitConfig`); **vị trí** là slot tài xế phải vào, có thể thuộc đơn vị khác. Ví dụ xe EMART được gọi vào M1 của THISO Mall: đơn vị EMART, vị trí M1.
+
+Backend (`GET /api/dashboard/dispatch`):
+
+- Mỗi dòng có `unitConfig` của chính xe (select an toàn) và `slotBorrow: { lenderUnitConfigId, borrowerUnitConfigId } | null` (khác null khi `assignedSlot.zone.unitConfigId !== delivery.unitConfigId`).
+- `active` của một đơn vị chỉ gồm xe của đơn vị đó (kể cả xe đang mượn slot đơn vị khác). Badge tab, thống kê, cảnh báo và gợi ý AI chỉ tính `active`.
+- `lentSlotRows` của một đơn vị: xe đơn vị khác đang chiếm slot của đơn vị này, có `isLentSlotRow: true`. Nếu người xem có quyền trên đơn vị của xe (đơn vị đó nằm trong danh sách tab của họ) thì dòng đầy đủ (`detailRestricted: false`); nếu không, dòng chỉ còn dạng rút gọn `toPublicDelivery` (biển số, số thẻ, đơn vị, vị trí, loại xe/hàng, trạng thái, thời gian) và `detailRestricted: true`.
+
+Frontend:
+
+- Unit/số thẻ luôn lấy qua `getDeliveryUnitConfig()` (`features/dashboard/utils.ts`): ưu tiên `delivery.unitConfig`, không bao giờ suy ra từ slot của đơn vị khác.
+- Tab đơn vị hiển thị `active` + `lentSlotRows` trong **cùng một bảng**, không có mục riêng. Cột "Vị trí" có tag vàng: "Mượn {đơn vị slot}" ở tab đơn vị đi mượn, "{đơn vị xe} đang mượn" ở tab đơn vị cho mượn.
+- Dòng `isLentSlotRow`: mọi nút thao tác hiển thị nhưng **disabled**; dòng `detailRestricted` không bung chi tiết (mobile hiện ghi chú "Không có quyền xem chi tiết"). Backend vẫn chặn thao tác nếu người dùng không có quyền trên đơn vị của xe.
+- Tab "Tất cả": mỗi xe một lần; dòng của đơn vị chính được ưu tiên, dòng cho mượn chỉ thêm khi đơn vị của xe nằm ngoài phạm vi người xem.
+- Xuất CSV bỏ các dòng cho mượn.
+- `/docks`, Backoffice `ZonesTab`/`SlotsTab` nhóm slot theo đơn vị sở hữu slot; `ZonesTab`/`SlotsTab` không hiển thị xe trong slot nên không bị ảnh hưởng.
+
+Lifecycle:
+
+- Audit `delivery.manual_call`, `delivery.start_receiving`, `delivery.complete`, `delivery.cancel`, `delivery.auto_cancel_called_no_show` ghi `unitConfigId` = đơn vị của xe; đơn vị slot nằm trong `metadata` (`slotAssignedUnit`, `crossUnitSlot`) khi có.
+- Sau khi hoàn tất/hủy, auto-assign chạy cho **đơn vị sở hữu slot vừa được giải phóng** (`triggerAutoAssignForReleasedSlot`), nên slot cho mượn được lấp lại ngay bằng xe chờ của đơn vị cho mượn.

@@ -77,3 +77,13 @@ Sau khi assign:
 - Gửi push `delivery-called`.
 - Update track room tương ứng.
 - `callCount` được tính từ các event gọi xe trong `delivery_history_events`.
+
+## Bật/Tắt Tự Động Điều Xe Theo Slot
+
+- Cờ `slot.autoAssign` được đọc lại trong transaction có khoá `FOR UPDATE` ở mỗi lần gán (`assignNextDeliveryToSlot`) và trong query chọn slot của `triggerAutoAssign`; không có cache. Vì vậy **tắt** có hiệu lực ngay cho lần gán tiếp theo. Xe đang ở trong slot vẫn làm việc bình thường; khi xe đó hoàn tất, slot trống và không tự gọi xe mới, nhân viên dùng nút "Mượn slot" trên dashboard để tự điều xe.
+- **Bật lại** (`PATCH /api/slots/:id` với `autoAssign` từ `false` sang `true`): `slotService.updateSlot` gọi `triggerAutoAssign` ngay cho đơn vị của slot, không đợi sự kiện check-in/hoàn tất/hủy tiếp theo.
+- Audit `slot.update` ghi before/after của `autoAssign` và `maxCapacity`.
+
+## Sau Khi Xe Mượn Slot Rời Slot
+
+- `complete`, `cancel` và job `auto-cancel-called-no-show` gọi `triggerAutoAssignForReleasedSlot(releasedSlotId, …)`: auto-assign chạy cho đơn vị **sở hữu slot vừa giải phóng** (`slot.assignedUnit` + `zone.unitConfigId`). Trước đây hàm được gọi với đơn vị của xe nhưng scope là slot của đơn vị khác, nên khi xe mượn slot rời đi thì slot cho mượn không được tự gọi xe mới cho tới sự kiện kế tiếp.

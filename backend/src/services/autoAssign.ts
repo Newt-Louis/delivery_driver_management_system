@@ -304,6 +304,31 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCod
 // Goods are considered by the slot's configured priority, then FIFO within each goods type.
 // Motorbike slots support multi-vehicle capacity (maxCapacity field).
 // Returns number of vehicles assigned in this round.
+/**
+ * Auto-assign after a delivery released a slot (complete/cancel).
+ * Runs for the unit that OWNS the released slot: for a borrowed slot ("Mượn slot") that is the
+ * lending unit, not the delivery's unit — otherwise the freed slot would stay idle until the next event.
+ */
+export async function triggerAutoAssignForReleasedSlot(
+  releasedSlotId: string | null | undefined,
+  fallbackUnit: ReceivingUnitCode,
+  fallbackScope: AutoAssignScope = {},
+): Promise<number> {
+  if (releasedSlotId) {
+    const slot = await prisma.slot.findUnique({
+      where: { id: releasedSlotId },
+      select: { assignedUnit: true, zone: { select: { unitConfigId: true, unitConfig: { select: { businessLocationId: true } } } } },
+    });
+    if (slot) {
+      return triggerAutoAssign(slot.assignedUnit as ReceivingUnitCode, {
+        businessLocationId: slot.zone.unitConfig.businessLocationId,
+        unitConfigId: slot.zone.unitConfigId,
+      });
+    }
+  }
+  return triggerAutoAssign(fallbackUnit, fallbackScope);
+}
+
 export async function triggerAutoAssign(unit: ReceivingUnitCode, scope: AutoAssignScope = {}): Promise<number> {
   let called = 0;
   let candidateSeen = 0;

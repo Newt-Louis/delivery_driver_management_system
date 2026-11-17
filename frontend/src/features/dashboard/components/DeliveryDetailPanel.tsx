@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { Alert, Button, Descriptions, Spin, Timeline, Typography } from 'antd';
+import { Alert, Button, Descriptions, Spin } from 'antd';
 import type { DeliveryRegistration } from '../../../lib/types';
 import { fetchDeliveryDetail } from '../api';
 import { GOODS_LABEL, VEHICLE_FULL } from '../constants';
-import { formatDateOnly, formatDateTime, getDeliveryTimeline, getUnitMeta } from '../utils';
+import { formatDateTime, getDeliveryUnitConfig, getUnitMeta } from '../utils';
 
 interface Props {
   id: string;
@@ -11,9 +11,8 @@ interface Props {
 
 /**
  * Read-only delivery details shown when a dispatch row is expanded.
- * Fetches GET /api/deliveries/:id only when mounted (row opened), because the
- * history timeline is not part of the dispatch payload. No action buttons here:
- * actions stay in the row itself.
+ * Fetches GET /api/deliveries/:id only when mounted (row opened). No history timeline and
+ * no action buttons here: actions stay in the row itself.
  */
 export default function DeliveryDetailPanel({ id }: Props) {
   const { data: d, isLoading, isError, refetch } = useQuery<DeliveryRegistration>({
@@ -27,12 +26,10 @@ export default function DeliveryDetailPanel({ id }: Props) {
     return <Alert type="error" showIcon title="Không thể tải chi tiết" action={<Button size="small" onClick={() => refetch()}>Thử lại</Button>} />;
   }
 
-  const meta = getUnitMeta(d.receivingUnit, d.unitConfig ?? d.assignedSlot?.zone?.unitConfig ?? undefined);
-  const timeline = getDeliveryTimeline(d);
+  const meta = getUnitMeta(d.receivingUnit, getDeliveryUnitConfig(d));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(240px,1fr)]">
-      <Descriptions
+    <Descriptions
         bordered
         size="small"
         column={{ xs: 1, sm: 2, xl: 3 }}
@@ -49,7 +46,6 @@ export default function DeliveryDetailPanel({ id }: Props) {
           ...(d.poNumber ? [{ key: 'po', label: 'Số PO', children: d.poNumber }] : []),
           ...(d.note ? [{ key: 'note', label: 'Ghi chú', children: d.note }] : []),
           ...(d.cancelReason ? [{ key: 'reason', label: 'Lý do hủy', children: d.cancelReason }] : []),
-          { key: 'date', label: 'Ngày giao', children: formatDateOnly(d.requestedTime) },
           { key: 'created', label: 'Giờ đăng ký', children: formatDateTime(d.createdAt) },
           { key: 'checkin', label: 'Check-in', children: formatDateTime(d.checkinTime) },
           { key: 'called', label: 'Được gọi', children: formatDateTime(d.calledTime) },
@@ -58,12 +54,5 @@ export default function DeliveryDetailPanel({ id }: Props) {
           ...(d.assignedSlot ? [{ key: 'slot', label: 'Vị trí được phân công', children: `${d.assignedSlot.name}${d.assignedSlot.zone ? ` (${d.assignedSlot.zone.code})` : ''}` }] : []),
         ]}
       />
-      <div className="min-w-0">
-        <Typography.Title level={5} className="!mt-0">Lịch sử hoạt động</Typography.Title>
-        {timeline.length
-          ? <Timeline items={timeline.map((e) => ({ children: <>{e.label}<br /><Typography.Text type="secondary">{formatDateTime(e.time)}</Typography.Text></> }))} />
-          : <Typography.Text type="secondary">Chưa có lịch sử</Typography.Text>}
-      </div>
-    </div>
   );
 }

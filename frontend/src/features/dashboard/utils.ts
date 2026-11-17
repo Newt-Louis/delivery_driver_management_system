@@ -6,12 +6,10 @@ import {
 } from '../../lib/unitPresentation';
 import {
   DISPATCH_CSV_HEADERS,
-  EVENT_LABEL,
   GOODS_CSV_LABEL,
   STATUS_CSV_LABEL,
   STATUS_ORDER,
   VEHICLE_LABEL,
-  formatEventLabel,
 } from './constants';
 import type { StatusFilter, TabKey, UnitKey, UnitMeta, VehicleTypeFilter } from './types';
 
@@ -53,13 +51,25 @@ function mixWithBlack(color: string, amount: number): string {
   return `rgb(${mix(rgb.r)}, ${mix(rgb.g)}, ${mix(rgb.b)})`;
 }
 
+/**
+ * UnitConfig of the unit the driver delivers to. Never derived from a slot owned by another unit:
+ * a borrowed slot ("Mượn slot") belongs to the lender, the delivery still belongs to its own unit.
+ */
+export function getDeliveryUnitConfig(
+  delivery: Pick<DeliveryRegistration, 'receivingUnit' | 'unitConfig' | 'assignedSlot'>,
+  fallback?: UnitDispatch['unitConfig'] | null,
+): UnitDispatch['unitConfig'] | undefined {
+  if (delivery.unitConfig) return delivery.unitConfig;
+  if (fallback && fallback.unit === delivery.receivingUnit) return fallback;
+  const slotUnitConfig = delivery.assignedSlot?.zone?.unitConfig;
+  return slotUnitConfig?.unit === delivery.receivingUnit ? slotUnitConfig : undefined;
+}
+
 export function getTicketCode(
   delivery: DeliveryRegistration,
   unitConfig?: UnitDispatch['unitConfig'] | null,
 ): string | null {
-  const ticketUnitConfig = unitConfig
-    ?? delivery.unitConfig
-    ?? delivery.assignedSlot?.zone?.unitConfig;
+  const ticketUnitConfig = getDeliveryUnitConfig(delivery, unitConfig);
   return delivery.ticketNumber
     ? formatDynamicTicketCode(
       delivery.receivingUnit,
@@ -108,48 +118,6 @@ export function formatDateTime(iso: string | null | undefined): string {
   });
 }
 
-export function formatDateOnly(iso: string | null | undefined): string {
-  if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('vi-VN', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
-}
-
-export function getDeliveryTimeline(delivery: DeliveryRegistration) {
-  const timeline: { time: string; label: string; accent?: string }[] = [
-    { time: delivery.createdAt, label: 'Đăng ký giao hàng'},
-  ];
-
-  if (delivery.checkinTime) {
-    timeline.push({ time: delivery.checkinTime, label: 'Check-in tại cổng' });
-  }
-
-  if (delivery.historyEvents?.length) {
-    delivery.historyEvents.forEach((event) => {
-      const meta = EVENT_LABEL[event.eventType] ?? { label: event.eventType };
-      timeline.push({
-        time: event.occurredAt,
-        label: formatEventLabel(event),
-        accent: meta.accent,
-      });
-    });
-  } else {
-    if (delivery.receivingStartTime) {
-      timeline.push({ time: delivery.receivingStartTime, label: 'Bắt đầu nhận hàng', accent: 'text-green-700' });
-    }
-    if (delivery.completedTime) {
-      timeline.push({ time: delivery.completedTime, label: 'Hoàn tất nhận hàng', accent: 'text-green-700' });
-    }
-    if (delivery.status === 'CANCELLED') {
-      timeline.push({ time: delivery.updatedAt, label: 'Đã hủy', accent: 'text-red-600' });
-    }
-  }
-
-  return timeline.sort((a, b) => new Date(a.time).getTime() - new Date(b.time).getTime());
-}
-
 export function filterDispatchDeliveries(
   deliveries: DeliveryRegistration[],
   search: string,
@@ -171,9 +139,10 @@ export function filterDispatchDeliveries(
       const ticket = getTicketCode(delivery) ?? '';
       return (
         delivery.vehiclePlate.toLowerCase().includes(query) ||
-        delivery.vendorName.toLowerCase().includes(query) ||
-        delivery.driverName?.toLowerCase().includes(query) ||
-        delivery.registrationCode.toLowerCase().includes(query) ||
+        // Restricted rows (lent slot, no permission) have no vendor/driver/registration fields.
+        (delivery.vendorName?.toLowerCase().includes(query) ?? false) ||
+        (delivery.driverName?.toLowerCase().includes(query) ?? false) ||
+        (delivery.registrationCode?.toLowerCase().includes(query) ?? false) ||
         ticket.toLowerCase().includes(query) ||
         (delivery.poNumber?.toLowerCase().includes(query) ?? false)
       );
@@ -192,9 +161,7 @@ export function buildDispatchCsvRows(
   unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>,
 ) {
   return deliveries.map((delivery) => {
-    const unitConfig = delivery.unitConfig
-      ?? delivery.assignedSlot?.zone?.unitConfig
-      ?? unitConfigsByUnit?.[delivery.receivingUnit];
+    const unitConfig = getDeliveryUnitConfig(delivery, unitConfigsByUnit?.[delivery.receivingUnit]);
     const unitBrand = unitPresentation(delivery.receivingUnit, unitConfig);
     return [
       getTicketCode(delivery, unitConfig) ?? '',
@@ -213,8 +180,18 @@ export function buildDispatchCsvRows(
   });
 }
 
+/**
+ * "Tất cả" tab: each delivery once. A borrowed-slot delivery appears in its own unit's `active`
+ * and in the lender's `lentSlotRows`; the own-unit row wins. Lent rows are kept only when the
+ * borrowing unit is outside the requester's scope.
+ */
 export function getAllActiveDeliveries(dispatch: DispatchData): DeliveryRegistration[] {
-  return Object.keys(dispatch).flatMap((unit) => dispatch[unit]?.active ?? [])
+  const own = Object.keys(dispatch).flatMap((unit) => dispatch[unit]?.active ?? []);
+  const ownIds = new Set(own.map((delivery) => delivery.id));
+  const lent = Object.keys(dispatch)
+    .flatMap((unit) => dispatch[unit]?.lentSlotRows ?? [])
+    .filter((delivery) => !ownIds.has(delivery.id));
+  return [...own, ...lent]
     .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9)
       || new Date(a.checkinTime ?? a.createdAt).getTime() - new Date(b.checkinTime ?? b.createdAt).getTime());
 }
@@ -245,10 +222,6 @@ export function getTotalActive(dispatch?: DispatchData): number {
     (sum, unit) => sum + (dispatch[unit]?.active.length ?? 0),
     0,
   );
-}
-
-export function getDispatchSlots(dispatch?: DispatchData) {
-  return dispatch ? Object.values(dispatch).flatMap((unitDispatch) => unitDispatch.slots ?? []) : [];
 }
 
 export function getDeliveryWaitState(delivery: DeliveryRegistration) {

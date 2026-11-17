@@ -141,7 +141,12 @@ export interface DeliveryRegistration {
   createdAt: string;
   updatedAt: string;
   callCount?: number;
-  historyEvents?: DeliveryHistoryEvent[];
+  /** Set when the delivery is called into a slot owned by another unit ("Mượn slot"). Dispatch only. */
+  slotBorrow?: { lenderUnitConfigId: string; borrowerUnitConfigId: string } | null;
+  /** Dispatch only: row listed in the LENDING unit's tab (`lentSlotRows`); actions are read-only there. */
+  isLentSlotRow?: boolean;
+  /** Dispatch only: requester has no permission on the delivery's unit; driver/vendor/PO/note are absent. */
+  detailRestricted?: boolean;
 }
 
 /**
@@ -296,6 +301,8 @@ export interface UnitInsight {
 export interface UnitDispatch {
   unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'>;
   active: DeliveryRegistration[];
+  /** Other units' deliveries occupying this unit's slots ("Mượn slot"), shown read-only. */
+  lentSlotRows?: DeliveryRegistration[];
   upcoming: DeliveryRegistration[];
   slots: Slot[];
   insights: UnitInsight;

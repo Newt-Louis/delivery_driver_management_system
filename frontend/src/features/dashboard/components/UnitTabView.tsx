@@ -35,7 +35,8 @@ export default function UnitTabView({
       <AICard unitDispatch={unitDispatch} onAction={onSuggestionAction} />
       <Typography.Title level={4}>Đang điều phối ({unitDispatch.active.length})</Typography.Title>
       <QueueTable
-        deliveries={unitDispatch.active}
+        // Own deliveries + other units' vehicles currently in this unit's slots (read-only rows).
+        deliveries={unitDispatch.lentSlotRows?.length ? [...unitDispatch.active, ...unitDispatch.lentSlotRows] : unitDispatch.active}
         unit={unit}
         unitConfig={unitDispatch.unitConfig}
         onCall={onCall}

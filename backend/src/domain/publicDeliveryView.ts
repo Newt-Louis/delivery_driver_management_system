@@ -39,7 +39,6 @@ type SlotSource = {
   maxCapacity?: number;
   isActive?: boolean;
   autoAssign?: boolean;
-  autoWarehouseOnly?: boolean;
   zone?: ZoneSource | null;
 };
 
@@ -138,7 +137,6 @@ export function toPublicSlot(slot: PublicSlotSource) {
     maxCapacity: slot.maxCapacity,
     isActive: slot.isActive,
     autoAssign: slot.autoAssign,
-    autoWarehouseOnly: slot.autoWarehouseOnly,
     zone: publicZone(slot.zone),
     deliveries: slot.deliveries?.map(toPublicDelivery),
   };

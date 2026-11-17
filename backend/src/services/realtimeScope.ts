@@ -31,7 +31,15 @@ export async function getScopeForSlot(slotId?: string | null): Promise<SocketSco
 
 export async function getScopeForDelivery(delivery: DeliveryScopeInput): Promise<SocketScope> {
   const slotScope = await getScopeForSlot(delivery.assignedSlotId);
-  if (slotScope.businessLocationId || slotScope.unitConfigId) return slotScope;
+  if (slotScope.businessLocationId || slotScope.unitConfigId) {
+    // Borrowed slot ("Mượn slot"): the delivery belongs to another unit than the slot.
+    // Unit-scoped staff only join their own `unit-config:{id}` rooms, so realtime events must reach
+    // both the lending unit (slot owner) and the borrowing unit (delivery owner).
+    if (delivery.unitConfigId && slotScope.unitConfigId && delivery.unitConfigId !== slotScope.unitConfigId) {
+      return { ...slotScope, unitConfigIds: [slotScope.unitConfigId, delivery.unitConfigId] };
+    }
+    return slotScope;
+  }
 
   if (delivery.unitConfigId) {
     const unitConfig = await prisma.unitConfig.findUnique({

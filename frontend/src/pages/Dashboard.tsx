@@ -10,6 +10,7 @@ import DashboardTabs from '../features/dashboard/components/DashboardTabs';
 import LoadingState from '../features/dashboard/components/LoadingState';
 import UnitTabView from '../features/dashboard/components/UnitTabView';
 import { useDashboard } from '../features/dashboard/hooks/useDashboard';
+import { getDeliveryUnitConfig } from '../features/dashboard/utils';
 
 export default function Dashboard() {
   const {
@@ -24,7 +25,6 @@ export default function Dashboard() {
     callLoading,
     actionLoading,
     cancelTargetId,
-    allSlots,
     tabs,
     totalActive,
     invalidateAll,
@@ -46,9 +46,7 @@ export default function Dashboard() {
     )
     : {};
   const callTargetUnitConfig = callTarget
-    ? callTarget.unitConfig
-      ?? callTarget.assignedSlot?.zone?.unitConfig
-      ?? unitConfigsByUnit[callTarget.receivingUnit]
+    ? getDeliveryUnitConfig(callTarget, unitConfigsByUnit[callTarget.receivingUnit])
     : undefined;
 
   return (
@@ -56,7 +54,6 @@ export default function Dashboard() {
       {callTarget && (
         <CallModal
           delivery={callTarget}
-          slots={allSlots}
           preselectedSlotId={callPreSlot}
           unitConfig={callTargetUnitConfig}
           onClose={closeCallModal}

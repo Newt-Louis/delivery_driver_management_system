@@ -77,6 +77,11 @@ router.patch('/:id/check-in', authenticate, enforceScope, requireRole('SUPERADMI
   await respond(res, deliveryService.checkInById(req.params.id, req.user, body));
 }));
 
+// GET /api/deliveries/:id/borrowable-slots — slots offered by the "Mượn slot" popup
+router.get('/:id/borrowable-slots', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req, res) => {
+  await respond(res, deliveryService.getBorrowableSlots(req.params.id, req.user));
+}));
+
 // PATCH /api/deliveries/:id/call
 router.patch('/:id/call', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req, res) => {
   const slotId = DeliveryFormRequest.parseCallSlotId(req.body);

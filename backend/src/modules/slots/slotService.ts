@@ -6,6 +6,7 @@ import { emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, userActor } from '../../services/auditLog';
 import { getScopeForDelivery, getScopeForSlot } from '../../services/realtimeScope';
 import { isManualSlotStatus, reconcileAllSlots, reconcileOneSlot, reconcileSlotState } from '../../services/slotState';
+import { triggerAutoAssign } from '../../services/autoAssign';
 import { domainError } from '../shared/domainError';
 import { formatSlotCode, nextSlotCodeSequence, normalizeSlotName } from '../../domain/slotCode';
 import type { Prisma } from '@prisma/client';
@@ -251,10 +252,21 @@ export async function updateSlot(id: string, body: UpdateSlotPayload, user: Auth
     targetId: id,
     businessLocationId: current.zone.unitConfig.businessLocationId,
     unitConfigId: current.zone.unitConfigId,
-    before: { code: current.code, name: current.name, assignedUnit: current.assignedUnit, vehicleType: current.vehicleType, zoneId: current.zoneId, isActive: current.isActive },
-    after: { code: slot.slot?.code ?? current.code, name: slot.slot?.name ?? current.name, assignedUnit: slot.slot?.assignedUnit ?? current.assignedUnit, vehicleType: slot.slot?.vehicleType ?? current.vehicleType, zoneId: slot.slot?.zoneId ?? nextZoneId, isActive: slot.slot?.isActive ?? current.isActive },
+    before: { code: current.code, name: current.name, assignedUnit: current.assignedUnit, vehicleType: current.vehicleType, zoneId: current.zoneId, isActive: current.isActive, autoAssign: current.autoAssign, maxCapacity: current.maxCapacity },
+    after: { code: slot.slot?.code ?? current.code, name: slot.slot?.name ?? current.name, assignedUnit: slot.slot?.assignedUnit ?? current.assignedUnit, vehicleType: slot.slot?.vehicleType ?? current.vehicleType, zoneId: slot.slot?.zoneId ?? nextZoneId, isActive: slot.slot?.isActive ?? current.isActive, autoAssign: slot.slot?.autoAssign ?? current.autoAssign, maxCapacity: slot.slot?.maxCapacity ?? current.maxCapacity },
   });
   await emitSlotList(scope);
+
+  // Turning auto-assign back on must take effect immediately: call waiting vehicles into this unit's
+  // free slots now instead of waiting for the next check-in/complete/cancel event.
+  // (Turning it off needs nothing here: autoAssign is re-read under the slot row lock on every assignment.)
+  const updatedSlot = slot.slot;
+  if (updatedSlot && !current.autoAssign && updatedSlot.autoAssign && updatedSlot.isActive) {
+    triggerAutoAssign(updatedSlot.assignedUnit, {
+      businessLocationId: nextBusinessLocationId,
+      unitConfigId: zoneChanged ? undefined : current.zone.unitConfigId,
+    }).catch(console.error);
+  }
   return slot.slot;
 }
 

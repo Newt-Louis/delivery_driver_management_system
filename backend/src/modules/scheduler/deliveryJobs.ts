@@ -11,7 +11,7 @@ import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import { helperFunctions } from '../../helperFunction';
 import { emitQueueUpdated, emitSlotUpdated } from '../../socket';
 import { recordAuditLog, systemActor } from '../../services/auditLog';
-import { triggerAutoAssign } from '../../services/autoAssign';
+import { triggerAutoAssignForReleasedSlot } from '../../services/autoAssign';
 import { cancelDelivery } from '../../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../../services/realtimeScope';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
@@ -336,7 +336,7 @@ export async function autoCancelCalledNoShowDeliveries(args: {
         targetType: 'DeliveryRegistration',
         targetId: result.delivery.id,
         businessLocationId: scope.businessLocationId,
-        unitConfigId: scope.unitConfigId,
+        unitConfigId: result.delivery.unitConfigId ?? scope.unitConfigId,
         after: {
           status: result.delivery.status,
           registrationCode: result.delivery.registrationCode,
@@ -349,7 +349,7 @@ export async function autoCancelCalledNoShowDeliveries(args: {
       });
 
       if (result.releasedSlotId) {
-        triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
+        triggerAutoAssignForReleasedSlot(result.releasedSlotId, result.delivery.receivingUnit, scope).catch(console.error);
       }
       emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
       sendPushToDelivery(result.delivery.registrationCode, {

@@ -1,6 +1,6 @@
 import api from '../../lib/api';
 import type { DashboardSummary, DeliveryRegistration, DispatchData } from '../../lib/types';
-import type { DeliveryLifecycleAction } from './types';
+import type { BorrowableSlotsResponse, DeliveryLifecycleAction } from './types';
 
 export async function fetchDashboardSummary(): Promise<DashboardSummary> {
   const response = await api.get('/api/dashboard/summary');
@@ -14,6 +14,11 @@ export async function fetchDashboardDispatch(): Promise<DispatchData> {
 
 export async function fetchDeliveryDetail(id: string): Promise<DeliveryRegistration> {
   const response = await api.get(`/api/deliveries/${id}`);
+  return response.data;
+}
+
+export async function fetchBorrowableSlots(deliveryId: string): Promise<BorrowableSlotsResponse> {
+  const response = await api.get(`/api/deliveries/${deliveryId}/borrowable-slots`);
   return response.data;
 }
 

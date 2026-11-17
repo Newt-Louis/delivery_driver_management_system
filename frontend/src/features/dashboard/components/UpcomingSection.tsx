@@ -4,7 +4,7 @@ import type { ColumnsType } from 'antd/es/table';
 import type { DeliveryRegistration, UnitDispatch } from '../../../lib/types';
 import { GOODS_CSV_LABEL, VEHICLE_LABEL } from '../constants';
 import type { UnitKey } from '../types';
-import { getUnitMeta } from '../utils';
+import { getDeliveryUnitConfig, getUnitMeta } from '../utils';
 import UnitBrandMark from './UnitBrandMark';
 import { LoadMoreTrigger } from './LoadMoreTrigger';
 import { useProgressiveRows } from '../hooks/useProgressiveRows';
@@ -17,7 +17,7 @@ export default function UpcomingSection({ deliveries, unit, unitConfig, unitConf
  const visible = deliveries.slice(0, limit);
  if (!deliveries.length) return null;
  function date(d: DeliveryRegistration) { const past = d.requestedTime && localDateKey(new Date(d.requestedTime)) < localDateKey(new Date()); return <>{d.requestedTime ? new Date(d.requestedTime).toLocaleDateString('vi-VN') : '—'} {past && <Tag color="warning">Quá ngày</Tag>}</>; }
- function unitName(d: DeliveryRegistration) { return getUnitMeta(d.receivingUnit, d.unitConfig ?? d.assignedSlot?.zone?.unitConfig ?? unitConfig ?? unitConfigsByUnit?.[d.receivingUnit]); }
+ function unitName(d: DeliveryRegistration) { return getUnitMeta(d.receivingUnit, getDeliveryUnitConfig(d, unitConfigsByUnit?.[d.receivingUnit] ?? unitConfig)); }
  const columns: ColumnsType<DeliveryRegistration> = [
   { title: 'Ngày giao', key: 'date', render: (_, d) => date(d) },
   { title: 'Biển số', dataIndex: 'vehiclePlate' },

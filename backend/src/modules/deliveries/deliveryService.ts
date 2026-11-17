@@ -5,21 +5,21 @@ import { prisma } from '../../lib/prisma';
 import { formatVNDate, getVNDateKey, isScheduledForToday } from '../../lib/dateVN';
 import { emitDeliveryCalled, emitDeliveryCompleted, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../../socket';
 import { recordAuditLog, systemActor, userActor } from '../../services/auditLog';
-import { triggerAutoAssign } from '../../services/autoAssign';
+import { triggerAutoAssign, triggerAutoAssignForReleasedSlot } from '../../services/autoAssign';
 import { checkInDelivery } from '../../services/checkInDelivery';
 import { canOverrideDeliveryWindow } from '../../services/deliveryWindowPolicy';
 import { cancelDelivery, completeDelivery } from '../../services/deliveryLifecycle';
 import { manualCallDelivery, manualCallResultIsSuccess } from '../../services/manualCallDelivery';
 import { getScopeForDelivery } from '../../services/realtimeScope';
 import { roleHasUnitOperationScope } from '../../domain/permissions';
-import { assertCanAccessOperationalLocation, assertCanOperateUnit } from '../../domain/permissionAssertions';
+import { assertCanAccessOperationalLocation } from '../../domain/permissionAssertions';
 import { reserveRegistrationCode } from '../../services/registrationSequence';
 import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
 import { getUserUnitPermissions } from '../../services/unitPermission';
 import { sendPushToDelivery } from '../../services/webPush';
 import { formatTicketCode } from '../../routes/track';
 import { archiveDelivery } from '../history/archiveService';
-import { countCallHistoryEvents, listDeliveryHistoryEvents } from '../history/historyRepository';
+import { countCallHistoryEvents } from '../history/historyRepository';
 import { recordDeliveryEvent } from '../history/historyService';
 import { domainError } from '../shared/domainError';
 import { detectRegistrationDevice, truncateUserAgent, type RegistrationRequestContext } from '../registrationHistory/deviceDetection';
@@ -32,6 +32,8 @@ import { generateManualRegistrationCode } from './manualRegistrationCode';
 import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
 import * as deliveryRepository from './deliveryRepository';
 import { toPublicQueue } from '../../domain/publicDeliveryView';
+import { compareSlotsForDisplay } from '../../domain/slotCode';
+import { ACTIVE_SLOT_DELIVERY_STATUSES, MANUAL_SLOT_STATUSES } from '../../services/slotState';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
   id: true,
@@ -460,11 +462,9 @@ export async function getDeliveryDetails(id: string, user: AuthUser | undefined)
 
   await ensureDeliveryAccess(user, delivery, 'checkin');
 
-  const [callCount, historyEvents] = await Promise.all([
-    countCallHistoryEvents(delivery.id),
-    listDeliveryHistoryEvents({ originalDeliveryId: delivery.id }),
-  ]);
-  return { ...delivery, callCount, historyEvents };
+  // Timeline (historyEvents) intentionally not included: the dashboard detail panel no longer shows it.
+  const callCount = await countCallHistoryEvents(delivery.id);
+  return { ...delivery, callCount };
 }
 
 export async function checkInById(id: string, user: AuthUser | undefined, body: { overrideDeliveryWindow?: boolean } = {}) {
@@ -531,6 +531,80 @@ export async function checkInById(id: string, user: AuthUser | undefined, body: 
   return updated;
 }
 
+const BORROWABLE_SLOT_UNIT_SELECT = {
+  id: true,
+  unit: true,
+  displayName: true,
+  shortName: true,
+  icon: true,
+  logoUrl: true,
+  primaryColor: true,
+  businessLocationId: true,
+} as const;
+
+/**
+ * Slots the operator may call a WAITING delivery into ("Mượn slot" popup).
+ * Not filtered by the operator's unit scope: borrowing is agreed offline, so every slot of the
+ * same vehicle type in the delivery's BusinessLocation is a candidate. Grouping mirrors the
+ * rules enforced later by manualCallDelivery() so the popup never offers a slot that the call would reject:
+ *  - sameUnit:   slot.assignedUnit === delivery.receivingUnit and active count < maxCapacity
+ *  - otherUnits: different unit and no active delivery at all
+ * Vehicle type: exact match (VehicleType only has TRUCK and MOTORBIKE).
+ */
+export async function getBorrowableSlots(id: string, user: AuthUser | undefined) {
+  const delivery = await prisma.deliveryRegistration.findUnique({
+    where: { id },
+    select: { id: true, status: true, receivingUnit: true, unitConfigId: true, assignedSlotId: true, vehicleType: true },
+  });
+  if (!delivery) throw domainError.notFound('Not found');
+  const scope = await ensureDeliveryAccess(user, delivery, 'receiving');
+  if (!scope.businessLocationId) throw domainError.forbidden('Không thể xác định khu vực của lượt giao hàng.');
+  if (delivery.status !== DeliveryStatus.WAITING) {
+    throw domainError.conflict('Chỉ mượn slot cho xe đang chờ (WAITING).', 'InvalidStatus');
+  }
+
+  const baseWhere: Prisma.SlotWhereInput = {
+    isActive: true,
+    status: { notIn: MANUAL_SLOT_STATUSES },
+    zone: { unitConfig: { businessLocationId: scope.businessLocationId, isActive: true } },
+  };
+  const vehicleType = delivery.vehicleType;
+
+  const slots = await prisma.slot.findMany({
+    where: { ...baseWhere, vehicleType },
+    select: {
+      id: true,
+      name: true,
+      assignedUnit: true,
+      vehicleType: true,
+      maxCapacity: true,
+      zone: { select: { id: true, code: true, name: true, unitConfig: { select: BORROWABLE_SLOT_UNIT_SELECT } } },
+      _count: { select: { deliveries: { where: { status: { in: ACTIVE_SLOT_DELIVERY_STATUSES } } } } },
+    },
+  });
+
+  const toItem = (slot: (typeof slots)[number]) => ({
+    id: slot.id,
+    name: slot.name,
+    vehicleType: slot.vehicleType,
+    maxCapacity: slot.maxCapacity,
+    activeCount: slot._count.deliveries,
+    zone: { id: slot.zone.id, code: slot.zone.code, name: slot.zone.name },
+    unitConfig: slot.zone.unitConfig,
+  });
+  const sorted = [...slots].sort(compareSlotsForDisplay);
+  return {
+    deliveryId: delivery.id,
+    vehicleType,
+    sameUnit: sorted
+      .filter((slot) => slot.assignedUnit === delivery.receivingUnit && slot._count.deliveries < slot.maxCapacity)
+      .map(toItem),
+    otherUnits: sorted
+      .filter((slot) => slot.assignedUnit !== delivery.receivingUnit && slot._count.deliveries === 0)
+      .map(toItem),
+  };
+}
+
 export async function callDelivery(id: string, slotId: string, user: AuthUser | undefined) {
   const preDelivery = await deliveryRepository.findDeliveryForLifecycleScope(id);
   if (!preDelivery) throw domainError.notFound('Not found');
@@ -549,7 +623,10 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
   });
   if (!targetSlot) throw domainError.notFound('Slot not found');
   assertCanAccessOperationalLocation(user, targetSlot.zone.unitConfig.businessLocationId);
-  assertCanOperateUnit(user, targetSlot.zone.unitConfigId);
+  // No unit permission check on the target slot: "Mượn slot" lets an operator of the delivery's unit
+  // call it into another unit's slot in the same BusinessLocation (agreed offline, no approval).
+  // Permission on the delivery's own unit is enforced by ensureDeliveryAccess above; same-location,
+  // capacity and the "cross-unit slot must be empty" rule are enforced in manualCallDelivery().
 
   const result = await manualCallDelivery({
     deliveryId: id,
@@ -587,7 +664,7 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
       targetType: 'DeliveryRegistration',
       targetId: delivery.id,
       businessLocationId: scope.businessLocationId,
-      unitConfigId: scope.unitConfigId,
+      unitConfigId: delivery.unitConfigId ?? scope.unitConfigId,
       after: {
         status: delivery.status,
         registrationCode: delivery.registrationCode,
@@ -665,7 +742,7 @@ export async function startReceiving(id: string, user: AuthUser | undefined) {
     targetType: 'DeliveryRegistration',
     targetId: updated.id,
     businessLocationId: scope.businessLocationId,
-    unitConfigId: scope.unitConfigId,
+    unitConfigId: updated.unitConfigId ?? scope.unitConfigId,
     before: { status: delivery.status },
     after: {
       status: updated.status,
@@ -715,7 +792,7 @@ export async function complete(id: string, user: AuthUser | undefined) {
       targetType: 'DeliveryRegistration',
       targetId: result.delivery.id,
       businessLocationId: scope.businessLocationId,
-      unitConfigId: scope.unitConfigId,
+      unitConfigId: result.delivery.unitConfigId ?? scope.unitConfigId,
       after: {
         status: result.delivery.status,
         registrationCode: result.delivery.registrationCode,
@@ -748,7 +825,7 @@ export async function complete(id: string, user: AuthUser | undefined) {
       tag: 'delivery-completed',
       url: `/track/${result.delivery.registrationCode}`,
     }).catch(console.error);
-    triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
+    triggerAutoAssignForReleasedSlot(result.releasedSlotId, result.delivery.receivingUnit, scope).catch(console.error);
   }
 
   return { success: true, delivery: result.delivery, idempotent: !result.changed };
@@ -778,7 +855,7 @@ export async function cancel(id: string, reason: string, user: AuthUser | undefi
       targetType: 'DeliveryRegistration',
       targetId: result.delivery.id,
       businessLocationId: scope.businessLocationId,
-      unitConfigId: scope.unitConfigId,
+      unitConfigId: result.delivery.unitConfigId ?? scope.unitConfigId,
       after: {
         status: result.delivery.status,
         registrationCode: result.delivery.registrationCode,
@@ -804,7 +881,7 @@ export async function cancel(id: string, reason: string, user: AuthUser | undefi
     }).catch(console.error);
 
     if (result.releasedSlotId) {
-      triggerAutoAssign(result.delivery.receivingUnit, scope).catch(console.error);
+      triggerAutoAssignForReleasedSlot(result.releasedSlotId, result.delivery.receivingUnit, scope).catch(console.error);
     }
   }
 
