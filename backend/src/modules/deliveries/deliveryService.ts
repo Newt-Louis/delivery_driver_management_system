@@ -558,6 +558,12 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
     actor: userActor(user),
   });
 
+  // TODO(anti-spam): khi slotId trùng slot hiện tại của xe CALLED, manualCallDelivery trả `recalled`
+  // ("Gọi lại" trên dashboard): mỗi lần gọi đều ghi event RECALLED, emit socket và gửi web push.
+  // Chưa có cơ chế chống spam/bot toàn cục (rate limit theo user + delivery, cooldown) cho thao tác
+  // phát thông báo này. Lưu ý: RECALLED cũng đặt lại mốc đếm của job auto-cancel-called-no-show.
+  // Sẽ thảo luận và làm thành tính năng riêng.
+
   if (result.outcome === 'delivery_not_found') throw domainError.notFound(result.message);
   if (result.outcome === 'slot_not_found') {
     throw domainError.notFound(result.message, { delivery: result.delivery });

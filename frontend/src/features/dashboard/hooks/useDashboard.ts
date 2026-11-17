@@ -109,6 +109,31 @@ export function useDashboard() {
     }
   }
 
+  // "Gọi lại": replays the call notification for the slot the vehicle is already called into.
+  // Backend treats PATCH /call with the current slot as a recall (RECALLED event + socket + web push),
+  // without changing status or slot.
+  // TODO(anti-spam): chưa có cơ chế chống spam/bot toàn cục cho thao tác phát thông báo
+  // (rate limit theo user + delivery, cooldown). Hiện chỉ khoá nút trong lúc request đang chạy.
+  // Sẽ thảo luận và làm thành tính năng riêng.
+  async function doRecall(delivery: DeliveryRegistration) {
+    if (!delivery.assignedSlotId) {
+      toast.error('Xe chưa được gọi vào vị trí nào.');
+      return;
+    }
+    setActionLoading(delivery.id + 'recall');
+    try {
+      await callDelivery(delivery.id, delivery.assignedSlotId);
+      toast.success(`Đã phát lại thông báo cho xe ${delivery.vehiclePlate}.`);
+      invalidateAll();
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+        ?? 'Không thể phát lại thông báo.';
+      toast.error(message);
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
   function openCallModal(delivery: DeliveryRegistration, preSlotId?: string) {
     setCallTarget(delivery);
     setCallPreSlot(preSlotId);
@@ -152,6 +177,7 @@ export function useDashboard() {
     invalidateAll,
     doCall,
     doAction,
+    doRecall,
     openCallModal,
     closeCallModal,
     openCallBySuggestion,

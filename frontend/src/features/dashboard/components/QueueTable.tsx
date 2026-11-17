@@ -21,10 +21,11 @@ interface Props {
   unitConfigsByUnit?: Record<string, UnitDispatch['unitConfig'] | undefined>;
   onCall: (delivery: DeliveryRegistration, slotId?: string) => void;
   onAction: (id: string, action: DeliveryLifecycleAction) => void;
+  onRecall: (delivery: DeliveryRegistration) => void;
   actionLoading: string | null;
 }
 
-export default function QueueTable({ deliveries, unit, unitConfig, unitConfigsByUnit, onCall, onAction, actionLoading }: Props) {
+export default function QueueTable({ deliveries, unit, unitConfig, unitConfigsByUnit, onCall, onAction, onRecall, actionLoading }: Props) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [vehicleFilter, setVehicleFilter] = useState<VehicleTypeFilter>('ALL');
@@ -45,7 +46,7 @@ export default function QueueTable({ deliveries, unit, unitConfig, unitConfigsBy
   function actions(d: DeliveryRegistration) {
     return <Space wrap size="small" style={{ maxWidth: 170 }} onClick={event => event.stopPropagation()}>
       {d.status === 'WAITING' && <Button color="cyan" variant="solid" onClick={() => onCall(d)} size="small">Gọi vào vị trí</Button>}
-      {d.status === 'CALLED' && <><Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'start-receiving'} onClick={() => onAction(d.id, 'start-receiving')} size="small">Bắt đầu nhận</Button><Button color="orange" variant="solid" disabled={!!actionLoading} onClick={() => onCall(d)} size="small">Gọi lại</Button></>}
+      {d.status === 'CALLED' && <><Button type="primary" disabled={!!actionLoading} loading={actionLoading === d.id + 'start-receiving'} onClick={() => onAction(d.id, 'start-receiving')} size="small">Bắt đầu nhận</Button><Button color="orange" variant="solid" disabled={!!actionLoading} loading={actionLoading === d.id + 'recall'} onClick={() => onRecall(d)} size="small">Gọi lại</Button></>}
       {['RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'].includes(d.status) && <Button color="green" variant="solid" disabled={!!actionLoading} loading={actionLoading === d.id + 'complete'} onClick={() => onAction(d.id, 'complete')} size="small">Hoàn tất</Button>}
       {!['COMPLETED', 'CANCELLED'].includes(d.status) && <Button danger disabled={!!actionLoading} onClick={() => onAction(d.id, 'cancel')} size="small">Hủy</Button>}
     </Space>;

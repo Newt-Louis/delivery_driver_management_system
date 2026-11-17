@@ -388,3 +388,13 @@ Kế hoạch: `PLAN.md` (việc 0 → 6). Thay đổi hợp đồng API ghi ở 
 - `useDashboard.invalidateAll()` invalidate thêm query `['delivery']` để panel đang mở tự cập nhật theo socket.
 - Đã kiểm tra: `npm run build` ở `frontend`; gọi thật `GET /api/deliveries/:id` (200, có `historyEvents`, `callCount`, `unitConfig`).
 - Chưa kiểm tra: giao diện trên trình duyệt. Headless Chromium trong WSL thiếu thư viện hệ thống `libasound.so.2` (cần `sudo apt-get install libasound2t64`).
+
+### 2026-11-17 - Việc 2: "Gọi Lại" Chỉ Phát Lại Thông Báo
+
+- `useDashboard.doRecall(delivery)`: gọi `PATCH /api/deliveries/:id/call` với slot hiện tại của xe, toast "Đã phát lại thông báo cho xe …", không mở `CallModal`. Nút "Gọi lại" có `loading` riêng (`actionLoading = id + 'recall'`), các nút khác của bảng bị khoá trong lúc request chạy như các thao tác hiện có.
+- Truyền `onRecall` qua `Dashboard` → `UnitTabView`/`AllTabView` → `QueueTable`.
+- Backend không đổi logic: `manualCallDelivery()` đã xử lý gọi lại (`outcome: 'recalled'`, event `RECALLED`, socket, web push).
+- Thêm `TODO(anti-spam)` ở `frontend/src/features/dashboard/hooks/useDashboard.ts` (`doRecall`) và `backend/src/modules/deliveries/deliveryService.ts` (`callDelivery`).
+- Ghi nhận (không sửa): job `auto-cancel-called-no-show` tính thời hạn từ event gọi gần nhất, gồm `RECALLED`, nên mỗi lần "Gọi lại" kéo dài thời hạn tự hủy. Tag "Chưa vào" và `noShowRisk` vẫn tính từ `calledTime`.
+- Đã kiểm tra: `npm run build` ở `backend` và `frontend`.
+- Chưa kiểm tra: bấm "Gọi lại" thật trên dev server (backend dev server đã dừng tại thời điểm kiểm tra).

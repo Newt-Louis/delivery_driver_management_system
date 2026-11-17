@@ -30,6 +30,7 @@ export default function Dashboard() {
     invalidateAll,
     doCall,
     doAction,
+    doRecall,
     openCallModal,
     closeCallModal,
     openCallBySuggestion,
@@ -95,6 +96,7 @@ export default function Dashboard() {
           onSuggestionAction={openCallBySuggestion}
           onCall={openCallModal}
           onAction={doAction}
+          onRecall={doRecall}
           actionLoading={actionLoading}
         />
       )}
@@ -111,6 +113,7 @@ export default function Dashboard() {
           onSuggestionAction={openCallBySuggestion}
           onCall={openCallModal}
           onAction={doAction}
+          onRecall={doRecall}
         />
       )}
 
