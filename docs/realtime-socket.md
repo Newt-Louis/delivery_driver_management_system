@@ -32,6 +32,7 @@ Events server -> client:
 - `queue_updated`: mảng delivery đang hoạt động, dạng public rút gọn (`toPublicQueue`).
 - `delivery_called`
 - `slot_updated`: mảng slot đang hoạt động; `deliveries[]` trong slot cũng là dạng public rút gọn (`toPublicSlots`).
+- `waiting_board_updated`: board của waiting screen (`buildWaitingBoard`), chỉ phát vào `waiting-screen:{businessLocationId}`, gom 400 ms theo khu vực. `emitQueueUpdated()`/`emitSlotUpdated()` tự lên lịch phát, nên mọi luồng thay đổi queue/slot đều kích hoạt.
 - `delivery_completed`
 - `track_updated`
 - `driver_notification`: sự kiện cá nhân theo mã chuyến, gồm `deliveryCode/status/occurredAt/eventId/title/body`; emit trước I/O gửi Web Push.

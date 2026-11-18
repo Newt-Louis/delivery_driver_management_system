@@ -30,6 +30,7 @@ import superadminRoutes from './routes/superadmin';
 import configRoutes from './routes/config';
 import fileRoutes from './routes/files';
 import seedingRoutes from './routes/seeding';
+import waitingScreenRoutes from './routes/waitingScreen';
 import { ensureDatafileRoot, getUploadsDirectory } from './modules/files/fileStorageService';
 import { loadLocationCodeGroups, locationGroupsFilePath } from './modules/deliveries/locationCodeGroups';
 
@@ -62,6 +63,7 @@ app.use('/api/aw-vendors', awVendorRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/histories', historiesRoutes);
+app.use('/api/waiting-screen', waitingScreenRoutes);
 app.use('/api/superadmin', superadminRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/files', fileRoutes);

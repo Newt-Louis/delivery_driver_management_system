@@ -150,6 +150,8 @@ Service:
 
 ## Xe Mượn Slot ("Mượn slot")
 
+Bảng dashboard vốn là mỗi xe một dòng, khớp quy tắc R1 trong `business-location-unit-zone-slot.md`.
+
 Quy tắc: **đơn vị** của một dòng là đơn vị tài xế giao hàng cho (`delivery.unitConfig`); **vị trí** là slot tài xế phải vào, có thể thuộc đơn vị khác. Ví dụ xe EMART được gọi vào M1 của THISO Mall: đơn vị EMART, vị trí M1.
 
 Backend (`GET /api/dashboard/dispatch`):

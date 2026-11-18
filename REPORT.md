@@ -429,3 +429,29 @@ Kế hoạch: `PLAN.md` (việc 0 → 6). Thay đổi hợp đồng API ghi ở 
   - Audit `manual_call`/`start_receiving`/`complete`/`cancel`/`auto_cancel_called_no_show` ghi `unitConfigId` theo đơn vị của xe.
 - Đã kiểm tra: build `backend` + `frontend`; gọi thật dispatch trên dev: xe EMART "1154" ở "Vị trí T1" (slot THISKY) nằm trong `active` EMART với `unitConfig` EMART + `slotBorrow`, và trong `lentSlotRows` THISKY; thống kê "called" của THISKY không tính dòng này; không có API key trong payload. Đọc code `/docks`, `ZonesTab`, `SlotsTab`: nhóm theo đơn vị slot, không cần sửa.
 - Chưa kiểm tra: nhánh `detailRestricted: true` (tài khoản test đều có cả ba đơn vị); giao diện trên trình duyệt; realtime và auto-assign sau hoàn tất xe mượn trên dữ liệu thật (cần thao tác hoàn tất thật).
+
+### 2026-11-18 - Việc 5: Bảng Tình Trạng Vị Trí Ở Waiting Screen
+
+- Backend: endpoint public `GET /api/waiting-screen/board` (`routes/waitingScreen.ts`, mount `/api/waiting-screen`, `publicReadLimiter`, bắt buộc scope). `modules/waitingScreen/waitingBoardService.ts` dựng board theo quy tắc R1 (mỗi chỗ một dòng, trạng thái `EMPTY/CALLED/RECEIVING/FOREIGN/UNAVAILABLE`, `borrowedRows`, `overCapacity`), danh sách chờ 10 xe đầu mỗi loại xe + `waitingTotal`. Không có trường cá nhân.
+- Backend: `domain/displayTicketCode.ts` format số thứ tự theo đúng quy tắc của web (prefix `shortName` → `displayName` → unit). `routes/track.ts#formatTicketCode` vẫn dùng mã unit, nên có thể khác (nợ kỹ thuật cũ, chưa sửa).
+- Realtime: socket `waiting_board_updated` vào phòng `waiting-screen:{id}`, gom 400 ms theo khu vực (`waitingBoardRealtime.ts`), kích hoạt tự động trong `emitQueueUpdated()`/`emitSlotUpdated()`; thêm `emitToWaitingScreen()` trong `socket/index.ts`.
+- Frontend: `useWaitingScreen` dùng board + `waiting_board_updated` (+ tải lại khi `connect`); `BrightUnitPanel` viết lại: khung "Tình trạng vị trí" (cột Vị trí/Số thứ tự/Biển số/Trạng thái, ô trạng thái chỉ tô màu theo token theme, có `aria-label`, chú thích màu, dòng mượn thêm ở cuối, không phân trang) và khung "Đã check-in / Đang chờ" (10 xe đầu mỗi loại, tiêu đề hiện tổng thật, bỏ "Xem thêm"/`IntersectionObserver`). Panel chia theo đơn vị của xe (sửa lỗi xe mượn chỉ hiện ở panel cho mượn). Xoá `bright/VehicleSection.tsx` (không còn dùng). Không đụng `components/dark/*` (5g).
+- Tài liệu: quy tắc R1 ghi vào `docs/business-location-unit-zone-slot.md` (tham chiếu từ `operational-screens.md`, `receiving-dashboard-lifecycle.md`); cập nhật `operational-screens.md`, `realtime-socket.md`, `docs/api/CHANGELOG.md`, danh sách route trong `AGENTS.md`.
+- Đã kiểm tra: build `backend` + `frontend`. Gọi thật board (PVT): 7,9 KB, 9 ms; thiếu scope trả 400; xe EMART "1154" ở T1 (THISKY) là dòng `FOREIGN` ở THISKY và dòng mượn "T1" ở EMART; slot 5 chỗ ra 5 dòng. Test socket như TV public (không token) + một lần "Gọi lại" thật: `waiting_board_updated` đến đúng 1 lần sau ~400 ms; `queue_updated`, `slot_updated`, `delivery_called` không chứa trường cá nhân (xác nhận luôn phần socket của việc 0).
+- Chưa kiểm tra: giao diện trên trình duyệt/TV (headless Chromium thiếu `libasound.so.2`).
+
+### 2026-11-18 - Sửa Waiting Screen Không Cuộn Được Trên Màn Hình Desktop Thấp
+
+- Lỗi người dùng báo: trên desktop không cuộn xuống được khung "Đã check-in / Đang chờ" (kể cả trạng thái rỗng).
+- Nguyên nhân (đo bằng Playwright ở 1366×768): `flex-1 min-h-0` nằm trên slider bên trong (`className`) thay vì wrapper `.ant-carousel` (flex item thật của `<main>`), nên Carousel cao 1181px theo nội dung trong khi `<main>` chỉ 708px và `overflow: hidden`; Card body không bao giờ tràn nên không cuộn, phần dưới bị cắt. Ở 1920×1080 nội dung vừa màn hình nên không lộ lỗi.
+- Sửa: chuyển `min-[1025px]:min-h-0 min-[1025px]:flex-1` sang `rootClassName` của Carousel (`frontend/src/pages/WaitingScreen.tsx`).
+- Đã kiểm tra bằng headless Chromium: 1366×768 Carousel còn 603px, Card body cuộn bằng chuột tới khung chờ và trạng thái "Chưa có xe CHECK-IN"; 1920×1080 vẫn đúng; mobile 412px vẫn cuộn cả trang như cũ.
+- Ghi chú môi trường: headless Chromium chạy được nhờ giải nén `libasound2t64` (từ archive Ubuntu noble) vào scratchpad và đặt `LD_LIBRARY_PATH`, không cài vào hệ thống.
+
+### 2026-11-18 - Sửa Tab Đơn Vị Trên Waiting Screen (Điện Thoại)
+
+- Lỗi người dùng báo: trên điện thoại, thanh tab đơn vị hiện nút "..." khi tràn và tab đầu bị mất vài chữ dù đã vuốt hết.
+- Nguyên nhân (đo bằng Playwright ở 360px/412px): các rule `.waiting-unit-tabs .ant-tabs-nav-*` trong `index.css` thua style của Ant Design (selector Ant cụ thể hơn), nên (1) `.ant-tabs-nav-operations` vẫn `display: flex` → nút "..." hiện; (2) `.ant-tabs-nav-wrap` vẫn là flex, danh sách tab bị co còn 290px trong khi cần 341px, kết hợp `justify-content: center` nên tab "Emart" tràn sang trái tới -39px, vùng âm không cuộn tới được.
+- Sửa (`frontend/src/index.css`): tăng độ cụ thể selector (`.waiting-unit-tabs .ant-tabs .ant-tabs-nav …`), `display:block !important` cho wrap, list `flex: none; width: max-content; margin-inline: auto` (thay cho `justify-content: center`), ẩn `.ant-tabs-nav-operations` và bóng mép `::before/::after` của Ant.
+- Đã kiểm tra bằng headless Chromium: 360px và 412px không còn nút "...", tab đầu bắt đầu ở 12px (đủ chữ), vuốt hết sang phải thấy đủ tab cuối; 1366px danh sách vẫn căn giữa.
+- Chưa làm: tab đơn vị ở `/dashboard` (`.dashboard-unit-tabs`) dùng mẫu CSS tương tự, chưa kiểm tra có cùng lỗi không.

@@ -9,8 +9,9 @@ Ngoài register/check-in/dashboard, hệ thống có các màn hình vận hành
 Frontend:
 
 - `frontend/src/pages/WaitingScreen.tsx`: route presentation: unit Tabs/Carousel và responsive layout.
-- `frontend/src/features/waiting-screen/hooks/useWaitingScreen.ts`: đọc public scope, query queue, socket refresh và highlight xe gọi; không sở hữu âm báo/overlay.
-- `frontend/src/features/waiting-screen/components/bright/*`: Ant Design unit/vehicle presentation components.
+- `frontend/src/features/waiting-screen/hooks/useWaitingScreen.ts`: đọc public scope, tải board `GET /api/waiting-screen/board`, nhận `waiting_board_updated` và highlight xe vừa gọi; không sở hữu âm báo/overlay.
+- `frontend/src/features/waiting-screen/components/bright/UnitPanel.tsx`: panel đơn vị gồm khung "Tình trạng vị trí" và "Đã check-in / Đang chờ".
+- `components/dark/*` không còn được render (nợ kỹ thuật, chưa xoá).
 
 Route:
 
@@ -20,36 +21,41 @@ Route:
   - `?businessLocationId=<id>` để TV hiển thị một khu vực kinh doanh cụ thể.
   - `?unitConfigId=<id>` nếu muốn giới hạn vào một unit cụ thể.
 - `SocketContext` lấy `businessLocationId` từ `PublicBusinessLocationContext` rồi join realtime room tương ứng. Khi public scope chưa được chọn, waiting screen không join room hoặc tải queue.
-- Chọn khu vực qua tên khu vực trên GlobalHeader. Khi public scope đổi, SocketContext join lại room và các request `GET /api/brand`/`GET /api/deliveries/queue` tự lấy dữ liệu theo location mới.
+- Chọn khu vực qua tên khu vực trên GlobalHeader. Khi public scope đổi, SocketContext join lại room và các request `GET /api/brand`/`GET /api/waiting-screen/board` tự lấy dữ liệu theo location mới.
 
 Backend/API:
 
-- `GET /api/deliveries/queue`
+- `GET /api/waiting-screen/board` (public, `publicReadLimiter`, bắt buộc `businessLocationId` hoặc `unitConfigId`; thiếu scope trả `400 MissingScope`). Backend: `backend/src/routes/waitingScreen.ts`, `backend/src/modules/waitingScreen/waitingBoardService.ts`.
 - `GET /api/brand`
 - `GET /api/units/public/business-locations`
+- `GET /api/deliveries/queue` vẫn tồn tại cho app cũ; web waiting screen không còn dùng.
 
 Realtime:
 
 - Join waiting screen room qua `SocketContext`.
 - Lắng nghe events:
-  - `queue_updated`
-  - `delivery_called`
-  - `delivery_completed`
+  - `waiting_board_updated`: cả board, phát vào phòng `waiting-screen:{businessLocationId}`, gom 400 ms theo khu vực (`waitingBoardRealtime.ts`), kích hoạt từ `emitQueueUpdated()`/`emitSlotUpdated()`.
+  - `delivery_called`: chỉ để highlight dòng của xe vừa gọi trong 14 giây.
+  - `connect`: tải lại board sau khi kết nối lại.
 
 Mục đích:
 
 - TV/khu chờ hiển thị xe đang chờ, xe được gọi, thông tin ticket/slot.
-- Waiting screen hiển thị hai nhóm trạng thái `CALLED` và `WAITING`, mỗi nhóm chứa xe tải và xe máy; `RECEIVING` và `AUTO_WAREHOUSE_RECEIVING` không hiển thị vì tài xế đã vào khu nhận hàng.
-- Màn hình hiển thị một đơn vị mỗi lần qua Ant Carousel. Ant Tabs luôn cho phép chọn trực tiếp đơn vị; tab dài có thể cuộn ngang. Từ 1025px, Carousel có nút chuyển và tự sang đơn vị kế tiếp sau 60 giây; trong mỗi trạng thái hai loại xe nằm cạnh nhau và Card đơn vị cuộn dọc nội bộ. Đến 1024px, người dùng có thể vuốt giữa các đơn vị và chọn xe tải hoặc xe máy riêng trong từng trạng thái; nội dung cuộn dọc tự nhiên. Nếu phần gọi xe trống, UI phân biệt không có xe sẵn sàng với xe đang chờ nhưng chưa có vị trí trống.
-- Queue API và sự kiện realtime vẫn cung cấp dữ liệu cả hai loại xe. Giao diện hiển thị từng đợt 20 dòng cho mỗi loại xe trong từng trạng thái, tự hiện thêm khi cuộn đến cuối hoặc khi bấm “Xem thêm”; mỗi đợt tăng giới hạn chung của cả hai loại xe trong trạng thái đó.
+- Mỗi panel đơn vị có hai khung, mỗi khung tách xe tải/xe máy:
+  - **"Tình trạng vị trí"**: theo quy tắc R1 (`business-location-unit-zone-slot.md`), mỗi chỗ của mỗi slot là một dòng. Cột: Vị trí, Số thứ tự, Biển số xe, Trạng thái. Cột Trạng thái chỉ tô màu cả ô (có `aria-label`/`title` bằng chữ): Trống = `colorSuccess`, Đang gọi vào = `colorPrimary`, Đang nhận hàng = `colorError`, Mượn slot = `gold`, Tạm ngưng = `colorTextQuaternary`. Có dòng chú thích màu. Không phân trang.
+  - Xe đơn vị khác mượn chỗ (panel cho mượn) luôn tô Gold, không đổi màu theo trạng thái. Panel đi mượn có thêm dòng Gold ở cuối, cột vị trí ghi "tên slot · đơn vị cho mượn". Khi xe mượn rời đi, dòng thêm biến mất và chỗ ở bên cho mượn trở lại Trống.
+  - **"Đã check-in / Đang chờ"**: chỉ hiện **10 xe đầu hàng chờ** cho mỗi loại xe (backend giới hạn), không phân trang; tiêu đề hiện tổng thật (`waitingTotal`).
+- Màn hình hiển thị một đơn vị mỗi lần qua Ant Carousel. Ant Tabs luôn cho phép chọn trực tiếp đơn vị; tab dài có thể cuộn/vuốt ngang, không có nút "..." của Ant và không bị cắt chữ ở tab đầu (CSS `.waiting-unit-tabs` trong `frontend/src/index.css`: selector phải có `.ant-tabs .ant-tabs-nav` để thắng style của Ant; căn giữa danh sách ngắn bằng `margin-inline: auto`, không dùng `justify-content: center` vì sẽ đẩy tab đầu ra ngoài vùng cuộn được). Từ 1025px, Carousel có nút chuyển và tự sang đơn vị kế tiếp sau 60 giây; trong mỗi trạng thái hai loại xe nằm cạnh nhau và Card đơn vị cuộn dọc nội bộ. `flex-1 min-h-0` phải đặt qua `rootClassName` (wrapper `.ant-carousel`, là flex item thật của `<main>`), không đặt ở `className` (slider bên trong); nếu đặt sai, Carousel cao theo nội dung, `<main>` (`overflow: hidden`) cắt mất phần dưới và Card không cuộn được. Đến 1024px, người dùng có thể vuốt giữa các đơn vị và chọn xe tải hoặc xe máy riêng trong từng khung; nội dung cuộn dọc tự nhiên.
 - Bộ đếm hiển thị và chuyển tự động dùng cùng một mốc thời gian; khi người dùng chọn tab hoặc carousel bắt đầu chuyển bằng nút/vuốt, mốc được đặt lại 60 giây. Tab được đồng bộ lúc bắt đầu chuyển, không dùng callback kết thúc của animation cũ để ghi đè lựa chọn mới.
-- Waiting screen không phát chime hoặc chặn màn hình khi xe được gọi; event realtime chỉ làm mới queue và highlight tạm thời dòng `CALLED` vừa xuất hiện.
+- Waiting screen không phát chime hoặc chặn màn hình khi xe được gọi; event realtime chỉ làm mới board và highlight tạm thời dòng của xe vừa được gọi.
 - Cảnh báo cá nhân là feature toàn cục độc lập: nếu thiết bị đã chọn theo dõi một chuyến, overlay/âm báo của đúng chuyến vẫn xuất hiện khi xem waiting screen. TV không chọn theo dõi chuyến chỉ xem bảng hàng chờ. Xem `track-pwa-push.md`.
 
 Quy ước dữ liệu:
 
 - `GET /api/brand?businessLocationId=...` trả brand của `BusinessLocation` và danh sách `UnitConfig` active trong location đó ở object `units`.
-- `WaitingScreen` sinh tab/cột unit từ `brand.units`; nếu brand chưa có dữ liệu thì fallback từ unit của các delivery đang hiển thị.
+- `WaitingScreen` sinh tab/cột unit từ `brand.units`; nếu brand chưa có dữ liệu thì fallback từ `board.units`. Panel lấy dữ liệu theo đơn vị của board (đơn vị của xe), không theo đơn vị của slot.
+- Số thứ tự (`ticketCode`) do backend format bằng `domain/displayTicketCode.ts`, cùng quy tắc với `frontend/src/lib/unitPresentation.ts`.
+- Board dựng bằng 3 query cho cả khu vực (unit config, slot, delivery đang hoạt động) rồi ghép trong bộ nhớ.
 - Frontend không dùng danh sách `EMART`/`THISKYHALL`/`TENANT` làm source of truth nữa. Nhãn, màu, icon và ticket prefix đi qua `frontend/src/lib/unitPresentation.ts`; dữ liệu thiếu metadata được fallback generic từ mã unit.
 - `GET /api/deliveries/queue` khi có `businessLocationId` hoặc `unitConfigId` phải lọc bằng `DeliveryRegistration.unitConfigId` và slot thuộc `Zone -> UnitConfig`. Không fallback lỏng theo `receivingUnit` vì unit code có thể trùng giữa nhiều `BusinessLocation`.
 - Public queue vẫn là read-only; payload không chứa secret cấu hình unit.

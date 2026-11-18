@@ -10,6 +10,56 @@ Quy ước:
 
 ---
 
+## 2026-11-18 — Bảng tình trạng vị trí cho waiting screen (Việc 5)
+
+### Mới — `GET /api/waiting-screen/board` (public)
+
+Query bắt buộc `businessLocationId` hoặc `unitConfigId`; thiếu trả `400 { "error": "MissingScope" }`. Giới hạn `publicReadLimiter` (240 request/phút/IP). Không có trường cá nhân.
+
+Quy tắc **R1 — mỗi xe một dòng**: mỗi chỗ của slot (theo `maxCapacity`) là một phần tử trong `slotRows`. Server đã tính sẵn trạng thái từng dòng, app chỉ cần vẽ.
+
+```json
+{
+  "businessLocationId": "…",
+  "generatedAt": "2026-11-18T02:00:00.000Z",
+  "units": [
+    {
+      "unitConfigId": "…",
+      "unit": "THISKYHALL",
+      "slotRows": [
+        { "slotId": "…", "slotName": "Vị trí T1", "vehicleType": "TRUCK", "capacity": 1, "overCapacity": false,
+          "state": "FOREIGN",
+          "occupant": { "deliveryId": "…", "ticketCode": "EMART-T007", "vehiclePlate": "1154", "status": "CALLED", "unit": "EMART", "unitConfigId": "…" } },
+        { "slotId": "…", "slotName": "Vị trí T3", "vehicleType": "MOTORBIKE", "capacity": 5, "overCapacity": false,
+          "state": "EMPTY", "occupant": null }
+      ],
+      "borrowedRows": [],
+      "waiting": [
+        { "deliveryId": "…", "ticketCode": "THISKYHALL-M001", "vehiclePlate": "…", "vehicleType": "MOTORBIKE", "goodsType": "FRESH_FOOD", "checkinTime": "…" }
+      ],
+      "waitingTotal": { "MOTORBIKE": 1 }
+    }
+  ]
+}
+```
+
+- `state` (nhìn từ đơn vị `unit`): `EMPTY` trống, `CALLED` xe của đơn vị đang được gọi vào, `RECEIVING` xe của đơn vị đang nhận hàng (gồm kho tự động), `FOREIGN` xe đơn vị khác đang mượn chỗ (mọi trạng thái), `UNAVAILABLE` chỗ trống của slot `MAINTENANCE`/`RESERVED`.
+- `slotRows` sắp theo slot; trong mỗi slot, dòng có xe trước (gọi trước đứng trước), dòng trống sau. Số dòng mỗi slot = `max(capacity, số xe)`; `overCapacity = true` khi số xe vượt sức chứa.
+- `borrowedRows`: xe của đơn vị này đang ở slot đơn vị khác (`lenderUnitConfigId`, `lenderUnit`), `state` luôn `FOREIGN`. Vẽ ở cuối danh sách, sau các dòng slot chính.
+- `waiting`: tối đa **10 xe đầu hàng chờ cho mỗi `vehicleType`**, theo thứ tự check-in. `waitingTotal` là tổng thật theo loại xe.
+- `ticketCode` đã format sẵn (prefix = `shortName` → `displayName` → mã unit, cùng quy tắc với web).
+- Tên/logo/màu đơn vị vẫn lấy từ `GET /api/brand`, ghép theo `unit`.
+
+### Mới — socket `waiting_board_updated`
+
+Payload giống hệt response `GET /api/waiting-screen/board`. Phát vào phòng `waiting-screen:{businessLocationId}` (join bằng `realtime:join` với `{ businessLocationId, waitingScreen: true }`), sau mỗi thay đổi queue/slot, gom 400 ms theo khu vực. App nên gọi lại `GET /api/waiting-screen/board` khi socket kết nối lại.
+
+### Không đổi
+
+`GET /api/deliveries/queue` và `queue_updated` vẫn giữ (định dạng rút gọn từ Việc 0) cho app cũ. Web waiting screen không còn dùng hai kênh này. Có ngừng hỗ trợ hay không sẽ quyết ở Việc 6.
+
+---
+
 ## 2026-11-17 — Hiển thị xe mượn slot ở cả hai đơn vị (Việc 4)
 
 ### Thêm trường — `GET /api/dashboard/dispatch` (cần đăng nhập)

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Avatar, Badge, Carousel, Empty, Tabs, type CarouselRef } from 'antd';
 import { useWaitingScreen } from '../features/waiting-screen/hooks/useWaitingScreen';
 import BrightUnitPanel from '../features/waiting-screen/components/bright/UnitPanel';
-import { getDeliveryUnitKey, getUnitBrand } from '../features/waiting-screen/utils';
+import { getUnitBrand } from '../features/waiting-screen/utils';
+import { countCalledInUnit } from '../features/waiting-screen/boardUtils';
 
 const DESKTOP_WAITING_SCREEN_QUERY = '(min-width: 1025px)';
 const ROTATION_INTERVAL_MS = 60_000;
@@ -24,7 +25,7 @@ function useDesktopWaitingScreen() {
 export default function WaitingScreen() {
   const hook = useWaitingScreen();
   const desktop = useDesktopWaitingScreen();
-  const { deliveries, highlightId, brand, activeTab, setActiveTab, unitKeys } = hook;
+  const { boardByUnit, highlightId, brand, activeTab, setActiveTab, unitKeys } = hook;
   const carouselRef = useRef<CarouselRef>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const [cooldownSeconds, setCooldownSeconds] = useState(60);
@@ -37,7 +38,7 @@ export default function WaitingScreen() {
   const initialSlide = useMemo(() => Math.max(0, unitKeys.indexOf(activeTab)), [activeTab, unitKeys]);
   const tabItems = useMemo(() => unitKeys.map((unit) => {
     const config = getUnitBrand(brand, unit);
-    const called = deliveries.filter((delivery) => getDeliveryUnitKey(delivery) === unit && delivery.status === 'CALLED').length;
+    const called = countCalledInUnit(boardByUnit.get(unit));
     return {
       key: unit,
       label: (
@@ -48,7 +49,7 @@ export default function WaitingScreen() {
         </span>
       ),
     };
-  }), [brand, deliveries, unitKeys]);
+  }), [brand, boardByUnit, unitKeys]);
 
   useEffect(() => {
     if (!desktop || unitKeys.length < 2) return undefined;
@@ -107,7 +108,10 @@ export default function WaitingScreen() {
       <Carousel
         ref={carouselRef}
         key={unitKeySignature}
-        className="waiting-unit-carousel min-[1025px]:min-h-0 min-[1025px]:flex-1"
+        className="waiting-unit-carousel"
+        // Flex sizing must sit on Ant's outer `.ant-carousel` wrapper (the real flex child of <main>);
+        // on the inner slider it left the wrapper unbounded, so the unit card never got its own scroll.
+        rootClassName="min-[1025px]:min-h-0 min-[1025px]:flex-1"
         arrows={desktop && unitKeys.length > 1}
         autoplay={false}
         waitForAnimate={false}
@@ -125,7 +129,7 @@ export default function WaitingScreen() {
           <div key={unit} className={desktop ? 'h-full pb-7' : 'pb-7'}>
             <BrightUnitPanel
               unitKey={unit}
-              deliveries={deliveries.filter((delivery) => getDeliveryUnitKey(delivery) === unit)}
+              unitBoard={boardByUnit.get(unit)}
               highlightId={highlightId}
               brand={brand}
               desktop={desktop}

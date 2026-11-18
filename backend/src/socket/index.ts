@@ -6,6 +6,7 @@ import { AuthSessionError, verifyAccessToken, type SafeAuthUser } from '../servi
 import { getRedis } from '../services/redis';
 import { invalidateUserUnitPermissionCache } from '../services/unitPermission';
 import { toPublicQueue, toPublicSlots, type PublicDeliverySource, type PublicSlotSource } from '../domain/publicDeliveryView';
+import { scheduleWaitingBoardRefresh } from '../modules/waitingScreen/waitingBoardRealtime';
 
 let io: SocketServer;
 
@@ -292,6 +293,7 @@ function emitScoped(event: string, payload: unknown, scope?: SocketScope): void 
 // so queue/slot payloads must go through the public allow-list projection.
 export function emitQueueUpdated(queue: PublicDeliverySource[], scope?: SocketScope): void {
   emitScoped('queue_updated', toPublicQueue(queue), scope);
+  scheduleWaitingBoardRefresh(scope?.businessLocationId);
 }
 
 export function emitDeliveryCalled(data: {
@@ -310,6 +312,12 @@ export function emitDeliveryCalled(data: {
 
 export function emitSlotUpdated(slots: PublicSlotSource[], scope?: SocketScope): void {
   emitScoped('slot_updated', toPublicSlots(slots), scope);
+  scheduleWaitingBoardRefresh(scope?.businessLocationId);
+}
+
+/** Waiting-screen TVs only (`waiting-screen:{businessLocationId}` room). */
+export function emitToWaitingScreen(businessLocationId: string, event: string, payload: unknown): void {
+  getIO().to(waitingScreenRoomName(businessLocationId)).emit(event, payload);
 }
 
 export function emitDeliveryCompleted(id: string, scope?: SocketScope): void {

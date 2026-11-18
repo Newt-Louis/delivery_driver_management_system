@@ -1,15 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useRealtimeScope, useSocket } from '../../../context/SocketContext';
 import api from '../../../lib/api';
-import type { PublicQueueDelivery } from '../../../lib/types';
-import { getDeliveryUnitKey, normalizeWaitingScreenDeliveries } from '../utils';
-import type { BrandConfig, UnitKey } from '../types';
+import type { BrandConfig, UnitKey, WaitingBoard, WaitingBoardUnit } from '../types';
 
 export function useWaitingScreen() {
   const socket        = useSocket();
   const realtimeScope = useRealtimeScope();
 
-  const [deliveries, setDeliveries]   = useState<PublicQueueDelivery[]>([]);
+  const [board, setBoard]             = useState<WaitingBoard | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
   const [now, setNow]                 = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -34,7 +32,7 @@ export function useWaitingScreen() {
   }, [realtimeScope]);
 
   useEffect(() => {
-    setDeliveries([]);
+    setBoard(null);
     setHighlightId(null);
     setActiveTab('');
     setBrand(null);
@@ -51,39 +49,44 @@ export function useWaitingScreen() {
     return () => clearInterval(t);
   }, []);
 
-  const fetchQueue = useCallback(async () => {
+  // Board = slot rows (rule R1, one row per capacity place) + next-in-line waiting list, built by the server.
+  const fetchBoard = useCallback(async () => {
     if (!realtimeScope.businessLocationId && !realtimeScope.unitConfigId) return;
     try {
-      const response = await api.get<PublicQueueDelivery[]>('/api/deliveries/queue', { params: realtimeScope });
-      setDeliveries(normalizeWaitingScreenDeliveries(response.data));
+      const response = await api.get<WaitingBoard>('/api/waiting-screen/board', { params: realtimeScope });
+      setBoard(response.data);
     } catch { /* silent */ }
   }, [realtimeScope]);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => { fetchBoard(); }, [fetchBoard]);
 
   useEffect(() => {
-    socket.on('queue_updated', (data: PublicQueueDelivery[]) => {
-      const normalized = normalizeWaitingScreenDeliveries(data);
-      setDeliveries(normalized);
+    // Server pushes the whole (small) board, debounced per location, after any queue/slot change.
+    const onBoard = (data: WaitingBoard) => {
+      setBoard(data);
       setHighlightId((current) => {
         if (!current) return current;
-        return normalized.some((item) => item.id === current) ? current : null;
+        const stillShown = data.units.some((unit) => unit.slotRows.some((row) => row.occupant?.deliveryId === current)
+          || unit.borrowedRows.some((row) => row.occupant.deliveryId === current));
+        return stillShown ? current : null;
       });
-    });
-    socket.on('delivery_called', (data: { id: string }) => {
+    };
+    const onCalled = (data: { id: string }) => {
       setHighlightId(data.id);
-      fetchQueue();
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
       highlightTimerRef.current = setTimeout(() => setHighlightId(null), 14_000);
-    });
-    socket.on('delivery_completed', fetchQueue);
+    };
+    socket.on('waiting_board_updated', onBoard);
+    socket.on('delivery_called', onCalled);
+    // Re-sync after a reconnect: events emitted while offline are lost.
+    socket.on('connect', fetchBoard);
     return () => {
       if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-      socket.off('queue_updated');
-      socket.off('delivery_called');
-      socket.off('delivery_completed');
+      socket.off('waiting_board_updated', onBoard);
+      socket.off('delivery_called', onCalled);
+      socket.off('connect', fetchBoard);
     };
-  }, [socket, fetchQueue]);
+  }, [socket, fetchBoard]);
 
   useEffect(() => {
     const handler = () => setIsFullscreen(!!document.fullscreenElement);
@@ -99,8 +102,12 @@ export function useWaitingScreen() {
   const unitKeys = useMemo(() => {
     const fromBrand = Object.keys(brand?.units ?? {});
     if (fromBrand.length > 0) return fromBrand;
-    return [...new Set(deliveries.map(getDeliveryUnitKey).filter(Boolean))];
-  }, [brand, deliveries]);
+    return board?.units.map((unit) => unit.unit) ?? [];
+  }, [brand, board]);
+  const boardByUnit = useMemo(
+    () => new Map<UnitKey, WaitingBoardUnit>(board?.units.map((unit) => [unit.unit, unit]) ?? []),
+    [board],
+  );
 
   useEffect(() => {
     if (unitKeys.length === 0) return;
@@ -112,16 +119,20 @@ export function useWaitingScreen() {
   const mallLogo  = brand?.mall.logoUrl  ?? null;
   const driverUrl = `${window.location.origin}/register`;
 
-  const totalWaiting   = deliveries.filter((d) => d.status === 'WAITING').length;
-  const totalCalled    = deliveries.filter((d) => d.status === 'CALLED').length;
-  const totalReceiving = 0;
+  const allUnits = board?.units ?? [];
+  const totalWaiting   = allUnits.reduce((sum, unit) => sum + Object.values(unit.waitingTotal).reduce((a, b) => a + (b ?? 0), 0), 0);
+  const totalCalled    = allUnits.reduce((sum, unit) => sum + unit.slotRows.filter((row) => row.state === 'CALLED').length
+    + unit.borrowedRows.filter((row) => row.occupant.status === 'CALLED').length, 0);
+  const totalReceiving = allUnits.reduce((sum, unit) => sum + unit.slotRows.filter((row) => row.state === 'RECEIVING').length
+    + unit.borrowedRows.filter((row) => row.occupant.status !== 'CALLED').length, 0);
 
   const desktopGridStyle = {
     gridTemplateColumns: `repeat(${Math.min(Math.max(unitKeys.length, 1), 3)}, minmax(0, 1fr))`,
   };
 
   return {
-    deliveries,
+    board,
+    boardByUnit,
     highlightId,
     now,
     isFullscreen,

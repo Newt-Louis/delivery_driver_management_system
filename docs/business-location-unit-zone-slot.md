@@ -215,3 +215,18 @@ Các route page lớn của frontend giữ layout gốc trong `frontend/src/page
 - `Slot.goodsPriority` điều khiển thứ tự ưu tiên auto-assign trong phạm vi các loại hàng slot được phép nhận. Nếu cùng một loại hàng, xe có `checkinTime`/số thứ tự sớm hơn được gọi trước.
 - `MAINTENANCE` và `RESERVED` là trạng thái manual.
 - `AVAILABLE` và `OCCUPIED` nên được reconcile từ active deliveries.
+
+## Quy Tắc R1 — Mỗi Xe Một Dòng (Áp Dụng Toàn Hệ Thống)
+
+Khi một màn hình hiển thị tình trạng sức chứa của slot:
+
+- Mỗi **chỗ** của slot (theo `maxCapacity`) là **một dòng**. Slot xe tải 2 chỗ là 2 dòng, slot xe máy 5 chỗ là 5 dòng, dù đang có bao nhiêu xe.
+- Mỗi dòng chứa **tối đa một xe** và có **trạng thái riêng** của xe đó. Dòng không có xe là "Trống".
+- Nhìn số dòng cùng tên slot là biết slot chứa được mấy xe. Tổng số dòng của một đơn vị là tổng sức chứa thật của đơn vị, không phải số slot.
+- "Xe đang chiếm chỗ" = delivery `CALLED`, `RECEIVING` hoặc `AUTO_WAREHOUSE_RECEIVING` có `assignedSlotId` là slot đó (`ACTIVE_SLOT_DELIVERY_STATUSES`).
+- Xe đơn vị khác mượn slot chiếm đúng một dòng ở slot đó (bên cho mượn), và có thêm một dòng riêng ở bên đi mượn. Các chỗ còn lại của slot vẫn nhận xe của chính đơn vị sở hữu.
+- Thứ tự dòng trong một slot chỉ để hiển thị, **không phải chỗ đỗ thật**: dòng có xe trước (xe được gọi trước đứng trước), dòng trống sau.
+- Nếu số xe lớn hơn `maxCapacity` (admin hạ sức chứa khi đang có xe), vẫn hiện đủ mỗi xe một dòng, kèm cảnh báo vượt sức chứa (`overCapacity`).
+- Chỗ trống của slot `MAINTENANCE`/`RESERVED` hiển thị là "Tạm ngưng"; slot `isActive = false` không hiển thị.
+- Xe tải và xe máy luôn tách thành hai nhóm riêng.
+- Nơi áp dụng: waiting screen (`GET /api/waiting-screen/board`, server trải sẵn từng dòng), xem `operational-screens.md`. Dashboard vốn mỗi xe một dòng nên không đổi.
