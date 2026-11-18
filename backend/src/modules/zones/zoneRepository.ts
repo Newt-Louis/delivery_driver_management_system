@@ -30,7 +30,7 @@ export async function listZones(scope?: SocketScope) {
       slots: {
         where: { isActive: true },
         orderBy: [{ vehicleType: 'asc' }],
-        select: { id: true, code: true, name: true, vehicleType: true, assignedUnit: true, status: true, isActive: true },
+        select: { id: true, name: true, vehicleType: true, assignedUnit: true, status: true, isActive: true },
       },
     },
   });

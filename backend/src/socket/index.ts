@@ -5,7 +5,6 @@ import { prisma } from '../lib/prisma';
 import { AuthSessionError, verifyAccessToken, type SafeAuthUser } from '../services/authSession';
 import { getRedis } from '../services/redis';
 import { invalidateUserUnitPermissionCache } from '../services/unitPermission';
-import { toPublicQueue, toPublicSlots, type PublicDeliverySource, type PublicSlotSource } from '../domain/publicDeliveryView';
 import { scheduleWaitingBoardRefresh } from '../modules/waitingScreen/waitingBoardRealtime';
 
 let io: SocketServer;
@@ -289,17 +288,28 @@ function emitScoped(event: string, payload: unknown, scope?: SocketScope): void 
   getIO().to(rooms).emit(event, payload);
 }
 
-// Business-location/unit-config rooms are joinable without login (waiting-screen TVs),
-// so queue/slot payloads must go through the public allow-list projection.
-export function emitQueueUpdated(queue: PublicDeliverySource[], scope?: SocketScope): void {
-  emitScoped('queue_updated', toPublicQueue(queue), scope);
+/**
+ * `queue_updated` / `slot_updated` are change SIGNALS (Việc 6, decision 6c): payload is only
+ * `{ businessLocationId, unitConfigIds, at }`. Clients refetch what they display
+ * (dashboard/docks via REST, waiting screen via `waiting_board_updated`). This avoids reloading
+ * and broadcasting the whole queue (~114 KB at 300 vehicles) and slot list on every action.
+ * Rooms are joinable without login, so never put delivery data here.
+ */
+export type ChangeSignal = { businessLocationId: string | null; unitConfigIds: string[]; at: string };
+
+function changeSignal(scope?: SocketScope): ChangeSignal {
+  const unitConfigIds = [...new Set([scope?.unitConfigId, ...(scope?.unitConfigIds ?? [])].filter((id): id is string => !!id))];
+  return { businessLocationId: scope?.businessLocationId ?? null, unitConfigIds, at: new Date().toISOString() };
+}
+
+export function emitQueueUpdated(scope?: SocketScope): void {
+  emitScoped('queue_updated', changeSignal(scope), scope);
   scheduleWaitingBoardRefresh(scope?.businessLocationId);
 }
 
 export function emitDeliveryCalled(data: {
   id: string;
   vehiclePlate: string;
-  slotCode: string;
   slotName: string;
   message: string;
   receivingUnit?: string;
@@ -310,8 +320,8 @@ export function emitDeliveryCalled(data: {
   emitScoped('delivery_called', data, scope);
 }
 
-export function emitSlotUpdated(slots: PublicSlotSource[], scope?: SocketScope): void {
-  emitScoped('slot_updated', toPublicSlots(slots), scope);
+export function emitSlotUpdated(scope?: SocketScope): void {
+  emitScoped('slot_updated', changeSignal(scope), scope);
   scheduleWaitingBoardRefresh(scope?.businessLocationId);
 }
 

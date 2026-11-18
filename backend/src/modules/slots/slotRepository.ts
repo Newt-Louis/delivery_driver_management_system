@@ -6,6 +6,60 @@ import { compareSlotsForDisplay } from '../../domain/slotCode';
 import { advisoryLockId } from '../deliveries/deliveryRepository';
 import type { CreateSlotPayload, UpdateSlotPayload } from './slotFormRequest';
 
+/**
+ * Slot list payload shared by GET /api/slots, GET /api/slots/all and the `slot_updated` socket
+ * event (which additionally projects deliveries through the public allow-list).
+ * Only fields the docks/Backoffice screens read: no `code` (not displayed), no `currentDeliveryId`;
+ * deliveries carry only what docks and the public projection need.
+ */
+export const SLOT_LIST_SELECT = {
+  id: true,
+  name: true,
+  assignedUnit: true,
+  vehicleType: true,
+  acceptedGoods: true,
+  goodsPriority: true,
+  autoAssign: true,
+  maxCapacity: true,
+  status: true,
+  isActive: true,
+  lastUsedAt: true,
+  zoneId: true,
+  zone: {
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      unitConfig: {
+        select: {
+          id: true, unit: true, displayName: true, shortName: true,
+          icon: true, logoUrl: true, primaryColor: true, businessLocationId: true,
+        },
+      },
+    },
+  },
+  deliveries: {
+    where: { status: { in: ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
+    orderBy: { updatedAt: 'desc' },
+    select: {
+      id: true,
+      status: true,
+      ticketNumber: true,
+      vehiclePlate: true,
+      vehicleType: true,
+      goodsType: true,
+      receivingUnit: true,
+      unitConfigId: true,
+      assignedSlotId: true,
+      vendorName: true,
+      checkinTime: true,
+      calledTime: true,
+      receivingStartTime: true,
+      createdAt: true,
+    },
+  },
+} as const satisfies Prisma.SlotSelect;
+
 export async function listSlotsWithDeliveries(activeOnly = true, scope?: SocketScope) {
   const slots = await prisma.slot.findMany({
     where: {
@@ -18,31 +72,7 @@ export async function listSlotsWithDeliveries(activeOnly = true, scope?: SocketS
         ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
       },
     },
-    include: {
-      zone: {
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          unitConfig: {
-            select: {
-              id: true,
-              unit: true,
-              displayName: true,
-              shortName: true,
-              icon: true,
-              logoUrl: true,
-              primaryColor: true,
-              businessLocationId: true,
-            },
-          },
-        },
-      },
-      deliveries: {
-        where: { status: { in: ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
-        orderBy: { updatedAt: 'desc' },
-      },
-    },
+    select: SLOT_LIST_SELECT,
   });
   return slots.sort(compareSlotsForDisplay);
 }

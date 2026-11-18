@@ -4,12 +4,12 @@ import { formatTicketCode } from '../routes/track';
 import { prisma } from '../lib/prisma';
 import { emitDeliveryCalled, emitQueueUpdated, emitSlotUpdated, type SocketScope } from '../socket';
 import { sendPushToDelivery } from './webPush';
-import { emitTrackUpdatesForQueue } from './trackRealtime';
+import { emitTrackUpdatesForScope } from './trackRealtime';
 import { ACTIVE_SLOT_DELIVERY_STATUSES, isManualSlotStatus, reconcileSlotState } from './slotState';
 import { getScopeForSlot } from './realtimeScope';
 import { recordAuditLog, systemActor } from './auditLog';
 import { countCallHistoryEvents } from '../modules/history/historyRepository';
-import { compareSlotNames, compareSlotsForDisplay } from '../domain/slotCode';
+import { compareSlotNames } from '../domain/slotCode';
 import { recordDeliveryEvent } from '../modules/history/historyService';
 
 type AutoAssignScope = {
@@ -24,96 +24,12 @@ type AssignResult = {
   activeCount: number;
 };
 
-const UNIT_CONFIG_SELECT = {
-  id: true,
-  unit: true,
-  businessLocationId: true,
-  displayName: true,
-  shortName: true,
-  icon: true,
-  logoUrl: true,
-  primaryColor: true,
-} as const;
-
 const DEFAULT_GOODS_PRIORITY: GoodsType[] = [
   GoodsType.FRESH_FOOD,
   GoodsType.GENERAL_GOODS,
   GoodsType.THI_CONG,
   GoodsType.AUTO_WAREHOUSE,
 ];
-
-async function queueWhereForScope(scope?: SocketScope): Promise<Prisma.DeliveryRegistrationWhereInput> {
-  const activeStatus = {
-    in: [
-      DeliveryStatus.WAITING,
-      DeliveryStatus.CALLED,
-      DeliveryStatus.RECEIVING,
-      DeliveryStatus.AUTO_WAREHOUSE_RECEIVING,
-    ],
-  };
-
-  if (!scope?.businessLocationId && !scope?.unitConfigId) {
-    return { status: activeStatus };
-  }
-
-  const unitConfigs = await prisma.unitConfig.findMany({
-    where: {
-      ...(scope.unitConfigId ? { id: scope.unitConfigId } : {}),
-      ...(scope.businessLocationId ? { businessLocationId: scope.businessLocationId } : {}),
-    },
-    select: { id: true },
-  });
-  const unitConfigIds = unitConfigs.map((cfg) => cfg.id);
-
-  if (unitConfigIds.length === 0) {
-    return { id: '__empty_scope__', status: activeStatus };
-  }
-
-  return {
-    status: activeStatus,
-    OR: [
-      { unitConfigId: { in: unitConfigIds } },
-      {
-        assignedSlot: {
-          zone: {
-            unitConfigId: { in: unitConfigIds },
-          },
-        },
-      },
-    ],
-  };
-}
-
-async function getFullQueue(scope?: SocketScope) {
-  return prisma.deliveryRegistration.findMany({
-    where: await queueWhereForScope(scope),
-    include: {
-      unitConfig: { select: UNIT_CONFIG_SELECT },
-      assignedSlot: { include: { zone: { include: { unitConfig: { select: UNIT_CONFIG_SELECT } } } } },
-    },
-    orderBy: [{ checkinTime: 'asc' }],
-  });
-}
-
-async function getAllSlotsWithDeliveries(scope?: SocketScope) {
-  const slots = await prisma.slot.findMany({
-    where: {
-      isActive: true,
-      zone: {
-        ...(scope?.unitConfigId ? { unitConfigId: scope.unitConfigId } : {}),
-        ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
-      },
-    },
-    include: {
-      zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
-      deliveries: {
-        where: { status: { in: ACTIVE_SLOT_DELIVERY_STATUSES } },
-        orderBy: { updatedAt: 'desc' },
-      },
-    },
-  });
-  return slots.sort(compareSlotsForDisplay);
-}
 
 function candidateGoodsForSlot(slot: Slot): GoodsType[] {
   const acceptedGoods = slot.acceptedGoods as GoodsType[];
@@ -269,7 +185,6 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCod
   emitDeliveryCalled({
     id: result.delivery.id,
     vehiclePlate: result.delivery.vehiclePlate,
-    slotCode: result.slot.code,
     slotName: result.slot.name,
     message: result.message,
     receivingUnit: unit,
@@ -293,10 +208,9 @@ async function emitAutoAssignResult(result: AssignResult, unit: ReceivingUnitCod
     url: `/track/${result.delivery.registrationCode}`,
   }).catch(console.error);
 
-  const [queue, slots] = await Promise.all([getFullQueue(scope), getAllSlotsWithDeliveries(scope)]);
-  emitQueueUpdated(queue, scope);
-  emitSlotUpdated(slots, scope);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
+  emitQueueUpdated(scope);
+  emitSlotUpdated(scope);
+  emitTrackUpdatesForScope(scope).catch(console.error);
 }
 
 // Called after check-in or after a delivery completes/cancels.

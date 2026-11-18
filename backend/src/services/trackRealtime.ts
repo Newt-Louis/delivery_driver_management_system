@@ -1,46 +1,61 @@
 import { DeliveryStatus } from '@prisma/client';
 import { prisma } from '../lib/prisma';
-import { getIO, trackRoomName } from '../socket';
+import { getIO, trackRoomName, type SocketScope } from '../socket';
 
-const TRACK_INCLUDE = {
+const TRACK_UNIT_CONFIG_SELECT = {
+  id: true,
+  unit: true,
+  businessLocationId: true,
+  displayName: true,
+  shortName: true,
+  icon: true,
+  logoUrl: true,
+  primaryColor: true,
+} as const;
+
+/**
+ * Track payload (GET /api/track/:code and socket `track_updated`): only fields the track page
+ * (and the queue estimate below) read. Opening it requires the registration code, so the driver's
+ * own name/phone stay, but slot internals and unused delivery columns are not sent.
+ */
+const TRACK_SELECT = {
+  id: true,
+  registrationCode: true,
+  status: true,
+  vehiclePlate: true,
+  vehicleType: true,
+  goodsType: true,
+  autoWarehouse: true,
+  receivingUnit: true,
+  unitConfigId: true,
+  ticketNumber: true,
+  vendorName: true,
+  driverName: true,
+  driverPhone: true,
+  poNumber: true,
+  note: true,
+  requestedTime: true,
+  checkinTime: true,
+  calledTime: true,
+  receivingStartTime: true,
+  completedTime: true,
+  createdAt: true,
+  updatedAt: true,
+  assignedSlotId: true,
   unitConfig: {
     select: {
-      id: true,
-      unit: true,
-      businessLocationId: true,
-      displayName: true,
-      shortName: true,
-      icon: true,
-      logoUrl: true,
-      primaryColor: true,
+      ...TRACK_UNIT_CONFIG_SELECT,
       truckSlotMinutes: true,
       motorbikeSlotMinutes: true,
-      businessLocation: {
-        select: { locationName: true },
-      },
+      businessLocation: { select: { locationName: true } },
     },
   },
   assignedSlot: {
-    include: {
-      zone: {
-        select: {
-          id: true,
-          code: true,
-          name: true,
-          unitConfig: {
-            select: {
-              id: true,
-              unit: true,
-              businessLocationId: true,
-              displayName: true,
-              shortName: true,
-              icon: true,
-              logoUrl: true,
-              primaryColor: true,
-            },
-          },
-        },
-      },
+    select: {
+      id: true,
+      name: true,
+      vehicleType: true,
+      zone: { select: { id: true, code: true, name: true, unitConfig: { select: TRACK_UNIT_CONFIG_SELECT } } },
     },
   },
 } as const;
@@ -49,7 +64,7 @@ export async function getTrackDelivery(registrationCode: string) {
   const code = registrationCode.trim().toUpperCase();
   const delivery = await prisma.deliveryRegistration.findFirst({
     where: { registrationCode: code },
-    include: TRACK_INCLUDE,
+    select: TRACK_SELECT,
   });
   if (!delivery) return null;
 
@@ -164,11 +179,37 @@ export async function emitTrackUpdated(registrationCode: string): Promise<void> 
   getIO().to(trackRoomName(code)).emit('track_updated', payload);
 }
 
-export async function emitTrackUpdatesForQueue(queue: Array<{ registrationCode?: string | null }>): Promise<void> {
-  const codes = new Set<string>();
-  for (const item of queue) {
-    if (item.registrationCode) codes.add(item.registrationCode);
+/**
+ * Refresh track pages after a queue/slot change in `scope`. Only drivers who currently have their
+ * track page open (a local `track:{code}` room) are considered: one query finds which of those codes
+ * are active deliveries of the affected unit(s), then each gets `track_updated`. No listeners → no query.
+ */
+export async function emitTrackUpdatesForScope(scope: SocketScope): Promise<void> {
+  let codes: string[];
+  try {
+    codes = [...getIO().sockets.adapter.rooms.keys()]
+      .filter((room) => room.startsWith('track:'))
+      .map((room) => room.slice('track:'.length));
+  } catch {
+    return;
   }
+  if (codes.length === 0) return;
 
-  await Promise.all([...codes].map((code) => emitTrackUpdated(code)));
+  const unitConfigIds = [...new Set([scope.unitConfigId, ...(scope.unitConfigIds ?? [])].filter((id): id is string => !!id))];
+  const scopeWhere = unitConfigIds.length
+    ? { OR: [{ unitConfigId: { in: unitConfigIds } }, { assignedSlot: { zone: { unitConfigId: { in: unitConfigIds } } } }] }
+    : scope.businessLocationId
+      ? { OR: [{ unitConfig: { businessLocationId: scope.businessLocationId } }, { assignedSlot: { zone: { unitConfig: { businessLocationId: scope.businessLocationId } } } }] }
+      : null;
+  if (!scopeWhere) return;
+
+  const deliveries = await prisma.deliveryRegistration.findMany({
+    where: {
+      registrationCode: { in: codes },
+      status: { in: [DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
+      ...scopeWhere,
+    },
+    select: { registrationCode: true },
+  });
+  await Promise.all(deliveries.map((delivery) => emitTrackUpdated(delivery.registrationCode)));
 }

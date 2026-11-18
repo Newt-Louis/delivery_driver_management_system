@@ -18,7 +18,6 @@ export type UnitKey = string;
 export interface CalledAlert {
   vehiclePlate: string;
   slotName: string;
-  slotCode: string;
   message: string;
   id: string;
   receivingUnit?: string;

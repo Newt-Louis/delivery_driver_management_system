@@ -31,13 +31,17 @@ export function useDashboard() {
     return () => clearInterval(timer);
   }, []);
 
+  // One action emits several signals at once (queue_updated, slot_updated, delivery_called...).
+  // cancelRefetch: false lets them share the request already in flight instead of cancelling and
+  // restarting it each time (was 3 dispatch downloads per action).
   const invalidateAll = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    queryClient.invalidateQueries({ queryKey: ['slots'] });
+    const options = { cancelRefetch: false } as const;
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] }, options);
+    queryClient.invalidateQueries({ queryKey: ['slots'] }, options);
     // Refresh the expanded row's detail panel (only mounted panels refetch).
-    queryClient.invalidateQueries({ queryKey: ['delivery'] });
+    queryClient.invalidateQueries({ queryKey: ['delivery'] }, options);
     // Keep the open "Mượn slot" popup in sync with slot occupancy.
-    queryClient.invalidateQueries({ queryKey: ['borrowable-slots'] });
+    queryClient.invalidateQueries({ queryKey: ['borrowable-slots'] }, options);
   }, [queryClient]);
 
   const { data: summary, isError: summaryError, refetch: retrySummary } = useQuery<DashboardSummary>({

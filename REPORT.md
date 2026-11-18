@@ -455,3 +455,39 @@ Kế hoạch: `PLAN.md` (việc 0 → 6). Thay đổi hợp đồng API ghi ở 
 - Sửa (`frontend/src/index.css`): tăng độ cụ thể selector (`.waiting-unit-tabs .ant-tabs .ant-tabs-nav …`), `display:block !important` cho wrap, list `flex: none; width: max-content; margin-inline: auto` (thay cho `justify-content: center`), ẩn `.ant-tabs-nav-operations` và bóng mép `::before/::after` của Ant.
 - Đã kiểm tra bằng headless Chromium: 360px và 412px không còn nút "...", tab đầu bắt đầu ở 12px (đủ chữ), vuốt hết sang phải thấy đủ tab cuối; 1366px danh sách vẫn căn giữa.
 - Chưa làm: tab đơn vị ở `/dashboard` (`.dashboard-unit-tabs`) dùng mẫu CSS tương tự, chưa kiểm tra có cùng lỗi không.
+
+### 2026-11-18 - Việc 6: Tối Ưu API, Giảm Tải Server, Tài Liệu API Cho App
+
+Quyết định 6c (người dùng chốt 2026-11-18): `queue_updated`/`slot_updated` chỉ gửi tín hiệu, giữ `GET /api/deliveries/queue`.
+
+Đã làm:
+
+- Payload theo bề mặt, thay `include` cả hàng bằng `select` tường minh:
+  - `GET /api/dashboard/dispatch`: `DISPATCH_ACTIVE_SELECT`/`DISPATCH_UPCOMING_SELECT`; bỏ mảng `slots` theo đơn vị (không màn hình nào đọc); `unitConfig` theo dòng chỉ gửi trên dòng mượn slot.
+  - `GET /api/slots`, `/api/slots/all`: `SLOT_LIST_SELECT` dùng chung (bỏ `code`, `currentDeliveryId`, delivery chỉ còn trường docks dùng); gộp 3 hàm dựng danh sách slot trùng lặp về `slotRepository.listSlotsWithDeliveries`.
+  - `GET /api/deliveries/:id`: `findDeliveryDetail` riêng (có `assignedSlot.zone` cho panel); check-in giữ `findDeliveryWithSlot`.
+  - `GET /api/track/:code` + `track_updated`: `TRACK_SELECT` theo trường trang track dùng.
+  - `GET /api/zones`: `slots[]` bỏ `code`. Socket `delivery_called` bỏ `slotCode`.
+- Socket: `emitQueueUpdated(scope)`/`emitSlotUpdated(scope)` chỉ phát tín hiệu `{ businessLocationId, unitConfigIds, at }`; mọi điểm emit (lifecycle, check-in, đăng ký, auto-assign, scheduler, seeding, slot service) không còn tải toàn bộ queue + slot để phát. `emitTrackUpdatesForScope(scope)` thay `emitTrackUpdatesForQueue`: chỉ xét phòng `track:{code}` đang có người nghe, một query lọc mã. Xoá code chết (`getFullQueue`/`getAllSlotsWithDeliveries`/`queueWhereForScope` của autoAssign, `deliveryRepository.getAllSlots`, `toPublicSlot(s)`).
+- Frontend: `invalidateQueries(..., { cancelRefetch: false })` ở dashboard và docks; trước đó mỗi thao tác tải dispatch/slots 3 lần (3 event đến cùng lúc, mỗi lần huỷ và gọi lại request). Type `Slot.code`/`currentDeliveryId` thành optional, bỏ `UnitDispatch.slots`.
+- Tài liệu API cho app: `docs/api/README.md` (quy ước, lỗi, rate limit, trạng thái, số thẻ), `public.md`, `operations.md`, `realtime.md`; `CHANGELOG.md` thêm hai mục Việc 6 (BREAKING). Cập nhật `docs/realtime-socket.md`, `rate-limit-security.md`, `receiving-dashboard-lifecycle.md`, `docs/README.md`.
+
+Số liệu (khu vực PVT, dev; dữ liệu tải lên bằng seeding 3×100 lượt + check-in hàng loạt → 305 xe đang hoạt động: 295 chờ, 10 đã gọi):
+
+| Hạng mục | Trước | Sau |
+|---|---|---|
+| Socket mỗi thao tác gọi lại, mỗi client trong khu vực | `queue_updated` 113.913 B + `slot_updated` 5.682 B | 134 B + 134 B |
+| Thời gian HTTP một lần gọi lại (TB 5 lần) | 57 ms | 34 ms |
+| Dispatch tải lại mỗi thao tác (mỗi dashboard) | 3 lần | 1 lần |
+| `GET /api/dashboard/dispatch` (305 xe) | 265 KB (đã cắt trường, còn `unitConfig` mỗi dòng) | 199 KB |
+| `GET /api/slots` | 16,8 KB (cách cũ, đo read-only) | 12,4 KB |
+| `GET /api/deliveries/queue` / `queue_updated` trước Việc 0 | 471 KB (cách cũ, đo read-only) | 190 KB (REST, rút gọn public) |
+| Dữ liệu nhỏ (5 xe): dispatch / slots / detail / track | 17,1 / 11,6 / 1,44 / 1,94 KB | 10,0 / 9,6 / 1,03 / 1,49 KB |
+
+Đã kiểm tra: build `backend` + `frontend`; `npm run test:concurrency` 16 pass, 0 fail (5 skip có sẵn); Playwright: dashboard (bung dòng), docks, track hiển thị đúng, không lỗi API; dashboard/docks tải lại đúng 1 lần sau một tín hiệu; số thẻ/nhãn đơn vị đúng ở tab "Tất cả" và tab đơn vị sau khi bỏ `unitConfig` theo dòng.
+
+Ghi nhận / chưa làm:
+
+- Dữ liệu dev đã thêm: 300 lượt seeding (đã check-in, auto-assign có gọi một số xe), vài event `RECALLED` do đo đạc. Không tự xoá.
+- Kế hoạch ban đầu ước "200 xe ≈ 800 query mỗi thao tác" cho track là quá cao: `emitTrackUpdated` đã bỏ qua chuyến không có người nghe từ trước; chi phí chỉ tỉ lệ với số tài xế đang mở trang track.
+- Nợ kỹ thuật còn lại: `ticketCode` của `delivery_called` dùng `routes/track.ts#formatTicketCode` (prefix theo mã unit) khác quy tắc hiển thị; `GET /api/deliveries/queue` không kèm `businessLocationId` trả mọi khu vực; trang legacy `DriverView` đọc payload `queue_updated` cũ.

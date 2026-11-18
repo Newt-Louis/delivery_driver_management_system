@@ -6,7 +6,6 @@ import { getVNDateKey, getVNDateRangeUtc } from '../../lib/dateVN';
 import { getCallHistoryCounts } from '../history/historyRepository';
 import { normalizeVehiclePlate } from '../../domain/vehiclePlate';
 import { normalizeDriverPhone } from '../../domain/driverPhone';
-import { compareSlotsForDisplay } from '../../domain/slotCode';
 
 const DELIVERY_UNIT_CONFIG_SELECT = {
   id: true,
@@ -200,28 +199,6 @@ export async function getFullQueue(scope?: SocketScope) {
   return attachCallCounts(deliveries);
 }
 
-export async function getAllSlots(scope?: SocketScope) {
-  const slots = await prisma.slot.findMany({
-    where: {
-      isActive: true,
-      zone: {
-        ...(scope?.unitConfigIds
-          ? { unitConfigId: scope.unitConfigIds.length > 0 ? { in: scope.unitConfigIds } : '__NO_UNIT_SCOPE__' }
-          : {}),
-        ...(scope?.unitConfigId && !scope.unitConfigIds ? { unitConfigId: scope.unitConfigId } : {}),
-        ...(scope?.businessLocationId ? { unitConfig: { businessLocationId: scope.businessLocationId } } : {}),
-      },
-    },
-    include: {
-      zone: { select: { id: true, code: true, name: true, unitConfig: { select: { id: true, unit: true, businessLocationId: true } } } },
-      deliveries: {
-        where: { status: { in: ['WAITING', 'CALLED', 'RECEIVING', 'AUTO_WAREHOUSE_RECEIVING'] } },
-        orderBy: { updatedAt: 'desc' },
-      },
-    },
-  });
-  return slots.sort(compareSlotsForDisplay);
-}
 
 export async function listDeliveries(args: {
   unit?: ReceivingUnitCode;
@@ -313,6 +290,44 @@ export function findDeliveryByLookup(args: { registrationCode?: string; vehicleP
     },
     orderBy: { createdAt: 'desc' },
     include: { assignedSlot: true, unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT } },
+  });
+}
+
+/**
+ * GET /api/deliveries/:id (dashboard detail panel). Explicit fields only; includes the slot's zone
+ * (panel shows "slot (zone code)") but not slot internals.
+ */
+export function findDeliveryDetail(id: string) {
+  return prisma.deliveryRegistration.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      registrationCode: true,
+      status: true,
+      ticketNumber: true,
+      vehiclePlate: true,
+      vehicleType: true,
+      goodsType: true,
+      receivingUnit: true,
+      unitConfigId: true,
+      assignedSlotId: true,
+      vendorName: true,
+      driverName: true,
+      driverPhone: true,
+      poNumber: true,
+      note: true,
+      cancelReason: true,
+      requestedTime: true,
+      createdAt: true,
+      checkinTime: true,
+      calledTime: true,
+      receivingStartTime: true,
+      completedTime: true,
+      unitConfig: { select: DELIVERY_UNIT_CONFIG_SELECT },
+      assignedSlot: {
+        select: { id: true, name: true, vehicleType: true, zone: { select: { id: true, code: true, name: true } } },
+      },
+    },
   });
 }
 

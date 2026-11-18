@@ -162,6 +162,59 @@ router.get('/summary', authenticate, enforceScope, requireRole('SUPERADMIN', 'AD
   });
 }));
 
+// Explicit field lists for GET /api/dashboard/dispatch (see docs/api). Only what the dashboard,
+// CSV export, filters and server-side insights read. Never `include` whole rows here.
+const DISPATCH_UNIT_CONFIG_SELECT = {
+  id: true, unit: true, displayName: true, shortName: true,
+  icon: true, logoUrl: true, primaryColor: true, businessLocationId: true,
+} as const;
+
+const DISPATCH_ACTIVE_SELECT = {
+  id: true,
+  registrationCode: true,
+  status: true,
+  ticketNumber: true,
+  vehiclePlate: true,
+  vehicleType: true,
+  goodsType: true,
+  receivingUnit: true,
+  unitConfigId: true,
+  assignedSlotId: true,
+  vendorName: true,
+  driverName: true,
+  driverPhone: true,
+  poNumber: true,
+  requestedTime: true,
+  checkinTime: true,
+  calledTime: true,
+  receivingStartTime: true,
+  createdAt: true,
+  unitConfig: { select: DISPATCH_UNIT_CONFIG_SELECT },
+  assignedSlot: {
+    select: {
+      id: true,
+      name: true,
+      vehicleType: true,
+      zone: { select: { id: true, code: true, name: true, unitConfigId: true, unitConfig: { select: DISPATCH_UNIT_CONFIG_SELECT } } },
+    },
+  },
+} as const;
+
+const DISPATCH_UPCOMING_SELECT = {
+  id: true,
+  registrationCode: true,
+  status: true,
+  ticketNumber: true,
+  vehiclePlate: true,
+  vehicleType: true,
+  goodsType: true,
+  receivingUnit: true,
+  unitConfigId: true,
+  vendorName: true,
+  requestedTime: true,
+  createdAt: true,
+} as const;
+
 // GET /api/dashboard/dispatch
 router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'ADMIN_LOC', 'ADMIN_OPE', 'RECEIVING'), asyncHandler(async (req: Request, res: Response) => {
   const units = await resolveDashboardUnits(req);
@@ -175,29 +228,7 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
       where: scopedDeliveryWhere(units, {
         status: { in: [DeliveryStatus.WAITING, DeliveryStatus.CALLED, DeliveryStatus.RECEIVING, DeliveryStatus.AUTO_WAREHOUSE_RECEIVING] },
       }),
-      include: {
-        unitConfig: {
-          select: {
-            id: true, unit: true, displayName: true, shortName: true,
-            icon: true, logoUrl: true, primaryColor: true, businessLocationId: true,
-          },
-        },
-        assignedSlot: {
-          include: {
-            zone: {
-              include: {
-                // Never `unitConfig: true`: UnitConfig carries vendorApiKey/poApiKey.
-                unitConfig: {
-                  select: {
-                    id: true, unit: true, displayName: true, shortName: true,
-                    icon: true, logoUrl: true, primaryColor: true, businessLocationId: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      select: DISPATCH_ACTIVE_SELECT,
       orderBy: [{ checkinTime: 'asc' }],
     }),
     prisma.deliveryRegistration.findMany({
@@ -208,10 +239,13 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
           { createdAt: { gte: todayStart }, requestedTime: null },
         ],
       }),
+      select: DISPATCH_UPCOMING_SELECT,
       orderBy: [{ requestedTime: 'asc' }, { createdAt: 'asc' }],
     }),
+    // Only what insights/recommendations need; the slot list itself is no longer returned.
     prisma.slot.findMany({
       where: scopedSlotWhere(units, { isActive: true }),
+      select: { id: true, name: true, assignedUnit: true, vehicleType: true, status: true },
     }).then((slots) => slots.sort(compareSlotsForDisplay)),
   ]);
 
@@ -230,6 +264,18 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
         : null,
     };
   });
+  // Own-unit rows repeat the tab's UnitConfig (`[unit].unitConfig`) on every row (~22% of the payload
+  // at 300 rows). Only borrowed-slot rows need their own unitConfig / slot-owner unitConfig, because
+  // there the delivery's unit and the slot's unit differ from each other.
+  const compactOwnRow = (delivery: (typeof activeWithCallCounts)[number]) => {
+    if (delivery.slotBorrow) return delivery;
+    const { unitConfig: _unitConfig, assignedSlot, ...rest } = delivery;
+    void _unitConfig;
+    if (!assignedSlot) return { ...rest, assignedSlot };
+    const { unitConfig: _zoneUnitConfig, ...zone } = assignedSlot.zone;
+    void _zoneUnitConfig;
+    return { ...rest, assignedSlot: { ...assignedSlot, zone } };
+  };
   // Units the requester may operate/see in full on this dashboard.
   const visibleUnitIds = new Set(units.map((unit) => unit.id));
   const toLentSlotRow = (delivery: (typeof activeWithCallCounts)[number]) => (
@@ -359,10 +405,9 @@ router.get('/dispatch', authenticate, enforceScope, requireRole('SUPERADMIN', 'A
 
     result[unit] = {
       unitConfig,
-      active,
+      active: active.map(compactOwnRow),
       lentSlotRows,
       upcoming,
-      slots,
       insights: {
         alerts,
         recommendations,

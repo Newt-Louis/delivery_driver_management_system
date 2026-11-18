@@ -438,9 +438,7 @@ async function seedLocation(
     for (const unit of unitSummaries) {
       if (unit.created === 0) continue;
       const scope = { businessLocationId: location.id, unitConfigId: unit.unitConfigId };
-      deliveryRepository.getFullQueue(scope)
-        .then((queue) => emitQueueUpdated(queue, scope))
-        .catch((error) => console.error('Failed to emit seeding queue update:', error));
+      emitQueueUpdated(scope);
     }
 
     return {

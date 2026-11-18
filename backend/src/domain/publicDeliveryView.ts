@@ -1,7 +1,7 @@
 /**
- * Public-safe projections for payloads that reach unauthenticated clients:
- * `GET /api/deliveries/queue` and the `queue_updated` / `slot_updated` socket events
- * (the business-location and unit-config rooms are joinable without login, e.g. waiting-screen TVs).
+ * Public-safe projection of a delivery for payloads that may reach clients without full permission:
+ * `GET /api/deliveries/queue` (public) and dispatch `lentSlotRows` with `detailRestricted: true`.
+ * (`queue_updated` / `slot_updated` carry no delivery data since Việc 6.)
  *
  * Keep these as explicit allow-lists. Never spread a delivery/slot row into a public payload:
  * driver name/phone, vendor, PO, note and registrationCode (the /track/:code key) must not leak.
@@ -42,6 +42,9 @@ type SlotSource = {
   zone?: ZoneSource | null;
 };
 
+/** The only slot fields a public delivery exposes. */
+type DeliverySlotSource = Pick<SlotSource, 'id' | 'name' | 'vehicleType' | 'zone'>;
+
 export type PublicDeliverySource = {
   id: string;
   status: string;
@@ -58,11 +61,7 @@ export type PublicDeliverySource = {
   createdAt: DateLike;
   callCount?: number;
   unitConfig?: UnitConfigSource | null;
-  assignedSlot?: SlotSource | null;
-};
-
-export type PublicSlotSource = SlotSource & {
-  deliveries?: PublicDeliverySource[];
+  assignedSlot?: DeliverySlotSource | null;
 };
 
 function publicUnitConfig(unitConfig: UnitConfigSource | null | undefined) {
@@ -90,7 +89,7 @@ function publicZone(zone: ZoneSource | null | undefined) {
   };
 }
 
-function publicSlotSummary(slot: SlotSource | null | undefined) {
+function publicSlotSummary(slot: DeliverySlotSource | null | undefined) {
   if (!slot) return slot ?? null;
   return {
     id: slot.id,
@@ -123,25 +122,4 @@ export function toPublicDelivery(delivery: PublicDeliverySource) {
 
 export function toPublicQueue(queue: PublicDeliverySource[]) {
   return queue.map(toPublicDelivery);
-}
-
-export function toPublicSlot(slot: PublicSlotSource) {
-  return {
-    id: slot.id,
-    name: slot.name,
-    code: slot.code,
-    vehicleType: slot.vehicleType,
-    status: slot.status,
-    assignedUnit: slot.assignedUnit,
-    zoneId: slot.zoneId,
-    maxCapacity: slot.maxCapacity,
-    isActive: slot.isActive,
-    autoAssign: slot.autoAssign,
-    zone: publicZone(slot.zone),
-    deliveries: slot.deliveries?.map(toPublicDelivery),
-  };
-}
-
-export function toPublicSlots(slots: PublicSlotSource[]) {
-  return slots.map(toPublicSlot);
 }

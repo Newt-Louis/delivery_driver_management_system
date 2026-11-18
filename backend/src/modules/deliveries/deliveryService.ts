@@ -14,7 +14,7 @@ import { getScopeForDelivery } from '../../services/realtimeScope';
 import { roleHasUnitOperationScope } from '../../domain/permissions';
 import { assertCanAccessOperationalLocation } from '../../domain/permissionAssertions';
 import { reserveRegistrationCode } from '../../services/registrationSequence';
-import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
+import { emitTrackUpdated, emitTrackUpdatesForScope } from '../../services/trackRealtime';
 import { getUserUnitPermissions } from '../../services/unitPermission';
 import { sendPushToDelivery } from '../../services/webPush';
 import { formatTicketCode } from '../../routes/track';
@@ -340,9 +340,7 @@ export async function registerDelivery(body: RegisterDeliveryPayload, context: R
   const unitIds = new Set([unitConfig.id, result.previousUnitConfigId].filter((id): id is string => Boolean(id)));
   for (const unitConfigId of unitIds) {
     const changedScope = { ...scope, unitConfigId };
-    deliveryRepository.getFullQueue(changedScope)
-      .then((queue) => emitQueueUpdated(queue, changedScope))
-      .catch((error) => console.error('Failed to emit registration queue update:', error));
+    emitQueueUpdated(changedScope);
   }
   return result.delivery;
 }
@@ -424,7 +422,6 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
 
   if (checkInResult.checkedIn) {
     const scope = await getScopeForDelivery(updated);
-    const queue = await deliveryRepository.getFullQueue(scope);
     await recordAuditLog({
       ...userActor(user),
       action: 'delivery.check_in',
@@ -448,8 +445,8 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
       title: 'Check-in thành công', body: `Xe ${updated.vehiclePlate} đã vào hàng chờ.`,
       url: `/track/${updated.registrationCode}`,
     }).catch(console.error);
-    emitQueueUpdated(queue, scope);
-    emitTrackUpdatesForQueue(queue).catch(console.error);
+    emitQueueUpdated(scope);
+    emitTrackUpdatesForScope(scope).catch(console.error);
     triggerAutoAssign(updated.receivingUnit, scope).catch(console.error);
   }
 
@@ -457,7 +454,7 @@ export async function checkInLookup(body: CheckInLookupPayload, user: AuthUser |
 }
 
 export async function getDeliveryDetails(id: string, user: AuthUser | undefined) {
-  const delivery = await deliveryRepository.findDeliveryWithSlot(id);
+  const delivery = await deliveryRepository.findDeliveryDetail(id);
   if (!delivery) throw domainError.notFound('Not found');
 
   await ensureDeliveryAccess(user, delivery, 'checkin');
@@ -500,7 +497,6 @@ export async function checkInById(id: string, user: AuthUser | undefined, body: 
 
   if (checkInResult.checkedIn) {
     const scope = await getScopeForDelivery(updated);
-    const queue = await deliveryRepository.getFullQueue(scope);
     await recordAuditLog({
       ...userActor(user),
       action: 'delivery.check_in',
@@ -524,8 +520,8 @@ export async function checkInById(id: string, user: AuthUser | undefined, body: 
       title: 'Check-in thành công', body: `Xe ${updated.vehiclePlate} đã vào hàng chờ.`,
       url: `/track/${updated.registrationCode}`,
     }).catch(console.error);
-    emitQueueUpdated(queue, scope);
-    emitTrackUpdatesForQueue(queue).catch(console.error);
+    emitQueueUpdated(scope);
+    emitTrackUpdatesForScope(scope).catch(console.error);
     triggerAutoAssign(updated.receivingUnit, scope).catch(console.error);
   }
   return updated;
@@ -680,14 +676,9 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
         source: 'deliveries.manual-call',
       },
     });
-    const [queue, slots] = await Promise.all([
-      deliveryRepository.getFullQueue(scope),
-      deliveryRepository.getAllSlots(scope),
-    ]);
     emitDeliveryCalled({
       id: delivery.id,
       vehiclePlate: delivery.vehiclePlate,
-      slotCode: slot.code,
       slotName: slot.name,
       message,
       receivingUnit: delivery.receivingUnit,
@@ -696,9 +687,9 @@ export async function callDelivery(id: string, slotId: string, user: AuthUser | 
         ? formatTicketCode(delivery.receivingUnit, delivery.vehicleType, delivery.ticketNumber)
         : undefined,
     }, scope);
-    emitQueueUpdated(queue, scope);
-    emitSlotUpdated(slots, scope);
-    emitTrackUpdatesForQueue(queue).catch(console.error);
+    emitQueueUpdated(scope);
+    emitSlotUpdated(scope);
+    emitTrackUpdatesForScope(scope).catch(console.error);
     sendPushToDelivery(delivery.registrationCode, {
       status: 'CALLED', occurredAt: result.notificationOccurredAt.toISOString(),
       title: `Mời xe vào ${slot.name}`,
@@ -735,7 +726,6 @@ export async function startReceiving(id: string, user: AuthUser | undefined) {
   });
 
   const scope = await getScopeForDelivery(updated);
-  const queue = await deliveryRepository.getFullQueue(scope);
   await recordAuditLog({
     ...userActor(user),
     action: 'delivery.start_receiving',
@@ -753,8 +743,8 @@ export async function startReceiving(id: string, user: AuthUser | undefined) {
     },
     metadata: { source: 'deliveries.start-receiving' },
   });
-  emitQueueUpdated(queue, scope);
-  emitTrackUpdatesForQueue(queue).catch(console.error);
+  emitQueueUpdated(scope);
+  emitTrackUpdatesForScope(scope).catch(console.error);
 
   const slotName = updated.assignedSlot?.name ?? 'dock';
   sendPushToDelivery(delivery.registrationCode, {
@@ -781,10 +771,6 @@ export async function complete(id: string, user: AuthUser | undefined) {
   }
 
   const scope = await getScopeForDelivery(result.delivery);
-  const [queue, slots] = await Promise.all([
-    deliveryRepository.getFullQueue(scope),
-    deliveryRepository.getAllSlots(scope),
-  ]);
   if (result.changed) {
     await recordAuditLog({
       ...userActor(user),
@@ -805,10 +791,10 @@ export async function complete(id: string, user: AuthUser | undefined) {
       },
     });
     emitDeliveryCompleted(id, scope);
-    emitQueueUpdated(queue, scope);
-    emitSlotUpdated(slots, scope);
+    emitQueueUpdated(scope);
+    emitSlotUpdated(scope);
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
-    emitTrackUpdatesForQueue(queue).catch(console.error);
+    emitTrackUpdatesForScope(scope).catch(console.error);
     await archiveDelivery({
       deliveryId: result.delivery.id,
       finalStatus: DeliveryHistoryFinalStatus.COMPLETED,
@@ -844,10 +830,6 @@ export async function cancel(id: string, reason: string, user: AuthUser | undefi
   }
 
   const scope = await getScopeForDelivery(result.delivery);
-  const [queue, slots] = await Promise.all([
-    deliveryRepository.getFullQueue(scope),
-    deliveryRepository.getAllSlots(scope),
-  ]);
   if (result.changed) {
     await recordAuditLog({
       ...userActor(user),
@@ -868,10 +850,10 @@ export async function cancel(id: string, reason: string, user: AuthUser | undefi
         source: 'deliveries.cancel',
       },
     });
-    emitQueueUpdated(queue, scope);
-    emitSlotUpdated(slots, scope);
+    emitQueueUpdated(scope);
+    emitSlotUpdated(scope);
     emitTrackUpdated(result.delivery.registrationCode).catch(console.error);
-    emitTrackUpdatesForQueue(queue).catch(console.error);
+    emitTrackUpdatesForScope(scope).catch(console.error);
     sendPushToDelivery(result.delivery.registrationCode, {
       status: 'CANCELLED', occurredAt: result.delivery.updatedAt.toISOString(),
       title: 'Lượt giao hàng đã hủy',

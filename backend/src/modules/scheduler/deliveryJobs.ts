@@ -14,7 +14,7 @@ import { recordAuditLog, systemActor } from '../../services/auditLog';
 import { triggerAutoAssignForReleasedSlot } from '../../services/autoAssign';
 import { cancelDelivery } from '../../services/deliveryLifecycle';
 import { getScopeForDelivery } from '../../services/realtimeScope';
-import { emitTrackUpdated, emitTrackUpdatesForQueue } from '../../services/trackRealtime';
+import { emitTrackUpdated, emitTrackUpdatesForScope } from '../../services/trackRealtime';
 import { sendPushToDelivery } from '../../services/webPush';
 import { archiveDelivery, archiveDeliveryInTransaction } from '../history/archiveService';
 import { startSchedulerJobHistory, finishSchedulerJobHistory } from './jobHistory';
@@ -365,13 +365,9 @@ export async function autoCancelCalledNoShowDeliveries(args: {
   }
 
   for (const scope of affectedScopes.values()) {
-    const [queue, slots] = await Promise.all([
-      deliveryRepository.getFullQueue(scope),
-      deliveryRepository.getAllSlots(scope),
-    ]);
-    emitQueueUpdated(queue, scope);
-    emitSlotUpdated(slots, scope);
-    emitTrackUpdatesForQueue(queue).catch(console.error);
+    emitQueueUpdated(scope);
+    emitSlotUpdated(scope);
+    emitTrackUpdatesForScope(scope).catch(console.error);
   }
 
   await finishSchedulerJobHistory({

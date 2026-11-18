@@ -10,6 +10,62 @@ Quy ước:
 
 ---
 
+## 2026-11-18 — Socket chỉ gửi tín hiệu, dispatch gọn hơn (Việc 6, phần 2)
+
+Tài liệu đầy đủ hiện hành: [README.md](README.md), [public.md](public.md), [operations.md](operations.md), [realtime.md](realtime.md).
+
+### BREAKING — socket `queue_updated`, `slot_updated`
+
+Không còn mang dữ liệu (thay cho định dạng ở mục Việc 0 và Việc 6 phần 1). Payload chỉ là tín hiệu:
+
+```json
+{ "businessLocationId": "…", "unitConfigIds": ["…"], "at": "2026-11-18T02:00:00.000Z" }
+```
+
+App nhận tín hiệu thì gọi lại REST đang hiển thị (`GET /api/dashboard/dispatch`, `GET /api/slots`, …); TV dùng `waiting_board_updated`. Lý do: trước đây mỗi thao tác phát khoảng 114 KB (`queue_updated`, 300 xe) + 5,7 KB (`slot_updated`) tới mọi client trong khu vực.
+
+### BREAKING — `GET /api/dashboard/dispatch`: `unitConfig` theo dòng
+
+`[unit].active[].unitConfig` và `[unit].active[].assignedSlot.zone.unitConfig` **chỉ còn trên dòng mượn slot** (`slotBorrow != null`). Dòng bình thường lấy đơn vị từ `[unit].unitConfig` (giống hệt). `lentSlotRows[]` vẫn có `unitConfig`. Thay cho mô tả ở mục Việc 4.
+
+### Không đổi
+
+`GET /api/deliveries/queue` giữ nguyên dạng rút gọn public (quyết định 6c: chỉ đổi socket).
+
+---
+
+## 2026-11-18 — Cắt trường không dùng khỏi API (Việc 6, phần 1)
+
+Các endpoint dưới đây chuyển từ "trả cả hàng database" sang danh sách trường cố định. Trường không có trong danh sách **không còn được trả**.
+
+### BREAKING — `GET /api/dashboard/dispatch`
+
+- **Bỏ** `[unit].slots` (danh sách slot của đơn vị). Popup chọn slot dùng `GET /api/deliveries/:id/borrowable-slots`; thống kê slot vẫn có trong `[unit].insights.stats`.
+- `[unit].active[]` chỉ còn: `id`, `registrationCode`, `status`, `ticketNumber`, `vehiclePlate`, `vehicleType`, `goodsType`, `receivingUnit`, `unitConfigId`, `assignedSlotId`, `vendorName`, `driverName`, `driverPhone`, `poNumber`, `requestedTime`, `checkinTime`, `calledTime`, `receivingStartTime`, `createdAt`, `callCount`, `slotBorrow`, `unitConfig`, `assignedSlot { id, name, vehicleType, zone { id, code, name, unitConfigId, unitConfig } }`.
+  - Đã bỏ: `vendorCode`, `note`, `cancelReason`, `completedTime`, `autoWarehouse`, `originalGoodsType`, `unitGoodsTypeId`, `updatedAt` và các cột khác; trong `assignedSlot` bỏ `code`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `maxCapacity`, `status`, `isActive`, `currentDeliveryId`, `lastUsedAt`.
+  - Cần các trường đã bỏ của một chuyến thì gọi `GET /api/deliveries/:id`.
+- `[unit].upcoming[]` chỉ còn: `id`, `registrationCode`, `status`, `ticketNumber`, `vehiclePlate`, `vehicleType`, `goodsType`, `receivingUnit`, `unitConfigId`, `vendorName`, `requestedTime`, `createdAt`.
+
+### BREAKING — `GET /api/slots`, `GET /api/slots/all`, socket `slot_updated`
+
+- Mỗi slot: `id`, `name`, `assignedUnit`, `vehicleType`, `acceptedGoods`, `goodsPriority`, `autoAssign`, `maxCapacity`, `status`, `isActive`, `lastUsedAt`, `zoneId`, `zone { id, code, name, unitConfig }`, `deliveries[]`. **Bỏ** `code`, `currentDeliveryId`.
+- `deliveries[]` (REST, cần đăng nhập): `id`, `status`, `ticketNumber`, `vehiclePlate`, `vehicleType`, `goodsType`, `receivingUnit`, `unitConfigId`, `assignedSlotId`, `vendorName`, `checkinTime`, `calledTime`, `receivingStartTime`, `createdAt`. Socket `slot_updated` vẫn chiếu tiếp qua allow-list public (không có `vendorName`).
+- `GET /api/zones`: `slots[]` bỏ `code`.
+
+### BREAKING — `GET /api/deliveries/:id`
+
+Chỉ còn: `id`, `registrationCode`, `status`, `ticketNumber`, `vehiclePlate`, `vehicleType`, `goodsType`, `receivingUnit`, `unitConfigId`, `assignedSlotId`, `vendorName`, `driverName`, `driverPhone`, `poNumber`, `note`, `cancelReason`, `requestedTime`, `createdAt`, `checkinTime`, `calledTime`, `receivingStartTime`, `completedTime`, `callCount`, `unitConfig`, `assignedSlot { id, name, vehicleType, zone { id, code, name } }` (mới có `zone`). Bỏ các cột còn lại (`vendorCode`, `autoWarehouse`, `originalGoodsType`, `unitGoodsTypeId`, `updatedAt`, …) và cột nội bộ của slot.
+
+### BREAKING — `GET /api/track/:code`, socket `track_updated`
+
+Chỉ còn: `id`, `registrationCode`, `status`, `vehiclePlate`, `vehicleType`, `goodsType`, `autoWarehouse`, `receivingUnit`, `unitConfigId`, `ticketNumber`, `vendorName`, `driverName`, `driverPhone`, `poNumber`, `note`, `requestedTime`, `checkinTime`, `calledTime`, `receivingStartTime`, `completedTime`, `createdAt`, `updatedAt`, `assignedSlotId`, `unitConfig { …, truckSlotMinutes, motorbikeSlotMinutes, businessLocation { locationName } }`, `assignedSlot { id, name, vehicleType, zone { id, code, name, unitConfig } }`, cùng các trường tính sẵn `notificationCalledAt`, `locationName`, `queueInfo`. Bỏ `vendorCode`, `cancelReason`, `originalGoodsType`, `unitGoodsTypeId` và cột nội bộ của slot.
+
+### BREAKING — socket `delivery_called`
+
+Bỏ `slotCode`. Dùng `slotName` để hiển thị.
+
+---
+
 ## 2026-11-18 — Bảng tình trạng vị trí cho waiting screen (Việc 5)
 
 ### Mới — `GET /api/waiting-screen/board` (public)

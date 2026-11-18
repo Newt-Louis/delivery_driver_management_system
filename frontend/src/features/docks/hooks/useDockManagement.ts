@@ -20,8 +20,9 @@ export function useDockManagement() {
     enabled: !!user?.businessLocationId,
   });
 
+  // Several signals arrive together per action; share the in-flight request instead of restarting it.
   const refreshSlots = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ['slots'] });
+    queryClient.invalidateQueries({ queryKey: ['slots'] }, { cancelRefetch: false });
   }, [queryClient]);
 
   useEffect(() => {

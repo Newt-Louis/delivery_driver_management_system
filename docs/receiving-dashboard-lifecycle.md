@@ -156,7 +156,7 @@ Quy tắc: **đơn vị** của một dòng là đơn vị tài xế giao hàng 
 
 Backend (`GET /api/dashboard/dispatch`):
 
-- Mỗi dòng có `unitConfig` của chính xe (select an toàn) và `slotBorrow: { lenderUnitConfigId, borrowerUnitConfigId } | null` (khác null khi `assignedSlot.zone.unitConfigId !== delivery.unitConfigId`).
+- Mỗi dòng có `slotBorrow: { lenderUnitConfigId, borrowerUnitConfigId } | null` (khác null khi `assignedSlot.zone.unitConfigId !== delivery.unitConfigId`). `unitConfig` của xe và `assignedSlot.zone.unitConfig` chỉ được gửi trên dòng mượn slot; dòng bình thường dùng `[unit].unitConfig` (bỏ khoảng 22% payload ở 300 xe). Dispatch dùng `select` tường minh (`DISPATCH_ACTIVE_SELECT`, `DISPATCH_UPCOMING_SELECT`), không còn trả mảng `slots` theo đơn vị.
 - `active` của một đơn vị chỉ gồm xe của đơn vị đó (kể cả xe đang mượn slot đơn vị khác). Badge tab, thống kê, cảnh báo và gợi ý AI chỉ tính `active`.
 - `lentSlotRows` của một đơn vị: xe đơn vị khác đang chiếm slot của đơn vị này, có `isLentSlotRow: true`. Nếu người xem có quyền trên đơn vị của xe (đơn vị đó nằm trong danh sách tab của họ) thì dòng đầy đủ (`detailRestricted: false`); nếu không, dòng chỉ còn dạng rút gọn `toPublicDelivery` (biển số, số thẻ, đơn vị, vị trí, loại xe/hàng, trạng thái, thời gian) và `detailRestricted: true`.
 

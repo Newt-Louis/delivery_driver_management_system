@@ -75,7 +75,8 @@ export interface Zone {
 
 export interface Slot {
   id: string;
-  code: string;
+  /** Internal code; no longer returned by /api/slots, slot_updated or dispatch (Việc 6). */
+  code?: string;
   name: string;
   assignedUnit: ReceivingUnit;
   vehicleType: VehicleType;
@@ -85,7 +86,8 @@ export interface Slot {
   maxCapacity: number;
   status: SlotStatus;
   isActive: boolean;
-  currentDeliveryId: string | null;
+  /** Not returned by slot list APIs (unused). */
+  currentDeliveryId?: string | null;
   lastUsedAt: string | null;
   zoneId: string;
   zone: {
@@ -94,6 +96,7 @@ export interface Slot {
     name: string;
     unitConfig?: Pick<UnitConfig, 'id' | 'unit' | 'displayName' | 'shortName' | 'icon' | 'logoUrl' | 'primaryColor' | 'businessLocationId'>;
   } | null;
+  /** Slot list APIs return only a subset of delivery fields (see docs/api). */
   deliveries?: DeliveryRegistration[];
 }
 
@@ -304,7 +307,6 @@ export interface UnitDispatch {
   /** Other units' deliveries occupying this unit's slots ("Mượn slot"), shown read-only. */
   lentSlotRows?: DeliveryRegistration[];
   upcoming: DeliveryRegistration[];
-  slots: Slot[];
   insights: UnitInsight;
 }
 

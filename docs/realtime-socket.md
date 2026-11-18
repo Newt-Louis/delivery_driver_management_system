@@ -29,9 +29,9 @@ Events client -> server:
 
 Events server -> client:
 
-- `queue_updated`: mảng delivery đang hoạt động, dạng public rút gọn (`toPublicQueue`).
+- `queue_updated`: **tín hiệu** `{ businessLocationId, unitConfigIds, at }`, không mang dữ liệu (từ Việc 6). Client tự gọi lại REST.
 - `delivery_called`
-- `slot_updated`: mảng slot đang hoạt động; `deliveries[]` trong slot cũng là dạng public rút gọn (`toPublicSlots`).
+- `slot_updated`: **tín hiệu** cùng dạng `queue_updated`.
 - `waiting_board_updated`: board của waiting screen (`buildWaitingBoard`), chỉ phát vào `waiting-screen:{businessLocationId}`, gom 400 ms theo khu vực. `emitQueueUpdated()`/`emitSlotUpdated()` tự lên lịch phát, nên mọi luồng thay đổi queue/slot đều kích hoạt.
 - `delivery_completed`
 - `track_updated`
@@ -45,13 +45,13 @@ Hàm chính:
 - `unitConfigRoomName()`
 - `dashboardRoomName()`
 - `waitingScreenRoomName()`
-- `emitQueueUpdated(queue, scope)`
+- `emitQueueUpdated(scope)`
 - `emitDeliveryCalled(data, scope)`
-- `emitSlotUpdated(slots, scope)`
+- `emitSlotUpdated(scope)`
 - `emitDeliveryCompleted(id, scope)`
 - `trackRoomName(registrationCode)`
 - `emitTrackUpdated(registrationCode)`
-- `emitTrackUpdatesForQueue(queue)`
+- `emitTrackUpdatesForScope(scope)`: chỉ xét các phòng `track:{code}` đang có người nghe trên server này; một query lọc mã còn hoạt động trong đơn vị bị ảnh hưởng rồi phát `track_updated`. Không ai nghe thì không query.
 
 ## Frontend
 
@@ -79,8 +79,9 @@ File:
 - Với socket dashboard/docks, backend xác thực token rồi suy ra BusinessLocation từ session. Role có unit permission chỉ join các `unit-config:{id}` được cấp, không join room toàn location.
 - Payload có BusinessLocation/UnitConfig khác auth scope bị từ chối. Event thiếu scope bị bỏ qua, không broadcast global.
 - Track room public chỉ theo `registrationCode`; dashboard/docks room yêu cầu token hợp lệ khi join.
-- Phòng `business-location:{id}` và `unit-config:{id}` join được **không cần đăng nhập** (waiting screen public dùng `realtime:join` không có token). Vì vậy mọi payload phát vào các phòng này phải là dữ liệu public. `emitQueueUpdated()` và `emitSlotUpdated()` tự chiếu payload qua `domain/publicDeliveryView.ts`; dữ liệu nội bộ (ví dụ `registrationCode` cho `emitTrackUpdatesForQueue`) vẫn dùng bản đầy đủ phía server, không gửi ra client.
-- Dashboard và docks chỉ dùng `queue_updated`/`slot_updated` làm tín hiệu invalidate/tải lại, không đọc payload.
+- Phòng `business-location:{id}` và `unit-config:{id}` join được **không cần đăng nhập** (waiting screen public dùng `realtime:join` không có token). Vì vậy mọi payload phát vào các phòng này phải là dữ liệu public. `queue_updated`/`slot_updated` chỉ là tín hiệu nên không chứa dữ liệu chuyến.
+- Dashboard và docks dùng `queue_updated`/`slot_updated`/`delivery_called`/`delivery_completed` làm tín hiệu invalidate React Query với `cancelRefetch: false`, để các event đến cùng lúc dùng chung một request (trước đó mỗi thao tác tải dispatch 3 lần).
+- Hợp đồng event cho app: `docs/api/realtime.md`.
 - Xe mượn slot ("Mượn slot"): `getScopeForDelivery()` trả `unitConfigId` = đơn vị sở hữu slot và `unitConfigIds` = [đơn vị slot, đơn vị của xe], nên event phát vào phòng `unit-config` của **cả hai** đơn vị. Nhân sự chỉ có quyền một đơn vị (chỉ join phòng unit của mình) vẫn nhận realtime khi xe của mình ở slot đơn vị khác, hoặc khi slot của mình bị mượn.
 - Thay đổi định dạng payload ghi trong `docs/api/CHANGELOG.md`.
 

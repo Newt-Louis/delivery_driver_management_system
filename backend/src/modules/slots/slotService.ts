@@ -37,7 +37,7 @@ async function generateSlotCode(tx: Prisma.TransactionClient, zone: { id: string
 }
 
 async function emitSlotList(scope?: SocketScope) {
-  emitSlotUpdated(await slotRepository.listSlotsWithDeliveries(true, scope), scope);
+  emitSlotUpdated(scope);
 }
 
 export function listSlots(activeOnly: boolean, scope?: SocketScope, user?: AuthUser) {
