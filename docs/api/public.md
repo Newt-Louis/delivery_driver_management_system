@@ -47,7 +47,10 @@ Tra cứu nhà cung cấp / PO / mã đơn qua tích hợp của đơn vị, ph�
 
 ### `POST /api/deliveries/quick-verify`
 
-Body `{ "code": "<mã PO hoặc mã Thi Công>" }`. Kiểm tra mã cho luồng đăng ký nhanh; trả token xác minh dùng ở `quickVerificationToken` khi đăng ký.
+Body `{ "code": "<mã PO hoặc mã Thi Công>", "businessLocationId": "<khu vực tài xế đã chọn>" }`, cả hai bắt buộc (thiếu → `400 Validation Error`). Kiểm tra mã với API bên thứ 3; trả token xác minh dùng ở `quickVerificationToken` khi đăng ký.
+
+- Khu vực của mã (từ bên thứ 3) khác `businessLocationId` → `404 { "error": "OrderCodeNotFoundInLocation", "message": "Mã PO không tồn tại." }` (hoặc "Mã Thi Công không tồn tại."). Không cấp token. App hiển thị `message`.
+- App phải bắt tài xế chọn khu vực (`GET /api/units/public/business-locations`) trước khi cho kiểm tra mã.
 
 ### `POST /api/deliveries/manual-registration-code`
 
@@ -64,7 +67,8 @@ HTTP 201. Body:
 | `vehicleType` | có | `TRUCK` \| `MOTORBIKE` |
 | `receivingUnit` | có | mã đơn vị |
 | `goodsType` | có | `GoodsType` |
-| `businessLocationId` hoặc `unitConfigId` | nên có | xác định khu vực/đơn vị |
+| `businessLocationId` | **có** | khu vực tài xế đã chọn. Đăng ký nhanh: phải trùng khu vực trong token, khác → `404 OrderCodeNotFoundInLocation` |
+| `unitConfigId` | nên có | đơn vị thuộc khu vực trên |
 | `driverName`, `vendorName`, `vendorCode`, `poNumber`, `note`, `unitGoodsTypeId` | không | |
 | `deliveryDate` | không | `YYYY-MM-DD`; hệ thống chỉ vận hành trong ngày |
 | `quickVerificationToken` | khi đăng ký nhanh | từ `quick-verify` |

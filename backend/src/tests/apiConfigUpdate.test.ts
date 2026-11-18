@@ -5,7 +5,7 @@ import { SuperadminFormRequest } from '../modules/superadmin/superadminFormReque
 
 const existing = { key: 'api.settings.po_verify', isRuntimeEditable: true, value: {
   endpoint: 'https://example.test', method: 'POST', auth: { type: 'bearer', header: 'Authorization: Bearer secret' },
-  payload_defaults: { BUKRS: 'VN01' }, code_key: 'code', site_location_map: { '1001': 'PVT' },
+  payload_defaults: { channel: 'DMS' }, code_key: 'code', site_location_map: { '1001': 'PVT' },
 } };
 
 test('changing the key preserves fields and credentials omitted by the masked form', () => {

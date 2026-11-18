@@ -10,6 +10,24 @@ Quy ước:
 
 ---
 
+## 2026-11-18 — Đăng ký phải theo khu vực tài xế đã chọn (Việc 7)
+
+### BREAKING — `POST /api/deliveries/quick-verify`
+
+- Body bắt buộc thêm `businessLocationId` (khu vực tài xế đã chọn). Thiếu → `400 Validation Error`.
+- Nếu khu vực của mã do bên thứ 3 trả về khác `businessLocationId` → `404 { "error": "OrderCodeNotFoundInLocation", "message": "Mã PO không tồn tại." | "Mã Thi Công không tồn tại." }`, không cấp `verificationToken`.
+
+### BREAKING — `POST /api/deliveries/register`
+
+- `businessLocationId` **bắt buộc** (trước đây tuỳ chọn; thiếu thì server tự lấy khu vực đầu tiên). Thiếu → `400 Validation Error`.
+- Đăng ký nhanh (`quickVerificationToken`): `businessLocationId` phải trùng khu vực đã xác thực trong token, khác → `404 OrderCodeNotFoundInLocation` như trên.
+
+### Nội bộ — gọi API kiểm tra PO
+
+Backend bỏ trường mã công ty mặc định trong request gửi sang API kiểm tra PO của bên thứ 3 (bên thứ 3 xác nhận không còn dùng). Request PO chỉ còn `EBELN = <mã PO>`. Không ảnh hưởng app.
+
+---
+
 ## 2026-11-18 — Socket chỉ gửi tín hiệu, dispatch gọn hơn (Việc 6, phần 2)
 
 Tài liệu đầy đủ hiện hành: [README.md](README.md), [public.md](public.md), [operations.md](operations.md), [realtime.md](realtime.md).

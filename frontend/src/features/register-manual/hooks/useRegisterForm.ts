@@ -1,6 +1,6 @@
 import { Form } from 'antd';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { usePublicBusinessLocation } from '../../../context/PublicBusinessLocationContext';
+import { useRegistrationLocation } from './useRegistrationLocation';
 import type { UnitConfig, UnitGoodsType } from '../../../lib/types';
 import {
   checkAutoWarehouseVendor,
@@ -43,7 +43,10 @@ function scrollToTopMostError(errorFields: ErrorField[]) {
 }
 
 export function useRegisterForm() {
-  const { selectedBusinessLocationId, selectedBusinessLocation } = usePublicBusinessLocation();
+  // Header selection, or the account location for logged-in staff (see useRegistrationLocation).
+  const registrationLocation = useRegistrationLocation();
+  const selectedBusinessLocationId = registrationLocation.businessLocationId;
+  const [locationPromptOpen, setLocationPromptOpen] = useState(false);
   const [antForm] = Form.useForm<FormState>();
   const toast = useToast();
   const [step, setStep] = useState(1);
@@ -374,6 +377,13 @@ export function useRegisterForm() {
   }
 
   async function submit() {
+    // "Hoàn tất đăng ký" guard: never send without the selected location (the backend also requires it
+    // and checks the unit belongs to it).
+    if (!selectedBusinessLocationId || form.businessLocationId !== selectedBusinessLocationId) {
+      if (registrationLocation.canSelect) setLocationPromptOpen(true);
+      else toast.error('Tài khoản chưa có khu vực vận hành.');
+      return;
+    }
     if (!(await validateStep())) return;
     // Sửa loại xe từ màn review sẽ quay thẳng về review, bỏ qua bước biển số.
     const plateMessage = vehiclePlateError(form.vehiclePlate, form.vehicleType);
@@ -420,7 +430,7 @@ export function useRegisterForm() {
         goodsTypeName: res.goodsType !== 'AUTO_WAREHOUSE' && selectedCustomType ? `${selectedCustomType.emoji} ${selectedCustomType.name}` : '',
         vehicleType: form.vehicleType,
         requestedTime: form.deliveryDate.split('-').reverse().join('/'),
-        locationName: selectedBusinessLocation?.locationName ?? '',
+        locationName: registrationLocation.locationName,
       });
     } catch (err: unknown) {
       const d = (err as { response?: { data?: { message?: string; error?: string } } })?.response?.data;
@@ -466,6 +476,9 @@ export function useRegisterForm() {
   }, [set]);
 
   return {
+    registrationLocation,
+    locationPromptOpen,
+    closeLocationPrompt: () => setLocationPromptOpen(false),
     antForm,
     step,
     submitting,

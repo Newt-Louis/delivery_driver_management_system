@@ -43,19 +43,22 @@ test('PO and construction verification resolve location aliases and reject ambig
   });
 
   const { verifyQuickRegistrationCode, verifyQuickRegistrationToken } = require('../modules/deliveries/quickRegistrationService.ts');
-  const po = await verifyQuickRegistrationCode('4500000001');
+  const po = await verifyQuickRegistrationCode('4500000001', 'location-sal');
   assert.equal(po.businessLocationId, 'location-sal');
   assert.equal(po.businessLocationCode, 'SAL');
   assert.equal(po.unitConfigId, 'emart');
   assert.equal(verifyQuickRegistrationToken(po.verificationToken).businessLocationId, 'location-sal');
-  const construction = await verifyQuickRegistrationCode('ABCDE');
+  const construction = await verifyQuickRegistrationCode('ABCDE', 'location-sal');
   assert.equal(construction.businessLocationId, 'location-sal');
   assert.equal(construction.unitConfigId, 'hall');
+  // A code that belongs to another location than the driver's selection reads as "not existing".
+  await assert.rejects(() => verifyQuickRegistrationCode('4500000001', 'location-other'), { code: 'OrderCodeNotFoundInLocation', message: 'Mã PO không tồn tại.' });
+  await assert.rejects(() => verifyQuickRegistrationCode('ABCDE', 'location-other'), { code: 'OrderCodeNotFoundInLocation', message: 'Mã Thi Công không tồn tại.' });
   constructionDates = { approvedStartDate: '2000-01-01', approvedEndDate: '2000-01-02' };
-  await assert.rejects(() => verifyQuickRegistrationCode('ABCDE'), { code: 'ConstructionDateNotToday' });
+  await assert.rejects(() => verifyQuickRegistrationCode('ABCDE', 'location-sal'), { code: 'ConstructionDateNotToday' });
   constructionDates = { approvedStartDate: getVNDateKey(), approvedEndDate: getVNDateKey() };
 
   locations = [...locations, { id: 'location-sala', code: 'SALA', locationName: 'Duplicate' }];
-  await assert.rejects(() => verifyQuickRegistrationCode('4500000001'), { code: 'LocationCodeAmbiguous' });
-  await assert.rejects(() => verifyQuickRegistrationCode('ABCDE'), { code: 'LocationCodeAmbiguous' });
+  await assert.rejects(() => verifyQuickRegistrationCode('4500000001', 'location-sal'), { code: 'LocationCodeAmbiguous' });
+  await assert.rejects(() => verifyQuickRegistrationCode('ABCDE', 'location-sal'), { code: 'LocationCodeAmbiguous' });
 });

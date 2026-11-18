@@ -2,7 +2,7 @@ import { ArrowLeftOutlined, ArrowRightOutlined, EnvironmentOutlined, SendOutline
 import { Alert, Button, Card, Form, Steps, theme, Typography } from 'antd';
 import type { CSSProperties } from 'react';
 import { useBranding } from '../context/BrandingContext';
-import { usePublicBusinessLocation } from '../context/PublicBusinessLocationContext';
+import BusinessLocationSelectorModal from '../components/BusinessLocationSelectorModal';
 import { useThemeMode } from '../context/ThemeModeContext';
 import SuccessScreen from '../features/register-manual/components/SuccessScreen';
 import { REGISTER_FORM_NAME, STEP_HINTS, STEP_TITLES } from '../features/register-manual/constants';
@@ -18,7 +18,6 @@ export default function RegisterManual() {
   const { token } = theme.useToken();
   const { mode } = useThemeMode();
   const { units: brandUnits } = useBranding();
-  const { selectedBusinessLocation, isLoading: publicLocationLoading, error: publicLocationError } = usePublicBusinessLocation();
   const {
     antForm, step, submitting, submitError, success, form, rememberInfo, setRememberInfo,
     publicUnits, publicUnitsLoading, publicUnitsMsg, unitConfig, customGoodsTypes,
@@ -26,11 +25,14 @@ export default function RegisterManual() {
     vehicleAvailabilityLoading, sundayFreshFoodBlocked, awStatus, awVendorName,
     contentRef, set, handleValuesChange, retryManualReferenceCode,
     next, back, editStepFromReview, submit, resetForm,
+    registrationLocation, locationPromptOpen, closeLocationPrompt,
   } = register;
+  const publicLocationLoading = registrationLocation.isLoading;
+  const publicLocationError = registrationLocation.error;
 
   if (success) return <SuccessScreen info={success} onReset={resetForm} />;
 
-  const selectedLocationName = selectedBusinessLocation?.locationName ?? '';
+  const selectedLocationName = registrationLocation.locationName;
   const progressStyle = {
     '--register-step-finish-color': mode === 'dark' ? token.colorSuccessHover : token.colorSuccess,
     '--register-step-finish-icon-color': token.colorTextLightSolid,
@@ -62,7 +64,7 @@ export default function RegisterManual() {
               type="info"
               showIcon
               title="Hãy chọn khu vực giao hàng"
-              description={publicLocationError ?? 'Dùng nút chọn khu vực ở góc dưới phải trước khi tiếp tục đăng ký.'}
+              description={publicLocationError ?? 'Chọn khu vực ở thanh tiêu đề (góc trên bên trái) trước khi tiếp tục đăng ký.'}
             />
           )}
 
@@ -80,6 +82,18 @@ export default function RegisterManual() {
           </div>
         </div>
       </Card>
+
+      <BusinessLocationSelectorModal
+        open={locationPromptOpen && registrationLocation.canSelect}
+        title="Chọn khu vực giao hàng"
+        description="Vui lòng chọn khu vực giao hàng trước khi hoàn tất đăng ký."
+        locations={registrationLocation.locations}
+        currentId={registrationLocation.businessLocationId}
+        loading={registrationLocation.isLoading}
+        error={registrationLocation.error}
+        onSelect={(id) => { registrationLocation.selectLocation(id); closeLocationPrompt(); }}
+        onClose={closeLocationPrompt}
+      />
     </main>
   );
 }

@@ -41,7 +41,7 @@ router.post('/register', publicWriteLimiter, asyncHandler(async (req, res) => {
 // POST /api/deliveries/quick-verify
 router.post('/quick-verify', publicWriteLimiter, asyncHandler(async (req, res) => {
   const body = DeliveryFormRequest.parseQuickVerify(req.body);
-  await respond(res, verifyQuickRegistrationCode(body.code));
+  await respond(res, verifyQuickRegistrationCode(body.code, body.businessLocationId));
 }));
 
 // POST /api/deliveries/manual-registration-code — reference code for one manual registration session

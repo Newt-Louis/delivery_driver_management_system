@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { GoodsType } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { getRawAppConfig } from '../../services/appConfig';
-import { domainError } from '../shared/domainError';
+import { DomainError, domainError } from '../shared/domainError';
 import { externalVerificationHttpError } from './externalVerificationError';
 import { getVNDateKey } from '../../lib/dateVN';
 import { assertConstructionDateRange, assertPoDateIsToday } from './quickRegistrationPolicy';
@@ -53,7 +53,6 @@ type QuickVerificationPayload = {
 const PO_CONFIG_KEY = 'api.settings.po_verify';
 const CONSTRUCTION_CONFIG_KEY = 'api.settings.thi_cong_verify';
 const PO_CODE_KEY = 'EBELN';
-const PO_DEFAULT_BUKRS = 'VN01';
 const PO_UNIT_CODE = 'EMART';
 
 const EMPTY_200_MESSAGE = 'Đã có lỗi trong quá trình kiểm tra, vui lòng liên hệ bộ phận phát triển';
@@ -179,7 +178,6 @@ function buildPayload(config: ApiConfig, kind: QuickRegistrationKind, code: stri
     payload[codeKey] = requestCode;
   }
   if (kind === 'PO') {
-    payload.BUKRS = PO_DEFAULT_BUKRS;
     payload[PO_CODE_KEY] = requestCode;
   }
 
@@ -478,12 +476,29 @@ async function normalizeConstruction(code: string, body: unknown): Promise<Norma
   });
 }
 
-export async function verifyQuickRegistrationCode(inputCode: string): Promise<NormalizedQuickRegistration> {
+/** Same wording the partner uses for an unknown code, so a code of another location reads the same. */
+export function orderCodeNotFoundInLocation(kind: QuickRegistrationKind) {
+  return new DomainError(
+    'not_found',
+    kind === 'PO' ? 'Mã PO không tồn tại.' : 'Mã Thi Công không tồn tại.',
+    'OrderCodeNotFoundInLocation',
+  );
+}
+
+/**
+ * Verify a PO / Thi Công code with the partner API, then require that the location the partner
+ * resolves (PO site code / Thi Công scope) is the location the driver selected. A code of another
+ * location is reported as not existing (404 OrderCodeNotFoundInLocation) and no token is issued.
+ */
+export async function verifyQuickRegistrationCode(inputCode: string, selectedBusinessLocationId: string): Promise<NormalizedQuickRegistration> {
   const code = stripCodeWhitespace(inputCode);
   if (!code) throw domainError.badRequest('Vui lòng nhập mã PO hoặc mã Thi Công.');
 
   const kind = classifyCode(code);
   const body = await callExternalApi(kind, code);
-  if (kind === 'PO') return normalizePo(code, body);
-  return normalizeConstruction(code, body);
+  const result = kind === 'PO' ? await normalizePo(code, body) : await normalizeConstruction(code, body);
+  if (result.businessLocationId !== selectedBusinessLocationId) {
+    throw orderCodeNotFoundInLocation(kind);
+  }
+  return result;
 }

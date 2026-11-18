@@ -126,7 +126,7 @@ export async function createManualRegistrationCode(): Promise<{ code: string; de
   return res.data;
 }
 
-export async function quickVerifyOrderCode(code: string): Promise<QuickVerifyResponse> {
-  const res = await api.post('/api/deliveries/quick-verify', { code });
+export async function quickVerifyOrderCode(code: string, businessLocationId: string): Promise<QuickVerifyResponse> {
+  const res = await api.post('/api/deliveries/quick-verify', { code, businessLocationId });
   return res.data;
 }

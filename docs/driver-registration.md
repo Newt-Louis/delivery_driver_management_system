@@ -51,6 +51,9 @@ Trang đăng ký `/register` hiện có:
   - PO: 10 chữ số, bắt đầu bằng `450`, không có khoảng trắng.
   - Thi Công: đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số, không có khoảng trắng.
 - Step 1 gọi `POST /api/deliveries/quick-verify` để backend kiểm tra mã bằng API bên thứ 3 theo cấu hình trong `app_configs`.
+- **Khu vực bắt buộc (Việc 7):** đăng ký nhanh dùng khu vực đã chọn trên header (`useRegistrationLocation`). Chưa chọn khu vực mà bấm "Kiểm tra" thì hiện lỗi đỏ ngay dưới ô mã (chặn phía frontend, không toast, không gọi API). Đã chọn thì gửi `businessLocationId` cùng mã; backend so khu vực bên thứ 3 trả về với khu vực đã chọn, khác nhau thì trả `404 OrderCodeNotFoundInLocation` "Mã PO không tồn tại." / "Mã Thi Công không tồn tại." và frontend hiện toast (không gợi ý đăng ký thủ công).
+- "Hoàn tất đăng ký" (cả nhanh và thủ công) kiểm tra lại: chưa có khu vực thì bật popup chọn khu vực (`BusinessLocationSelectorModal`); đăng ký nhanh mà khu vực đã chọn khác khu vực của mã thì toast "Mã … không tồn tại." và quay về bước nhập mã. Backend `register` bắt buộc `businessLocationId`, và với đăng ký nhanh còn so khu vực trong token xác thực với `businessLocationId` gửi lên (khác → cùng lỗi 404), chống payload bị sửa sau khi xác thực.
+- Nhân sự đã đăng nhập (trừ `SUPERADMIN`) không đổi được khu vực trên header; trang đăng ký dùng khu vực của tài khoản. Route public dành cho tài xế; nhân sự cần đăng ký hộ thì dùng trình duyệt khác hoặc tab ẩn danh.
 - Step 2 PO nhập thông tin tài xế/xe/NCC và chọn xe tải hoặc xe máy, mặc định xe tải; ngày từ API PO phải là ngày hiện tại theo giờ Việt Nam. Số điện thoại, biển số và loại xe là bắt buộc.
 - Step 2 Thi Công nhập thông tin tài xế/xe/NCC, chọn loại xe (mặc định xe tải) và loại hàng; ngày giao là ngày hiện tại do backend xác định theo giờ Việt Nam, không chọn ngày trên lịch.
 - Ở step 2 của cả PO và Thi Công, mã NCC có gợi ý theo khu vực/đơn vị đã xác thực. Chọn gợi ý điền cả mã và tên; NCC không có trong danh sách vẫn có thể nhập tự do. Thông tin NCC do API bên thứ ba trả về tiếp tục được điền sẵn.
@@ -73,7 +76,7 @@ Logic trong `useRegisterForm.ts`:
 - Lấy vehicle availability: `GET /api/units/:unit/vehicle-availability?businessLocationId=...&unitConfigId=...`.
 - Có slot vận hành thì tài xế chọn được cả `TRUCK` và `MOTORBIKE`; số vị trí và sức chứa trả về là tổng dùng chung của đơn vị, không khẳng định slot chỉ nhận loại xe đó. Khi đăng ký, loại xe là bắt buộc và không còn giá trị `OTHER`.
 - Lấy ngày giao hàng: `POST /api/deliveries/manual-registration-code` trả `deliveryDate` theo ngày Việt Nam của server; mã tạo kèm không được dùng trong wizard.
-- Submit: `POST /api/deliveries/register` với `businessLocationId`, `unitConfigId`, unit code snapshot và `deliveryDate`; backend kiểm tra ngày hiện tại và tự lưu `requestedTime` tại `00:00` giờ Việt Nam nếu payload không gửi giờ. Nếu client không gửi ngày, backend tự dùng ngày hiện tại.
+- Submit: `POST /api/deliveries/register` với `businessLocationId` (bắt buộc; không còn tự chọn khu vực mặc định khi thiếu), `unitConfigId`, unit code snapshot và `deliveryDate`; backend kiểm tra ngày hiện tại và tự lưu `requestedTime` tại `00:00` giờ Việt Nam nếu payload không gửi giờ. Nếu client không gửi ngày, backend tự dùng ngày hiện tại.
 - Các field của wizard là `Form.Item name + rules` của antd trong một `Form` dùng chung (`REGISTER_FORM_NAME`); nhóm thẻ chọn (đơn vị, loại hàng, phương tiện) và ngày giao được bọc bằng `FormFieldSlot` để dùng chung rules/trạng thái lỗi.
 - Nút **Tiếp theo**/**Hoàn tất đăng ký** luôn hiển thị. Khi bấm, `antForm.validateFields()` kiểm tra các field đang hiển thị của step; field lỗi được viền đỏ và hiện dòng lỗi đỏ ngay bên dưới, trang cuộn tới field lỗi nằm cao nhất (input text được focus).
 - State `form` trong `useRegisterForm` vẫn là nguồn dữ liệu chính cho các effect gọi API: giá trị người dùng nhập đi vào state qua `onValuesChange`; thay đổi lập trình (chọn thẻ, quét mã, reset, dữ liệu API) được đẩy ngược vào antd form và xóa lỗi của field đó.
@@ -157,14 +160,14 @@ Service:
 Endpoint verify:
 
 - `POST /api/deliveries/quick-verify`
-- Body: `{ "code": "..." }`
+- Body: `{ "code": "...", "businessLocationId": "..." }` (cả hai bắt buộc; mã phải thuộc đúng khu vực, xem trên).
 - Backend tự phân loại mã:
   - `PO` nếu mã có đúng 10 chữ số và bắt đầu bằng `450`.
   - `Thi Công` nếu mã có đúng 5 ký tự chữ/số, có ít nhất một chữ và không được toàn số.
 - Backend đọc config theo key cố định:
   - PO: `api.settings.po_verify`.
   - Thi Công: `api.settings.thi_cong_verify`.
-- Config không được hardcode endpoint hoặc credential trong source. Giá trị request cố định nên nằm trong `payload`, `payload_defaults` hoặc `payloadDefaults` của `app_configs`, riêng PO hiện backend luôn ép `BUKRS = VN01` và `EBELN = <mã PO tài xế nhập>`.
+- Config không được hardcode endpoint hoặc credential trong source. Giá trị request cố định nên nằm trong `payload`, `payload_defaults` hoặc `payloadDefaults` của `app_configs`, riêng PO backend luôn ép `EBELN = <mã PO tài xế nhập>`.
 - Auth lấy từ `value.auth.header` trong `app_configs`.
 - Backend log response thật của API bên thứ 3 để đối chiếu trong giai đoạn tích hợp.
 - Backend không trả raw response của bên thứ 3 xuống frontend; frontend chỉ nhận dữ liệu đã chuẩn hóa.

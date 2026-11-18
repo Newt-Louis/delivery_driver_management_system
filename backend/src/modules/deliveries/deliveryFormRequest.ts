@@ -9,7 +9,8 @@ const registerSchema = z.object({
   vehiclePlate: z.string().min(1, 'Biển số xe bắt buộc'),
   vehicleType: z.enum([VehicleType.TRUCK, VehicleType.MOTORBIKE]),
   receivingUnit: z.string().trim().min(1).transform((value) => value.toUpperCase()),
-  businessLocationId: z.string().min(1).optional(),
+  // Khu vực tài xế đã chọn trên header. Bắt buộc: không còn fallback về khu vực mặc định.
+  businessLocationId: z.string().trim().min(1, 'Vui lòng chọn khu vực giao hàng'),
   unitConfigId: z.string().min(1).optional(),
   goodsType: z.nativeEnum(GoodsType),
   unitGoodsTypeId: z.string().optional(),
@@ -25,6 +26,8 @@ const registerSchema = z.object({
 
 const quickVerifySchema = z.object({
   code: z.string().min(1, 'Vui lòng nhập mã PO hoặc mã Thi Công'),
+  // Khu vực tài xế đã chọn; mã phải thuộc đúng khu vực này.
+  businessLocationId: z.string().trim().min(1, 'Vui lòng chọn khu vực giao hàng'),
 });
 
 const checkInLookupSchema = z.object({

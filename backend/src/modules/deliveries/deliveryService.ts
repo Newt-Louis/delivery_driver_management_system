@@ -26,7 +26,7 @@ import { detectRegistrationDevice, truncateUserAgent, type RegistrationRequestCo
 import * as registrationHistoryRepository from '../registrationHistory/registrationHistoryRepository';
 import { isValidVehiclePlate, vehiclePlateFormatMessage } from '../../domain/vehiclePlate';
 import { DRIVER_PHONE_FORMAT_MESSAGE, isValidDriverPhone } from '../../domain/driverPhone';
-import { verifyQuickRegistrationToken } from './quickRegistrationService';
+import { orderCodeNotFoundInLocation, verifyQuickRegistrationToken } from './quickRegistrationService';
 import { assertQuickRegistrationDate, assertRegistrationDateIsToday, requiresQuickVerification } from './quickRegistrationPolicy';
 import { generateManualRegistrationCode } from './manualRegistrationCode';
 import type { CheckInLookupPayload, RegisterDeliveryPayload } from './deliveryFormRequest';
@@ -191,6 +191,11 @@ export async function registerDelivery(body: RegisterDeliveryPayload, context: R
   const requestedTime = parseRequestedTime(body.requestedTime, deliveryDate);
   assertRegistrationDateIsToday(deliveryDate, requestedTime);
   if (quickVerification) assertQuickRegistrationDate(body.deliveryDate, requestedTime, quickVerification.deliveryDate);
+  // Quick registration: the verified code must belong to the location sent now (the driver's
+  // selection). Guards against payloads edited after verification (devtools, Postman...).
+  if (quickVerification && quickVerification.businessLocationId !== body.businessLocationId) {
+    throw orderCodeNotFoundInLocation(quickVerification.kind);
+  }
   const unitConfig = await deliveryRepository.resolveRegistrationUnitConfig({
     receivingUnit: body.receivingUnit,
     unitConfigId: body.unitConfigId,

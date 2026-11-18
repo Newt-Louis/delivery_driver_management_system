@@ -491,3 +491,21 @@ Ghi nhận / chưa làm:
 - Dữ liệu dev đã thêm: 300 lượt seeding (đã check-in, auto-assign có gọi một số xe), vài event `RECALLED` do đo đạc. Không tự xoá.
 - Kế hoạch ban đầu ước "200 xe ≈ 800 query mỗi thao tác" cho track là quá cao: `emitTrackUpdated` đã bỏ qua chuyến không có người nghe từ trước; chi phí chỉ tỉ lệ với số tài xế đang mở trang track.
 - Nợ kỹ thuật còn lại: `ticketCode` của `delivery_called` dùng `routes/track.ts#formatTicketCode` (prefix theo mã unit) khác quy tắc hiển thị; `GET /api/deliveries/queue` không kèm `businessLocationId` trả mọi khu vực; trang legacy `DriverView` đọc payload `queue_updated` cũ.
+
+### 2026-11-18 - Việc 7: Đăng Ký Theo Khu Vực Đã Chọn Và Bỏ Trường Mã Công Ty Của API PO
+
+Quyết định người dùng: 7a chưa chọn khu vực → lỗi đỏ dưới ô mã, không toast, không popup; đã chọn → gửi kèm `quick-verify`, backend so khu vực, lệch → 4xx + toast. 7b chặn thêm ở "Hoàn tất đăng ký" (chống sửa payload). 7c nhân sự đăng nhập dùng khu vực tài khoản.
+
+- Backend:
+  - `quick-verify`: `businessLocationId` bắt buộc; `verifyQuickRegistrationCode(code, businessLocationId)` so khu vực bên thứ 3 trả về với khu vực đã chọn, lệch → `404 OrderCodeNotFoundInLocation` "Mã PO không tồn tại." / "Mã Thi Công không tồn tại.", không cấp token.
+  - `register`: `businessLocationId` bắt buộc (bỏ đường fallback về khu vực hoạt động đầu tiên khi thiếu); đăng ký nhanh mà token khác khu vực gửi lên → cùng lỗi 404.
+  - Bỏ hằng số và đoạn ép trường mã công ty mặc định trong request kiểm tra PO (`quickRegistrationService.ts`); test fixture `apiConfigUpdate.test.ts` đổi sang giá trị trung tính.
+- Frontend:
+  - Hook mới `features/register-manual/hooks/useRegistrationLocation.ts`: khu vực header, hoặc khu vực tài khoản cho nhân sự đăng nhập không phải `SUPERADMIN`.
+  - `/register`: lỗi inline dưới ô mã khi chưa chọn khu vực; gửi `businessLocationId` khi kiểm tra mã và khi đăng ký; "Hoàn tất" bật `BusinessLocationSelectorModal` nếu mất khu vực, lệch khu vực thì toast "Mã … không tồn tại." và về bước 1.
+  - `/register-manual`: `useRegisterForm` dùng hook trên; "Hoàn tất" bật popup nếu chưa có khu vực; sửa câu hướng dẫn "góc dưới phải" thành vị trí đúng trên thanh tiêu đề.
+- Tài liệu: `docs/driver-registration.md`, `docs/app-config-advanced-auth.md` (ví dụ cấu hình và quy tắc PO), `docs/api/public.md`, `docs/api/CHANGELOG.md` (BREAKING cho `quick-verify` và `register`).
+- Đã kiểm tra: build `backend` + `frontend`; `npm run test:location-codes` 8/8 (thêm 2 ca lệch khu vực PO/Thi Công); `apiConfigUpdate` + `registrationSupersede` 8/8; API thật: thiếu khu vực → 400 ở cả hai endpoint, có khu vực → gọi được API bên thứ 3; Playwright: chưa chọn khu vực → lỗi inline, 0 request; có khu vực → request mang `businessLocationId`; câu hướng dẫn `/register-manual` đúng. Repo (kể cả `backend/dist`, tài liệu) không còn tên trường đã bỏ.
+- Chưa làm được:
+  - Chưa chạy trọn luồng mã hợp lệ hôm nay → đăng ký (không có mã PO/Thi Công thật cho ngày hôm nay); nhánh lệch khu vực được kiểm tra bằng unit test.
+  - Cấu hình `api.settings.po_verify` trong DB dev vẫn có `payload_keys` chứa tên trường đã bỏ (viết sai chính tả) cùng `ELBELN` (sai chính tả của `EBELN`). Agent không được phép đăng nhập Superadmin để sửa; người dùng cần sửa trong Superadmin → API Config, và làm tương tự trên production.

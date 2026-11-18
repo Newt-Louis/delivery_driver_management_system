@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { ArrowRightOutlined, CameraOutlined, CheckCircleFilled, LoadingOutlined, UploadOutlined } from '@ant-design/icons';
 import { Alert, AutoComplete, Button, Card, Col, ConfigProvider, Descriptions, Empty, Form, Input, Modal, Radio, Row, Space, Spin, Steps, Typography, theme } from 'antd';
 import { useToast } from '../context/ToastContext';
+import BusinessLocationSelectorModal from '../components/BusinessLocationSelectorModal';
+import { useRegistrationLocation } from '../features/register-manual/hooks/useRegistrationLocation';
 import {
   getUnitConfig,
   checkAutoWarehouseVendor,
@@ -149,6 +151,10 @@ export default function Register() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerStatus, setScannerStatus] = useState('');
   const [orderCodeNotFound, setOrderCodeNotFound] = useState(false);
+  // Location the driver chose in the header (or the account location for logged-in staff).
+  const registrationLocation = useRegistrationLocation();
+  const [locationRequired, setLocationRequired] = useState(false);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [manualFallback, setManualFallback] = useState(false);
   const [vendorSuggestions, setVendorSuggestions] = useState<AutoWarehouseVendorSuggestion[]>([]);
   const [vendorSuggestionsLoading, setVendorSuggestionsLoading] = useState(false);
@@ -405,6 +411,13 @@ export default function Register() {
     setManualFallback(false);
   }
 
+  useEffect(() => {
+    if (registrationLocation.businessLocationId) {
+      setLocationRequired(false);
+      setLocationModalOpen(false);
+    }
+  }, [registrationLocation.businessLocationId]);
+
   async function handleVerify(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault();
     setManualFallback(false);
@@ -418,10 +431,19 @@ export default function Register() {
       toast.error('Mã PO cần có 10 chữ số và bắt đầu bằng 450, mã Thi Công gồm đúng 5 ký tự chữ/số và không được toàn số.');
       return;
     }
+    // Frontend-only guard: show it under the input like a required field, no toast.
+    const businessLocationId = registrationLocation.businessLocationId;
+    if (!businessLocationId) {
+      setOrderCodeNotFound(false);
+      setLocationRequired(true);
+      return;
+    }
+    setLocationRequired(false);
 
     setVerifying(true);
     try {
-      const data = await quickVerifyOrderCode(normalizedCode);
+      // Backend checks the code belongs to this location (else 404 "Mã … không tồn tại." → toast below).
+      const data = await quickVerifyOrderCode(normalizedCode, businessLocationId);
       setOrderCodeNotFound(false);
       setVerified(data);
       setForm({
@@ -487,13 +509,27 @@ export default function Register() {
 
   async function submitRegistration() {
     if (!verified || !validateDetails()) return;
+    // Guards before sending (the backend re-checks the same rules against the verification token).
+    const businessLocationId = registrationLocation.businessLocationId;
+    if (!businessLocationId) {
+      if (registrationLocation.canSelect) setLocationModalOpen(true);
+      else toast.error('Tài khoản chưa có khu vực vận hành.');
+      return;
+    }
+    if (businessLocationId !== verified.businessLocationId) {
+      toast.error(verified.kind === 'PO' ? 'Mã PO không tồn tại.' : 'Mã Thi Công không tồn tại.');
+      setVerified(null);
+      setOrderCodeNotFound(true);
+      setStep(1);
+      return;
+    }
     const submitGoodsType = effectiveGoodsType || verified.goodsType;
 
     setSubmitting(true);
     try {
       const plate = normalizeVehiclePlateInput(form.vehiclePlate);
       const res = await registerDelivery({
-        businessLocationId: verified.businessLocationId,
+        businessLocationId,
         unitConfigId: verified.unitConfigId,
         vendorName: form.vendorName.trim(),
         driverName: form.driverName.trim(),
@@ -580,7 +616,11 @@ export default function Register() {
               <Form layout="vertical" onFinish={() => { void handleVerify(); }} requiredMark={false}>
                 {manualFallback && <Alert className="mb-4" type="warning" showIcon title="Chưa thể kiểm tra mã lúc này"
                   description={<Space orientation="vertical" size="small"><Typography.Text>Bạn có thể tiếp tục bằng cách đăng ký thủ công.</Typography.Text><Link to="/register-manual"><Button color="cyan" variant="solid" size="large">Đăng ký thủ công</Button></Link></Space>} />}
-                <Form.Item label="Mã PO / Thi Công" validateStatus={orderCodeNotFound ? 'error' : undefined}>
+                <Form.Item
+                  label="Mã PO / Thi Công"
+                  validateStatus={orderCodeNotFound || locationRequired ? 'error' : undefined}
+                  help={locationRequired ? 'Vui lòng chọn khu vực giao hàng ở thanh tiêu đề (góc trên bên trái) trước khi kiểm tra mã.' : undefined}
+                >
                   <Space.Compact block>
                     <Input
                       id="home-order-code"
@@ -724,6 +764,18 @@ export default function Register() {
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageCodeFile} />
         </Space>
       </Modal>
+
+      <BusinessLocationSelectorModal
+        open={locationModalOpen && registrationLocation.canSelect}
+        title="Chọn khu vực giao hàng"
+        description="Vui lòng chọn khu vực giao hàng trước khi hoàn tất đăng ký."
+        locations={registrationLocation.locations}
+        currentId={registrationLocation.businessLocationId}
+        loading={registrationLocation.isLoading}
+        error={registrationLocation.error}
+        onSelect={registrationLocation.selectLocation}
+        onClose={() => setLocationModalOpen(false)}
+      />
     </main>
   );
 }
